@@ -6,11 +6,9 @@ import {
   Card,
   CardHeader,
   Dropdown,
-  LiveStatus,
   Pill,
   Spinner,
   Tabs,
-  useLiveStatus,
   useToast,
 } from '../components/ui'
 import { Icon } from '../icons'
@@ -380,7 +378,6 @@ function DeepeningState({
 export function Intelligence() {
   const navigate = useNavigate()
   const { show } = useToast()
-  const live = useLiveStatus()
   const channelNames = useChannelNames()
 
   const [tab, setTab] = useState(0)
@@ -506,7 +503,6 @@ export function Intelligence() {
             <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-[-0.02em]">
               Promotion Intelligence <Icon name="sparkles" className="h-5 w-5 text-brand-violet" />
             </h1>
-            <LiveStatus label={live.label} />
           </div>
           <p className="mt-1.5 text-base text-ink-muted">
             The mechanism behind the investigation's finding ·{' '}

@@ -9,8 +9,6 @@ import {
   Pill,
   Spinner,
   Dropdown,
-  LiveStatus,
-  useLiveStatus,
   useToast,
   useConfirm,
 } from '../components/ui'
@@ -383,7 +381,6 @@ export function Investigations() {
   const { data: legacy } = useLegacyInvestigation()
   const { show } = useToast()
   const confirm = useConfirm()
-  const live = useLiveStatus()
 
   // Real agent run against an uploaded dataset. When one is active its
   // orchestration replaces the static per-archetype JSON below.
@@ -735,7 +732,6 @@ export function Investigations() {
             <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-[-0.02em]">
               Promotion Investigation Workspace <Icon name="sparkles" className="h-5 w-5 text-brand-violet" />
             </h1>
-            <LiveStatus label={live.label} />
           </div>
           <p className="mt-1.5 text-base text-ink-muted">
             {/* Agent count only means something once a run has produced one —

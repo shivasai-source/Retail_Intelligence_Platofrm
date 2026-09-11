@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
-import { Button, Card, CardBody, LiveStatus, Modal, Spinner, useLiveStatus } from '../components/ui'
+import { Button, Card, CardBody, Modal, Spinner } from '../components/ui'
 import { InfoPopover } from '../components/ui/InfoPopover'
 import { Icon } from '../icons'
 import { useDecisionRecord } from '../hooks/useDecision'
@@ -147,7 +147,6 @@ export function Decision() {
   const viewingStored = Boolean(lookupId && stored.data)
 
   const requested = useRef<string | null>(null)
-  const live = useLiveStatus()
   const navigate = useNavigate()
 
   /** The six payloads the record is assembled from, in one place.
@@ -335,7 +334,6 @@ export function Decision() {
             <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-[-0.02em]">
               Decision Center <Icon name="sparkles" className="h-5 w-5 text-brand-violet" />
             </h1>
-            <LiveStatus label={live.label} />
           </div>
           <p className="mt-1.5 max-w-[640px] text-base text-ink-muted">
             Compare promotion strategies and select the best business decision. Every figure is the

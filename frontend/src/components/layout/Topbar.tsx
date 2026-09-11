@@ -1,6 +1,7 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Icon } from '../../icons'
-import { Dropdown, IconButton, ThemeToggle } from '../ui'
+import { Dropdown, IconButton, LiveStatus, ThemeToggle, useLiveStatus } from '../ui'
 import { NotificationBell } from '../command/NotificationBell'
 import { useCurrentUser, useLogout } from '../../hooks/useAuth'
 
@@ -17,6 +18,14 @@ export function Topbar({ crumbs = [], onMenuClick }: { crumbs?: Crumb[]; onMenuC
   const { data: user } = useCurrentUser()
   const logout = useLogout()
   const navigate = useNavigate()
+
+  // The Live pill, in the one corner that is the same on every page. Each
+  // page used to mount its own beside its title, at whatever x the title's
+  // length left it. Arriving on a page restarts the clock, as the per-page
+  // mount used to.
+  const live = useLiveStatus()
+  const { pathname } = useLocation()
+  useEffect(() => live.reset(), [pathname]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // The avatar used to be `cursor-pointer` with nothing behind it — it looked
   // clickable on every TPO page and did nothing. Same account menu the portal
@@ -64,6 +73,7 @@ export function Topbar({ crumbs = [], onMenuClick }: { crumbs?: Crumb[]; onMenuC
         {/* The Help button that sat here is gone. It opened a toast promising a
             help centre that does not exist, and there is nothing behind it to
             open; nothing replaces it, so the row closes up on its own. */}
+        <LiveStatus label={live.label} className="mr-1.5 hidden sm:inline-flex" />
         <ThemeToggle />
         <NotificationBell />
         <IconButton icon="settings" title="Settings" onClick={() => navigate('/settings')} />

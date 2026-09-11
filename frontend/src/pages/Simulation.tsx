@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
-import { Button, Card, CardBody, LiveStatus, Spinner, useLiveStatus, useToast } from '../components/ui'
+import { Button, Card, CardBody, Spinner, useToast } from '../components/ui'
 import { Icon } from '../icons'
 import { useInvestigationTypes } from '../hooks/useInvestigations'
 import {
@@ -111,7 +111,6 @@ export function Simulation() {
   const filters = handoffFilters ?? investigationScope?.filters ?? commandFilters
 
   const { show } = useToast()
-  const live = useLiveStatus()
   const navigate = useNavigate()
 
   const run = useSimulationRun()
@@ -612,7 +611,6 @@ export function Simulation() {
             <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-[-0.02em]">
               TPO Simulation Studio <Icon name="sparkles" className="h-5 w-5 text-brand-violet" />
             </h1>
-            <LiveStatus label={live.label} />
           </div>
           <p className="mt-1.5 text-base text-ink-muted">
             {mode === 'general'
