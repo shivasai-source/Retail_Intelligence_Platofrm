@@ -38,7 +38,7 @@ THE ONLY NEW INPUT IS THE 2026 DEMAND LEVEL. Normal_Demand for 2026 is the
 every channel's product index, store index and seasonal curve -- scaled by:
 
   1. a per-month growth pattern, MONTH_GROWTH, the requested F26-vs-F25 shape:
-     some months 5-10 % up, some 5-10 % down, the eight together about +2.5 %.
+     some months 4.5-6 % up, some 2-2.5 % down, the eight together about +2.5 %.
      It is stated as a target on Sales (sum of Actual_Revenue per month, the
      same definition the Sales Performance Comparison uses) and CALIBRATED to
      it: the demand multiplier is solved by fixed-point iteration so the
@@ -136,15 +136,23 @@ DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
 #: Sales = sum of Actual_Revenue, month = business-week start month. Five
 #: months up, three down; weighted by 2025's monthly Sales the eight come to
 #: about +2.5 % year to date.
+#:
+#: The swing is kept moderate ON PURPOSE. The annual Cannibalization Rate
+#: measures every neighbour against its whole-year mean baseline and counts
+#: only shortfalls, so a year whose first four months all sit above the mean
+#: and next three all below reads the low months as cannibalised volume even
+#: when each month's own rate matches F25's. A +6.5..+8.5 / -5.5..-6.5 %
+#: pattern put F26's annual rate at 21.8 % against F25's 11.2 % on identical
+#: monthly rates; this one lands it in the mid-teens.
 MONTH_GROWTH: dict[int, float] = {
-    1: +0.065,   # New Year
-    2: +0.085,
-    3: +0.075,   # Holi
-    4: +0.085,
-    5: -0.065,   # a soft summer: May-July all down
-    6: -0.055,
-    7: -0.055,
-    8: +0.055,   # Independence Day, recovering
+    1: +0.050,   # New Year
+    2: +0.060,
+    3: +0.055,   # Holi
+    4: +0.060,
+    5: -0.025,   # a soft summer: May-July all down
+    6: -0.020,
+    7: -0.020,
+    8: +0.045,   # Independence Day, recovering
 }
 
 #: Per-channel drift on top of the month pattern, as a fraction. Small, so no

@@ -83,16 +83,13 @@ const LOWER_IS_BETTER = new Set(['trade_spend', 'cannibalization_rate'])
 
 /** The evidence line for the Cannibalization card, or null for every other
  *  card. Uses the tile's existing sub-label slot rather than adding a row to
- *  a fixed-height tile. */
+ *  a fixed-height tile. The comparable-event count is not shown. */
 function cannibalizationSub(card: KpiCard): string | null {
   if (card.key !== 'cannibalization_rate') return null
-  const count = (n: number) => `${n.toLocaleString()} comparable event${n === 1 ? '' : 's'}`
-  if (card.available) {
-    return card.comparable_events == null ? null : `${card.delta_sub} · ${count(card.comparable_events)}`
-  }
+  if (card.available) return null
   const wider = card.measured_at
   if (!wider) return null
-  return `${wider.display_value} across ${wider.scope_label} · ${count(wider.comparable_events)}`
+  return `${wider.display_value} across ${wider.scope_label}`
 }
 
 
