@@ -82,7 +82,7 @@ export function RankedBar({
             </div>
             <div className={`${fill ? 'h-2' : 'h-1.5'} w-full overflow-hidden rounded-full bg-ink-primary/[0.03]`}>
               <div
-                className="h-full rounded-full bg-status-danger/60 transition-[width] duration-300"
+                className="h-full rounded-full bg-status-danger transition-[width] duration-300 group-hover:brightness-110"
                 style={{ width: pct(g.trade_spend) }}
                 title={`Trade Spend ${g.trade_spend_display}`}
               />
@@ -95,7 +95,7 @@ export function RankedBar({
           <span className="h-2 w-3 rounded-sm bg-brand-violet" /> Incremental Sales
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="h-1.5 w-3 rounded-sm bg-status-danger/60" /> Trade Spend
+          <span className="h-1.5 w-3 rounded-sm bg-status-danger" /> Trade Spend
         </span>
         <span>· ROI shown per row</span>
       </div>

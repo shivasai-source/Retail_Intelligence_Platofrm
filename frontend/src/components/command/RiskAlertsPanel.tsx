@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { IconButton, Modal, Pill } from '../ui'
+import { IconButton, Modal } from '../ui'
 import { Icon, type IconName } from '../../icons'
 import { SEVERITIES, rankByImpact, type Severity } from './riskRanking'
 import type { RiskAlert, RiskAlertsResponse } from '../../types/commandCenter'
@@ -214,13 +214,12 @@ function AlertRow({
         </div>
       </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        <Pill tone={a.tone}>{a.severity}</Pill>
-        <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-brand-violet [&_svg]:h-3 [&_svg]:w-3">
-          Ask why
-          <Icon name="arrowRight" />
-        </span>
-      </div>
+      {/* No severity pill: the row already sits under the severity tab it
+          belongs to, and the icon tint says the same thing again. */}
+      <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-brand-violet [&_svg]:h-3 [&_svg]:w-3">
+        Ask why
+        <Icon name="arrowRight" />
+      </span>
     </button>
   )
 }

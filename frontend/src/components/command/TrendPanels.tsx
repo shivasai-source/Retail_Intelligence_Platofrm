@@ -202,7 +202,7 @@ export function TrendPanels({
           points={path(series.trade_spend)} />
         {/* 3 — ROI (right axis), one run per unbroken stretch */}
         {runs.map((r, k) => (
-          <polyline key={k} fill="none" stroke="#14B8A6" strokeWidth={2} strokeLinejoin="round"
+          <polyline key={k} fill="none" stroke="var(--tint-teal-icon)" strokeWidth={2} strokeLinejoin="round"
             points={r.map((p) => `${cx(p.i)},${yRoi(p.v)}`).join(' ')} />
         ))}
 
@@ -210,7 +210,7 @@ export function TrendPanels({
           <>
             <circle cx={cx(active)} cy={yMoney(series.incremental_sales[active])} r={3.5} fill="var(--brand-violet)" />
             <circle cx={cx(active)} cy={yMoney(series.trade_spend[active])} r={3.5} fill="var(--status-danger)" />
-            {roiAt !== null && <circle cx={cx(active)} cy={yRoi(roiAt)} r={3.5} fill="#14B8A6" />}
+            {roiAt !== null && <circle cx={cx(active)} cy={yRoi(roiAt)} r={3.5} fill="var(--tint-teal-icon)" />}
           </>
         )}
 
@@ -240,7 +240,7 @@ export function TrendPanels({
           {roiAt === null ? (
             <div className="mt-1 text-ink-muted">ROI — no promotion / insufficient baseline</div>
           ) : (
-            <Row swatch="#14B8A6" k="ROI" v={`${roiAt.toFixed(1)}%`} />
+            <Row swatch="var(--tint-teal-icon)" k="ROI" v={`${roiAt.toFixed(1)}%`} />
           )}
           <Row k="Target ROI" v={`${targetRoi}%`} dashed />
         </div>

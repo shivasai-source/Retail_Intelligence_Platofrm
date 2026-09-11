@@ -627,11 +627,14 @@ export function PromotionTypeSection() {
                   )}
                 </span>
               </div>
-              {/* Both bars share `peak`, so their lengths are comparable. */}
+              {/* Both bars share `peak`, so their lengths are comparable.
+                  Seasonal takes the teal the trend line draws ROI in -- the
+                  page's third series colour -- rather than the info blue,
+                  which appeared nowhere else on the Command Center. */}
               <div className="mt-1.5 h-28 w-full overflow-hidden rounded-[var(--r-sm)] bg-ink-primary/[0.05]">
                 <div
                   className={`h-full rounded-[var(--r-sm)] transition-[width] duration-300 group-hover:brightness-110 ${
-                    g.code === 'Regular' ? 'bg-brand-violet' : 'bg-status-info'
+                    g.code === 'Regular' ? 'bg-brand-violet' : 'bg-tint-teal-icon'
                   }`}
                   style={{ width: `${Math.max(0, Math.min(100, (Math.abs(value) / peak) * 100))}%` }}
                 />

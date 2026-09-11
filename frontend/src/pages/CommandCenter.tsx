@@ -10,7 +10,6 @@ import {
   TpoKpiTile,
   AlertBanner,
   Dropdown,
-  LiveStatus,
   useLiveStatus,
   useToast,
 } from '../components/ui'
@@ -222,7 +221,6 @@ export function CommandCenter() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-extrabold tracking-[-0.025em] leading-[1.1]">TPO Command Center</h1>
-            <LiveStatus label={live.label} />
           </div>
           <p className="mt-1.5 text-base text-ink-muted">
             Real-time overview of promotions, performance and risks · {calendarYear(meta.period)}
@@ -330,7 +328,7 @@ export function CommandCenter() {
             <div className="mb-2 flex flex-wrap gap-4 pb-2">
               <LegendItem swatch={<span className="h-0.5 w-[18px] rounded-sm bg-brand-violet" />} label={`Incremental Sales (${meta.currency})`} />
               <LegendItem swatch={<span className="h-0.5 w-[18px] rounded-sm bg-status-danger" />} label={`Trade Spend (${meta.currency})`} />
-              <LegendItem swatch={<span className="h-0.5 w-[18px] rounded-sm" style={{ background: '#14B8A6' }} />} label="ROI (%)" />
+              <LegendItem swatch={<span className="h-0.5 w-[18px] rounded-sm" style={{ background: 'var(--tint-teal-icon)' }} />} label="ROI (%)" />
               <LegendItem
                 swatch={<span className="h-0 w-[18px] border-t-2 border-dashed border-ink-muted" />}
                 label={`Target ROI (${meta.target_roi_pct}%)`}

@@ -16,10 +16,17 @@ export function DonutBreakdown({
   stroke = 28,
   centerValue,
   centerLabel,
+  bars = false,
+  className = '',
 }: {
   segments: DonutSegment[]
   size?: number
   stroke?: number
+  /** Draw each legend row's share as a thin bar beneath it, so the legend
+   *  carries the proportion visually and fills the row's width rather than
+   *  leaving it to the ring alone. Opt-in; existing callers are unchanged. */
+  bars?: boolean
+  className?: string
   /** Rendered in the ring's hole, e.g. a total-spend figure (ported from the DOM-appended
    *  SVG <text> nodes in js/pages/command.js's renderCharts — an absolutely positioned
    *  div is simpler and equally faithful since the ring's center is always empty). */
@@ -60,8 +67,8 @@ export function DonutBreakdown({
   })
 
   return (
-    <div className="flex flex-wrap items-center gap-6">
-      <div className="relative" style={{ width: size, height: size }}>
+    <div className={`flex flex-wrap items-center gap-6 ${className}`}>
+      <div className="relative shrink-0" style={{ width: size, height: size }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
           {arcs}
         </svg>
@@ -76,14 +83,28 @@ export function DonutBreakdown({
           </div>
         )}
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+      <div className={`flex min-w-0 flex-1 flex-col ${bars ? 'gap-5' : 'gap-1.5'}`}>
         {segments.map((s) => (
-          <div key={s.key} className="flex items-center gap-2 text-base" title={s.key}>
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
-            <span className="min-w-0 flex-1 truncate text-ink-secondary">{s.key}</span>
-            <span className="shrink-0 font-semibold tabular-nums text-ink-primary">{s.pct}%</span>
-            {s.value && (
-              <span className="shrink-0 tabular-nums text-sm text-ink-muted">{s.value}</span>
+          <div key={s.key} title={s.key}>
+            <div className="flex items-center gap-2 text-base">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
+              <span className="min-w-0 flex-1 truncate text-ink-secondary">{s.key}</span>
+              <span className="shrink-0 font-semibold tabular-nums text-ink-primary">{s.pct}%</span>
+              {s.value && (
+                <span className="shrink-0 tabular-nums text-sm text-ink-muted">{s.value}</span>
+              )}
+            </div>
+            {bars && (
+              <div className="mt-1.5 ml-[18px] h-1 overflow-hidden rounded-full bg-surface-hover">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: animated ? `${s.pct}%` : 0,
+                    background: s.color,
+                    transition: 'width 1100ms cubic-bezier(0.16,1,0.3,1) 200ms',
+                  }}
+                />
+              </div>
             )}
           </div>
         ))}

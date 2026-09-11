@@ -11,8 +11,15 @@ import type { BreakdownResponse, PromotionMixResponse } from '../../types/comman
  *  than by offer is what makes the 20% seasonal scheme visible: it is six
  *  Promotion_Ids (PBNY24 … PBDI24) sharing one Promotion_Name, so grouping by
  *  offer scattered the largest 2024 scheme across six slices and never named
- *  it. Colour still comes from `/promotion-mix` where a code matches, and
- *  falls back to the palette that mirrors service._MIX_COLORS otherwise.
+ *  it.
+ *
+ *  COLOUR IS THE TREND CHART'S SERIES PALETTE, BY RANK. The Performance Trend
+ *  draws Incremental Sales in the brand violet, Trade Spend in the danger
+ *  red and ROI in teal; the slices take those three in order of size, then a
+ *  light pink, so the two charts share one vocabulary.
+ *  The six-colour palette `/promotion-mix` carries (violet, blue, teal,
+ *  amber, red, grey) was the one thing on the page that did not match, and
+ *  is ignored on purpose; its labels are still used.
  *
  *  Both metrics decompose exactly across schemes in this dataset: the slices
  *  sum to the headline Trade Spend and Incremental Sales to the rupee (each
@@ -52,10 +59,9 @@ export function PromotionMixCard({
   const segments = useMemo(() => {
     if (!breakdown?.groups.length) return []
     const style = new Map((mix?.slices ?? []).map((s) => [s.code, s]))
-    const valued = breakdown.groups.map((g, i) => ({
+    const valued = breakdown.groups.map((g) => ({
       code: g.code,
       label: style.get(g.code)?.label ?? g.label,
-      color: style.get(g.code)?.color ?? PALETTE[i % PALETTE.length],
       // null means the metric is undefined for that offer in this scope — it
       // contributes nothing to the total rather than being dropped silently.
       amount: (metric === 'trade_spend' ? g.trade_spend : g.incremental_sales) ?? 0,
@@ -66,10 +72,10 @@ export function PromotionMixCard({
     const total = valued.reduce((sum, v) => sum + v.amount, 0)
     return valued
       .sort((a, b) => b.amount - a.amount)
-      .map((v) => ({
+      .map((v, rank) => ({
         key: v.label,
         pct: total ? Math.round((v.amount / total) * 1000) / 10 : 0,
-        color: v.color,
+        color: RAMP[Math.min(rank, RAMP.length - 1)],
         value: v.display,
       }))
   }, [breakdown, mix, metric])
@@ -78,7 +84,10 @@ export function PromotionMixCard({
   const centerLabel = metric === 'trade_spend' ? 'Total Spend' : 'Total Inc. Sales'
 
   return (
-    <Card>
+    // A flex column so the body can take the height its row partner (the
+    // channel chart) sets, and centre the ring in it instead of leaving the
+    // bottom third of the card blank.
+    <Card className="flex flex-col">
       <CardHeader
         title={
           <span className="flex items-center gap-1.5">
@@ -119,14 +128,16 @@ export function PromotionMixCard({
               ))}
             </div>
       </div>
-      <CardBody>
+      <CardBody className="flex flex-1 items-center px-6">
         {segments.length > 0 ? (
           <DonutBreakdown
             segments={segments}
-            size={168}
-            stroke={26}
+            size={236}
+            stroke={34}
             centerValue={centerValue}
             centerLabel={centerLabel}
+            bars
+            className="w-full gap-8"
           />
         ) : (
           emptyState
@@ -136,6 +147,18 @@ export function PromotionMixCard({
   )
 }
 
-/** Fallback only — used if an offer appears in the breakdown but not in the
- *  mix response. Mirrors service._MIX_COLORS. */
-const PALETTE = ['#7C5CFF', '#4F7CFF', '#14B8A6', '#F59E0B', '#EF4444', '#9CA3AF']
+/** Largest slice first: the Performance Trend's Incremental Sales, Trade
+ *  Spend and ROI colours (see TrendPanels.tsx), then a light pink -- the rose
+ *  tint's icon colour, softened -- for the fourth, which the trend chart has
+ *  no series for. The tokens resolve per theme, so the dark palette needs no
+ *  second list. */
+const RAMP = [
+  'var(--brand-violet)',
+  'var(--status-danger)',
+  'var(--tint-teal-icon)',
+  // Toward WHITE, not transparent: over the dark card a translucent pink
+  // went mauve. A tint stays pink on either ground.
+  'color-mix(in srgb, var(--tint-rose-icon) 55%, white)',
+  'color-mix(in srgb, var(--text-primary) 14%, transparent)',
+  'color-mix(in srgb, var(--text-primary) 8%, transparent)',
+]
