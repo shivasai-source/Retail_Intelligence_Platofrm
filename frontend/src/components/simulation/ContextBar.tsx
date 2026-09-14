@@ -3,7 +3,6 @@ import { InfoPopover } from '../ui'
 import type { SimulationContext } from '../../types/simulation'
 import type { SimulationContext as InvestigationSimulationContext } from '../../types/investigationContext'
 import type { InvestigationOrigin } from '../../store/activeInvestigation'
-import type { ContextField } from '../../types/investigationContext'
 
 /** "What are we simulating?" — the resolved scope, in the words people use.
  *
@@ -39,7 +38,8 @@ export function ContextBar({
           <Icon name="target" /> What are we simulating?
         </div>
         <div className="text-sm text-ink-muted">
-          {context.row_count.toLocaleString()} rows · {context.promoted_row_count.toLocaleString()} promoted
+          {context.row_count.toLocaleString()} {context.row_count === 1 ? 'row' : 'rows'} ·{' '}
+          {context.promoted_row_count.toLocaleString()} promoted
         </div>
       </div>
 
@@ -95,9 +95,14 @@ function Item({ label, summary, constrained }: { label: string; summary: string;
  *  rather than as the investigation's question, and this block renders the
  *  distinction instead of hiding it.
  *
- *  Missing metadata is stated, never invented. RCA assigns no investigation
- *  id and records no KPI under investigation, so both read as unavailable
- *  with the reason on hover.
+ *  THE QUESTION AND WHERE IT CAME FROM, AND NOTHING ELSE. This block used
+ *  to carry a metadata row -- investigation type, an `inv_...` id, promotion
+ *  and product CODES, and a note for each field the investigation had not
+ *  specified. None of it was for the person reading: the type is on the
+ *  banner above, the id is an internal key, the codes are the same promotion
+ *  and product the scope line beneath names in words, and "not specified"
+ *  told them nothing they could act on. The fields still travel in the
+ *  context payload for anything that needs them.
  */
 function InvestigationBlock({
   investigation,
@@ -138,34 +143,6 @@ function InvestigationBlock({
           </InfoPopover>
         </div>
       )}
-
-      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1.5 text-xs">
-        <Meta label="Type" field={investigation.investigation_type} />
-        <Meta label="Investigation ID" field={investigation.investigation_id} />
-        <Meta label="KPI" field={investigation.focus.kpi} />
-        <Meta label="Promotion" field={investigation.focus.promotion_id} />
-        <Meta label="Product" field={investigation.focus.product_id} />
-      </div>
     </div>
-  )
-}
-
-/** One piece of investigation metadata. An absent value says so, and the
- *  reason is one hover away — nothing is filled in with a guess. */
-function Meta({ label, field }: { label: string; field: ContextField<string> }) {
-  return (
-    <span className="inline-flex items-center gap-1 text-ink-muted">
-      <span className="font-semibold">{label}:</span>
-      {field.value !== null ? (
-        <span className="font-bold text-ink-primary">{field.value}</span>
-      ) : (
-        <>
-          <span>Not specified by investigation</span>
-          <InfoPopover label={`Why ${label} is unavailable`} title={label} width={272}>
-            <div className="mt-1 text-sm leading-[1.5] text-ink-secondary">{field.reason}</div>
-          </InfoPopover>
-        </>
-      )}
-    </span>
   )
 }

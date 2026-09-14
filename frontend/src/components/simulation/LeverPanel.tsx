@@ -102,15 +102,21 @@ export function LeverPanel({
         <SpendField definition={spend} readOnly={readOnly} simulation={simulation} />
       </div>
 
-      <Button variant="primary" block onClick={onRun} disabled={running || !canRun} className="mt-4">
-        {running ? (
-          <>Running simulation…</>
-        ) : (
-          <>
-            <Icon name={readOnly ? 'refresh' : 'play'} /> {runLabel}
-          </>
-        )}
-      </Button>
+      {/* Only a hypothetical scenario has a run button here. The measured
+          baseline's "Recalculate baseline" duplicated the toolbar's
+          Recalculate, one full-width violet bar under three read-only
+          values, so it is gone; the toolbar button does the same thing. */}
+      {!readOnly && (
+        <Button variant="primary" block onClick={onRun} disabled={running || !canRun} className="mt-4">
+          {running ? (
+            <>Running simulation…</>
+          ) : (
+            <>
+              <Icon name="play" /> {runLabel}
+            </>
+          )}
+        </Button>
+      )}
 
       <div className="mt-2.5 flex items-start gap-1.5 rounded-lg border border-border-subtle bg-surface-muted p-[8px_12px] text-sm [&_svg]:mt-px [&_svg]:h-[13px] [&_svg]:w-[13px] [&_svg]:shrink-0 [&_svg]:text-ink-muted">
         <Icon name="info" />

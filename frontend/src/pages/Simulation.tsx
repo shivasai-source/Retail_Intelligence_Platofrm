@@ -91,6 +91,15 @@ export function Simulation() {
   // never observes that it was away.
   const mode = useGeneralOptimizationStore((s) => s.mode)
   const setMode = useGeneralOptimizationStore((s) => s.setMode)
+  // The one export prerequisite the server enforces: a Target Rescue report
+  // runs the rescue for the target that was on screen, and refuses (422)
+  // without one. Disabling the button with that reason, the way the Decision
+  // Center's export does, beats letting the click fail.
+  const rescueTargetUnits = useTargetRescueStore((s) => s.controls.targetUnits)
+  const exportBlocker =
+    mode === 'rescue' && rescueTargetUnits == null
+      ? 'Enter a monthly unit target before exporting a Target Rescue report.'
+      : undefined
   // The option lists General Optimization's own pickers read. The same
   // endpoint the Command Center uses; no second source of dimension values.
   const filterOptions = useFilterOptions()
@@ -605,41 +614,44 @@ export function Simulation() {
 
   return (
     <AppShell activeKey="simulation" crumbs={crumbs}>
-      <div className="fade-in flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-[-0.02em]">
-              TPO Simulation Studio <Icon name="sparkles" className="h-5 w-5 text-brand-violet" />
-            </h1>
+      {/* Title and toolbar on ONE line, the subtitle beneath. The toolbar (mode
+          switch, export, recalculate) is ~660px; beside a title block that
+          also held the subtitle it wrapped under it on a laptop. */}
+      <div className="fade-in">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+          <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-[-0.02em]">
+            TPO Simulation Studio <Icon name="sparkles" className="h-5 w-5 text-brand-violet" />
+          </h1>
+          <div className="flex items-center gap-2">
+            <ModeSwitch mode={mode} onChange={setMode} />
+            {/* THE EXPORT FOLLOWS THE ACTIVE MODE. `module`, `scope` and `options`
+                are all derived from `mode`, and the scope/options callbacks read
+                each mode's OWN store at click time — so a Target Rescue export can
+                never carry General Optimization's product plan, and switching modes
+                needs no cache to invalidate. */}
+            <ExportReportButton
+              key={mode}
+              module={exportModule(mode)}
+              scope={() => exportScope(mode, filters)}
+              options={() => exportOptions(mode, activeId, scenarios)}
+              currency={currency}
+              disabled={Boolean(exportBlocker)}
+              disabledReason={exportBlocker}
+            />
+            {mode === 'investigation' && (
+              <Button variant="secondary" onClick={() => run.mutate(body, { onSuccess: (d) => seed(scopeKey, d.scenarios) })} disabled={run.isPending}>
+                <Icon name="refresh" /> <span>Recalculate</span>
+              </Button>
+            )}
           </div>
-          <p className="mt-1.5 text-base text-ink-muted">
-            {mode === 'general'
-              ? 'Allocate a trade-spend budget across a category and channel, at approved discount depths.'
-              : mode === 'rescue'
-                ? 'Check monthly target progress and recover an at-risk target with the least aggressive approved intervention.'
-                : 'The measured promotion plan for the current selection, and what an approved treatment would do to it.'}
-          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <ModeSwitch mode={mode} onChange={setMode} />
-          {/* THE EXPORT FOLLOWS THE ACTIVE MODE. `module`, `scope` and `options`
-              are all derived from `mode`, and the scope/options callbacks read
-              each mode's OWN store at click time — so a Target Rescue export can
-              never carry General Optimization's product plan, and switching modes
-              needs no cache to invalidate. */}
-          <ExportReportButton
-            key={mode}
-            module={exportModule(mode)}
-            scope={() => exportScope(mode, filters)}
-            options={() => exportOptions(mode, activeId, scenarios)}
-            currency={currency}
-          />
-          {mode === 'investigation' && (
-            <Button variant="secondary" onClick={() => run.mutate(body, { onSuccess: (d) => seed(scopeKey, d.scenarios) })} disabled={run.isPending}>
-              <Icon name="refresh" /> <span>Recalculate</span>
-            </Button>
-          )}
-        </div>
+        <p className="mt-1.5 text-base text-ink-muted">
+          {mode === 'general'
+            ? 'Allocate a trade-spend budget across a category and channel, at approved discount depths.'
+            : mode === 'rescue'
+              ? 'Check monthly target progress and recover an at-risk target with the least aggressive approved intervention.'
+              : 'The measured promotion plan for the current selection, and what an approved treatment would do to it.'}
+        </p>
       </div>
 
       {/* THE THREE MODES. General Optimization and Target Rescue each render
@@ -733,7 +745,11 @@ export function Simulation() {
               <ScenarioRow scenarios={scenarios} activeId={activeId} onSelect={select} />
             </div>
 
-            <div className="mt-4 grid grid-cols-[320px_1fr_300px] gap-4 @max-[1400px]:grid-cols-[280px_1fr_280px] @max-[1180px]:grid-cols-1">
+            {/* Three columns down to a 1000px container. The fallback used to
+                start at 1180px, and a 1440px screen's main column is 1152px
+                wide -- so on an ordinary laptop every card here went full
+                width and the lever boxes read as slabs. */}
+            <div className="mt-4 grid grid-cols-[320px_1fr_300px] gap-4 @max-[1400px]:grid-cols-[280px_1fr_260px] @max-[1000px]:grid-cols-1">
               <Card className="fade-in">
                 <div className="flex items-center justify-between border-b border-border-subtle px-5 py-4">
                   <div>
