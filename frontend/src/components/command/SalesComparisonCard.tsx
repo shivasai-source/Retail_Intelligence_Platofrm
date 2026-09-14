@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSalesComparison } from '../../hooks/useCommandCenter'
 import { useCommandFilters } from '../../store/commandFilters'
 import { ChartFrame } from './ChartFrame'
@@ -242,12 +242,14 @@ function ComparisonColumns({
     const symbol = currency === 'USD' ? '$' : '₹'
     const a = Math.abs(v)
     if (currency === 'USD') {
-      if (a >= 1e6) return `${symbol}${(v / 1e6).toFixed(1)}M`
-      if (a >= 1e3) return `${symbol}${(v / 1e3).toFixed(1)}K`
+      if (a >= 1e6) return `${symbol}${(v / 1e6).toFixed(1)} M`
+      if (a >= 1e3) return `${symbol}${(v / 1e3).toFixed(1)} K`
       return `${symbol}${v.toFixed(0)}`
     }
-    if (a >= 1e7) return `${symbol}${(v / 1e7).toFixed(1)}Cr`
-    if (a >= 1e5) return `${symbol}${(v / 1e5).toFixed(1)}L`
+    // "₹30.0 Cr", with the space -- the same tick the region and type
+    // column charts print, so the three axes on the page read alike.
+    if (a >= 1e7) return `${symbol}${(v / 1e7).toFixed(1)} Cr`
+    if (a >= 1e5) return `${symbol}${(v / 1e5).toFixed(1)} L`
     return `${symbol}${v.toFixed(0)}`
   }
 
@@ -421,6 +423,23 @@ export function SalesComparisonCard() {
 
   const q = useSalesComparison(period)
   const data = q.data
+
+  // FOLLOWS THE PAGE'S YEAR. Every other chart on the page reads the Year
+  // pill; this one opened on the data's latest month whatever the pill said,
+  // so a page set to F24 showed an F26 comparison in this one card. When the
+  // page year changes, seat the card on that year's latest month with data.
+  // Applied once per page-year change, never on refetch, so a year or month
+  // picked in the card's own selects is not fought.
+  const pageYear = useCommandFilters((s) => s.filters.year)
+  const appliedYear = useRef<number | null>(null)
+  useEffect(() => {
+    const periods = data?.available_periods
+    if (pageYear === null || !periods?.length || appliedYear.current === pageYear) return
+    const months = periods.filter((p) => p.year === pageYear).map((p) => p.month)
+    if (!months.length) return
+    appliedYear.current = pageYear
+    setPeriod({ year: pageYear, month: Math.max(...months) })
+  }, [pageYear, data?.available_periods])
 
   const spec =
     data?.metric_specs.find((m) => m.key === metricKey) ?? data?.metric_specs[0] ?? null

@@ -128,11 +128,16 @@ export function CommandCenter() {
   const mixBreakdown = useBreakdown('promotion_mechanic', { limit: 50 })
   const mix = usePromotionMix()
 
-  // Default the period to the most recent year the data actually contains,
-  // rather than to a hardcoded year that a future extract might not have.
+  // Default the period to the most recent COMPLETED year the data contains --
+  // never a hardcoded year a future extract might not have, and not the year
+  // still in progress: F26 holds January to August, and opening on it put
+  // eight months of spend beside twelve on every "vs F25" delta. Only when
+  // the data holds nothing but the running year does that year open.
   useEffect(() => {
     const years = options.data?.years
-    if (years?.length) initialise(Math.max(...years))
+    if (!years?.length) return
+    const completed = years.filter((y) => y < new Date().getFullYear())
+    initialise(Math.max(...(completed.length ? completed : years)))
   }, [options.data?.years, initialise])
 
   const crumbs = [{ label: 'TPO Intelligence' }, { label: 'Command Center' }]
@@ -193,7 +198,6 @@ export function CommandCenter() {
   }
 
   const meta = kpis.data.meta
-  const counts = alerts.data?.counts
   // Highest-priority risk in the CURRENT scope: Critical before High before
   // Medium, then worst ROI, then largest stake. Derived from the data, so it
   // follows every filter change and names no promotion in code.
@@ -367,16 +371,15 @@ export function CommandCenter() {
             Named for that grain: "Underperforming Promotions" is already the
             table the Simulation context bar hands off from, and a promotion
             can be above target overall while one of its events is not. */}
-        <Card>
+        <Card className="flex flex-col">
           <CardHeader
             title="Promotion Events Below ROI Target"
+            /* The "N of M at target" count lives on the severity strip below
+               (RiskAlertsPanel), not here: beside this title it pushed the
+               title onto two lines at the card's width, and the header grew
+               past the trend card's so the two dividers no longer met. */
             actions={
               <div className="flex items-center gap-2">
-                {counts && (
-                  <span className="text-xs font-semibold text-ink-muted">
-                    {counts.target_achieved} of {counts.total_events} at target
-                  </span>
-                )}
                 <InfoPopover label="About promotion events below ROI target" title="How events are banded">
                   <InfoBlock label="Event">
                     One promotion on one product, in one channel, in one business week
