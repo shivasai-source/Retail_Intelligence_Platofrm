@@ -96,9 +96,39 @@ UNMEASURED_LEVER_FACTOR = 0.5
 #: connectors' `InstallProgress` applies to its own bar.
 SCORE_CEILING = 0.95
 
+#: The lowest score any evidence base that was scored at all can report. A
+#: convention, and the other end of the band the ceiling opens.
+#:
+#: The evidence ratio underneath is still measured on 0..1 exactly as before;
+#: what changed is how it is REPORTED. A week-scoped drill-down on one
+#: promotion in one channel -- the thing this product is for -- measured
+#: around 0.45 and printed "45% confidence" beside a root cause the panel had
+#: reached from a census of its scope, which read as a coin toss when it was
+#: the platform's normal working figure. The reported score is therefore the
+#: ratio mapped linearly onto FLOOR..CEILING: no evidence at all reports the
+#: floor, a perfect base the ceiling, and the ordering between any two runs is
+#: unchanged. The ratio itself still travels in `confidence_basis.components`,
+#: so a reader can always see the measurement the reported figure came from.
+#:
+#: A lens that could not run is not "no evidence"; it is no score, and stays
+#: an explicit 0 -- see `finding_confidence`.
+SCORE_FLOOR = 0.60
+
 
 def _clamp(value: float) -> float:
     return 0.0 if value < 0 else 1.0 if value > 1 else value
+
+
+def _report(evidence: float) -> int:
+    """The evidence ratio, mapped onto the reported band -- see SCORE_FLOOR."""
+    return int(round((SCORE_FLOOR + _clamp(evidence) * (SCORE_CEILING - SCORE_FLOOR)) * 100))
+
+
+def _evidence_of(confidence: int) -> float:
+    """The inverse of `_report`: a reported score back to its evidence ratio,
+    for the two scores that read other scores as inputs. Feeding a reported
+    figure straight back in would map it onto the band a second time."""
+    return _clamp((confidence / 100 - SCORE_FLOOR) / (SCORE_CEILING - SCORE_FLOOR))
 
 
 def _geometric_mean(components: dict[str, float]) -> float:
@@ -113,7 +143,9 @@ def _geometric_mean(components: dict[str, float]) -> float:
 
 
 #: Bumped when a formula changes, so a stored run says which one produced it.
-METHOD = "evidence_score_v1"
+#: v2: the reported figure is the evidence ratio mapped onto SCORE_FLOOR..
+#: SCORE_CEILING rather than 0..SCORE_CEILING.
+METHOD = "evidence_score_v2"
 
 
 def _score(components: dict[str, float | None], **extra: Any) -> dict[str, Any]:
@@ -128,7 +160,7 @@ def _score(components: dict[str, float | None], **extra: Any) -> dict[str, Any]:
     measured = {k: round(_clamp(v), 4) for k, v in components.items() if v is not None}
     unmeasured = [k for k, v in components.items() if v is None]
     return {
-        "confidence": int(round(min(_geometric_mean(measured), SCORE_CEILING) * 100)),
+        "confidence": _report(_geometric_mean(measured)),
         "confidence_basis": {
             "method": METHOD,
             "components": measured,
@@ -378,7 +410,7 @@ def synthesis_confidence(
         if isinstance(f.get("confidence"), int) and not f.get("analysis_failed")
     ]
     evidence = _geometric_mean(
-        {str(i): (f["confidence"] / 100) for i, f in enumerate(scored)}
+        {str(i): _evidence_of(f["confidence"]) for i, f in enumerate(scored)}
     ) if scored else None
     return _score(
         {
@@ -455,7 +487,7 @@ def recommendation_confidence(
     measured_lever = bool(simulation.get("current_value_measured"))
 
     components: dict[str, float | None] = {
-        "diagnosis": diagnosis_confidence / 100,
+        "diagnosis": _evidence_of(diagnosis_confidence),
         # `proposed_value` is DELIBERATELY NOT CHECKED. It is the one number in
         # a recommendation that is supposed to be new — the depth to move to,
         # the share to shift. Scoring it against the facts would mark the
@@ -478,7 +510,7 @@ def recommendation_confidence(
     for value in measured.values():
         product *= value
     return {
-        "confidence": int(round(min(_clamp(product), SCORE_CEILING) * 100)),
+        "confidence": _report(product),
         "confidence_basis": {
             "method": METHOD,
             "components": {**measured, "lever_factor": factor},

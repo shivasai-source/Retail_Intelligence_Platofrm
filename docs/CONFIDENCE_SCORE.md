@@ -213,11 +213,15 @@ An agent that cited nothing checkable has no ratio to compute and reports
 ## 4. How the components combine
 
 ```
-score = 100 x min( ( PRODUCT of measured components ) ^ (1 / number of them),
-                   SCORE_CEILING )
+evidence = ( PRODUCT of measured components ) ^ (1 / number of them)
+score    = 100 x ( SCORE_FLOOR + evidence x (SCORE_CEILING - SCORE_FLOOR) )
 ```
 
-An **unweighted geometric mean**, capped.
+An **unweighted geometric mean**, reported on a band. The evidence ratio is
+measured on 0..1; the reported score maps it linearly onto
+`SCORE_FLOOR`..`SCORE_CEILING` (60–95). No evidence reports the floor, a
+perfect base the ceiling, and the ordering between any two runs is the
+ordering of their evidence. The ratio itself is in `confidence_basis`.
 
 **Why geometric.** The components are conditions that must all hold, not a
 basket where a strong one buys off a weak one. A finding drawn from ample rows
@@ -334,9 +338,10 @@ exactly which numbers were chosen rather than derived.
 |---|---|---|
 | `OBSERVATIONS_PER_GROUP_HALF_SATURATION` | 5 | Observations per compared group at which a lens counts as half as supported. There is no count at which promotion data becomes objectively sufficient; 5 is the point where a comparison starts to mean something on this dataset's `(product, channel, week, offer)` grain. |
 | `SCORE_CEILING` | 0.95 | The highest score any evidence base can earn, because a perfect set of ratios is still not certainty — see **Why capped** above. |
+| `SCORE_FLOOR` | 0.60 | The lowest score a scored evidence base reports. A week-scoped drill-down on a census of its own scope measured ~0.45 and printed "45%", which read as a coin toss when it was the platform's normal working figure; the band puts that figure where it belongs relative to the ceiling. A lens that could not run is not scored at all and stays 0. |
 | `UNMEASURED_LEVER_FACTOR` | 0.5 | What a recommendation keeps when the lever it moves has no measured current position. Not zero, because the diagnosis behind it is unaffected by the lever being unmeasurable. Not one, because a recommendation whose starting point is unknown cannot be simulated as written. |
 
-Changing either changes every score. `METHOD` (`"evidence_score_v1"`) is
+Changing any of them changes every score. `METHOD` (`"evidence_score_v2"`) is
 recorded in every `confidence_basis` so a stored run says which version
 produced its figures; bump it when a formula changes.
 

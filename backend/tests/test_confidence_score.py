@@ -25,6 +25,7 @@ import pytest
 from app.agents.confidence import (
     OBSERVATIONS_PER_GROUP_HALF_SATURATION,
     SCORE_CEILING,
+    SCORE_FLOOR,
     UNMEASURED_LEVER_FACTOR,
     analysis_confidence,
     breadth,
@@ -220,17 +221,24 @@ def test_a_weak_component_cannot_be_bought_off_by_a_strong_one():
         20_000,
     )["confidence"]
     assert strong > thin
-    assert thin < 60, thin
+    # Both are reported on the FLOOR..CEILING band, so the drop is read as a
+    # share of the band above the floor: the thin lens keeps well under two
+    # thirds of what the strong one earned, on the same rows.
+    floor = round(SCORE_FLOOR * 100)
+    assert (thin - floor) < 0.65 * (strong - floor), (thin, strong)
 
 
-def test_a_finding_whose_figures_do_not_trace_scores_zero():
-    """Nothing it wrote came from its table, so there is nothing behind it."""
+def test_a_finding_whose_figures_do_not_trace_scores_the_floor():
+    """Nothing it wrote came from its table, so there is nothing behind it:
+    the evidence ratio is zero, which reports as the floor of the band."""
     fabricated = _finding(
         viz_items=[{"label": "a", "value": 88.4, "tone": "accent"}],
         metric="ROI 77.3%",
         evidence="costing 41250000",
     )
-    assert finding_confidence(fabricated, 20_000)["confidence"] == 0
+    scored = finding_confidence(fabricated, 20_000)
+    assert scored["confidence"] == round(SCORE_FLOOR * 100)
+    assert scored["confidence_basis"]["components"]["traceability"] == 0.0
 
 
 def test_the_score_is_deterministic():
@@ -242,7 +250,7 @@ def test_the_score_is_deterministic():
 def test_every_score_carries_its_own_workings():
     """A number a reader cannot take apart is what this replaced."""
     basis = finding_confidence(_finding(), 20_000)["confidence_basis"]
-    assert basis["method"] == "evidence_score_v1"
+    assert basis["method"] == "evidence_score_v2"
     assert set(basis["components"]) == {"support", "breadth", "completeness", "traceability"}
 
 
@@ -321,7 +329,8 @@ def test_a_recommendation_cannot_outrank_its_diagnosis():
         "expected_impact": "",
         "simulation": {"current_value_measured": True, "proposed_value": "30%"},
     }
-    for diagnosis in (20, 50, 90):
+    # Diagnoses are reported scores, so they sit on the band themselves.
+    for diagnosis in (62, 75, 90):
         assert recommendation_confidence(rec, _facts(), diagnosis)["confidence"] <= diagnosis
 
 
@@ -354,7 +363,12 @@ def test_an_unmeasured_lever_holds_the_recommendation_back():
     measured = {**rec, "simulation": {**rec["simulation"], "current_value_measured": True}}
     held = recommendation_confidence(rec, _facts(), 90)["confidence"]
     full = recommendation_confidence(measured, _facts(), 90)["confidence"]
-    assert held == pytest.approx(round(full * UNMEASURED_LEVER_FACTOR), abs=1)
+    # The factor halves the EVIDENCE, which is then reported on the band --
+    # so undo the band on `full`, halve, and put it back.
+    band = SCORE_CEILING - SCORE_FLOOR
+    full_evidence = (full / 100 - SCORE_FLOOR) / band
+    expected = round((SCORE_FLOOR + full_evidence * UNMEASURED_LEVER_FACTOR * band) * 100)
+    assert held == pytest.approx(expected, abs=1)
 
 
 # --- the other two figures fixed alongside the score --------------------------
