@@ -56,6 +56,13 @@ def _warm_caches() -> None:
             latest = max(store.years())
             build_intelligence_facts({"year": latest}, ("core",))
             log.info("Warmed Promotion Intelligence core facts (F%02d)", latest % 100)
+            # The whole-business tables every investigation's specialists
+            # read -- see star_tools._memo. Warmed here so the first "Ask
+            # why" after a start is as quick as the second.
+            from app.agents.star_tools import warm_tool_memo
+
+            warm_tool_memo()
+            log.info("Warmed investigation tool tables")
         except Exception:  # a warmup failure must never stop the server booting
             log.exception("Cache warmup failed; first request will be slow instead")
 

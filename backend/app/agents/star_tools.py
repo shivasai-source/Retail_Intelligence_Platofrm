@@ -23,10 +23,74 @@ Spend sums back to the headline; Incremental Sales does not, because its
 baseline is re-derived per selection. Groups are therefore a RANKING, never
 a composition, and the specialist prompt says so.
 """
-from typing import Any
+import copy
+import json
+import threading
+from typing import Any, Callable, TypeVar
 
 from app.tpo import service
 from app.tpo.filters import FilterState
+from app.tpo.loader import get_store
+
+T = TypeVar("T")
+
+# --- memo ---------------------------------------------------------------------
+#
+# WHY. An investigation's six specialists each pull their own data, in
+# parallel, and most of what they pull is the same: four of six ask for the
+# segment's KPIs beside the whole business's, three ask for a whole-business
+# ROI breakdown by channel, region or mechanic. Every one of those is a full
+# pass over the fact table (~325k rows), the whole-business ones are
+# identical for every question ever asked, and under the GIL six threads
+# doing them at once serialise -- so the model calls could not start until
+# ~15s of arithmetic had finished, out of a ~25s run. Measured: benchmark's
+# fetch 6-8s, mechanic efficiency's 5s, geography's 2-3s, all before a byte
+# reached the model.
+#
+# WHAT. The tool results are memoised on their arguments, keyed to the
+# LOADED STORE: a dataset swap replaces the `get_store` object, and a key
+# that carries its identity cannot survive it, so nothing here can serve a
+# figure from a dataset that is no longer loaded. Per-key gates mean six
+# threads asking for the same table compute it once and share it. Results are
+# deep-copied out, so a caller trimming or annotating its copy cannot hand a
+# changed table to the next.
+_MEMO: dict[tuple[Any, ...], Any] = {}
+_MEMO_STORE_ID: int | None = None
+_MEMO_LOCK = threading.Lock()
+_INFLIGHT: dict[tuple[Any, ...], threading.Lock] = {}
+
+
+def _memo(kind: str, filters: dict[str, Any] | None, *parts: Any, compute: Callable[[], T]) -> T:
+    global _MEMO_STORE_ID
+    store_id = id(get_store())
+    key = (kind, json.dumps(filters or {}, sort_keys=True, default=str), *parts)
+    with _MEMO_LOCK:
+        if _MEMO_STORE_ID != store_id:
+            _MEMO.clear()
+            _INFLIGHT.clear()
+            _MEMO_STORE_ID = store_id
+        if key in _MEMO:
+            return copy.deepcopy(_MEMO[key])
+        gate = _INFLIGHT.setdefault(key, threading.Lock())
+    with gate:
+        with _MEMO_LOCK:
+            if key in _MEMO:
+                return copy.deepcopy(_MEMO[key])
+        value = compute()
+        with _MEMO_LOCK:
+            _MEMO[key] = value
+            _INFLIGHT.pop(key, None)
+        return copy.deepcopy(value)
+
+
+def warm_tool_memo() -> None:
+    """Compute the whole-business tables every investigation reads, so the
+    first run after a start does not pay for them while the user watches the
+    progress card. Called from the startup warmup; safe to call again."""
+    schema_summary()
+    segment_kpis({})
+    for by in ("channel", "region", "promotion_mechanic"):
+        run_analysis({}, by, "roi")
 
 # Mirrors service.BREAKDOWN_DIMENSIONS / BREAKDOWN_METRICS. Read from the
 # service rather than restated, so a change there cannot silently desync.
@@ -150,6 +214,10 @@ def _compact_group(group: dict[str, Any]) -> dict[str, Any]:
 
 
 def segment_kpis(filters: dict[str, Any] | None = None) -> dict[str, Any]:
+    return _memo("segment_kpis", filters, compute=lambda: _segment_kpis(filters))
+
+
+def _segment_kpis(filters: dict[str, Any] | None) -> dict[str, Any]:
     state = build_filter_state(filters)
     return _compact_kpis(service.kpis(state))
 
@@ -166,6 +234,15 @@ def run_analysis(
     to Modern Trade / South, then break down by mechanic, and a problem that
     is invisible in either dimension's overall average becomes obvious.
     """
+    return _memo(
+        "run_analysis", filters, by, metric, limit,
+        compute=lambda: _run_analysis(filters, by, metric, limit),
+    )
+
+
+def _run_analysis(
+    filters: dict[str, Any] | None, by: str, metric: str, limit: int
+) -> dict[str, Any]:
     if by not in BREAKDOWN_DIMENSIONS:
         return {"error": f"unsupported breakdown dimension {by!r}"}
     if metric not in BREAKDOWN_METRICS:
@@ -203,6 +280,10 @@ def run_analysis(
 
 
 def neighbour_sales_decline(filters: dict[str, Any] | None = None) -> dict[str, Any]:
+    return _memo("neighbour_sales_decline", filters, compute=lambda: _neighbour_sales_decline(filters))
+
+
+def _neighbour_sales_decline(filters: dict[str, Any] | None = None) -> dict[str, Any]:
     """Did products sharing the promoted product's BRAND FORM lose sales while
     it was on promotion?
 
