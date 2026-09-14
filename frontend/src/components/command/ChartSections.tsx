@@ -304,8 +304,16 @@ export function TopPerformingSection() {
       {/* The list takes the height the card actually has instead of a fixed
           268px viewport, so the scrollbar appears only when the rows genuinely
           exceed the card rather than because of a hardcoded cap. min-h-0 is
-          what lets a flex child shrink far enough to scroll at all. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
+          what lets a flex child shrink far enough to scroll at all.
+
+          ONE LINE AND A BAR PER ROW -- the Product Performance row. It used
+          to carry a second line of channel · week · mechanic and spend ·
+          inc. sales under every bar, three figures deep where its neighbours
+          are one, and the mechanic repeated the promotion's own name. The
+          channel and week stay on the name line, because two "5% Discount"
+          rows are told apart by nothing else; spend and incremental sales
+          are in the tooltip, which already carried them. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">
         {rows.map((r, i) => (
           <div
             key={`${r.promotion}-${r.channel}-${r.period}-${i}`}
@@ -323,25 +331,34 @@ ${r.channel} · ${r.period}
             }
           >
             <div className="flex items-baseline justify-between gap-2 text-sm">
-              <span className="min-w-0 truncate font-semibold text-ink-primary">
-                <span className="mr-1.5 tabular-nums text-ink-disabled">{i + 1}</span>
-                {r.promotion}
+              <span className="flex min-w-0 items-baseline gap-1.5">
+                <span className="tabular-nums text-ink-disabled">{i + 1}</span>
+                <span className="truncate">
+                  <span className="font-semibold text-ink-primary">{r.promotion}</span>
+                  <span className="text-ink-muted">
+                    {' · '}
+                    {r.channel}
+                  </span>
+                  {/* The week is laid out but shown on hover or focus only,
+                      as the alert rows do with their event line -- reserved,
+                      not collapsed, so nothing shifts when it appears. */}
+                  <span className="text-ink-muted opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+                    {' · '}
+                    {r.period}
+                  </span>
+                </span>
               </span>
               <span className="shrink-0 font-bold tabular-nums text-status-success">{r.roi_display}</span>
             </div>
-            <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-ink-primary/[0.05]">
+            {/* TEAL, because this bar is the ROI -- the colour the trend line and
+                the type chart already give that figure. It also tells the three
+                ranked-bar cards apart: Contribution keeps the violet of the money
+                it composes, Product Performance takes the sky blue. */}
+            <div className="mt-1 h-2.5 w-full overflow-hidden rounded-full bg-ink-primary/[0.05]">
               <div
-                className="h-full rounded-full bg-brand-violet transition-[width] duration-300 group-hover:brightness-110"
+                className="h-full rounded-full bg-tint-teal-icon transition-[width] duration-300 group-hover:brightness-110"
                 style={{ width: `${Math.max(0, Math.min(100, (r.roi_pct / peak) * 100))}%` }}
               />
-            </div>
-            <div className="mt-0.5 flex items-baseline justify-between gap-2 text-xs text-ink-muted">
-              <span className="min-w-0 truncate">
-                {r.channel} · {r.period} · {r.mechanic}
-              </span>
-              <span className="shrink-0 tabular-nums">
-                Spend {r.trade_spend_display} · Inc. Sales {r.incremental_sales_display}
-              </span>
             </div>
           </div>
         ))}
@@ -433,8 +450,9 @@ export function PromotionContributionSection() {
       footnote={`${rows.length} mechanics · ${metricLabel} shares total 100% of the scope.`}
     >
       {/* Four or five mechanics against a ten-row neighbour: distributing them
-          over the stretched height keeps the card filled and the spacing even,
-          and the taller bar is what a chart with this few categories wants. */}
+          over the stretched height keeps the card filled and the spacing even.
+          The bar is the Channel card's fill-height pill, not a 40px slab: the
+          four ranked-bar cards on the page now draw one bar shape. */}
       <div className="flex flex-1 flex-col justify-between gap-3.5">
         {rows.map((g, i) => {
           const share = total ? (value(g) / total) * 100 : 0
@@ -464,11 +482,33 @@ export function PromotionContributionSection() {
               {/* Bars are scaled against the LEADER, not against the total, so
                   the widths stay readable when one mechanic carries a third of
                   the money. The share is the number to the right. */}
-              <div className="mt-1.5 h-10 w-full overflow-hidden rounded-[var(--r-sm)] bg-ink-primary/[0.05]">
+              <div className="mt-1.5 h-4 w-full overflow-hidden rounded-full bg-ink-primary/[0.05]">
                 <div
-                  className="h-full rounded-[var(--r-sm)] bg-brand-violet transition-[width] duration-300 group-hover:brightness-110"
+                  className="h-full rounded-full bg-brand-violet transition-[width] duration-300 group-hover:brightness-110"
                   style={{ width: `${Math.max(0, Math.min(100, (value(g) / peak) * 100))}%` }}
                 />
+              </div>
+              {/* The same detail line Top Performing carries under each of its
+                  bars: the other money figure and the ROI, so a mechanic that
+                  carries the most money is never read as the best return. */}
+              <div className="mt-0.5 flex items-baseline justify-between gap-2 text-xs text-ink-muted">
+                <span className="min-w-0 truncate tabular-nums">
+                  {metric === 'trade_spend'
+                    ? `Inc. Sales ${g.incremental_sales_display}`
+                    : `Spend ${g.trade_spend_display}`}
+                </span>
+                <span className="shrink-0 tabular-nums">
+                  ROI{' '}
+                  <span
+                    className={
+                      g.roi === null ? 'text-ink-muted'
+                      : g.roi < 0 ? 'font-semibold text-status-danger'
+                      : 'font-semibold text-status-success'
+                    }
+                  >
+                    {g.roi === null ? '—' : `${g.roi.toFixed(1)}%`}
+                  </span>
+                </span>
               </div>
             </div>
           )
@@ -551,6 +591,7 @@ const PRODUCT_ROWS = 10
  *  business. For ROI the card states the gap in percentage points instead. */
 export function PromotionTypeSection() {
   const [metric, setMetric] = useState<PerfMetric>('incremental_sales')
+  const { symbol } = useDisplay()
   const q = useBreakdown('promotion_type', { metric, limit: 50 })
 
   const groups = useMemo(() => {
@@ -564,7 +605,6 @@ export function PromotionTypeSection() {
   const total = isShareable
     ? groups.reduce((sum, g) => sum + (perfValue(g, metric) ?? 0), 0)
     : 0
-  const peak = Math.max(...groups.map((g) => Math.abs(perfValue(g, metric) ?? 0)), 1)
   const metricLabel = PERF_METRICS.find((m) => m.key === metric)?.label
 
   const [lead, trail] = [...groups].sort(
@@ -595,73 +635,248 @@ export function PromotionTypeSection() {
             : 'ROI is a ratio, so it carries no share.'
       }
     >
-      {/* justify-CENTER, not space-between: two bars flung to the top and
-          bottom of a tall card cannot be compared at a glance, which is the
-          only thing this card exists to do. The pair stays adjacent and the
-          stretched height is absorbed evenly above and below it. */}
-      <div className="flex flex-1 flex-col justify-center gap-5">
-        {groups.map((g) => {
-          const value = perfValue(g, metric) ?? 0
-          const share = total ? (value / total) * 100 : null
-          return (
-            <div
-              key={g.code}
-              className="group"
-              title={[
-                `${g.code} promotions`,
-                '',
-                `Trade Spend: ${g.trade_spend_display}`,
-                `Incremental Sales: ${g.incremental_sales_display}`,
-                `ROI: ${g.roi === null ? '—' : `${g.roi.toFixed(1)}%`}`,
-              ].join('\n')}
-            >
-              <div className="flex items-baseline justify-between gap-2 text-sm">
-                <span className="truncate font-semibold text-ink-primary">{g.code}</span>
-                <span className="shrink-0 tabular-nums">
-                  <span className="font-bold text-ink-primary">{perfDisplay(g, metric)}</span>
-                  {share !== null && (
-                    <>
-                      {' · '}
-                      <span className="font-semibold text-ink-muted">{share.toFixed(1)}%</span>
-                    </>
-                  )}
-                </span>
-              </div>
-              {/* Both bars share `peak`, so their lengths are comparable.
-                  Seasonal takes the teal the trend line draws ROI in -- the
-                  page's third series colour -- rather than the info blue,
-                  which appeared nowhere else on the Command Center. */}
-              <div className="mt-1.5 h-28 w-full overflow-hidden rounded-[var(--r-sm)] bg-ink-primary/[0.05]">
-                <div
-                  className={`h-full rounded-[var(--r-sm)] transition-[width] duration-300 group-hover:brightness-110 ${
-                    g.code === 'Regular' ? 'bg-brand-violet' : 'bg-tint-teal-icon'
-                  }`}
-                  style={{ width: `${Math.max(0, Math.min(100, (Math.abs(value) / peak) * 100))}%` }}
+      {q.data && (
+        <TypeColumns
+          groups={groups}
+          metric={metric}
+          total={total}
+          rate={q.data.meta.exchange_rate}
+          symbol={symbol}
+        />
+      )}
+    </ChartFrame>
+  )
+}
+
+/** Two columns on one axis -- the Sales by Region drawing, at two slots.
+ *
+ *  This card used to be two full-width slabs, each 112px tall, stacked: the
+ *  only bars on the page that read as blocks rather than as measurements, and
+ *  the only ones with no axis. Now it is the same grid, tick ladder, column
+ *  shape, direct label and hover band as the region chart, so the two
+ *  column cards on the page are drawn by one hand. Regular keeps the brand
+ *  violet and Seasonal the ROI teal; ROI rides under each name as it does
+ *  under each region. */
+function TypeColumns({
+  groups,
+  metric,
+  total,
+  rate,
+  symbol,
+}: {
+  groups: BreakdownGroup[]
+  metric: PerfMetric
+  /** The two values summed, for the share beside each label; 0 for ROI. */
+  total: number
+  rate: number
+  symbol: string
+}) {
+  const { ref, width, height } = useChartSize(360, 300)
+  const [hover, setHover] = useState<number | null>(null)
+
+  const n = groups.length
+  const padL = 56
+  const padR = 12
+  const padT = 24
+  const padB = 40
+  const innerW = Math.max(140, width - padL - padR)
+  const innerH = Math.max(90, height - padT - padB)
+
+  const isRoi = metric === 'roi'
+  const tick = (v: number) => {
+    if (isRoi) return `${v.toFixed(0)}%`
+    const a = v * rate
+    if (symbol === '₹') {
+      if (Math.abs(a) >= 1e7) return `${symbol}${(a / 1e7).toFixed(1)} Cr`
+      if (Math.abs(a) >= 1e5) return `${symbol}${(a / 1e5).toFixed(1)} L`
+      return `${symbol}${a.toFixed(0)}`
+    }
+    if (Math.abs(a) >= 1e6) return `${symbol}${(a / 1e6).toFixed(1)} M`
+    if (Math.abs(a) >= 1e3) return `${symbol}${(a / 1e3).toFixed(1)} K`
+    return `${symbol}${a.toFixed(0)}`
+  }
+
+  const values = groups.map((g) => perfValue(g, metric))
+  const present = values.filter((v): v is number => v !== null)
+  const rawMax = Math.max(1, ...present)
+  const rawMin = Math.min(0, ...present)
+  const step = columnNiceStep((rawMin < 0 ? rawMax - rawMin : rawMax) / COLUMN_DIVISIONS)
+  const lo = rawMin < 0 ? Math.floor(rawMin / step) * step : 0
+  let hi = lo + step * COLUMN_DIVISIONS
+  while (hi < rawMax) hi += step
+  if (((hi - rawMax) / (hi - lo)) * innerH < 14) hi += step // label headroom, as the region chart
+
+  const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
+  const zeroY = y(0)
+  const ticks: number[] = []
+  for (let t = lo; t <= hi + 1e-6; t += step) ticks.push(t)
+
+  const slot = innerW / n
+  // One column per slot, capped like the region pairs' bars, so a two-slot
+  // chart does not turn back into two slabs.
+  const barW = Math.max(10, Math.min(28, slot * 0.22))
+  const centreX = (i: number) => padL + slot * i + slot / 2
+  const active = hover !== null && hover < n ? hover : null
+  const fillOf = (g: BreakdownGroup) =>
+    g.code === 'Regular' ? 'var(--brand-violet)' : 'var(--tint-teal-icon)'
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted">
+        {groups.map((g) => (
+          <span key={g.code} className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-[2px]" style={{ background: fillOf(g) }} />
+            {g.code}
+          </span>
+        ))}
+        {!isRoi && <span className="ml-auto">ROI under each type</span>}
+      </div>
+
+      <div ref={ref} className="relative min-h-[250px] w-full flex-1">
+        <svg
+          className="absolute inset-0"
+          width={width}
+          height={height}
+          role="img"
+          aria-label={`${PERF_METRICS.find((m) => m.key === metric)?.label} by promotion type`}
+        >
+          {ticks.map((t) => (
+            <g key={t}>
+              <line
+                x1={padL}
+                x2={padL + innerW}
+                y1={y(t)}
+                y2={y(t)}
+                stroke={t === lo ? 'var(--border-default)' : 'var(--border-subtle)'}
+              />
+              <text x={padL - 8} y={y(t) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+                {tick(t)}
+              </text>
+            </g>
+          ))}
+          {lo < 0 && (
+            <line x1={padL} x2={padL + innerW} y1={zeroY} y2={zeroY} stroke="var(--border-strong)" />
+          )}
+
+          {groups.map((g, i) => {
+            const v = values[i]
+            const isActive = active === i
+            const roi = g.roi
+            const share = total && v !== null ? (v / total) * 100 : null
+            const label =
+              v === null
+                ? '—'
+                : share !== null
+                  ? `${perfDisplay(g, metric)} · ${share.toFixed(1)}%`
+                  : perfDisplay(g, metric)
+
+            let column = null
+            if (v !== null) {
+              const down = v < 0
+              const top = Math.min(y(v), zeroY)
+              const h = Math.max(Math.abs(y(v) - zeroY), v === 0 ? 0 : 2)
+              if (h > 0) {
+                column = (
+                  <path
+                    d={columnPath(centreX(i) - barW / 2, top, barW, h, down)}
+                    fill={fillOf(g)}
+                    className="transition-opacity duration-150"
+                    opacity={active === null || isActive ? 1 : 0.45}
+                  />
+                )
+              }
+            }
+
+            return (
+              <g key={g.code}>
+                <rect
+                  x={padL + slot * i + 1}
+                  y={padT - 6}
+                  width={Math.max(0, slot - 2)}
+                  height={innerH + 12}
+                  rx={6}
+                  fill="var(--surface-hover)"
+                  opacity={isActive ? 1 : 0}
+                  className="transition-opacity duration-150"
                 />
-              </div>
-              {/* ROI stays visible whatever the ranking metric, so a type that
-                  carries the most money is never read as the best return.
-                  Ranking BY ROI already prints it above, so the second copy is
-                  dropped rather than shown twice. */}
-              {metric !== 'roi' && (
-                <div className="mt-1 text-xs text-ink-muted">
-                  ROI{' '}
-                  <span
-                    className={
-                      g.roi === null ? 'text-ink-muted'
-                      : g.roi < 0 ? 'font-semibold text-status-danger'
-                      : 'font-semibold text-status-success'
+                {column}
+                <text
+                  x={centreX(i)}
+                  y={v !== null && v < 0 ? Math.max(y(v), zeroY) + 13 : Math.min(y(v ?? 0), zeroY) - 7}
+                  textAnchor="middle"
+                  fontSize={10.5}
+                  fontWeight={700}
+                  fill="var(--text-primary)"
+                >
+                  {label}
+                </text>
+                <text
+                  x={centreX(i)}
+                  y={height - 21}
+                  textAnchor="middle"
+                  fontSize={11}
+                  fontWeight={600}
+                  fill="var(--text-primary)"
+                >
+                  {g.code}
+                </text>
+                {/* ROI under the name unless ROI IS the axis, where it would
+                    repeat the label directly above. */}
+                {!isRoi && (
+                  <text
+                    x={centreX(i)}
+                    y={height - 7}
+                    textAnchor="middle"
+                    fontSize={10}
+                    fontWeight={700}
+                    fill={
+                      roi === null
+                        ? 'var(--text-muted)'
+                        : roi < 0
+                          ? 'var(--status-danger)'
+                          : 'var(--status-success)'
                     }
                   >
-                    {g.roi === null ? '—' : `${g.roi.toFixed(1)}%`}
-                  </span>
-                </div>
-              )}
-            </div>
-          )
-        })}
+                    {roi === null ? '—' : `${roi.toFixed(1)}%`}
+                  </text>
+                )}
+                <rect
+                  x={padL + slot * i}
+                  y={0}
+                  width={slot}
+                  height={height}
+                  fill="transparent"
+                  onMouseEnter={() => setHover(i)}
+                  onMouseLeave={() => setHover(null)}
+                >
+                  <title>
+                    {`${g.code} promotions\nTrade Spend: ${g.trade_spend_display}\n` +
+                      `Incremental Sales: ${g.incremental_sales_display}\n` +
+                      `ROI: ${roi === null ? '—' : `${roi.toFixed(1)}%`}`}
+                  </title>
+                </rect>
+              </g>
+            )
+          })}
+        </svg>
+
+        {active !== null && (
+          <div
+            className="pointer-events-none absolute top-1 z-20 w-52 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
+            style={{ left: Math.min(Math.max(0, centreX(active) - 104), Math.max(0, width - 208)) }}
+          >
+            <div className="font-bold text-ink-primary">{groups[active].code} promotions</div>
+            <TipRow
+              swatch={SERIES.incremental}
+              k="Incremental Sales"
+              v={groups[active].incremental_sales_display}
+            />
+            <TipRow swatch={SERIES.spend} k="Trade Spend" v={groups[active].trade_spend_display} />
+            <TipRow k="ROI" v={groups[active].roi === null ? '—' : `${groups[active].roi.toFixed(1)}%`} />
+          </div>
+        )}
       </div>
-    </ChartFrame>
+    </div>
   )
 }
 
@@ -745,9 +960,10 @@ export function ProductSection() {
                 )}
               </span>
             </div>
+            {/* Sky blue: see the note on the Top Performing bar. */}
             <div className="mt-1 h-2.5 w-full overflow-hidden rounded-full bg-ink-primary/[0.05]">
               <div
-                className="h-full rounded-full bg-brand-violet transition-[width] duration-300 group-hover:brightness-110"
+                className="h-full rounded-full bg-tint-sky-icon transition-[width] duration-300 group-hover:brightness-110"
                 style={{
                   width: `${Math.max(0, Math.min(100, (Math.abs(perfValue(g, metric) ?? 0) / peak) * 100))}%`,
                 }}
@@ -886,6 +1102,9 @@ function RegionColumns({
   // A negative floor can eat divisions the positive side still needs; extend
   // the axis rather than clipping a column at the top of the plot.
   while (hi < rawMax) hi += step
+  // HEADROOM for the direct label: a peak within ~14px of the axis top puts
+  // its value on the top gridline. One more step keeps the label clear.
+  if (((hi - rawMax) / (hi - lo)) * innerH < 14) hi += step
 
   const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
   const zeroY = y(0)

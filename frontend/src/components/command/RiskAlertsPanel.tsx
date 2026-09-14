@@ -49,7 +49,11 @@ function promotionOf(alert: RiskAlert): string {
   return dash === -1 ? alert.title : alert.title.slice(dash + 1).trim()
 }
 
-const PER_SEGMENT = 5
+/** Rows on the card. Six, not five: the rows rest as one line each now, and
+ *  the card is as tall as the trend chart beside it, so five left a blank
+ *  band above "View all". The list also stretches to that height and
+ *  spreads its rows across it -- see the list container below. */
+const PER_SEGMENT = 6
 
 /** How many rows the severity list renders. A band can hold several hundred
  *  events, and this cap is STATED in the list's own header rather than applied
@@ -101,7 +105,7 @@ export function RiskAlertsPanel({
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div
         className="flex items-center gap-1 border-b border-border-subtle px-5 py-2.5"
         role="tablist"
@@ -128,22 +132,32 @@ export function RiskAlertsPanel({
             </button>
           )
         })}
+        {/* The denominator the three bands are cut from, at the strip's far
+            end where it has room; see the card header in pages/CommandCenter. */}
+        <span className="ml-auto whitespace-nowrap text-xs font-semibold text-ink-muted">
+          {data.counts.target_achieved} of {data.counts.total_events} at target
+        </span>
       </div>
 
       {rows.length === 0 ? (
-        <div className="grid min-h-[120px] place-items-center px-4 text-center text-sm text-ink-muted">
+        <div className="grid min-h-[120px] flex-1 place-items-center px-4 text-center text-sm text-ink-muted">
           No {active.toLowerCase()} alerts in this selection.
         </div>
       ) : (
         <>
-          <div className="flex flex-col px-5">
+          {/* Takes the height the card has and spreads the rows over it, so
+              the list ends where the card ends instead of a few rows short.
+              `justify-between` is the one distribution that stays safe when
+              the rows overflow (it falls back to flex-start); min-h-0 lets
+              the column shrink enough to scroll at all. */}
+          <div className="flex min-h-0 flex-1 flex-col justify-between overflow-y-auto px-5">
             {rows.map((a, i) => (
               <AlertRow key={a.id} alert={a} onSelect={choose} delayMs={i * 60} />
             ))}
           </div>
 
-          {/* How the rest of the SAME band is reached. The five rows above are
-              its head; every event behind them hands off exactly as they do. */}
+          {/* How the rest of the SAME band is reached. The rows above are its
+              head; every event behind them hands off exactly as they do. */}
           {counts[active] > rows.length && (
             <div className="border-t border-border-subtle px-5 py-2.5">
               <button
@@ -188,30 +202,31 @@ function AlertRow({
       type="button"
       onClick={() => onSelect(a)}
       aria-label={`Investigate ${promotionOf(a)} — ${a.product}, ${a.channel}, ${a.week}`}
-      className="fade-in-up grid w-full cursor-pointer grid-cols-[36px_1fr_auto] items-center gap-2.5 rounded-lg border-b border-border-subtle py-3 text-left transition-colors duration-150 last:border-b-0 hover:bg-surface-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet"
+      className="group fade-in-up grid w-full cursor-pointer grid-cols-[36px_1fr_auto] items-center gap-x-2.5 rounded-lg border-b border-border-subtle py-3 text-left transition-colors duration-150 last:border-b-0 hover:bg-surface-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet"
       style={{ animationDelay: `${delayMs}ms` }}
     >
       <div
-        className="grid h-9 w-9 place-items-center rounded-[10px] [&_svg]:h-[18px] [&_svg]:w-[18px]"
+        className="row-span-2 grid h-9 w-9 place-items-center rounded-[10px] [&_svg]:h-[18px] [&_svg]:w-[18px]"
         style={{ background: TONE_BG[a.tone], color: TONE_FG[a.tone] }}
       >
         <Icon name={SEVERITY_ICON[a.severity]} />
       </div>
 
-      <div className="min-w-0">
-        <div className="truncate text-base font-bold text-ink-primary">{promotionOf(a)}</div>
-        <div
-          className="mt-0.5 truncate text-sm text-ink-muted"
-          title={`${a.product} · ${a.channel} · ${a.week}`}
+      {/* At rest the row is the promotion and its ROI, like every other ranked
+          row on the page. The event's product · channel · week and the money
+          at stake sit on a second line that is ALWAYS laid out but only shown
+          on hover or keyboard focus -- reserved rather than collapsed, so
+          revealing it never shifts the rows beneath. The aria-label above
+          carries the same detail for assistive tech. */}
+      <div className="flex min-w-0 items-baseline justify-between gap-3">
+        <span className="truncate text-base font-bold text-ink-primary">{promotionOf(a)}</span>
+        <span
+          className={`shrink-0 text-sm font-bold tabular-nums ${
+            roi < 0 ? 'text-status-danger' : 'text-ink-primary'
+          }`}
         >
-          {a.product} · {a.channel} · {a.week}
-        </div>
-        <div className="mt-1 flex items-center gap-2.5 text-xs tabular-nums">
-          <span className={roi < 0 ? 'font-bold text-status-danger' : 'font-bold text-ink-primary'}>
-            ROI {roi.toFixed(1)}%
-          </span>
-          <span className="truncate text-ink-muted">{a.at_stake_display} at stake</span>
-        </div>
+          ROI {roi.toFixed(1)}%
+        </span>
       </div>
 
       {/* No severity pill: the row already sits under the severity tab it
@@ -220,6 +235,20 @@ function AlertRow({
         Ask why
         <Icon name="arrowRight" />
       </span>
+
+      {/* Spans the name and the Ask-why columns, so it is not truncated by
+          the narrow column above it. Week and channel first: they are short
+          and identify the event, so the long product name is what the
+          ellipsis takes when the line runs out -- and the title has it all. */}
+      <div
+        className="col-span-2 mt-0.5 flex items-baseline justify-between gap-3 text-xs text-ink-muted opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+        title={`${a.product} · ${a.channel} · ${a.week} · ${a.at_stake_display} at stake`}
+      >
+        <span className="min-w-0 truncate">
+          {a.week} · {a.channel} · {a.product}
+        </span>
+        <span className="shrink-0 tabular-nums">{a.at_stake_display} at stake</span>
+      </div>
     </button>
   )
 }
