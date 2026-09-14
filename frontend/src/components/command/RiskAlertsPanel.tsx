@@ -152,7 +152,13 @@ export function RiskAlertsPanel({
               the column shrink enough to scroll at all. */}
           <div className="flex min-h-0 flex-1 flex-col justify-between overflow-y-auto px-5">
             {rows.map((a, i) => (
-              <AlertRow key={a.id} alert={a} onSelect={choose} delayMs={i * 60} />
+              <AlertRow
+                key={a.id}
+                alert={a}
+                onSelect={choose}
+                delayMs={i * 60}
+                flip={i === rows.length - 1}
+              />
             ))}
           </div>
 
@@ -191,10 +197,14 @@ function AlertRow({
   alert: a,
   onSelect,
   delayMs,
+  flip = false,
 }: {
   alert: RiskAlert
   onSelect: (alert: RiskAlert) => void
   delayMs: number
+  /** Open the detail box ABOVE the row. For the last row of a scrolling
+   *  list, where a box below it would be clipped by the list's edge. */
+  flip?: boolean
 }) {
   const roi = a.roi_pct ?? 0
   return (
@@ -202,22 +212,25 @@ function AlertRow({
       type="button"
       onClick={() => onSelect(a)}
       aria-label={`Investigate ${promotionOf(a)} — ${a.product}, ${a.channel}, ${a.week}`}
-      className="group fade-in-up grid w-full cursor-pointer grid-cols-[36px_1fr_auto] items-center gap-x-2.5 rounded-lg border-b border-border-subtle py-3 text-left transition-colors duration-150 last:border-b-0 hover:bg-surface-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet"
+      /* hover:z-30: `fade-in-up` animates opacity, which makes every row its own
+         stacking context and traps the detail box's z-index inside it -- the
+         next row then painted over the box. Lifting the hovered ROW puts its
+         box above its siblings. */
+      className="group fade-in-up relative grid w-full cursor-pointer grid-cols-[36px_1fr_auto] items-center gap-x-2.5 rounded-lg border-b border-border-subtle py-3 text-left transition-colors duration-150 last:border-b-0 hover:z-30 hover:bg-surface-hover focus:outline-none focus-visible:z-30 focus-visible:ring-2 focus-visible:ring-brand-violet"
       style={{ animationDelay: `${delayMs}ms` }}
     >
       <div
-        className="row-span-2 grid h-9 w-9 place-items-center rounded-[10px] [&_svg]:h-[18px] [&_svg]:w-[18px]"
+        className="grid h-9 w-9 place-items-center rounded-[10px] [&_svg]:h-[18px] [&_svg]:w-[18px]"
         style={{ background: TONE_BG[a.tone], color: TONE_FG[a.tone] }}
       >
         <Icon name={SEVERITY_ICON[a.severity]} />
       </div>
 
-      {/* At rest the row is the promotion and its ROI, like every other ranked
-          row on the page. The event's product · channel · week and the money
-          at stake sit on a second line that is ALWAYS laid out but only shown
-          on hover or keyboard focus -- reserved rather than collapsed, so
-          revealing it never shifts the rows beneath. The aria-label above
-          carries the same detail for assistive tech. */}
+      {/* The row is the promotion and its ROI, like every other ranked row on
+          the page. The event behind it -- week, channel, product, money at
+          stake -- is in the detail box below, which opens on hover or
+          keyboard focus. The aria-label above carries the same detail for
+          assistive tech. */}
       <div className="flex min-w-0 items-baseline justify-between gap-3">
         <span className="truncate text-base font-bold text-ink-primary">{promotionOf(a)}</span>
         <span
@@ -236,18 +249,26 @@ function AlertRow({
         <Icon name="arrowRight" />
       </span>
 
-      {/* Spans the name and the Ask-why columns, so it is not truncated by
-          the narrow column above it. Week and channel first: they are short
-          and identify the event, so the long product name is what the
-          ellipsis takes when the line runs out -- and the title has it all. */}
+      {/* ONE detail box, drawn by the page, not the browser. There used to be
+          two things on hover: a reserved line under the name AND the native
+          `title` tooltip, which the browser shows only after its own ~1s
+          delay and which no CSS can hurry. This is the chart tooltip the
+          trend and column cards already use, shown the instant the row is
+          hovered or focused. Absolutely positioned, so opening it moves
+          nothing; `flip` puts it above the last row of a scrolling list. */}
       <div
-        className="col-span-2 mt-0.5 flex items-baseline justify-between gap-3 text-xs text-ink-muted opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
-        title={`${a.product} · ${a.channel} · ${a.week} · ${a.at_stake_display} at stake`}
+        role="tooltip"
+        className={`pointer-events-none absolute left-[46px] z-20 hidden w-max max-w-[calc(100%-46px)] rounded-[var(--r-md)] border border-border-default bg-surface-card px-3 py-2 text-xs shadow-[var(--shadow-lg)] group-hover:block group-focus-visible:block ${
+          flip ? 'bottom-[calc(100%-4px)]' : 'top-[calc(100%-4px)]'
+        }`}
       >
-        <span className="min-w-0 truncate">
-          {a.week} · {a.channel} · {a.product}
-        </span>
-        <span className="shrink-0 tabular-nums">{a.at_stake_display} at stake</span>
+        <div className="truncate font-semibold text-ink-primary">{a.product}</div>
+        <div className="mt-0.5 flex items-baseline justify-between gap-4 text-ink-muted">
+          <span className="truncate">
+            {a.channel} · {a.week}
+          </span>
+          <span className="shrink-0 tabular-nums">{a.at_stake_display} at stake</span>
+        </div>
       </div>
     </button>
   )
@@ -295,8 +316,14 @@ function SeverityListModal({
           </div>
 
           <div className="max-h-[60vh] overflow-y-auto px-5">
-            {shown.map((a) => (
-              <AlertRow key={a.id} alert={a} onSelect={onSelect} delayMs={0} />
+            {shown.map((a, i) => (
+              <AlertRow
+                key={a.id}
+                alert={a}
+                onSelect={onSelect}
+                delayMs={0}
+                flip={i === shown.length - 1}
+              />
             ))}
           </div>
         </>
