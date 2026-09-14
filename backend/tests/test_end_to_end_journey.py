@@ -125,7 +125,7 @@ def test_the_full_journey(client, alert):
     assert ten["treatment"] == "PR002"
     assert ten["uplift"] == {"low": 0.25, "high": 0.35}
     for end in ("low", "high"):
-        assert ten["result"][end]["kpis"]["roi_percent"]["value"] is not None
+        assert ten["result"][end]["kpis"]["roi_multiple"]["value"] is not None
 
     # 16. No authored RCA figure crossed the boundary -- property 2.
     downstream = json.dumps(context) + json.dumps(run) + json.dumps(ten)

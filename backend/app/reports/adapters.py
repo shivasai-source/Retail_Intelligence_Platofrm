@@ -195,8 +195,8 @@ def _kpi(card: dict[str, Any], kind: str) -> KpiEntry:
 
 #: KPI key -> the column kind it should be formatted as. The Command Center's own
 #: `unit` field drives this; the map exists only to translate its vocabulary.
-_UNIT_KIND = {"currency": "currency", "percent": "percent", "quantity": "units",
-              "score": "number", "number": "number"}
+_UNIT_KIND = {"currency": "currency", "percent": "percent", "multiple": "multiple",
+              "quantity": "units", "score": "number", "number": "number"}
 
 
 # --- Command Center ----------------------------------------------------------
@@ -286,7 +286,7 @@ def command_center(state: FilterState, currency: str, options: dict[str, Any]) -
             *((label, str(count)) for label, count in severities),
             ("Total alerts", str(total_alerts)),
         ), note=f"Alerts matching the current filters. Target ROI "
-                f"{kpis['meta'].get('target_roi_pct', '')}%."),
+                f"{kpis['meta'].get('target_roi', '')}."),
     ]
 
     if mix.get("slices"):
@@ -318,8 +318,8 @@ def command_center(state: FilterState, currency: str, options: dict[str, Any]) -
                     Column("period", "Period", "text", 12),
                     Column("trade_spend", "Trade spend", "currency", 16),
                     Column("incremental_sales", "Incremental sales", "currency", 18),
-                    Column("roi_pct", "ROI", "percent", 11),
-                    Column("vs_target_pp", "vs target (pp)", "number", 14),
+                    Column("roi_multiple", "ROI", "multiple", 11),
+                    Column("vs_target", "vs target", "multiple", 14),
                     Column("status", "Status", "status", 16),
                 ),
                 rows=tuple(
@@ -327,7 +327,7 @@ def command_center(state: FilterState, currency: str, options: dict[str, Any]) -
                      "channel": r.get("channel"), "period": r.get("period"),
                      "trade_spend": r.get("trade_spend"),
                      "incremental_sales": r.get("incremental_sales"),
-                     "roi_pct": r.get("roi_pct"), "vs_target_pp": r.get("vs_target_pp"),
+                     "roi_multiple": r.get("roi_multiple"), "vs_target": r.get("vs_target"),
                      "status": r.get("status")}
                     for r in top["rows"]
                 ),
@@ -344,13 +344,13 @@ def command_center(state: FilterState, currency: str, options: dict[str, Any]) -
                     Column("product", "Product", "text", 30),
                     Column("channel", "Channel", "text", 15),
                     Column("period", "Period", "text", 12),
-                    Column("roi_pct", "ROI", "percent", 11),
-                    Column("target_roi_pct", "Target", "percent", 11),
-                    Column("gap_pp", "Gap (pp)", "number", 11),
+                    Column("roi_multiple", "ROI", "multiple", 11),
+                    Column("target_roi", "Target", "multiple", 11),
+                    Column("gap", "Gap", "multiple", 11),
                     Column("trade_spend", "Trade spend", "currency", 16),
                     Column("at_stake", "At stake", "currency", 16),
                 ),
-                rows=tuple(_alert_row(a, kpis["meta"].get("target_roi_pct")) for a in rows),
+                rows=tuple(_alert_row(a, kpis["meta"].get("target_roi")) for a in rows),
                 # THE SAME NUMBER THE SUMMARY PRINTS, and the listing says when it
                 # is showing fewer rows than that. The title used to read
                 # "{len(rows)} alert(s) matching the current filters" -- true of
@@ -375,7 +375,7 @@ def command_center(state: FilterState, currency: str, options: dict[str, Any]) -
 
 
 def _alert_row(alert: dict[str, Any], target: Any) -> dict[str, Any]:
-    roi = alert.get("roi_pct")
+    roi = alert.get("roi_multiple")
     gap = None
     if isinstance(roi, (int, float)) and isinstance(target, (int, float)):
         # Presentation subtraction of two figures the payload already carries,
@@ -387,9 +387,9 @@ def _alert_row(alert: dict[str, Any], target: Any) -> dict[str, Any]:
         "product": alert.get("product"),
         "channel": alert.get("channel"),
         "period": alert.get("period") or alert.get("week_key"),
-        "roi_pct": roi,
-        "target_roi_pct": target,
-        "gap_pp": gap,
+        "roi_multiple": roi,
+        "target_roi": target,
+        "gap": gap,
         "trade_spend": alert.get("trade_spend"),
         "at_stake": alert.get("at_stake"),
     }
@@ -493,7 +493,7 @@ def simulation_investigation(state: FilterState, currency: str, options: dict[st
                        "The simulated figures below cover the remaining promoted rows only.")
                 )))
 
-    order = ("trade_spend", "incremental_units", "incremental_sales", "roi_percent",
+    order = ("trade_spend", "incremental_units", "incremental_sales", "roi_multiple",
              "margin_percent", "cannibalization", "pei")
     comparison_rows = []
     for key in order:
@@ -887,7 +887,7 @@ def simulation_target_rescue(state: FilterState, currency: str,
                     Column("trade_spend", "Trade spend", "currency", 16),
                     Column("additional", "Additional spend", "currency", 16),
                     Column("incremental_sales", "Incremental sales", "currency", 18),
-                    Column("roi", "ROI", "percent", 11),
+                    Column("roi", "ROI", "multiple", 11),
                     Column("margin", "Margin impact", "percent", 13),
                 ),
                 rows=tuple(
@@ -903,7 +903,7 @@ def simulation_target_rescue(state: FilterState, currency: str,
                         "trade_spend": r["trade_spend"],
                         "additional": r["additional_trade_spend"],
                         "incremental_sales": r["incremental_sales"],
-                        "roi": r["roi_pct"],
+                        "roi": r["roi_multiple"],
                         "margin": r["margin_pct"],
                     }
                     for r in result["interventions"]

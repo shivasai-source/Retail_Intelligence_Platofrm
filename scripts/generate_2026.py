@@ -592,7 +592,8 @@ def measured_uplift(rows: list[dict[str, str]]) -> dict[str, float]:
 
 
 def roi(rows: list[dict[str, str]]) -> float:
-    """Promotion ROI as app/tpo/aggregate.py defines it, over these rows."""
+    """Promotion ROI as app/tpo/aggregate.py defines it, over these rows: a
+    multiple of trade spend (1.0 = break-even)."""
     base_sum: Counter = Counter()
     base_n: Counter = Counter()
     for row in rows:
@@ -608,7 +609,7 @@ def roi(rows: list[dict[str, str]]) -> float:
         key = (row["Product_id"], row["Channel_Id"])
         baseline = base_sum[key] / base_n[key]
         incremental += (float(row["Actual_Quantity"]) - baseline) * float(row["Actual_Price"])
-    return (incremental - spend) / spend * 100
+    return incremental / spend
 
 
 # --- writing -------------------------------------------------------------------
@@ -730,11 +731,11 @@ def main() -> int:
     print(f"    YTD Jan-Aug       {ytd_new / ytd_src - 1:+.2%}   "
           f"({ytd_src / 1e7:.2f} Cr -> {ytd_new / 1e7:.2f} Cr)")
     src_ytd = [r for r in source if int(r["Week"]) <= LAST_WEEK]
-    print(f"  Promotion ROI Jan-Aug: F25 {roi(src_ytd):.1f}%  ->  F26 {roi(generated):.1f}%")
+    print(f"  Promotion ROI Jan-Aug: F25 {roi(src_ytd):.1f}  ->  F26 {roi(generated):.1f}")
     for channel in CHANNELS:
         a = roi([r for r in src_ytd if r["Channel_Id"] == channel])
         b = roi([r for r in generated if r["Channel_Id"] == channel])
-        print(f"    {channel}: {a:5.1f}% -> {b:5.1f}%")
+        print(f"    {channel}: {a:5.1f} -> {b:5.1f}")
     print("  measured uplift by treatment: "
           + ", ".join(f"{t} {u:.1%} (band {lo:.0%}-{hi:.0%})"
                       for t, u in sorted(uplift.items()) for lo, hi in [UPLIFT_RANGES[t]]))

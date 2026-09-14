@@ -17,7 +17,7 @@ export type WeeklyMetricKey =
   | 'incremental_sales'
   | 'incremental_units'
   | 'trade_spend'
-  | 'roi_percent'
+  | 'roi_multiple'
   | 'margin_percent'
   | 'cannibalization'
 

@@ -95,7 +95,7 @@ WEEKLY_METRICS: tuple[WeeklyMetric, ...] = (
     WeeklyMetric("incremental_units", True, "Extensive: weekly values sum to the scope total."),
     WeeklyMetric("trade_spend", True, "Extensive: every row belongs to exactly one week."),
     WeeklyMetric(
-        "roi_percent", False,
+        "roi_multiple", False,
         "A RATIO. Never summed and never averaged across weeks. Each week's ROI is "
         "computed by the engine from that week's own Incremental Sales and Trade "
         "Spend; the scope's ROI is reported separately and is the authority.",
@@ -177,7 +177,7 @@ def _week_kpis(
         "incremental_sales": bundle.incremental_sales.value,
         "incremental_units": bundle.incremental_quantity.value,
         "trade_spend": bundle.trade_spend.value,
-        "roi_percent": bundle.roi.value,
+        "roi_multiple": bundle.roi.value,
         "margin_percent": bundle.margin_impact.value,
         "cannibalization": bundle.cannibalization.value,
     }

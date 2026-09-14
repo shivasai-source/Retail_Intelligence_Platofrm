@@ -49,9 +49,9 @@ from app.tpo import response, service, simulation
 #:   percent_change   only for EXTENSIVE quantities -- money and units, things
 #:                    you can have twice as much of. Applying it to a ratio is
 #:                    the classic misreading this enum exists to prevent: an
-#:                    ROI moving 34% -> 68% is +34 points, and calling it
-#:                    "+100%" invites somebody to think returns doubled when
-#:                    what doubled was the rate.
+#:                    ROI moving 1.3 -> 1.6 is +0.3, and calling it
+#:                    "+23%" invites somebody to think returns grew by that
+#:                    much when what moved was the rate.
 DeltaType = Literal["absolute", "percentage_point", "percent_change"]
 
 #: A scenario's standing in a comparison.
@@ -92,10 +92,11 @@ METRIC_RULES: dict[str, MetricRule] = {
         "incremental_sales", "absolute", True,
         "Money. A difference is money and a ratio of two is meaningful.",
     ),
-    "roi_percent": MetricRule(
-        "roi_percent", "percentage_point", False,
-        "Already a percentage. Two ROIs differ by POINTS; a percent change of "
-        "a rate reads as though the return itself had changed by that much.",
+    "roi_multiple": MetricRule(
+        "roi_multiple", "absolute", False,
+        "A multiple of trade spend. Two ROIs differ by a multiple (+0.3); a "
+        "percent change of a rate reads as though the return itself had changed "
+        "by that much.",
     ),
     "margin_percent": MetricRule(
         "margin_percent", "percentage_point", False,
@@ -214,6 +215,8 @@ def _delta_display(rule: MetricRule, unit: str, absolute: float, currency: str) 
     convention from the value it came from."""
     if rule.delta_type == "percentage_point":
         return f"{absolute:+,.1f} pts"
+    if unit == "multiple":
+        return F.multiple(absolute, signed=True)
     if unit == "currency":
         return ("+" if absolute >= 0 else "-") + F.money(abs(absolute), currency)
     if unit == "quantity":

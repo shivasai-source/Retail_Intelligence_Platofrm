@@ -7,7 +7,7 @@ Two rules this module exists to enforce:
     only `display_value` is converted. No KPI function anywhere takes a
     currency argument, and the rate is read from config in exactly one place —
     `_to_display`.
-  * ROI, PEI and Cannibalization are percentages, scores and rates. They are
+  * ROI, PEI and Cannibalization are a multiple, a score and a rate. They are
     NEVER converted, whatever the currency toggle says.
 
 The F24/F25 labels are likewise display-only. The underlying year stays 2024 /
@@ -97,6 +97,18 @@ def percent(value: float | None, *, dp: int = 1, signed: bool = False) -> str:
         return "—"
     sign = "+" if signed and value > 0 else ""
     return f"{sign}{value:,.{dp}f}%"
+
+
+def multiple(value: float | None, *, dp: int = 2, signed: bool = False) -> str:
+    """A multiple of trade spend — the Promotion ROI's unit: 1.40. Two
+    decimals, the project's one exception to its one-decimal rule (see
+    `aggregate.roi_multiple`). Never touched by the currency toggle, since a
+    ratio of two rupee amounts has no currency of its own."""
+    if value is None:
+        return "—"
+    rounded = round(value, dp) + 0.0  # -0.004 -> 0.00, never "-0.00"
+    sign = "+" if signed and rounded > 0 else ""
+    return f"{sign}{rounded:,.{dp}f}"
 
 
 def score(value: float | None, *, dp: int = 0) -> str:

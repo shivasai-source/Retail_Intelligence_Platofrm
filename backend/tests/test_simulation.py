@@ -109,7 +109,7 @@ PARITY = {
     "trade_spend": lambda rows, vrows: A.calculate_trade_spend(rows),
     "incremental_units": lambda rows, vrows: A.calculate_incremental_quantity(vrows),
     "incremental_sales": lambda rows, vrows: A.calculate_incremental_sales(vrows),
-    "roi_percent": lambda rows, vrows: A.calculate_roi(rows, vrows),
+    "roi_multiple": lambda rows, vrows: A.calculate_roi(rows, vrows),
     "margin_percent": lambda rows, vrows: A.calculate_margin(rows),
     "pei": lambda rows, vrows: A.calculate_pei(rows, vrows),
 }
@@ -154,10 +154,11 @@ def test_every_kpi_matches_the_command_center_card(client, name, kwargs):
 
 
 def test_roi_is_the_one_roi_formula(client):
-    """ROI is a PERCENTAGE against the project target, never revenue/spend.
+    """ROI is INCREMENTAL sales over spend against the project target, never revenue/spend.
 
     The client-side engine this phase replaced returned `revenue / spend` --
-    around 2.1 where the validated ROI for the same scope is a percentage.
+    around 2.1 where the validated ROI for the same scope is a multiple of
+    trade spend with a different numerator.
     Asserting the identity rather than a frozen number keeps this true when the
     dataset is regenerated.
     """
@@ -166,14 +167,16 @@ def test_roi_is_the_one_roi_formula(client):
     spend = A.calculate_trade_spend(rows)
     sales = A.calculate_incremental_sales(vrows)
 
-    roi = _run(client, filters={"year": YEAR})["kpis"]["roi_percent"]
-    # Against `roi_percent` itself, so the rounding rule is the engine's too.
-    assert roi["value"] == A.roi_percent(sales, spend)
-    assert roi["value"] == pytest.approx((sales - spend) / spend * 100, abs=0.05)
-    assert roi["unit"] == "percent"
+    roi = _run(client, filters={"year": YEAR})["kpis"]["roi_multiple"]
+    # Against `roi_multiple` itself, so the rounding rule is the engine's too.
+    assert roi["value"] == A.roi_multiple(sales, spend)
+    assert roi["value"] == pytest.approx(sales / spend, abs=0.005)
+    assert roi["unit"] == "multiple"
+    # A bare number: no unit sign, no percent sign.
+    assert roi["display_value"] == f"{roi['value']:.2f}"
     assert "Trade Spend" in roi["formula"]
     # And the target it is read against is the project's one target.
-    assert _run(client, filters={"year": YEAR})["meta"]["target_roi_pct"] == config.PROMOTION_TARGET_ROI_PCT
+    assert _run(client, filters={"year": YEAR})["meta"]["target_roi"] == config.PROMOTION_TARGET_ROI
 
 
 # --- 11-12: the Phase A honesty contract -----------------------------------
@@ -223,7 +226,7 @@ def test_kpis_are_the_seven_required_figures(client):
     """The required output set, no more and no less."""
     assert set(_run(client)["kpis"]) == {
         "trade_spend", "incremental_units", "incremental_sales",
-        "roi_percent", "margin_percent", "cannibalization", "pei",
+        "roi_multiple", "margin_percent", "cannibalization", "pei",
     }
 
 

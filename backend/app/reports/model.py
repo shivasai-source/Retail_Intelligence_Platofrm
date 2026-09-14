@@ -34,7 +34,7 @@ BRAND = "TPO INTELLIGENCE"
 
 #: What a column holds, which decides its Excel number format, its alignment and
 #: how the PDF stringifies it.
-ColumnKind = Literal["text", "currency", "number", "units", "percent", "date", "status"]
+ColumnKind = Literal["text", "currency", "number", "units", "percent", "multiple", "date", "status"]
 
 #: What a section is, which decides how a writer lays it out.
 SectionKind = Literal["kv", "table", "text", "kpi"]
@@ -187,6 +187,10 @@ def excel_number_format(kind: ColumnKind, currency: str) -> str:
         "number": "#,##0.0",
         "units": "#,##0",
         "percent": '0.0"%";[Red]-0.0"%"',
+        # The Promotion ROI: a bare multiple at two decimals (1.40). Red below
+        # 1.00 would be the useful cue, but a number format can only colour on
+        # sign, so it stays plain.
+        "multiple": "0.00",
         "date": "dd mmm yyyy",
         "text": "@",
         "status": "@",
@@ -194,4 +198,4 @@ def excel_number_format(kind: ColumnKind, currency: str) -> str:
 
 
 def is_numeric(kind: ColumnKind) -> bool:
-    return kind in ("currency", "number", "units", "percent")
+    return kind in ("currency", "number", "units", "percent", "multiple")

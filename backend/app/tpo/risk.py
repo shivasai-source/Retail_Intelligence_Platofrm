@@ -175,7 +175,7 @@ def _economic_findings(scenario: dict[str, Any], policy: RiskPolicy) -> list[dic
     uplift = scenario.get("uplift") or {}
     breakeven = scenario.get("breakeven_uplift")
     headroom = (scenario.get("headroom") or {}).get("low")
-    roi_low, roi_high = _cell(scenario, "low", "roi_percent"), _cell(scenario, "high", "roi_percent")
+    roi_low, roi_high = _cell(scenario, "low", "roi_multiple"), _cell(scenario, "high", "roi_multiple")
 
     if breakeven is None or uplift.get("low") is None:
         return [
@@ -296,7 +296,7 @@ def _availability_finding(scenario: dict[str, Any]) -> dict[str, Any] | None:
     """Rule 6: any KPI the engine could not produce, named."""
     missing = []
     for metric in ("incremental_sales", "incremental_units", "trade_spend",
-                   "roi_percent", "margin_percent", "cannibalization", "pei"):
+                   "roi_multiple", "margin_percent", "cannibalization", "pei"):
         cell = _cell(scenario, "low", metric)
         if cell and not cell.get("available"):
             missing.append({"metric": metric, "reason": cell.get("unavailable_reason")})

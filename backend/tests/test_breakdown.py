@@ -179,7 +179,7 @@ def test_target_roi_comes_from_config_not_a_literal():
     from app.tpo import config
 
     payload = service.breakdown(FilterState.build(year=YEAR), by="channel")
-    assert payload["meta"]["target_roi_pct"] == config.PROMOTION_TARGET_ROI_PCT
+    assert payload["meta"]["target_roi"] == config.PROMOTION_TARGET_ROI
 
 
 def test_b2b_has_no_retailer_groups_so_the_chart_can_hide():

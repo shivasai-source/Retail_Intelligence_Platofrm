@@ -128,7 +128,7 @@ export interface SimulateResponse {
     method: string
     range_label: string
   }
-  meta: { currency: string; base_currency: string; target_roi_pct: number; phase: string }
+  meta: { currency: string; base_currency: string; target_roi: number; phase: string }
 }
 
 /** Where a cannibalization rate was measured, when the selected scope could
@@ -163,7 +163,7 @@ export type SimulationKpiKey =
   | 'trade_spend'
   | 'incremental_units'
   | 'incremental_sales'
-  | 'roi_percent'
+  | 'roi_multiple'
   | 'margin_percent'
   | 'cannibalization'
   | 'pei'
@@ -288,7 +288,7 @@ export interface SimulationRunResponse {
     currency: string
     base_currency: string
     exchange_rate: number
-    target_roi_pct: number
+    target_roi: number
     phase: string
   }
 }

@@ -181,7 +181,7 @@ def test_rca_kpi_values_are_never_passed_into_simulation(client):
     for token in ("98.6", "trade_spend", "roi", "incremental", "margin", "pei", "at_stake"):
         assert token not in flat, f"the hand-off carried a KPI value: {token}"
 
-    for field in ("trade_spend", "at_stake", "roi_pct"):
+    for field in ("trade_spend", "at_stake", "roi_multiple"):
         assert client.post(
             "/api/simulation/context", json={"filters": HANDED_OFF_SCOPE, field: 98.6}
         ).status_code == 422

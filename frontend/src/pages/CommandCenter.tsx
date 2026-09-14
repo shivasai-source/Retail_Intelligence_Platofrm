@@ -46,6 +46,7 @@ import { ExportReportButton } from '../components/reports/ExportReportButton'
 // export starts describing a different selection from the screen.
 import { toSimulationFilters as toReportScope } from '../hooks/useSimulation'
 import { useAlertHandoff } from '../hooks/useAlertHandoff'
+import { fmtRoi } from '../lib/roi'
 import type { KpiCard } from '../types/commandCenter'
 
 const GRANULARITIES = [
@@ -305,8 +306,8 @@ export function CommandCenter() {
                 <InfoPopover label="About Promotion Performance Trend" title="Promotion Performance Trend">
                   <InfoBlock label="Incremental Sales">Actual Sales − Baseline Sales</InfoBlock>
                   <InfoBlock label="Trade Spend">Discount Value + Promotion Cost</InfoBlock>
-                  <InfoBlock label="ROI">(Incremental Sales − Trade Spend) ÷ Trade Spend × 100</InfoBlock>
-                  <InfoBlock label="Target ROI">{meta.target_roi_pct}%</InfoBlock>
+                  <InfoBlock label="ROI">Incremental Sales ÷ Trade Spend — 1.00 is break-even</InfoBlock>
+                  <InfoBlock label="Target ROI">{fmtRoi(meta.target_roi)}</InfoBlock>
                 </InfoPopover>
               </span>
             }
@@ -332,10 +333,10 @@ export function CommandCenter() {
             <div className="mb-2 flex flex-wrap gap-4 pb-2">
               <LegendItem swatch={<span className="h-0.5 w-[18px] rounded-sm bg-brand-violet" />} label={`Incremental Sales (${meta.currency})`} />
               <LegendItem swatch={<span className="h-0.5 w-[18px] rounded-sm bg-status-danger" />} label={`Trade Spend (${meta.currency})`} />
-              <LegendItem swatch={<span className="h-0.5 w-[18px] rounded-sm" style={{ background: 'var(--tint-teal-icon)' }} />} label="ROI (%)" />
+              <LegendItem swatch={<span className="h-0.5 w-[18px] rounded-sm" style={{ background: 'var(--tint-teal-icon)' }} />} label="ROI" />
               <LegendItem
                 swatch={<span className="h-0 w-[18px] border-t-2 border-dashed border-ink-muted" />}
-                label={`Target ROI (${meta.target_roi_pct}%)`}
+                label={`Target ROI (${fmtRoi(meta.target_roi)})`}
               />
             </div>
             {trend.isLoading ? (
@@ -385,13 +386,13 @@ export function CommandCenter() {
                     One promotion on one product, in one channel, in one business week
                   </InfoBlock>
                   <InfoBlock label="Severity">
-                    Critical &lt; 25%
+                    Critical &lt; 1.25
                     <br />
-                    High 25–40%
+                    High 1.25–1.40
                     <br />
-                    Medium 40–{meta.target_roi_pct}%
+                    Medium 1.40–{fmtRoi(meta.target_roi)}
                     <br />
-                    Target ≥ {meta.target_roi_pct}%
+                    Target ≥ {fmtRoi(meta.target_roi)}
                   </InfoBlock>
                   <InfoBlock label="Ranking">
                     Highest stake first

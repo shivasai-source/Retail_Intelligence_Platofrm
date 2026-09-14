@@ -49,10 +49,10 @@ NO_EVIDENCE_SCOPE = {
     "year": YEAR, "promotion": ["PBDU25"], "product": ["P13-240ct"], "channel": ["CH003"],
 }
 
-#: The engine rounds ROI to one decimal place, so an exact algebraic identity
-#: can still land up to half a step away. Everything looser than this would be
-#: hiding a real disagreement.
-ROI_ROUNDING_TOLERANCE = 0.05
+#: The engine rounds the ROI multiple to two decimal places, so an exact
+#: algebraic identity can still land up to half a step (0.005) away.
+#: Everything looser than this would be hiding a real disagreement.
+ROI_ROUNDING_TOLERANCE = 0.005
 
 
 @pytest.fixture(scope="session")
@@ -72,13 +72,13 @@ def _ok(client, filters, discount_pct, **extra):
 
 
 def closed_form_roi(u: float, d: float, c: float = COST_RATE) -> float:
-    """THE ORACLE. ROI = u(1-d)/((1+u)(d+c)) - 1, as a percentage.
+    """THE ORACLE. ROI = u(1-d)/((1+u)(d+c)), as a multiple of trade spend.
 
     b and P cancel out of the ratio, which is why neither appears -- and why
     the identity holds for a whole selection of mixed products and prices, not
     just one row. Used only in this file.
     """
-    return (u * (1 - d) / ((1 + u) * (d + c)) - 1) * 100
+    return u * (1 - d) / ((1 + u) * (d + c))
 
 
 def _synth(state: FilterState, uplift: float, discount: float):
@@ -193,9 +193,9 @@ def test_each_treatment_produces_a_result_at_each_end(client, treatment, end):
     kpis = side["kpis"]
     assert set(kpis) == {
         "trade_spend", "incremental_units", "incremental_sales",
-        "roi_percent", "margin_percent", "cannibalization", "pei",
+        "roi_multiple", "margin_percent", "cannibalization", "pei",
     }
-    for key in ("trade_spend", "incremental_units", "incremental_sales", "roi_percent"):
+    for key in ("trade_spend", "incremental_units", "incremental_sales", "roi_multiple"):
         assert kpis[key]["available"], f"{treatment}/{end}: {key} unavailable"
         assert kpis[key]["value"] is not None
 
@@ -211,8 +211,8 @@ def test_low_high_preserve_the_approved_band(client, treatment):
     assert payload["result"]["low"]["uplift"] == rule.uplift_low
     assert payload["result"]["high"]["uplift"] == rule.uplift_high
     # More uplift at the same discount must return more.
-    assert payload["result"]["high"]["kpis"]["roi_percent"]["value"] > \
-           payload["result"]["low"]["kpis"]["roi_percent"]["value"]
+    assert payload["result"]["high"]["kpis"]["roi_multiple"]["value"] > \
+           payload["result"]["low"]["kpis"]["roi_multiple"]["value"]
 
 
 def test_the_range_is_never_called_a_confidence_interval(client):
@@ -270,9 +270,9 @@ def test_a_failed_simulation_yields_no_simulated_status(client):
 
 def test_the_guard_rejects_a_simulated_result_without_provenance():
     """17 of the brief: the guard was strengthened, not weakened."""
-    built = scenarios.build({"discount_pct": 10.0}, {"roi_percent": {"value": 1}})
+    built = scenarios.build({"discount_pct": 10.0}, {"roi_multiple": {"value": 1}})
     built[1]["status"] = "simulated"
-    built[1]["result"] = {"roi_percent": {"value": 99}}  # no provenance
+    built[1]["result"] = {"roi_multiple": {"value": 99}}  # no provenance
     with pytest.raises(AssertionError, match="no provenance"):
         scenarios.assert_no_fabricated_results(built)
 
@@ -330,7 +330,7 @@ def test_every_kpi_equals_a_direct_aggregate_call(client, treatment, end):
     assert kpis["trade_spend"]["value"] == A.calculate_trade_spend(cf_rows)
     assert kpis["incremental_units"]["value"] == A.calculate_incremental_quantity(cf_volume)
     assert kpis["incremental_sales"]["value"] == A.calculate_incremental_sales(cf_volume)
-    assert kpis["roi_percent"]["value"] == A.calculate_roi(cf_rows, cf_volume)
+    assert kpis["roi_multiple"]["value"] == A.calculate_roi(cf_rows, cf_volume)
     assert kpis["margin_percent"]["value"] == A.calculate_margin(cf_rows)
     assert kpis["pei"]["value"] == A.calculate_pei(cf_rows, cf_volume)
 
@@ -380,14 +380,14 @@ def test_trade_spend_is_derived_from_the_synthesized_rows(client):
 @pytest.mark.parametrize("treatment", sorted(SCOPES))
 def test_engine_roi_agrees_with_the_closed_form_oracle(client, treatment, end):
     """34. The engine's ROI over the synthesized rows equals the closed-form
-    ROI for that (u, d), to within the engine's own 1dp rounding.
+    ROI for that (u, d), to within the engine's own 2dp rounding.
 
     This holds for a whole mixed selection because b and P cancel out of the
     ratio: Sum(b_i P_i) factors out of numerator and denominator alike.
     """
     rule = response.get_treatment_response(DISCOUNT[treatment])
     uplift = rule.uplift_low if end == "low" else rule.uplift_high
-    engine_roi = _ok(client, SCOPES[treatment], DISCOUNT[treatment])["result"][end]["kpis"]["roi_percent"]["value"]
+    engine_roi = _ok(client, SCOPES[treatment], DISCOUNT[treatment])["result"][end]["kpis"]["roi_multiple"]["value"]
 
     expected = closed_form_roi(uplift, rule.discount_pct / 100)
     assert engine_roi == pytest.approx(expected, abs=ROI_ROUNDING_TOLERANCE)
@@ -398,13 +398,14 @@ def test_scenario_roi_sits_where_the_breakeven_says_it_should(client, treatment)
     """35. PB001's narrow headroom stays visible: its low end barely clears
     break-even where every other treatment clears it comfortably."""
     rule = response.get_treatment_response(DISCOUNT[treatment])
-    low_roi = _ok(client, SCOPES[treatment], DISCOUNT[treatment])["result"]["low"]["kpis"]["roi_percent"]["value"]
+    low_roi = _ok(client, SCOPES[treatment], DISCOUNT[treatment])["result"]["low"]["kpis"]["roi_multiple"]["value"]
 
-    assert low_roi > 0, "an approved band's floor must still return money"
+    assert low_roi >= 1.0, "an approved band's floor must still return its money"
     if treatment == "PB001":
-        assert low_roi < 2.0, f"PB001's floor should be barely above break-even, got {low_roi}%"
+        # 1.004 unrounded: at two decimal places it prints as 1.00, break-even.
+        assert low_roi < 1.01, f"PB001's floor should be barely above break-even, got {low_roi}"
     else:
-        assert low_roi > 10.0
+        assert low_roi > 1.1
 
 
 def test_pb001_headroom_is_reported_and_not_smoothed(client):
@@ -427,17 +428,21 @@ def test_synthesis_reproduces_measured_roi_at_the_uplift_the_data_implies(treatm
     that would catch a broken counterfactual.
 
     The uplift is recovered by inverting the closed form:
-        ROI = u(1-d)/((1+u)(d+c)) - 1  =>  u = R(d+c) / ((1-d) - R(d+c))
+        ROI = u(1-d)/((1+u)(d+c))  =>  u = R(d+c) / ((1-d) - R(d+c))
+
+    The measured ROI is taken UNROUNDED for the inversion: a 0.1 display step
+    is far too coarse to recover an uplift from, and the round trip is then
+    checked at the engine's own rounding.
     """
     d = DISCOUNT[treatment] / 100
     state = FilterState.build(**SCOPES[treatment])
-    measured = A.calculate_roi(rows_for(state), baseline_rows_for(state))
+    measured = A.calculate_roi(rows_for(state), baseline_rows_for(state), precision=None)
 
-    ratio = measured / 100 + 1
+    ratio = measured
     implied_u = ratio * (d + COST_RATE) / ((1 - d) - ratio * (d + COST_RATE))
 
     cf_rows, cf_volume, _ = _synth(state, implied_u, d)
-    assert A.calculate_roi(cf_rows, cf_volume) == pytest.approx(measured, abs=ROI_ROUNDING_TOLERANCE)
+    assert A.calculate_roi(cf_rows, cf_volume, precision=None) == pytest.approx(measured, abs=1e-6)
 
 
 @pytest.mark.parametrize(
@@ -451,7 +456,7 @@ def test_the_audit_mean_uplift_is_a_different_statistic_from_the_roi_one(treatme
     reports an UNWEIGHTED mean of per-(promotion, year) uplifts, while ROI is
     driven by the VOLUME-WEIGHTED uplift. Per-group uplift inside PR001 F25
     ranges 14.5%-26.8%, so the two means differ by a few tenths of a point and
-    the ROIs differ by a few points.
+    the ROIs differ by a few hundredths of a multiple.
 
     Nothing was changed in aggregate.py to close this gap, because there is no
     defect to close -- the two numbers answer different questions. This test
@@ -460,12 +465,14 @@ def test_the_audit_mean_uplift_is_a_different_statistic_from_the_roi_one(treatme
     """
     d = DISCOUNT[treatment] / 100
     state = FilterState.build(**SCOPES[treatment])
-    measured = A.calculate_roi(rows_for(state), baseline_rows_for(state))
+    # Unrounded on both sides: the gap being pinned is smaller than the 0.1
+    # display step, so the rounded figures could straddle a boundary.
+    measured = A.calculate_roi(rows_for(state), baseline_rows_for(state), precision=None)
 
     cf_rows, cf_volume, _ = _synth(state, audit_mean_uplift, d)
-    at_audit_mean = A.calculate_roi(cf_rows, cf_volume)
+    at_audit_mean = A.calculate_roi(cf_rows, cf_volume, precision=None)
 
-    assert at_audit_mean == pytest.approx(measured, abs=7.0), (
+    assert at_audit_mean == pytest.approx(measured, abs=0.07), (
         "the gap between the unweighted and volume-weighted uplift grew beyond "
         "what the mix explains"
     )

@@ -8,7 +8,7 @@ const KPI_ORDER: SimulationKpiKey[] = [
   'trade_spend',
   'incremental_units',
   'incremental_sales',
-  'roi_percent',
+  'roi_multiple',
   'margin_percent',
   'cannibalization',
   'pei',

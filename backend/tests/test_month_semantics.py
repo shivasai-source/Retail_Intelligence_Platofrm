@@ -247,7 +247,7 @@ def test_march_ch002_p11_250ml_month_scope_has_no_in_scope_control():
 
     So inside a month-filtered scope a promoted SKU now has zero non-promoted
     observations, `_volume()` correctly refuses to invent a baseline, and
-    Incremental Sales is 0 (ROI -100%) for 37 of the 120 channel-months, all in
+    Incremental Sales is 0 (ROI 0.0) for 37 of the 120 channel-months, all in
     CH002 and CH005. The DATA is right; the baseline definition simply has no
     in-scope control to measure against. Accepted by the project owner rather
     than widening baseline scope, which is frozen.

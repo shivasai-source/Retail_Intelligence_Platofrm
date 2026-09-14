@@ -299,8 +299,8 @@ def test_a_smaller_panel_is_less_confident_than_a_complete_one():
 
 def _facts():
     rows = [
-        {"name": "Buy3Get1", "trade_spend": 600.0, "roi_pct": 6.8},
-        {"name": "10% Discount", "trade_spend": 400.0, "roi_pct": 59.5},
+        {"name": "Buy3Get1", "trade_spend": 600.0, "roi_multiple": 1.1},
+        {"name": "10% Discount", "trade_spend": 400.0, "roi_multiple": 1.6},
     ]
     return {
         "kpis": {"trade_spend": 1000.0},
@@ -312,8 +312,8 @@ def _facts():
 
 def test_the_analyst_is_scored_on_the_facts_it_was_given():
     analysis = {
-        "headline": "ROI is 6.8% on the largest mechanic",
-        "narrative": "Buy3Get1 returns 6.8% against 59.5%.",
+        "headline": "ROI is 1.1 on the largest mechanic",
+        "narrative": "Buy3Get1 returns 1.1 against 1.6.",
         "key_insights": [],
         "drivers": [],
     }
@@ -377,27 +377,29 @@ def test_an_unmeasured_lever_holds_the_recommendation_back():
 def test_driver_weights_are_an_exact_decomposition():
     """Contributions sum to the gap, and the weights to 100."""
     rows = [
-        {"name": "Buy3Get1", "trade_spend": 600.0, "roi_pct": 6.8},
-        {"name": "10% Discount", "trade_spend": 400.0, "roi_pct": 59.5},
-        {"name": "No Discount", "trade_spend": 0.0, "roi_pct": None},
+        {"name": "Buy3Get1", "trade_spend": 600.0, "roi_multiple": 1.1},
+        {"name": "10% Discount", "trade_spend": 400.0, "roi_multiple": 1.6},
+        {"name": "No Discount", "trade_spend": 0.0, "roi_multiple": None},
     ]
     decomposition = roi_gap_decomposition(rows, "promotion_mechanic")
-    target = decomposition["target_roi_pct"]
-    expected = (600.0 * 6.8 + 400.0 * 59.5) / 1000.0
+    target = decomposition["target_roi"]
+    expected = (600.0 * 1.1 + 400.0 * 1.6) / 1000.0
 
-    assert decomposition["weighted_roi_pct"] == pytest.approx(expected, abs=0.05)
-    assert decomposition["gap_pp"] == pytest.approx(expected - target, abs=0.05)
+    assert decomposition["weighted_roi"] == pytest.approx(expected, abs=0.005)
+    assert decomposition["gap"] == pytest.approx(expected - target, abs=0.005)
     assert sum(d["weight_pct"] for d in decomposition["drivers"]) == 100
-    assert sum(d["contribution_pp"] for d in decomposition["drivers"]) == pytest.approx(
-        decomposition["gap_pp"], abs=0.15
+    # Each contribution is reported to 0.01, so the printed parts can miss the
+    # printed whole by one rounding step per driver.
+    assert sum(d["contribution"] for d in decomposition["drivers"]) == pytest.approx(
+        decomposition["gap"], abs=0.015
     )
 
 
 def test_a_group_with_the_budget_outranks_a_worse_one_without_it():
     """The ranking the prompts asked for in words, now in the arithmetic."""
     rows = [
-        {"name": "Big and mediocre", "trade_spend": 900.0, "roi_pct": 30.0},
-        {"name": "Tiny and awful", "trade_spend": 10.0, "roi_pct": -80.0},
+        {"name": "Big and mediocre", "trade_spend": 900.0, "roi_multiple": 1.3},
+        {"name": "Tiny and awful", "trade_spend": 10.0, "roi_multiple": 0.2},
     ]
     drivers = roi_gap_decomposition(rows, "promotion_mechanic")["drivers"]
     assert drivers[0]["driver"] == "Big and mediocre"

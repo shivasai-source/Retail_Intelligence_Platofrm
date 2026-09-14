@@ -56,7 +56,7 @@ def saturation_curve(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             {
                 "mechanic": g["group"],
                 "depth_pct": depth,
-                "roi_pct": g.get("roi"),
+                "roi_multiple": g.get("roi"),
                 "incremental_sales": g.get("incremental_sales"),
                 "trade_spend": g.get("trade_spend"),
                 "spend_share_pct": g.get("share_pct"),
@@ -67,16 +67,16 @@ def saturation_curve(filters: dict[str, Any] | None = None) -> dict[str, Any]:
     # Saturation = the shallowest depth at or beyond which ROI has fallen below
     # the target hurdle and keeps falling. Reported as None when the curve never
     # crosses it, rather than inventing a threshold.
-    target = config.PROMOTION_TARGET_ROI_PCT
+    target = config.PROMOTION_TARGET_ROI
     saturation = None
     for i, p in enumerate(points):
-        if p["roi_pct"] is not None and p["roi_pct"] < target:
-            later = [q["roi_pct"] for q in points[i:] if q["roi_pct"] is not None]
+        if p["roi_multiple"] is not None and p["roi_multiple"] < target:
+            later = [q["roi_multiple"] for q in points[i:] if q["roi_multiple"] is not None]
             if later and all(v < target for v in later):
                 saturation = p["depth_pct"]
                 break
 
-    above = [p for p in points if p["roi_pct"] is not None and p["roi_pct"] >= target]
+    above = [p for p in points if p["roi_multiple"] is not None and p["roi_multiple"] >= target]
     optimal = (
         f"{min(p['depth_pct'] for p in above):.0f}–{max(p['depth_pct'] for p in above):.0f}%"
         if above
@@ -84,11 +84,11 @@ def saturation_curve(filters: dict[str, Any] | None = None) -> dict[str, Any]:
     )
     return {
         "points": points,
-        "target_roi_pct": target,
+        "target_roi": target,
         "saturation_depth_pct": saturation,
         "optimal_range": optimal,
         "monotonic_decline": all(
-            points[i]["roi_pct"] >= points[i + 1]["roi_pct"] for i in range(len(points) - 1)
+            points[i]["roi_multiple"] >= points[i + 1]["roi_multiple"] for i in range(len(points) - 1)
         )
         if len(points) > 1
         else False,
@@ -105,7 +105,7 @@ def contribution_waterfall(filters: dict[str, Any] | None = None) -> dict[str, A
             "label": str(g.get("group")),
             "incremental_sales": g.get("incremental_sales"),
             "trade_spend": g.get("trade_spend"),
-            "roi_pct": g.get("roi"),
+            "roi_multiple": g.get("roi"),
         }
         for g in groups
         if g.get("incremental_sales") is not None
@@ -149,9 +149,17 @@ def inc_sales_trend(filters: dict[str, Any] | None = None) -> dict[str, Any]:
     }
 
 
+def _watching_floor(target: float) -> float:
+    """The ROI below which a group is `underperforming` rather than merely
+    `watching`: 70% of the target's return ABOVE break-even, so 1.35 against a
+    1.5 target. Measured from 1.0 and not from zero, because the first 1.0
+    of any multiple is only the spend coming back."""
+    return round(1 + (target - 1) * 0.7, 2)
+
+
 def _dimension_table(filters: dict[str, Any] | None, by: str, limit: int = 10) -> list[dict[str, Any]]:
     groups = run_analysis(filters, by, "trade_spend", limit=limit).get("groups") or []
-    target = config.PROMOTION_TARGET_ROI_PCT
+    target = config.PROMOTION_TARGET_ROI
     rows = []
     for g in groups:
         roi = g.get("roi")
@@ -160,13 +168,13 @@ def _dimension_table(filters: dict[str, Any] | None, by: str, limit: int = 10) -
                 "name": g.get("group"),
                 "trade_spend": g.get("trade_spend"),
                 "incremental_sales": g.get("incremental_sales"),
-                "roi_pct": roi,
+                "roi_multiple": roi,
                 "spend_share_pct": g.get("share_pct"),
-                "vs_target_pp": round(roi - target, 1) if roi is not None else None,
+                "vs_target": round(roi - target, 2) if roi is not None else None,
                 "status": (
                     "unknown" if roi is None
                     else "on_track" if roi >= target
-                    else "watching" if roi >= target * 0.7
+                    else "watching" if roi >= _watching_floor(target)
                     else "underperforming"
                 ),
             }
@@ -228,7 +236,7 @@ def roi_gap_decomposition(
 
     THE FORMULA, and why it is exact rather than attributed. Promotion ROI is
 
-        ROI_pct = (Incremental Sales - Trade Spend) / Trade Spend x 100
+        ROI = Incremental Sales / Trade Spend        (a multiple, 1.4)
 
     and Trade Spend is the one additive money measure in this engine (see
     `service.breakdown`'s additivity contract). So across the groups of one
@@ -239,16 +247,17 @@ def roi_gap_decomposition(
     and its distance from the target hurdle decomposes with no residual:
 
         weighted_roi - target = SUM_g( spend_g x (roi_g - target) / SUM(spend) )
-                              = SUM_g( contribution_pp_g )
+                              = SUM_g( contribution_g )
 
-    `contribution_pp` is that per-group term, in percentage points of portfolio
-    ROI, and `weight_pct` is its share of the total absolute movement. Both are
+    `contribution` is that per-group term, in multiples of portfolio ROI (a
+    group pulling the portfolio down by 0.1 contributes -0.1), and
+    `weight_pct` is its share of the total absolute movement. Both are
     arithmetic on figures app/tpo/aggregate.py produced; neither is an opinion.
 
     A GROUP WITH HALF THE BUDGET AT A SMALL SHORTFALL OUTWEIGHS A TINY ONE AT A
     CATASTROPHIC ROI, which is the ranking the prompts have always asked for in
     words and can now stop asking for. `spend_g` is in the numerator precisely
-    so that a -80% ROI on a few hundred rupees cannot lead the list.
+    so that a 0.2 ROI on a few hundred rupees cannot lead the list.
 
     WHAT THIS IS NOT. It is not an attribution of cause: it says where the
     distance from target sits, not why. And because Incremental Sales is
@@ -256,10 +265,10 @@ def roi_gap_decomposition(
     the group ROIs rather than the headline KPI — the two are close but not
     identical, and the payload reports it under its own name for that reason.
     """
-    target = config.PROMOTION_TARGET_ROI_PCT
+    target = config.PROMOTION_TARGET_ROI
     usable = [
         r for r in rows
-        if r.get("roi_pct") is not None and (r.get("trade_spend") or 0) > 0
+        if r.get("roi_multiple") is not None and (r.get("trade_spend") or 0) > 0
     ]
     total_spend = sum(r["trade_spend"] for r in usable)
     if not usable or total_spend <= 0:
@@ -270,62 +279,62 @@ def roi_gap_decomposition(
                 "No group in this scope carries both trade spend and a defined ROI, "
                 "so the gap cannot be decomposed."
             ),
-            "target_roi_pct": target,
+            "target_roi": target,
             "drivers": [],
         }
 
     contributions = [
-        r["trade_spend"] * (r["roi_pct"] - target) / total_spend for r in usable
+        r["trade_spend"] * (r["roi_multiple"] - target) / total_spend for r in usable
     ]
     weights = _largest_remainder([abs(c) for c in contributions])
 
     entries: list[dict[str, Any]] = []
     for row, contribution, weight in zip(usable, contributions, weights):
         spend = row["trade_spend"]
-        roi = row["roi_pct"]
+        roi = row["roi_multiple"]
         entries.append({
             "driver": str(row.get("name")),
             "weight_pct": weight,
             "direction": "negative" if contribution < 0 else "positive",
-            "contribution_pp": round(contribution, 1),
+            "contribution": round(contribution, 2),
             "trade_spend": round(spend, 1),
             # Named for its denominator. It is NOT the row's own
             # `spend_share_pct`: groups with an undefined ROI cannot be
             # decomposed and are out of both sides of this ratio, so the two
             # figures differ whenever any group was excluded.
             "share_of_decomposed_spend_pct": round(spend / total_spend * 100, 1),
-            "roi_pct": roi,
-            "vs_target_pp": round(roi - target, 1),
+            "roi_multiple": roi,
+            "vs_target": round(roi - target, 2),
             "incremental_sales": row.get("incremental_sales"),
             # The row a note can be written from without inventing anything.
             "measured_note": (
                 f"₹{spend / 1e7:,.1f} Cr of trade spend "
-                f"({round(spend / total_spend * 100, 1)}% of the scope) at {roi}% ROI, "
-                f"{round(roi - target, 1):+} pp against the {target}% target."
+                f"({round(spend / total_spend * 100, 1)}% of the scope) at {roi} ROI, "
+                f"{round(roi - target, 2):+} against the {target} target."
             ),
             "is_primary": False,
         })
-    entries.sort(key=lambda e: (-abs(e["contribution_pp"]), e["driver"]))
+    entries.sort(key=lambda e: (-abs(e["contribution"]), e["driver"]))
 
     # PRIMARY = ROOT CAUSE, BY A STATED RULE. Take the drivers pulling the
     # portfolio the wrong way, largest first, until they account for 80% of
     # that adverse movement. Everything after them is a contributor. When
     # nothing is adverse the same cut is applied to what is carrying the
     # scope, so a healthy segment still names what is doing the work.
-    adverse = [e for e in entries if e["contribution_pp"] < 0]
+    adverse = [e for e in entries if e["contribution"] < 0]
     if not adverse:
-        adverse = [e for e in entries if e["contribution_pp"] > 0]
-    pool = sum(abs(e["contribution_pp"]) for e in adverse)
+        adverse = [e for e in entries if e["contribution"] > 0]
+    pool = sum(abs(e["contribution"]) for e in adverse)
     running = 0.0
     for entry in adverse:
         if pool <= 0:
             break
         entry["is_primary"] = True
-        running += abs(entry["contribution_pp"])
+        running += abs(entry["contribution"])
         if running / pool >= _PRIMARY_CUMULATIVE_SHARE:
             break
 
-    weighted_roi = sum(r["trade_spend"] * r["roi_pct"] for r in usable) / total_spend
+    weighted_roi = sum(r["trade_spend"] * r["roi_multiple"] for r in usable) / total_spend
     shown = [e for e in entries if e["weight_pct"] >= _DRIVER_FLOOR_PCT][:limit]
 
     # NOTHING TO DECOMPOSE IS NOT THE SAME AS NOTHING TO REPORT. Every group
@@ -336,7 +345,7 @@ def roi_gap_decomposition(
         reason = (
             "Every group in this scope sits at the target ROI, so there is no gap to "
             "decompose."
-            if abs(weighted_roi - target) < 0.05
+            if abs(weighted_roi - target) < 0.005
             else "No group accounts for as much as 1% of the movement against target."
         )
 
@@ -344,25 +353,25 @@ def roi_gap_decomposition(
         "lens": lens,
         "available": True,
         "reason": reason,
-        "target_roi_pct": target,
-        "weighted_roi_pct": round(weighted_roi, 1),
-        "gap_pp": round(weighted_roi - target, 1),
+        "target_roi": target,
+        "weighted_roi": round(weighted_roi, 2),
+        "gap": round(weighted_roi - target, 2),
         "trade_spend_decomposed": round(total_spend, 1),
         "groups_decomposed": len(usable),
         "formula": (
-            "contribution_pp = trade_spend x (roi_pct - target_roi_pct) / total_trade_spend; "
-            "weight_pct = |contribution_pp| as a share of the total absolute contribution, "
-            "apportioned to integers summing to 100. The contributions sum to gap_pp, which "
-            "is weighted_roi_pct - target_roi_pct; each is reported to one decimal place, so "
-            "adding the printed values back up can differ from gap_pp in the last digit. "
-            "gap_pp is the figure to quote."
+            "contribution = trade_spend x (roi_multiple - target_roi) / total_trade_spend, in "
+            "multiples; weight_pct = |contribution| as a share of the total absolute "
+            "contribution, apportioned to integers summing to 100. The contributions sum to "
+            "gap, which is weighted_roi - target_roi; each is reported to two decimal places, "
+            "so adding the printed values back up can differ from gap in the last digit. "
+            "gap is the figure to quote."
         ),
         "primary_rule": (
             "is_primary marks the adverse drivers that, taken largest first, account for "
             f"{int(_PRIMARY_CUMULATIVE_SHARE * 100)}% of the adverse movement."
         ),
         "weighted_roi_note": (
-            "weighted_roi_pct is the spend-weighted mean of the group ROIs, not the "
+            "weighted_roi is the spend-weighted mean of the group ROIs, not the "
             "headline Promotion ROI: Incremental Sales is re-baselined per selection and "
             "so does not sum across groups. Cite the KPI for the headline."
         ),
@@ -520,7 +529,7 @@ def risk_summary(filters: dict[str, Any] | None = None) -> dict[str, Any]:
             {
                 "title": a.get("title"),
                 "severity": a.get("severity"),
-                "roi_pct": a.get("roi_pct"),
+                "roi_multiple": a.get("roi_multiple"),
                 "trade_spend": a.get("trade_spend"),
                 "at_stake": a.get("at_stake"),
             }
@@ -608,7 +617,7 @@ def build_intelligence_facts(
         # told the currency will default to dollars.
         "currency": config.BASE_CURRENCY,
         "currency_symbol": "₹",
-        "target_roi_pct": config.PROMOTION_TARGET_ROI_PCT,
+        "target_roi": config.PROMOTION_TARGET_ROI,
         "sections": list(sections),
         # The population every figure below was computed over. Carried because
         # the Analyst's evidence score reads it as its `support` term, and

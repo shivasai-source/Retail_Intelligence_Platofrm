@@ -127,7 +127,7 @@ def test_command_center_and_the_baseline_run_read_the_same_rows(client, journey)
     cc = client.get("/api/command-center/kpis",
                     params={"year": YEAR, "channel": ["CH002"]}).json()["kpis"]
     for key, label in SHARED_KPIS.items():
-        run_key = {"promotion_roi": "roi_percent", "margin_impact": "margin_percent",
+        run_key = {"promotion_roi": "roi_multiple", "margin_impact": "margin_percent",
                    "cannibalization_rate": "cannibalization"}.get(key, key)
         if key not in cc or run_key not in journey["run"]["kpis"]:
             continue

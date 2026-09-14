@@ -163,7 +163,7 @@ def scope_stats(rows, channel, year):
             "trade_spend": ts,
             "inc_units": a["inc_qty"],
             "inc_sales": a["inc_sales"],
-            "roi": (100 * (a["inc_sales"] - ts) / ts) if ts else 0.0,
+            "roi": (a["inc_sales"] / ts) if ts else 0.0,
             "ts_per_txn": ts / n,
             "is_per_txn": a["inc_sales"] / n,
         }
@@ -182,6 +182,11 @@ def pct(v):
     return "     -" if v is None else "{:6.1f}".format(v)
 
 
+def mult(v):
+    """An ROI multiple, one decimal, in the same 6-wide slot as `pct`."""
+    return "     -" if v is None else "{:5.1f}".format(v)
+
+
 def main():
     rows = load_rows()
     print("fact rows: {:,}\n".format(len(rows)))
@@ -191,7 +196,7 @@ def main():
     print("=" * 106)
     print("{:<12}{:>18}{:>12}{:>13}{:>12}{:>8}{:>9}{:>6}{:>9}".format(
         "scope", "promo/non rows", "TradeSpend", "Inc Units", "Inc Sales",
-        "ROI%", "Margin%", "PEI", "Cannib%"))
+        "ROI x", "Margin%", "PEI", "Cannib%"))
     print("-" * 106)
     for ch in [None] + CHANNELS:
         for yr in (2024, 2025, None):
@@ -204,7 +209,7 @@ def main():
             print("{:<12}{:>8,}/{:<9,}{:>12}{:>13,.0f}{:>12}{:>8}{:>9}{:>6.0f}{:>9}".format(
                 label, s["promo_rows"], s["non_promo_rows"],
                 money(k["trade_spend"]), k["incremental_units"],
-                money(k["incremental_sales"]), pct(k["roi"]), pct(k["margin"]),
+                money(k["incremental_sales"]), mult(k["roi"]), pct(k["margin"]),
                 k["pei"] or 0, pct(k["cannibalization"])))
         print()
 
@@ -219,12 +224,12 @@ def main():
         print("\n--- {} ---".format(tag))
         print("{:<7}{:>8}{:>11}{:>8}{:>8}{:>7}{:>7}{:>8}{:>8}{:>7}{:>12}{:>12}{:>9}{:>9}{:>10}".format(
             "treat", "rows", "uplift avg", "min", "max", "neg%", "disc",
-            "basePx", "actPx", "PC/BR", "TradeSpend", "IncSales", "ROI%",
+            "basePx", "actPx", "PC/BR", "TradeSpend", "IncSales", "ROI x",
             "TS/txn", "IS/txn"))
         print("-" * 118)
         for t, d in s["treatments"].items():
             print("{:<7}{:>8,}{:>10.1f}%{:>7.0f}%{:>7.0f}%{:>6.1f}%{:>6.1f}%"
-                  "{:>8.0f}{:>8.0f}{:>6.2f}%{:>12}{:>12}{:>8.1f}%{:>9,.0f}{:>10,.0f}".format(
+                  "{:>8.0f}{:>8.0f}{:>6.2f}%{:>12}{:>12}{:>8.1f}{:>9,.0f}{:>10,.0f}".format(
                       t, d["rows"], d["avg_uplift"] * 100, d["min_uplift"] * 100,
                       d["max_uplift"] * 100, d["neg_uplift_pct"], d["avg_discount"] * 100,
                       d["avg_base_price"], d["avg_actual_price"], d["pc_over_br"] * 100,
@@ -232,7 +237,7 @@ def main():
                       d["ts_per_txn"], d["is_per_txn"]))
 
     print("\n" + "=" * 118)
-    print("C. TREATMENT x CHANNEL x YEAR   cells are:  uplift% / discount% / ROI%")
+    print("C. TREATMENT x CHANNEL x YEAR   cells are:  uplift% / discount% / ROI x")
     print("=" * 118)
     print("{:<12}".format("scope") + "".join("{:>21}".format(t) for t in TREATMENTS))
     print("-" * 118)
@@ -245,7 +250,7 @@ def main():
                 if not d:
                     cells.append("{:>21}".format("-"))
                 else:
-                    cells.append("{:>7.0f}%{:>5.0f}%{:>8.0f}%".format(
+                    cells.append("{:>7.0f}%{:>5.0f}%{:>8.1f}".format(
                         d["avg_uplift"] * 100, d["avg_discount"] * 100, d["roi"]))
             tag = "F24" if yr == "2024" else "F25"
             print("{:<12}".format(ch + "/" + tag) + "".join(cells))

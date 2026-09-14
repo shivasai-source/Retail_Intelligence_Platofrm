@@ -230,7 +230,7 @@ def test_no_kpi_value_is_carried_by_the_context(client, filters):
 
 def test_the_endpoint_refuses_kpi_values_outright(client):
     """A caller cannot smuggle one in either."""
-    for field in ("trade_spend", "roi_percent", "incremental_sales", "kpi_values"):
+    for field in ("trade_spend", "roi_multiple", "incremental_sales", "kpi_values"):
         response = client.post("/api/simulation/context", json={"filters": SCOPE, field: 123})
         assert response.status_code == 422, field
 

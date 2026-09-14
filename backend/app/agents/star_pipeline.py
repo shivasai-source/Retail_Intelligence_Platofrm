@@ -196,8 +196,10 @@ Rules:
 - Never invent figures. Every number you cite must appear in the data given.
 - CURRENCY: every monetary figure is Indian Rupees. Write ₹ or "INR", never $ —
   the figures are not dollars and showing them as such is a factual error.
-- `roi` is a PERCENTAGE and 50 is the target hurdle. ROI of 13.6 means the
-  promotion returned well under target, not "13.6x".
+- `roi` is a MULTIPLE of trade spend: 1.00 is break-even and 1.50 is the
+  target hurdle. Quote it to TWO decimals exactly as the table carries it
+  ("1.12", never "1.1" and never a percent sign). An ROI of 1.12 means the
+  promotion returned well under target; anything below 1.00 lost money.
 - Read `applied_filters`: your table may describe one segment, not the whole
   business. Say which. A headline that implies company-wide scope when you
   were given one channel is wrong.
@@ -211,7 +213,7 @@ Rules:
   how much of what you write traces back to it — so any hedge has to be in your
   own words to appear at all.
 - `metric` and `headline` must come from a GROUP in your table, naming it —
-  "Buy3Get1 at 7.7%", not "ROI is 13.4%". The selection total in
+  "Buy3Get1 at 1.12", not "ROI is 1.12". The selection total in
   `selection_totals` is context you share with every other specialist; leading
   with it means your analysis contributed nothing the others didn't. Your value
   is which group inside your dimension explains the total.
@@ -672,7 +674,7 @@ async def run_star_pipeline(
     if scoped_totals.get("trade_spend") is not None:
         chips["spend"] = f"₹{scoped_totals['trade_spend'] / 1e7:,.1f} Cr"
     if scoped_totals.get("promotion_roi") is not None:
-        chips["roi"] = f"{scoped_totals['promotion_roi']}%"
+        chips["roi"] = f"{scoped_totals['promotion_roi']}"
     chips["source"] = "TPO star schema"
     orchestration["contextChips"] = chips
 

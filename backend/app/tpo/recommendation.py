@@ -70,7 +70,10 @@ class EconomicConstraint:
     metric: str
     #: EVERY listed endpoint must satisfy the rule, not just one.
     endpoints: tuple[Endpoint, ...]
-    must_be: Literal["strictly_positive"]
+    #: `above_breakeven`: the ROI multiple must exceed 1.0 -- the spend came
+    #: back with something on top. (Was `strictly_positive` when ROI was a net
+    #: percentage; the same gate, restated on the multiple scale.)
+    must_be: Literal["above_breakeven"]
     note: str
 
 
@@ -88,7 +91,7 @@ class RecommendationPolicy:
     required_metrics: tuple[str, ...]
     range_policy: str
     #: Per-metric tie tolerance. DERIVED FROM THE ENGINE'S OWN PRECISION, not
-    #: chosen: aggregate.py rounds ROI and Margin to 1dp, Incremental Sales to
+    #: chosen: aggregate.py rounds the ROI multiple to 2dp, Margin to 1dp, Incremental Sales to
     #: 2dp, Incremental Units and PEI to 0dp, and does not round Trade Spend at
     #: all. Half a rounding step is the smallest difference the engine can
     #: actually express, so anything closer than that is a tie rather than a
@@ -133,6 +136,10 @@ class RecommendationPolicy:
         return self.hierarchy[0]
 
 
+#: The ROI multiple at which a promotion has exactly returned its trade spend.
+#: The economic gate is strict: a scenario must clear it, not merely reach it.
+BREAKEVEN_ROI: float = 1.0
+
 #: THE INITIAL DECISION POLICY.
 #:
 #: Change this object to change what "recommended" means. Nothing else in the
@@ -145,11 +152,11 @@ RECOMMENDATION_POLICY = RecommendationPolicy(
         "while maintaining economically viable promotion performance."
     ),
     economic_constraint=EconomicConstraint(
-        metric="roi_percent",
+        metric="roi_multiple",
         endpoints=("low", "high"),
-        must_be="strictly_positive",
+        must_be="above_breakeven",
         note=(
-            "ROI must stay positive across the ENTIRE approved uplift range. "
+            "ROI must stay above 1.00 across the ENTIRE approved uplift range. "
             "Deliberately conservative: the result is a band, not a point, so a "
             "scenario that only pays back at the top of its band is not treated as "
             "viable."
@@ -167,7 +174,7 @@ RECOMMENDATION_POLICY = RecommendationPolicy(
             ),
         ),
         DecisionCriterion(
-            "roi_percent", "low", "higher_is_preferred", "tie_breaker",
+            "roi_multiple", "low", "higher_is_preferred", "tie_breaker",
             "Stronger conservative return on the same conservative incremental.",
         ),
         DecisionCriterion(
@@ -190,7 +197,7 @@ RECOMMENDATION_POLICY = RecommendationPolicy(
             "is preferred. It appears as supporting evidence regardless.",
         ),
     ),
-    required_metrics=("incremental_sales", "roi_percent"),
+    required_metrics=("incremental_sales", "roi_multiple"),
     range_policy=(
         "Comparisons read the LOW end of the approved uplift range. The high end is "
         "supporting context and decides nothing. No midpoint is computed, the band is "
@@ -198,7 +205,7 @@ RECOMMENDATION_POLICY = RecommendationPolicy(
     ),
     tolerance={
         "incremental_sales": 0.05,    # engine rounds to 1dp
-        "roi_percent": 0.05,          # 1dp
+        "roi_multiple": 0.005,        # 2dp -- the ROI multiple's own precision
         "margin_percent": 0.05,       # 1dp
         "incremental_units": 0.5,     # 0dp
         "pei": 0.5,                   # 0dp
@@ -208,7 +215,7 @@ RECOMMENDATION_POLICY = RecommendationPolicy(
 
 #: Metrics carried as evidence whether or not they decide anything.
 EVIDENCE_METRICS = (
-    "incremental_sales", "roi_percent", "trade_spend",
+    "incremental_sales", "roi_multiple", "trade_spend",
     "incremental_units", "margin_percent", "pei", "cannibalization",
 )
 
@@ -312,11 +319,11 @@ def _constraint_failure(
                 f"{constraint.metric} is unavailable at the {endpoint} end, so economic "
                 "viability cannot be established."
             )
-        if value <= 0:
+        if value <= BREAKEVEN_ROI:
             return (
-                f"{constraint.metric} at the {endpoint} end is {value}, which is not "
-                "positive. The policy requires a positive ROI across the entire "
-                "approved uplift range."
+                f"{constraint.metric} at the {endpoint} end is {value}, which does not "
+                "clear break-even. The policy requires an ROI above 1.00 across the "
+                "entire approved uplift range."
             )
     return None
 
@@ -419,7 +426,7 @@ def _explain(
         f"({sales.get('display_low')})."
     ]
     parts.append(
-        f"Its ROI stays positive across the whole approved range "
+        f"Its ROI stays above break-even across the whole approved range "
         f"({roi.get('display_low')} at the low end, {roi.get('display_high')} at the high end)."
     )
 

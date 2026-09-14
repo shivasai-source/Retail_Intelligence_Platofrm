@@ -106,7 +106,7 @@ export function useAlertHandoff(): (alert: RiskAlert) => void {
       product: alert.product,
       channel: alert.channel,
       period: alert.week,
-      roi_pct: alert.roi_pct,
+      roi_multiple: alert.roi_multiple,
       title: alert.title,
       description: alert.description,
     })

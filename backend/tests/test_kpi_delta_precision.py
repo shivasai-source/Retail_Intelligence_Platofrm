@@ -56,8 +56,10 @@ SCOPES: tuple[tuple[str, dict], ...] = (
     ("F24", {"year": 2024}),
 )
 
-#: ROI here fell from one negative value to a lower one -- deterioration that
-#: `(current - previous) / previous` would report as a POSITIVE number.
+#: ROI here fell from one sub-break-even multiple to a lower one. On the old
+#: percent scale both were negative -- deterioration that
+#: `(current - previous) / previous` would report as a POSITIVE number -- and
+#: the fixture is kept so the sign rule stays exercised on real data.
 NEGATIVE_PREVIOUS = {"year": YEAR, "channel": ["CH005"], "month": 1}
 
 #: A 2025-only promotion id. `F24 + PBDU25` selects nothing, so there is no
@@ -66,7 +68,7 @@ SEASONAL_OFFER = {"year": YEAR, "promotion": ["PBDU25"]}
 
 #: KPI card -> (engine call, the precision that card reports at).
 EXACT_CALLS = {
-    "promotion_roi": (lambda rows, vol, p: A.calculate_roi(rows, vol, precision=p), 1),
+    "promotion_roi": (lambda rows, vol, p: A.calculate_roi(rows, vol, precision=p), 2),  # the ROI multiple is 2dp
     "margin_impact": (lambda rows, vol, p: A.calculate_margin(rows, precision=p), 1),
     "pei": (lambda rows, vol, p: A.calculate_pei(rows, vol, precision=p), 0),
 }
@@ -92,7 +94,7 @@ def test_the_default_precision_is_unchanged(name, scope):
     without the parameter is the call that was there before it existed.
     """
     _, rows, vol = _sets(scope)
-    assert A.calculate_roi(rows, vol) == A._round(A.calculate_roi(rows, vol, precision=None), 1)
+    assert A.calculate_roi(rows, vol) == A._round(A.calculate_roi(rows, vol, precision=None), 2)
     assert A.calculate_margin(rows) == A._round(A.calculate_margin(rows, precision=None), 1)
     assert A.calculate_pei(rows, vol) == A._round(A.calculate_pei(rows, vol, precision=None), 0)
 
@@ -190,11 +192,14 @@ def test_the_denominator_is_the_absolute_previous_value():
 def test_a_deteriorating_negative_kpi_reads_as_a_decline():
     """5. On real data, and through the card."""
     card = _cards(NEGATIVE_PREVIOUS)["promotion_roi"]
-    assert card["previous_value"] is not None and card["previous_value"] < 0
-    assert card["value"] < card["previous_value"], "the fixture must be a deterioration"
+    assert card["previous_value"] is not None and card["previous_value"] < 1, "below break-even"
+    # Two multiples close enough to print alike still carry their movement:
+    # it is taken from the unrounded pair -- see `_precise` -- so the growth
+    # and the arrow show the deterioration whatever the display rounding.
+    assert card["value"] <= card["previous_value"], "the fixture must be a deterioration"
     assert card["delta"] < 0, "a worse ROI must not report positive growth"
     assert card["trend"] == "down"
-    assert card["delta_display"].startswith("-")
+    assert not card["delta_display"].startswith("+")
 
 
 # --- 6-8. undefined comparisons ---------------------------------------------

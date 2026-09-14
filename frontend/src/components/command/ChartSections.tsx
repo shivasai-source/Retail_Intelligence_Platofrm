@@ -4,6 +4,7 @@ import { useCommandFilters } from '../../store/commandFilters'
 import { ChartFrame } from './ChartFrame'
 import { RankedBar } from './RankedBar'
 import type { BreakdownGroup } from '../../types/commandCenter'
+import { BREAKEVEN_ROI, fmtRoi } from '../../lib/roi'
 
 /** The chart sections of the Command Center.
  *
@@ -153,7 +154,7 @@ Mechanic: ${level?.label ?? '—'}
 ` +
             `Trade Spend: ${g.trade_spend_display}
 ` +
-            `ROI: ${g.roi === null ? '—' : `${g.roi.toFixed(1)}%`}`
+            `ROI: ${fmtRoi(g.roi)}`
           }
         />
       )}
@@ -168,9 +169,9 @@ Mechanic: ${level?.label ?? '—'}
  *
  *  RANKING is ROI descending — but a raw ROI ranking is useless here, and the
  *  reason is structural rather than a data artefact. With the approved
- *  economics, ROI = u(1-d) / ((1+u)(d+c)) - 1, so the shallowest discount
- *  always wins: PR001 invests 8% of base revenue and returns ~78%, while the
- *  seasonal mechanics invest 23-28% and return ~30%. Ranked naively, all ten
+ *  economics, ROI = u(1-d) / ((1+u)(d+c)), so the shallowest discount
+ *  always wins: PR001 invests 8% of base revenue and returns ~1.8, while the
+ *  seasonal mechanics invest 23-28% and return ~1.3. Ranked naively, all ten
  *  rows are "5% Discount" at every spend threshold. Three guards fix that
  *  without touching a single number:
  *
@@ -189,8 +190,8 @@ Mechanic: ${level?.label ?? '—'}
  *     higher-ROI one; it only removes the surplus.
  *
  *  EXCLUSIONS: the endpoint already drops events with an undefined ROI, and
- *  because `roi_percent` is null exactly when Trade Spend is zero, that is also
- *  the zero-spend filter. Negative ROI is kept as-is and simply loses.
+ *  because `roi_multiple` is null exactly when Trade Spend is zero, that is also
+ *  the zero-spend filter. A sub-1.0 ROI is kept as-is and simply loses.
  */
 const TOP_N = 10
 
@@ -249,7 +250,7 @@ export function TopPerformingSection() {
 
   const rows = useMemo(() => {
     const eligible = (q.data?.rows ?? []).filter(
-      (r) => r.roi_pct !== null && Number.isFinite(r.roi_pct) && r.trade_spend > 0,
+      (r) => r.roi_multiple !== null && Number.isFinite(r.roi_multiple) && r.trade_spend > 0,
     )
     if (!eligible.length) return []
 
@@ -259,7 +260,7 @@ export function TopPerformingSection() {
 
     const ranked = eligible
       .filter((r) => r.trade_spend >= median)
-      .sort((a, b) => b.roi_pct - a.roi_pct || b.trade_spend - a.trade_spend)
+      .sort((a, b) => b.roi_multiple - a.roi_multiple || b.trade_spend - a.trade_spend)
 
     const seen = new Set<string>()
     const deduped = ranked.filter((r) => {
@@ -285,7 +286,7 @@ export function TopPerformingSection() {
     return picked
   }, [q.data, mechanicByPromotion])
 
-  const peak = rows.length ? Math.max(rows[0].roi_pct, 1) : 1
+  const peak = rows.length ? Math.max(rows[0].roi_multiple, 1) : 1
 
   return (
     <ChartFrame
@@ -357,7 +358,7 @@ ${r.channel} · ${r.period}
             <div className="mt-1 h-2.5 w-full overflow-hidden rounded-full bg-ink-primary/[0.05]">
               <div
                 className="h-full rounded-full bg-tint-teal-icon transition-[width] duration-300 group-hover:brightness-110"
-                style={{ width: `${Math.max(0, Math.min(100, (r.roi_pct / peak) * 100))}%` }}
+                style={{ width: `${Math.max(0, Math.min(100, (r.roi_multiple / peak) * 100))}%` }}
               />
             </div>
           </div>
@@ -465,7 +466,7 @@ export function PromotionContributionSection() {
                 '',
                 `Trade Spend: ${g.trade_spend_display}`,
                 `Incremental Sales: ${g.incremental_sales_display}`,
-                `ROI: ${g.roi === null ? '—' : `${g.roi.toFixed(1)}%`}`,
+                `ROI: ${fmtRoi(g.roi)}`,
               ].join('\n')}
             >
               <div className="flex items-baseline justify-between gap-2 text-sm">
@@ -502,11 +503,11 @@ export function PromotionContributionSection() {
                   <span
                     className={
                       g.roi === null ? 'text-ink-muted'
-                      : g.roi < 0 ? 'font-semibold text-status-danger'
+                      : g.roi < BREAKEVEN_ROI ? 'font-semibold text-status-danger'
                       : 'font-semibold text-status-success'
                     }
                   >
-                    {g.roi === null ? '—' : `${g.roi.toFixed(1)}%`}
+                    {fmtRoi(g.roi)}
                   </span>
                 </span>
               </div>
@@ -532,7 +533,7 @@ function perfValue(g: BreakdownGroup, metric: PerfMetric): number | null {
 }
 
 function perfDisplay(g: BreakdownGroup, metric: PerfMetric): string {
-  if (metric === 'roi') return g.roi === null ? '—' : `${g.roi.toFixed(1)}%`
+  if (metric === 'roi') return fmtRoi(g.roi)
   return metric === 'trade_spend' ? g.trade_spend_display : g.incremental_sales_display
 }
 
@@ -588,7 +589,7 @@ const PRODUCT_ROWS = 10
  *
  *  ROI CARRIES NO SHARE. It is a ratio, not a quantity: "Regular is 89% of the
  *  combined ROI" would be an arithmetic accident, not a fact about the
- *  business. For ROI the card states the gap in percentage points instead. */
+ *  business. For ROI the card states the gap as a difference in multiples. */
 export function PromotionTypeSection() {
   const [metric, setMetric] = useState<PerfMetric>('incremental_sales')
   const { symbol } = useDisplay()
@@ -631,7 +632,7 @@ export function PromotionTypeSection() {
         isShareable
           ? `Share of ${metricLabel}; the two types total 100% of the scope.`
           : gapPts !== null && lead
-            ? `ROI is a ratio, so it carries no share — ${lead.code} leads by ${gapPts.toFixed(1)} pts.`
+            ? `ROI is a ratio, so it carries no share — ${lead.code} leads by ${gapPts.toFixed(2)}.`
             : 'ROI is a ratio, so it carries no share.'
       }
     >
@@ -684,7 +685,7 @@ function TypeColumns({
 
   const isRoi = metric === 'roi'
   const tick = (v: number) => {
-    if (isRoi) return `${v.toFixed(0)}%`
+    if (isRoi) return fmtRoi(v)
     const a = v * rate
     if (symbol === '₹') {
       if (Math.abs(a) >= 1e7) return `${symbol}${(a / 1e7).toFixed(1)} Cr`
@@ -832,12 +833,12 @@ function TypeColumns({
                     fill={
                       roi === null
                         ? 'var(--text-muted)'
-                        : roi < 0
+                        : roi < BREAKEVEN_ROI
                           ? 'var(--status-danger)'
                           : 'var(--status-success)'
                     }
                   >
-                    {roi === null ? '—' : `${roi.toFixed(1)}%`}
+                    {fmtRoi(roi)}
                   </text>
                 )}
                 <rect
@@ -852,7 +853,7 @@ function TypeColumns({
                   <title>
                     {`${g.code} promotions\nTrade Spend: ${g.trade_spend_display}\n` +
                       `Incremental Sales: ${g.incremental_sales_display}\n` +
-                      `ROI: ${roi === null ? '—' : `${roi.toFixed(1)}%`}`}
+                      `ROI: ${fmtRoi(roi)}`}
                   </title>
                 </rect>
               </g>
@@ -872,7 +873,7 @@ function TypeColumns({
               v={groups[active].incremental_sales_display}
             />
             <TipRow swatch={SERIES.spend} k="Trade Spend" v={groups[active].trade_spend_display} />
-            <TipRow k="ROI" v={groups[active].roi === null ? '—' : `${groups[active].roi.toFixed(1)}%`} />
+            <TipRow k="ROI" v={fmtRoi(groups[active].roi)} />
           </div>
         )}
       </div>
@@ -932,7 +933,7 @@ export function ProductSection() {
               '',
               `Trade Spend: ${g.trade_spend_display}`,
               `Incremental Sales: ${g.incremental_sales_display}`,
-              `ROI: ${g.roi === null ? '—' : `${g.roi.toFixed(1)}%`}`,
+              `ROI: ${fmtRoi(g.roi)}`,
             ].join('\n')}
           >
             <div className="flex items-baseline justify-between gap-2 text-sm">
@@ -950,11 +951,11 @@ export function ProductSection() {
                     <span
                       className={
                         g.roi === null ? 'text-ink-muted'
-                        : g.roi < 0 ? 'font-semibold text-status-danger'
+                        : g.roi < BREAKEVEN_ROI ? 'font-semibold text-status-danger'
                         : 'font-semibold text-status-success'
                       }
                     >
-                      {g.roi === null ? '—' : `${g.roi.toFixed(1)}%`}
+                      {fmtRoi(g.roi)}
                     </span>
                   </>
                 )}
@@ -983,7 +984,7 @@ export function ProductSection() {
  *  vertical bars on ONE shared axis. Both are rupees, so they are directly
  *  comparable in height and the gap between the pair IS the return.
  *
- *  ROI IS NOT PLOTTED. It is a percentage and shares no scale with money, so
+ *  ROI IS NOT PLOTTED. It is a multiple of spend and shares no scale with money, so
  *  it rides in the axis band under each region as a direct label rather than
  *  on a second y-axis — the same rule TrendPanels states for its own ROI
  *  series, and the reason this card has one axis instead of two.
@@ -1255,12 +1256,12 @@ function RegionColumns({
                   fill={
                     roi === null
                       ? 'var(--text-muted)'
-                      : roi < 0
+                      : roi < BREAKEVEN_ROI
                         ? 'var(--status-danger)'
                         : 'var(--status-success)'
                   }
                 >
-                  {roi === null ? '—' : `${roi.toFixed(1)}%`}
+                  {fmtRoi(roi)}
                 </text>
 
                 {/* The hit area is the whole slot, not the columns. */}
@@ -1277,7 +1278,7 @@ function RegionColumns({
                   <title>
                     {`${g.label}\nIncremental Sales: ${g.incremental_sales_display}\n` +
                       `Trade Spend: ${g.trade_spend_display}\n` +
-                      `ROI: ${roi === null ? '—' : `${roi.toFixed(1)}%`}`}
+                      `ROI: ${fmtRoi(roi)}`}
                   </title>
                 </rect>
               </g>
@@ -1299,7 +1300,7 @@ function RegionColumns({
             <TipRow swatch={SERIES.spend} k="Trade Spend" v={groups[active].trade_spend_display} />
             <TipRow
               k="ROI"
-              v={groups[active].roi === null ? '—' : `${groups[active].roi.toFixed(1)}%`}
+              v={fmtRoi(groups[active].roi)}
             />
           </div>
         )}

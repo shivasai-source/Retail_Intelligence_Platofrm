@@ -1,4 +1,5 @@
 import type { BreakdownGroup } from '../../types/commandCenter'
+import { BREAKEVEN_ROI, fmtRoi } from '../../lib/roi'
 
 /** Horizontal ranking of one breakdown dimension.
  *
@@ -60,15 +61,15 @@ export function RankedBar({
             <span className="shrink-0 tabular-nums text-ink-muted">
               <span className="font-bold text-ink-primary">{money(g.incremental_sales)}</span>
               {' · '}
-              {/* ROI is a percentage and is never currency-converted. */}
+              {/* ROI is a multiple of spend and is never currency-converted. */}
               <span
                 className={
                   g.roi === null ? 'text-ink-muted'
-                  : g.roi < 0 ? 'font-semibold text-status-danger'
+                  : g.roi < BREAKEVEN_ROI ? 'font-semibold text-status-danger'
                   : 'font-semibold text-status-success'
                 }
               >
-                {g.roi === null ? '—' : `${g.roi.toFixed(1)}%`}
+                {fmtRoi(g.roi)}
               </span>
             </span>
           </div>

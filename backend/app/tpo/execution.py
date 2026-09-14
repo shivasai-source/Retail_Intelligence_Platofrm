@@ -417,7 +417,7 @@ def simulate(
         "meta": {
             "currency": currency,
             "base_currency": config.BASE_CURRENCY,
-            "target_roi_pct": config.PROMOTION_TARGET_ROI_PCT,
+            "target_roi": config.PROMOTION_TARGET_ROI,
             "phase": "B2.2",
         },
     }

@@ -11,7 +11,8 @@ pass:
 `baseline_rows_for` needed exactly the same lift and did not get it. Incremental
 Sales, ROI and PEI are all defined against a non-promotional baseline, and
 scoped to the single week an offer ran, the baseline set held nothing but the
-promoted row itself. Incremental Sales came out as 0 and ROI as exactly -100%
+promoted row itself. Incremental Sales came out as 0 and ROI as exactly 0.0
+(-100% on the old percent scale)
 — not a promotion that returned nothing, but one with nothing to measure
 against.
 
@@ -74,8 +75,8 @@ def _roi(scope: dict) -> float | None:
 
 
 def test_a_week_scoped_promotion_does_not_report_minus_one_hundred(event):
-    """-100% means zero incremental sales, which is a missing baseline."""
-    assert _roi(event) != -100.0
+    """0.0 means zero incremental sales, which is a missing baseline."""
+    assert _roi(event) != 0.0
 
 
 def test_the_baseline_keeps_its_non_promoted_rows(event):

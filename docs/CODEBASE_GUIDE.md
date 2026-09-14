@@ -55,7 +55,7 @@ in tests:
 
 | Rule | What it means in practice |
 | --- | --- |
-| **One definition, one place** | There is exactly ONE `roi_percent()` in the codebase. The KPI card, the risk alert, the report export and the AI agent all call it. Two implementations could drift; one cannot. |
+| **One definition, one place** | There is exactly ONE `roi_multiple()` in the codebase. The KPI card, the risk alert, the report export and the AI agent all call it. Two implementations could drift; one cannot. |
 | **Never fabricate a number** | When a metric can't be computed, it returns `None` — never `0`, never an interpolation, never a midpoint. A missing comparison period renders as `—`, not `0%`, because "0% change" is a different and false claim. |
 | **Compute, then present** | Currency conversion, F24/F25 labels, and magnitude formatting (`₹162.4 Cr`) are *display* concerns applied once at the edge. No KPI function takes a currency argument. |
 
@@ -174,7 +174,7 @@ rather than silently misfiling the row.
 `Schedule` is a property of the channel — CH001/CH004 book one row per *week*
 (mean `Base_Quantity` 142.9), CH002/CH003/CH005 one per *month* (576.9). Pooling
 them measures period length rather than promotional response: it drags F25
-all-channel ROI from **141.2% down to 8.6%**. Guarded by
+all-channel ROI from **2.4 down to 1.1**. Guarded by
 `test_baseline_is_keyed_per_channel`.
 
 ### The loader's storage strategy — `app/tpo/loader.py`
@@ -351,18 +351,27 @@ and reported in `skipped[]` — its baseline is never defaulted to zero.
 ### Promotion ROI — the single definition
 
 ```
-ROI % = (Incremental Sales − Trade Spend) / Trade Spend × 100
+ROI = Incremental Sales / Trade Spend        (a bare multiple, 2 dp: 1.40)
 ```
 
-`aggregate.roi_percent()` is the **only** ROI in the product. The KPI card, every
+**A bare multiple of trade spend at TWO decimal places** — the one deliberate
+exception to the project's one-decimal rule, because a 0.1 step here is ten points
+of the old percent scale (the old −3.6% is 0.96; at one decimal it would print as
+1.0 and pass for break-even). 1.00 is break-even — the spend came back and nothing
+more — and anything below it lost money. No unit sign: `1.40`, not `1.4x`. The earlier
+definition, `(Incremental Sales − Trade Spend) / Trade Spend × 100`, was the same
+ratio less one, in percent: 40.0% on the old scale is 1.4 on this one, and every
+threshold in the codebase was restated with `x = pct / 100 + 1` (target 50% → 1.5).
+
+`aggregate.roi_multiple()` is the **only** ROI in the product. The KPI card, every
 promotion event, the risk-alert severity bands, the underperforming table, the
 report export and the AI agents all call it. Returns **`None`** — never zero, never
 infinity — when nothing was spent: there is no return to express against no
 investment.
 
 > The Simulation Studio used to divide revenue by spend in the browser and call the
-> result "ROI" — a different formula in different units, sitting next to a Command
-> Center reporting against a 50% target. It no longer computes anything.
+> result "ROI" — a different numerator, sitting next to a Command Center reporting
+> against a 1.5 target. It no longer computes anything.
 
 ### Margin Impact
 
@@ -416,14 +425,17 @@ else `20`.
 ### PEI — Promotion Effectiveness Index
 
 ```
-PEI = 0.40 × norm(ROI) + 0.30 × norm(Incremental Qty %) + 0.30 × norm(Margin Impact)
+PEI = 0.40 × norm(ROI − 1.0) + 0.30 × norm(Incremental Qty %) + 0.30 × norm(Margin Impact)
 ```
 
-Each component is divided by its ceiling and clamped onto 0–100 first:
+Each component is divided by its ceiling and clamped onto 0–100 first. ROI enters
+as its **net return** — the multiple less the 1.0 that is only the spend coming
+back — so a break-even promotion scores zero on that component and a 2.0 one hits
+the ceiling. The index is numerically what it was when ROI was a net percentage.
 
 | Component | Weight | Ceiling |
 | --- | --- | --- |
-| ROI | 0.40 | 100.0 % |
+| ROI net return (ROI − 1.0) | 0.40 | 1.0 |
 | Incremental Quantity % | 0.30 | 50.0 % |
 | Margin Impact | 0.30 | 40.0 % |
 
@@ -436,7 +448,7 @@ components would be undefined and redistribution would collapse the index onto
 Margin Impact alone, scoring a never-promoted SKU purely on its gross margin. There
 is no promotion to index the efficiency of.
 
-**Deliberately excluded:** Trade Spend Efficiency (because `TSE = ROI + 100`, so
+***Deliberately excluded:** Trade Spend Efficiency (because `TSE = ROI × 100`, so
 carrying both would put 45% of the weight on one signal) and the cannibalization
 score (a headline KPI in its own right). Both are still computed and shown; they
 just don't feed the index.
@@ -448,12 +460,12 @@ PEI is computed *last*, from the KPIs above — never as a parallel calculation.
 ### The target
 
 ```python
-PROMOTION_TARGET_ROI_PCT = 50.0
+PROMOTION_TARGET_ROI = 1.5     # a multiple of trade spend
 
 SEVERITY_BANDS = {
-    "critical": 25.0,   # ROI < 25
-    "high":     40.0,   # 25 ≤ ROI < 40
-    "medium":   50.0,   # 40 ≤ ROI < 50
+    "critical": 1.25,   # ROI < 1.25
+    "high":     1.4,    # 1.25 ≤ ROI < 1.4
+    "medium":   1.5,    # 1.4 ≤ ROI < 1.5
 }
 ```
 
@@ -678,7 +690,7 @@ in the promotion-ROI causal chain, each pulling its *own* data via different ser
 calls:
 
 ```
-ROI = (Incremental Sales − Trade Spend) / Trade Spend
+ROI = Incremental Sales / Trade Spend
 
 Is it even abnormal?         → benchmark
 Where did the money go?      → spend_allocation
@@ -757,7 +769,7 @@ Period = March F25.
    → calculate_trade_spend      Σ(discount_value + promotion_cost)
    → _volume()                  per-(product,channel) baseline → incremental
    → calculate_incremental_sales
-   → roi_percent(inc_sales, trade_spend)
+   → roi_multiple(inc_sales, trade_spend)
    → calculate_margin
    → cannibalization_detail     rank±1 neighbours, losses only
    → calculate_pei              LAST, from the above
@@ -797,7 +809,7 @@ tables can never describe different populations.
 
 | File | Lines | Purpose |
 | --- | --- | --- |
-| `config.py` | 150 | Every tunable in one place: data dir resolution (`$TPO_DATA_DIR` → repo `Data/` → OneDrive), the 50% ROI target, severity bands, the five approved treatment rules, the break-even algebra, INR base currency and the USD rate. |
+| `config.py` | 150 | Every tunable in one place: data dir resolution (`$TPO_DATA_DIR` → repo `Data/` → OneDrive), the 1.5 ROI target, severity bands, the five approved treatment rules, the break-even algebra, INR base currency and the USD rate. |
 | `loader.py` | 418 | The 5 CSVs → one cached columnar store. Derives product rank and the analytical month from `(Year, Week)`. Raises loudly on an unresolvable week. |
 | `filters.py` | 520 | THE filter engine. `FilterState` (14 dims, frozen, hashable), bitmask fail-masks per code, `rows_for` / `baseline_rows_for`, and dependent option generation. |
 | `aggregate.py` | 1,097 | THE KPI engine. Every formula in §5 lives here. |
@@ -1023,10 +1035,10 @@ doesn't flash the light palette.
 
 - **`useAuth`** — the session is an httpOnly cookie. `useCurrentUser` retries everything **except a 401** (only a 401 means signed out, and it's final) and uses `staleTime/gcTime: Infinity` with `refetchOnMount: false` — without this it inherited the 30 s default and refetched on every page mount, where one hiccup bounced the user to `/login` mid-session.
 - **`useCommandCenter`** — a documented **two-scope split**. `key()` uses year+currency only, so chart caches survive a Channel/Product change; `fullKey()` uses every filter. Every query is gated on `initialised`, because the default year isn't known until `/filters` answers. All use `placeholderData: (prev) => prev`.
-- **`useSimulation`** — `useSimulateScenario` **must** be called with `mutateAsync`: several scenarios can be in flight, they share one observer, and a second `mutate` overwrites the first's `onSuccess`, stranding a card on "Running…" forever. Deltas are computed server-side because *which* delta is valid depends on the metric type (points for ROI/margin, absolute + % for money).
+- **`useSimulation`** — `useSimulateScenario` **must** be called with `mutateAsync`: several scenarios can be in flight, they share one observer, and a second `mutate` overwrites the first's `onSuccess`, stranding a card on "Running…" forever. Deltas are computed server-side because *which* delta is valid depends on the metric type (a difference in multiples for ROI, points for margin, absolute + % for money).
 - **`useReportCenter`** — enforces **generate ≠ download**. `downloadArtifact` is the only file-saving path; it rejects a zero-byte blob because an empty workbook reads as "we measured nothing".
 - **`useDecisionBrief`** — `retry: false`; a failed AI call won't succeed on an immediate identical retry, and a retry loop against a paid API is the wrong default. `briefFailure` distinguishes 503 (no key) from 502.
-- **`useAlertHandoff`** — builds **one** narrowed FilterState and sends it to **both** consumers (the Simulation store and the router's `askWhy` state). The **week stays a label**: Incremental Sales is measured against the selection's non-promoted rows, and a week-narrowed scope has none, reporting −100% instead of the row's real ROI.
+- **`useAlertHandoff`** — builds **one** narrowed FilterState and sends it to **both** consumers (the Simulation store and the router's `askWhy` state). The **week stays a label**: Incremental Sales is measured against the selection's non-promoted rows, and a week-narrowed scope has none, reporting 0.0 instead of the row's real ROI.
 - **`useInvestigationContext`** — `investigation_started: list.length > 0` is load-bearing: it lets the backend refuse to report the store's seeded example question as the user's own. No KPI value is ever sent.
 - **`useStore`** — saves are mutations, loads are queries with `staleTime: Infinity` (a stored version is immutable). `useClearDecisions` is flagged as **the one destructive action in the application**.
 
@@ -1080,7 +1092,7 @@ promotions.
 
 Deliberately has **no filter bar** — it inherits the investigation's scope, and
 re-scoping is the Command Center's job. Seven tabs, each lazily pulling its own fact
-section. The Incremental Sales target multiple is *derived from* `target_roi_pct` rather
+section. The Incremental Sales target multiple is *derived from* `target_roi` rather
 than a hardcoded "1.5×".
 
 `withoutCannibalization()` is a **display filter only**: the card was removed from this
@@ -1173,14 +1185,14 @@ data-derived right axis.
 | `States.tsx` | 142 | `Stale` marks React Query `placeholderData` as provisional rather than letting last scope's numbers read as current. `EmptyState` deliberately isn't "₹0" — zero is a real KPI answer. `ErrorState` prints the actual error, never silently falling back to stale values. |
 | `ChartFrame.tsx` | 127 | **Order matters: error beats empty beats loading** — a failed request must never be reported as "no data for these filters". `controls` sit outside the loading swap so they keep their position during a refetch. |
 | `RankedBar.tsx` | 104 | A **ranking, never a composition** — Incremental Sales isn't additive across groups, so each row scales against the largest bar, not a total. |
-| `ScatterQuadrant.tsx` | 142 | **Linear ROI axis deliberately** — ROI is legitimately negative and a log scale can't represent that. The dashed target line reads `meta.target_roi_pct`; nothing hard-codes 50. |
+| `ScatterQuadrant.tsx` | 142 | **Linear ROI axis deliberately** — ROI is legitimately negative and a log scale can't represent that. The dashed target line reads `meta.target_roi`; nothing hard-codes 1.5. |
 | `PromotionMixCard.tsx` | 141 | Groups by **mechanic, not offer** — the 20% seasonal mechanic is six `Promotion_Id`s sharing one name, so grouping by offer scattered the largest 2024 mechanic across six slices. |
 | `MultiSelect.tsx` | 237 | Can't reuse `Dropdown` because that closes on every pick — three channels would be three round-trips. `SelectionChips` are individually removable, because a comma-joined string reads as one ambiguous value. |
 | `FilterBar.tsx` | 310 | **Escape-only close, deliberately:** every control inside portals its menu to `document.body`, so a click-outside handler would close the panel out from under an in-progress selection. Distributor is hidden below 2 useful options. |
 | `NotificationBell.tsx` | 284 | Reads the **same** hook and ranking as the panel below, so it costs no extra request and can't disagree. **The bell itself is the indicator** — no badge or count: it *rings* while alerts exist, pauses while open, and is inert at zero. The count is stated in `aria-label`. **No relative timestamp** is rendered, because the API carries only a business week. |
 | `RiskAlertsPanel.tsx` | 275 | **Two ways in, one hand-off** — a severity is a band, not an event, so no identifier is ever derived from the word "Critical". Rows are `<button>`s so they're keyboard-operable. |
 | `TrendPanels.tsx` | 242 | **ROI is never plotted against the money axis.** `niceStep()` walks a finer ladder than the usual 1/2/5, because an ₹8.3 Cr peak would otherwise round to a ₹20 Cr axis and squash the series into the bottom 40%. **Null ROI is never drawn as zero** — the series is split into runs of consecutive non-null points. |
-| `ChartSections.tsx` | 953 | Six chart sections. **`TopPerformingSection`** carries three documented guards, because raw ROI ranking is structurally degenerate — `ROI = u(1−d)/((1+u)(d+c))−1` means the shallowest discount always wins, filling all ten rows with "5% Discount": (1) drop events below the **median** trade spend of the eligible population, computed per render; (2) dedupe on promotion+channel+period; (3) a hard cap of 2 rows per mechanic, leaving spare slots empty rather than handing them back. |
+| `ChartSections.tsx` | 953 | Six chart sections. **`TopPerformingSection`** carries three documented guards, because raw ROI ranking is structurally degenerate — `ROI = u(1−d)/((1+u)(d+c))` means the shallowest discount always wins, filling all ten rows with "5% Discount": (1) drop events below the **median** trade spend of the eligible population, computed per render; (2) dedupe on promotion+channel+period; (3) a hard cap of 2 rows per mechanic, leaving spare slots empty rather than handing them back. |
 
 ### 10.10 `src/components/decision/` (6 files)
 
@@ -1490,7 +1502,7 @@ route's OpenAPI description, and in the README.
 These recur across the whole repository and explain most of its structure.
 
 **1. One definition, one place.**
-One `roi_percent()`. One `FilterState`. One `ReportDoc` feeding two writers rather than
+One `roi_multiple()`. One `FilterState`. One `ReportDoc` feeding two writers rather than
 fourteen bespoke generators. One `Promotion.label`. One promotion-status palette for the
 Calendar. The Command Center's `by`/`metric` route regexes are built at import from the
 service's own lists so they cannot drift. Where a rule genuinely is written twice
@@ -1574,9 +1586,9 @@ DO-NOT-RUN, with guards that abort a re-run.
 | Incremental Quantity | `Σ over promoted rows (Actual_Quantity − baseline)` | `aggregate.calculate_incremental_quantity` |
 | Incremental Qty % | `incremental_quantity / baseline_quantity × 100` | `aggregate.calculate_incremental_quantity_percent` |
 | Incremental Sales | `Σ(Actual_Revenue) − baseline × Σ(Actual_Price)` ≡ `Σ(Aq−b)×Ap` | `aggregate.calculate_incremental_sales` |
-| **ROI** | `(Incremental Sales − Trade Spend) / Trade Spend × 100` | `aggregate.roi_percent` |
+| **ROI** | `Incremental Sales / Trade Spend` — a multiple, `1.4` | `aggregate.roi_multiple` |
 | Margin Impact | `Σ(Actual_Revenue − Total_Cost) / Σ(Actual_Revenue) × 100` | `aggregate.calculate_margin` |
-| Trade Spend Efficiency | `Incremental Sales / Trade Spend × 100` (= ROI + 100) | `aggregate.calculate_trade_spend_efficiency` |
+| Trade Spend Efficiency | `Incremental Sales / Trade Spend × 100` (= ROI × 100) | `aggregate.calculate_trade_spend_efficiency` |
 | Incremental Profit | `Incremental Sales − Incremental Product Cost − Trade Spend` | `aggregate.calculate_incremental_profit` |
 | Cannibalization | `Σ max(nb_baseline×nb_txns − nb_actual, 0) / Σ(promo_actual − baseline×promo_txns) × 100` | `aggregate.cannibalization_detail` |
 | Cannib. score | ≤5→100, ≤10→90, ≤20→75, ≤30→60, ≤50→40, else 20 | `aggregate.cannibalization_score` |

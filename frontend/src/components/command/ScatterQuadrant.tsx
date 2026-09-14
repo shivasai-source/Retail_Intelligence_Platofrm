@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useChartWidth } from '../charts/useChartWidth'
 import type { BreakdownGroup } from '../../types/commandCenter'
+import { BREAKEVEN_ROI, fmtRoi } from '../../lib/roi'
 
 /** Trade Spend against ROI — where money went versus what it returned.
  *
@@ -8,12 +9,13 @@ import type { BreakdownGroup } from '../../types/commandCenter'
  *  "high spend, weak return" becomes a position rather than a calculation.
  *  Point area encodes Incremental Sales.
  *
- *  A linear ROI axis, deliberately: ROI is legitimately negative (a promotion
- *  can sell below baseline) and a log scale cannot represent that. The axis is
- *  clamped to the data's own range including negatives.
+ *  A linear ROI axis, deliberately: ROI is a multiple of spend that is
+ *  legitimately below 1.0, and even negative (a promotion can sell below
+ *  baseline), so a log scale cannot represent it. The axis is clamped to the
+ *  data's own range including negatives, and the break-even line sits at 1.0.
  *
  *  The target line is drawn at `targetRoi`, which the caller reads from
- *  `meta.target_roi_pct`. Nothing here hard-codes 50. */
+ *  `meta.target_roi`. Nothing here hard-codes 1.5. */
 export function ScatterQuadrant({
   groups,
   targetRoi,
@@ -67,7 +69,7 @@ export function ScatterQuadrant({
             <g key={i}>
               <line x1={padL} x2={width - padR} y1={y(v)} y2={y(v)} stroke="var(--border-subtle)" strokeWidth={1} />
               <text x={padL - 8} y={y(v) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
-                {v.toFixed(0)}%
+                {fmtRoi(v)}
               </text>
             </g>
           )
@@ -79,12 +81,12 @@ export function ScatterQuadrant({
           stroke="var(--brand-violet)" strokeWidth={1.5} strokeDasharray="5 4" opacity={0.75}
         />
         <text x={width - padR} y={y(targetRoi) - 4} textAnchor="end" fontSize={10} fill="var(--brand-violet)" fontWeight={700}>
-          Target {targetRoi}%
+          Target {fmtRoi(targetRoi)}
         </text>
 
-        {/* Zero line, when negatives are in range */}
-        {roiMin < 0 && (
-          <line x1={padL} x2={width - padR} y1={y(0)} y2={y(0)} stroke="var(--text-muted)" strokeWidth={1} opacity={0.4} />
+        {/* Break-even (1.0), when it is in range: below it the spend did not come back */}
+        {roiMin < BREAKEVEN_ROI && roiMax > BREAKEVEN_ROI && (
+          <line x1={padL} x2={width - padR} y1={y(BREAKEVEN_ROI)} y2={y(BREAKEVEN_ROI)} stroke="var(--text-muted)" strokeWidth={1} opacity={0.4} />
         )}
 
         {points.map((p, i) => {
@@ -124,8 +126,8 @@ export function ScatterQuadrant({
           <div className="font-bold text-ink-primary">{active.label}</div>
           <Row k="Trade Spend" v={active.trade_spend_display} />
           <Row k="Incremental Sales" v={active.incremental_sales_display} />
-          <Row k="ROI" v={`${(active.roi as number).toFixed(1)}%`} />
-          <Row k="Target ROI" v={`${targetRoi}%`} />
+          <Row k="ROI" v={fmtRoi(active.roi)} />
+          <Row k="Target ROI" v={fmtRoi(targetRoi)} />
         </div>
       )}
     </div>

@@ -243,8 +243,8 @@ def test_no_hypothetical_scenario_receives_fabricated_values(client, filters):
 
 def test_guard_rejects_a_fabricated_hypothetical_result():
     """The guard is not decorative -- it fails when the invariant is broken."""
-    built = scenarios.build({"discount_pct": 1.0}, {"roi_percent": {"value": 42}})
-    built[1]["result"] = {"roi_percent": {"value": 99}}  # someone "optimizes" a scenario
+    built = scenarios.build({"discount_pct": 1.0}, {"roi_multiple": {"value": 42}})
+    built[1]["result"] = {"roi_multiple": {"value": 99}}  # someone "optimizes" a scenario
     with pytest.raises(AssertionError, match="hypothetical but carries a result"):
         scenarios.assert_no_fabricated_results(built)
 
@@ -260,7 +260,7 @@ def test_current_plan_kpis_match_the_phase_a_endpoint(client, filters):
     assert payload["scenarios"][0]["result"] == payload["kpis"]
     assert set(payload["kpis"]) == {
         "trade_spend", "incremental_units", "incremental_sales",
-        "roi_percent", "margin_percent", "cannibalization", "pei",
+        "roi_multiple", "margin_percent", "cannibalization", "pei",
     }
 
 

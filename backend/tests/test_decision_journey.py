@@ -176,7 +176,7 @@ def test_everything_the_panel_renders_is_in_the_payload(journey):
         if s["scenario_id"] == recommendation["recommended_scenario_id"]
     )
     assert winner["treatment"] and winner["discount_pct"] is not None and winner["uplift"]
-    for metric in ("incremental_sales", "roi_percent", "trade_spend", "incremental_units",
+    for metric in ("incremental_sales", "roi_multiple", "trade_spend", "incremental_units",
                    "margin_percent", "pei", "cannibalization"):
         entry = winner["evidence"][metric]
         assert set(entry) == {
@@ -278,19 +278,19 @@ def test_the_shipped_policy_is_exactly_the_approved_one():
     assert policy.primary.endpoint == "low"
     assert policy.primary.direction == "higher_is_preferred"
 
-    assert policy.economic_constraint.metric == "roi_percent"
+    assert policy.economic_constraint.metric == "roi_multiple"
     assert policy.economic_constraint.endpoints == ("low", "high")
-    assert policy.economic_constraint.must_be == "strictly_positive"
+    assert policy.economic_constraint.must_be == "above_breakeven"
 
     assert [c.metric for c in policy.hierarchy] == [
-        "incremental_sales", "roi_percent", "incremental_units",
+        "incremental_sales", "roi_multiple", "incremental_units",
         "margin_percent", "pei", "trade_spend",
     ]
     assert [c.endpoint for c in policy.hierarchy] == ["low"] * 6
     assert [c.direction for c in policy.hierarchy] == (
         ["higher_is_preferred"] * 5 + ["lower_is_preferred"]
     )
-    assert policy.required_metrics == ("incremental_sales", "roi_percent")
+    assert policy.required_metrics == ("incremental_sales", "roi_multiple")
 
 
 def test_the_policy_travels_with_every_recommendation(journey):

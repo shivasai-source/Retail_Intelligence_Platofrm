@@ -122,6 +122,8 @@ def _display(value: Any, kind: str, currency: str) -> str:
             return _safe(F.money(float(value), currency))
         if kind == "percent":
             return F.percent(float(value))
+        if kind == "multiple":
+            return F.multiple(float(value))
         if kind == "units":
             return F.quantity(float(value))
         if kind == "number":
@@ -145,6 +147,8 @@ def _kpi_number(value: float | None, kind: str, currency: str) -> str:
         return _safe(F.money(float(value), currency))
     if kind == "percent":
         return F.percent(float(value))
+    if kind == "multiple":
+        return F.multiple(float(value))
     if kind == "units":
         return F.quantity(float(value))
     return F.score(float(value))

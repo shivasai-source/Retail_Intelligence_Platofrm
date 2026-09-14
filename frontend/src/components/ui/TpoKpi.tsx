@@ -37,6 +37,7 @@ function InfoDot({ info, unit }: { info: KpiInfo; unit?: string }) {
   const unitLabel =
     unit === 'currency' ? 'Currency · base INR'
     : unit === 'percent' ? 'Percent'
+    : unit === 'multiple' ? 'Incremental sales per rupee of trade spend · 1.00 is break-even'
     : unit === 'score' ? 'Index 0-100'
     : undefined
 

@@ -12,7 +12,7 @@ service calls, not just a different `by`), and carries its own instructions.
 The orchestrator's job becomes selection — deciding which lenses this question
 actually needs — rather than invention.
 
-The chain they decompose, since ROI = (Incremental Sales - Trade Spend) / Trade Spend:
+The chain they decompose, since ROI = Incremental Sales / Trade Spend:
 
     Is it even abnormal?          -> benchmark
     Where did the money go?       -> spend_allocation
@@ -44,7 +44,7 @@ from app.agents.star_tools import (
 
 def _kpi_compare(filters: dict[str, Any]) -> dict[str, Any]:
     """Segment KPIs beside the whole-business KPIs. Almost every lens needs
-    this context: 13.4% ROI means nothing until you know the norm is 39.5%."""
+    this context: a 1.12 ROI means nothing until you know the norm is 1.39."""
     return {"segment": segment_kpis(filters), "whole_business": segment_kpis({})}
 
 
@@ -89,7 +89,7 @@ def _fetch_offer_forensics(f: dict[str, Any]) -> dict[str, Any]:
     state = build_filter_state(f)
     under = service.underperforming_promotions(state)
     top = service.top_promotions(state, limit=8)
-    keep = ("promotion", "product", "channel", "period", "roi_pct", "vs_target_pp", "trade_spend", "at_stake")
+    keep = ("promotion", "product", "channel", "period", "roi_multiple", "vs_target", "trade_spend", "at_stake")
     return {
         "question_this_answers": "Which individual promotion events failed, and what did they cost?",
         "worst_events": _trim(under.get("rows") or [], keep + ("primary_cause", "action"), 10),
@@ -171,7 +171,7 @@ def _fetch_risk_exposure(f: dict[str, Any]) -> dict[str, Any]:
         "counts_by_severity": alerts.get("counts"),
         "top_alerts": _trim(
             alerts.get("alerts") or [],
-            ("title", "description", "severity", "roi_pct", "trade_spend", "at_stake"),
+            ("title", "description", "severity", "roi_multiple", "trade_spend", "at_stake"),
             8,
         ),
     }
@@ -242,8 +242,8 @@ ROSTER: tuple[Specialist, ...] = (
         focus=(
             "Your job is SPECIFICS. Everyone else works in aggregates; you name the actual "
             "offer, product and week that lost money, and the value at stake. Prefer the "
-            "events with the largest trade spend or at_stake — a -80% ROI on a few hundred "
-            "rupees is noise next to a -6% ROI on lakhs."
+            "events with the largest trade spend or at_stake — a 0.20 ROI on a few hundred "
+            "rupees is noise next to a 0.96 ROI on lakhs."
         ),
         fetch=_fetch_offer_forensics,
     ),

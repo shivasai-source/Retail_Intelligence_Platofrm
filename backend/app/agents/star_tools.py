@@ -265,7 +265,8 @@ def _run_analysis(
         "ranked_by": metric,
         "applied_filters": filters or {},
         "note": (
-            "roi is a percentage (50 = the target hurdle). Trade Spend sums back "
+            "roi is a multiple of trade spend at two decimals (1.00 = break-even, 1.50 = the target "
+            "hurdle). Trade Spend sums back "
             "to the total; Incremental Sales does not (its baseline is re-derived "
             "per selection). Treat groups as a ranking, not a composition."
         ),

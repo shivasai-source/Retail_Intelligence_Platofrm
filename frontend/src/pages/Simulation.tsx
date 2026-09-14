@@ -799,7 +799,7 @@ export function Simulation() {
                       <NoDataPanel />
                     ) : active.result ? (
                       <div className="overflow-x-auto">
-                        <KpiTable kpis={active.result} targetRoiPct={result.meta.target_roi_pct} />
+                        <KpiTable kpis={active.result} targetRoi={result.meta.target_roi} />
                       </div>
                     ) : (
                       <NoDataPanel />

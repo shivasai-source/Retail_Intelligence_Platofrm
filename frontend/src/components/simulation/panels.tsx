@@ -84,7 +84,7 @@ const KPI_ORDER: SimulationKpiKey[] = [
   'trade_spend',
   'incremental_units',
   'incremental_sales',
-  'roi_percent',
+  'roi_multiple',
   'margin_percent',
   'cannibalization',
   'pei',
@@ -101,7 +101,7 @@ const KPI_ORDER: SimulationKpiKey[] = [
  *  honestly: the levers are not modelled yet, so two scenarios over the same
  *  scope are the same measurement twice.
  */
-export function KpiTable({ kpis, targetRoiPct }: { kpis: Record<SimulationKpiKey, SimulationKpi>; targetRoiPct: number }) {
+export function KpiTable({ kpis, targetRoi }: { kpis: Record<SimulationKpiKey, SimulationKpi>; targetRoi: number }) {
   return (
     <Table>
       <thead>
@@ -123,8 +123,8 @@ export function KpiTable({ kpis, targetRoiPct }: { kpis: Record<SimulationKpiKey
                     <div className="text-base leading-[1.55] text-ink-secondary">
                       <div className="font-semibold text-ink-primary">Formula</div>
                       <div className="mt-0.5">{kpi.formula}</div>
-                      {key === 'roi_percent' && (
-                        <div className="mt-2 text-ink-muted">Target: {targetRoiPct.toFixed(0)}%</div>
+                      {key === 'roi_multiple' && (
+                        <div className="mt-2 text-ink-muted">Target: {targetRoi.toFixed(2)}</div>
                       )}
                     </div>
                   </InfoPopover>

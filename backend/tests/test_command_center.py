@@ -66,7 +66,7 @@ def test_filter_produces_coherent_kpis(name, kwargs):
     assert spend == pytest.approx(discount + promotion_cost)
 
     # ROI goes through the one formula, always.
-    assert A.calculate_roi(rows) == A.roi_percent(sales, spend)
+    assert A.calculate_roi(rows) == A.roi_multiple(sales, spend)
 
     # Margin is a ratio of sums, bounded by definition.
     margin = A.calculate_margin(rows)
@@ -248,10 +248,10 @@ def test_alerts_and_underperformers_share_one_roi():
     """The risk alert bands and the underperforming table are two views of one
     computation, so an event's ROI must be identical in both."""
     state = FilterState.build(year=YEAR)
-    events = {e.key: e.roi_pct for e in service.promotion_events(state)}
+    events = {e.key: e.roi_multiple for e in service.promotion_events(state)}
     alerts = service.risk_alerts(state, limit=500)["alerts"]
     for alert in alerts:
-        assert alert["roi_pct"] == events[alert["id"]]
+        assert alert["roi_multiple"] == events[alert["id"]]
 
 
 def test_alerts_carry_the_event_identifiers_but_never_a_week_filter():
@@ -315,7 +315,7 @@ def test_narrowing_by_an_alerts_identifiers_reproduces_its_roi():
         if weeks != {alert["week"]}:
             continue
         kpis = service.kpis(narrowed)["kpis"]
-        assert kpis["promotion_roi"]["value"] == pytest.approx(alert["roi_pct"], abs=0.05)
+        assert kpis["promotion_roi"]["value"] == pytest.approx(alert["roi_multiple"], abs=0.005)
         assert kpis["trade_spend"]["value"] == pytest.approx(alert["trade_spend"], rel=1e-9)
         checked += 1
 
@@ -323,20 +323,21 @@ def test_narrowing_by_an_alerts_identifiers_reproduces_its_roi():
 
 
 def test_severity_bands_match_the_spec():
-    """Critical < 25 <= High < 40 <= Medium < 50 <= target achieved."""
-    assert service._severity(10.0) == "critical"
-    assert service._severity(24.9) == "critical"
-    assert service._severity(25.0) == "high"
-    assert service._severity(39.9) == "high"
-    assert service._severity(40.0) == "medium"
-    assert service._severity(49.9) == "medium"
-    assert service._severity(50.0) is None
+    """Critical < 1.25 <= High < 1.4 <= Medium < 1.5 <= target achieved.
+    The old 25 / 40 / 50 percent bands, restated as multiples."""
+    assert service._severity(1.1) == "critical"
+    assert service._severity(1.249) == "critical"
+    assert service._severity(1.25) == "high"
+    assert service._severity(1.399) == "high"
+    assert service._severity(1.4) == "medium"
+    assert service._severity(1.499) == "medium"
+    assert service._severity(1.5) is None
     assert service._severity(None) is None
 
 
 def test_at_stake_is_the_target_inversion():
-    """At Stake = Trade Spend x 1.50 - Incremental Sales, at the 50% target."""
-    assert config.PROMOTION_TARGET_ROI_PCT == 50.0
+    """At Stake = Trade Spend x 1.5 - Incremental Sales, at the 1.5 target."""
+    assert config.PROMOTION_TARGET_ROI == 1.5
     assert config.target_incremental_sales(100.0) == pytest.approx(150.0)
 
     for event in service.promotion_events(FilterState.build(year=YEAR))[:50]:
@@ -368,7 +369,7 @@ def test_underperforming_rows_carry_the_event_identifiers():
         event = events.get(key)
         assert event is not None, f"row identifiers do not name a real event: {key}"
         # The codes belong to the same event the displayed figures came from.
-        assert row["roi_pct"] == event.roi_pct
+        assert row["roi_multiple"] == event.roi_multiple
         assert row["trade_spend"] == event.trade_spend
         assert row["promotion"] == event.promotion_name
         assert row["product"] == event.product_name.strip()
@@ -400,7 +401,7 @@ def test_narrowing_by_a_rows_identifiers_reproduces_its_roi():
         if weeks != {row["period"]}:
             continue  # Pair traded in more than one week -- pooling is correct.
         kpis = service.kpis(narrowed)["kpis"]
-        assert kpis["promotion_roi"]["value"] == pytest.approx(row["roi_pct"], abs=0.05)
+        assert kpis["promotion_roi"]["value"] == pytest.approx(row["roi_multiple"], abs=0.005)
         assert kpis["trade_spend"]["value"] == pytest.approx(row["trade_spend"], rel=1e-9)
         checked += 1
 
@@ -410,7 +411,7 @@ def test_narrowing_by_a_rows_identifiers_reproduces_its_roi():
 def test_every_underperformer_is_below_target():
     payload = service.underperforming_promotions(FilterState.build(year=YEAR), limit=200)
     for row in payload["rows"]:
-        assert row["roi_pct"] < config.PROMOTION_TARGET_ROI_PCT
+        assert row["roi_multiple"] < config.PROMOTION_TARGET_ROI
 
 
 def test_promotion_events_never_merge_distinct_offers():

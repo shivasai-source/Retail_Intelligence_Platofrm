@@ -184,7 +184,7 @@ service. Run it exactly as above — no extra process, no database.
 
 ```
 backend/app/tpo/
-  config.py      one place for the data path, the 50% ROI target and the
+  config.py      one place for the data path, the 1.5 ROI target and the
                  INR->USD rate. Nothing else reads os.environ.
   loader.py      the 5 CSVs -> one cached columnar store (~15 MB, ~2 s once)
   filters.py     THE filter engine + dependent option lists
@@ -218,5 +218,5 @@ year's. `test_incremental_sales_is_not_additive_across_months` pins this.
 is a property of the channel — CH001/CH004 book one row per week (mean
 Base_Quantity 142.9), CH002/CH003/CH005 one per month (576.9). Pooling them
 measures period length rather than promotional response: it drags F25
-all-channel ROI from 141.2% to 8.6%. `test_baseline_is_keyed_per_channel`
+all-channel ROI from 2.4 to 1.1. `test_baseline_is_keyed_per_channel`
 guards it.

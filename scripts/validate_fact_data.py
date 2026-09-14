@@ -231,7 +231,7 @@ def main() -> int:
     print("\nG. ROI  (recomputed by the unchanged engine)")
     from app.tpo import aggregate, filters
     from app.tpo.filters import FilterState
-    # F25 sits below the 35% floor by design: representing Buy3Get1 as a 25%
+    # F25 sits below the 1.35 floor by design: representing Buy3Get1 as a 25%
     # effective price discount revalues its incremental volume at 75% of list,
     # which is the approved treatment and was accepted with its ROI consequence
     # known. Recorded explicitly rather than quietly widening the band; the
@@ -241,10 +241,10 @@ def main() -> int:
         roi = aggregate.calculate_roi(filters.rows_for(FilterState.build(year=yr)))
         tag = "ALL" if yr is None else f"F{yr % 100:02d}"
         if tag in ACCEPTED_BELOW_FLOOR:
-            print(f"  [NOTE] ALL {tag} ROI {roi:.1f}% -- below the 35% floor, accepted "
+            print(f"  [NOTE] ALL {tag} ROI {roi:.1f} -- below the 1.35 floor, accepted "
                   "with the approved 25% Buy3Get1 price representation")
             continue
-        check(f"ALL {tag} ROI within the 35-50% development band", 35 <= roi <= 50, f"{roi:.1f}%")
+        check(f"ALL {tag} ROI within the 1.35-1.5 development band", 1.35 <= roi <= 1.5, f"{roi:.1f}")
 
     failed = [n for n, ok, _ in RESULTS if not ok]
     print("\n" + "=" * 70)

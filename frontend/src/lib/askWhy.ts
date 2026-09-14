@@ -45,8 +45,8 @@ export interface AskWhySource {
   product?: string | null
   channel?: string | null
   period?: string | null
-  roi_pct?: number | null
-  vs_target_pp?: number | null
+  roi_multiple?: number | null
+  vs_target?: number | null
   trade_spend_display?: string | null
   title?: string | null
   description?: string | null
@@ -77,9 +77,9 @@ export function buildAskWhyIntent(source: AskWhySource): AskWhyIntent {
   if (period) qualifiers.push(`during ${period}`)
 
   const roi =
-    typeof source.roi_pct === 'number'
-      ? `It returned ${source.roi_pct}% ROI${
-          typeof source.vs_target_pp === 'number' ? ` — ${Math.abs(source.vs_target_pp)} points below target` : ''
+    typeof source.roi_multiple === 'number'
+      ? `It returned ${source.roi_multiple.toFixed(2)} ROI${
+          typeof source.vs_target === 'number' ? ` — ${Math.abs(source.vs_target).toFixed(2)} below target` : ''
         }.`
       : ''
 

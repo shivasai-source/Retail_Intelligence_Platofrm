@@ -57,7 +57,7 @@ _ANALYSIS_BASE = {
                 "properties": {
                     "title": {"type": "string", "description": "Under 60 characters"},
                     "detail": {"type": "string"},
-                    "impact": {"type": "string", "description": "The quantified effect, e.g. '45.7% of spend at 6.8% ROI'"},
+                    "impact": {"type": "string", "description": "The quantified effect, e.g. '45.7% of spend at 1.12 ROI'"},
                     "trend": {"type": "string", "enum": ["up", "down", "flat"]},
                     "severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "positive"]},
                 },
@@ -211,8 +211,11 @@ Every number was calculated by the platform's KPI engine. Your job is to
 interpret it — you never calculate.
 
 How to read the facts:
-- roi_pct is a PERCENTAGE and `target_roi_pct` is the hurdle it must clear.
-  An ROI of 6.8 means the promotion returned far below target, not "6.8x".
+- roi_multiple is a MULTIPLE of trade spend, quoted to TWO decimals exactly as
+  the payload carries it ("1.12", never "1.1" and never a percent sign), and
+  `target_roi` is the hurdle it must clear. 1.00 is break-even: an ROI of 1.12
+  means the promotion returned far below a 1.50 target, and anything under
+  1.00 lost money.
 - The saturation curve plots ROI against discount depth. If it declines
   monotonically, deeper discounting is systematically destroying value, and
   `saturation_depth_pct` is where it stops clearing the target.
@@ -222,8 +225,9 @@ How to read the facts:
 - Incremental sales are re-baselined per selection, so group figures rank
   contribution — never present them as shares summing to a total.
 - `drivers` in the facts is a MEASURED decomposition, not a starting point for
-  one. Each entry's `contribution_pp` is that mechanic's exact share of the
-  distance between the portfolio's spend-weighted ROI and the target, and
+  one. Each entry's `contribution` is that mechanic's exact share, in
+  multiples, of the distance between the portfolio's spend-weighted ROI and
+  the target, and
   `weight_pct` is that share as a percentage. The formula is stated in the
   payload. `is_primary` is already decided, by the Pareto rule the payload
   names. Read them; do not recompute, re-rank or re-weight them.
@@ -242,9 +246,9 @@ Rules:
 - The `narrative` field MUST carry tone markup. Wrap every figure or clause in
   [r]...[/r] when it is bad news, [g]...[/g] when it is good, [n]...[/n] when
   it is neutral context. A narrative without markup renders as flat grey text
-  and fails its purpose. Example: "ROI is [r]33.7%, against a 50% target[/r],
-  while [g]5% Discount returns 77.6%[/g]."
-- Weight findings by money at stake, not by how extreme the percentage looks.
+  and fails its purpose. Example: "ROI is [r]1.34, against a 1.50 target[/r],
+  while [g]5% Discount returns 1.78[/g]."
+- Weight findings by money at stake, not by how extreme the multiple looks.
 - State what you cannot determine. The `uncertainties` field is not optional
   padding — an analysis that admits its blind spots is more useful than one
   that implies completeness it does not have.
@@ -411,10 +415,10 @@ def _measured_drivers(
         row["note"] = _strip_tone(notes.get(measured["driver"]) or measured["measured_note"])
         # Carried through so the card, an export or a reader can check the
         # weight rather than trust it.
-        row["contribution_pp"] = measured["contribution_pp"]
+        row["contribution"] = measured["contribution"]
         row["trade_spend"] = measured["trade_spend"]
-        row["roi_pct"] = measured["roi_pct"]
-        row["vs_target_pp"] = measured["vs_target_pp"]
+        row["roi_multiple"] = measured["roi_multiple"]
+        row["vs_target"] = measured["vs_target"]
         row["share_of_decomposed_spend_pct"] = measured["share_of_decomposed_spend_pct"]
         out.append(row)
     return out

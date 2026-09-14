@@ -1,8 +1,8 @@
-"""Seasonal promotion audit: 2024 vs 2025, and the root cause of negative PB001 ROI.
+"""Seasonal promotion audit: 2024 vs 2025, and the root cause of sub-break-even PB001 ROI.
 
 READ-ONLY. Writes nothing.
 
-Every ROI comes from the frozen engine (aggregate.roi_percent) via
+Every ROI comes from the frozen engine (aggregate.roi_multiple) via
 calculate_roi(rows_for(state), baseline_rows_for(state)) -- the same call the
 Offer breakdown makes, so the numbers here are the numbers the Command Center
 shows. The per-row economics are read straight from the CSV.
@@ -42,9 +42,9 @@ PROMOTION_COST_RATE = 0.03
 
 
 def breakeven_uplift(d: float, c: float) -> float:
-    """u* where ROI == 0, for price discount d and promotion-cost rate c.
+    """u* where ROI == 1.0 (break-even), for price discount d and promotion-cost rate c.
 
-        ROI = u(1-d) / ((1+u)(d+c)) - 1  =>  u* = (d+c) / (1 - c - 2d)
+        ROI = u(1-d) / ((1+u)(d+c))  =>  ROI = 1 at  u* = (d+c) / (1 - c - 2d)
     """
     return (d + c) / (1 - c - 2 * d)
 
@@ -148,8 +148,8 @@ def main() -> int:
         print(f"    Trade Spend = BR - AR + PC = {cr(s['base_rev'])} - {cr(s['actual_rev'])}"
               f" + {cr(s['promo_cost'])} = {cr(s['trade_spend'])}Cr   [engine {cr(e['ts'])}Cr]")
         print(f"    Incremental Units {e['iu']:>10,.0f}     Incremental Sales {cr(e['is'])}Cr")
-        print(f"    ROI = (IS - TS)/TS = ({cr(e['is'])} - {cr(e['ts'])}) / {cr(e['ts'])}"
-              f" = {e['roi']:6.2f}%")
+        print(f"    ROI = IS / TS = {cr(e['is'])} / {cr(e['ts'])}"
+              f" = {e['roi']:6.1f}")
 
     # ------------------------------------------------------ PHASE 2
     print("\n\n## PHASE 2 -- economic driver, PB001 2025 vs PS001 2024")
@@ -187,14 +187,14 @@ def main() -> int:
     for name, p24, p25 in EVENTS:
         e24, e25 = engine(2024, [p24]), engine(2025, [p25])
         a24, a25 = csv_stats(rows, p24, "2024"), csv_stats(rows, p25, "2025")
-        print(f"  {name:<14}{e24['roi']:>9.1f}%{e25['roi']:>9.1f}%{e25['roi']-e24['roi']:>+8.1f}p"
+        print(f"  {name:<14}{e24['roi']:>9.1f}{e25['roi']:>9.1f}{e25['roi']-e24['roi']:>+8.1f}"
               f"{cr(e24['is']):>12}Cr{cr(e25['is']):>12}Cr{cr(e24['ts']):>8}{cr(e25['ts']):>8}"
               f"{100*a24['uplift']:>7.1f}%{100*a25['uplift']:>7.1f}%{a24['rows']:>9,}{a25['rows']:>9,}")
 
     print("\n  Seasonal totals:")
     for yr, pids in ((2024, [p for _, p, _ in EVENTS]), (2025, [p for _, _, p in EVENTS])):
         e = engine(yr, pids)
-        print(f"    {yr}  ROI {e['roi']:6.1f}%   IncUnits {e['iu']:>10,.0f}   "
+        print(f"    {yr}  ROI {e['roi']:6.1f}   IncUnits {e['iu']:>10,.0f}   "
               f"IncSales {cr(e['is'])}Cr   TradeSpend {cr(e['ts'])}Cr   Margin {e['mi']:.1f}%")
 
     print("\n  Seasonal ROI by channel:")

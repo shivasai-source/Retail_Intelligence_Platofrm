@@ -85,7 +85,7 @@ values are assembled into real `aggregate.WeekRow`s and handed to the engine:
 
     Trade Spend   = aggregate.calculate_trade_spend(rows)
     Margin Impact = aggregate.calculate_margin(rows)
-    ROI           = aggregate.roi_percent(incremental_sales, trade_spend)
+    ROI           = aggregate.roi_multiple(incremental_sales, trade_spend)
 
 Incremental Units and Incremental Sales are `aggregate._volume`'s definitions --
 (quantity - baseline), and (quantity - baseline) x that row's own price -- with
@@ -984,7 +984,7 @@ class Level:
     additional_trade_spend: float | None
     incremental_units: float | None
     incremental_sales: float | None
-    roi_pct: float | None
+    roi_multiple: float | None
     margin_pct: float | None
     recovery_units_low: float | None
     recovery_units_high: float | None
@@ -1065,7 +1065,7 @@ def _level(
     trade_spend = A.calculate_trade_spend(rows)
     margin_pct = A.calculate_margin(rows)
     sales = None if not rows else round(incremental_sales, 1)
-    roi_pct = A.roi_percent(sales, trade_spend)
+    roi_multiple = A.roi_multiple(sales, trade_spend)
 
     carried = pop.carried_units
     projected_low = units_sold + units_low + carried
@@ -1108,7 +1108,7 @@ def _level(
         additional_trade_spend=additional,
         incremental_units=None if not rows else round(incremental_units, 0),
         incremental_sales=sales,
-        roi_pct=roi_pct,
+        roi_multiple=roi_multiple,
         margin_pct=margin_pct,
         recovery_units_low=None,  # filled once the maintain rung is known
         recovery_units_high=None,
@@ -1227,7 +1227,7 @@ def _rank_key(level: Level) -> tuple[float, float, float, float]:
     return (
         level.discount_pct,
         level.additional_trade_spend if level.additional_trade_spend is not None else 0.0,
-        -(level.roi_pct if level.roi_pct is not None else -1e9),
+        -(level.roi_multiple if level.roi_multiple is not None else -1e9),
         -(level.margin_pct if level.margin_pct is not None else -1e9),
     )
 
@@ -1793,7 +1793,7 @@ def _provenance() -> dict[str, Any]:
         ),
         "kpi_engine": (
             "Trade Spend, Margin Impact and ROI come from aggregate.calculate_trade_spend, "
-            "aggregate.calculate_margin and aggregate.roi_percent. Incremental Units and "
+            "aggregate.calculate_margin and aggregate.roi_multiple. Incremental Units and "
             "Incremental Sales are aggregate._volume's definitions with the baseline "
             "supplied, because a row set carrying the treatment on every row holds no "
             "non-promoted row to derive one from."
@@ -1937,8 +1937,8 @@ def _level_payload(level: Level, currency: str) -> dict[str, Any]:
         "incremental_units_display": F.quantity(level.incremental_units),
         "incremental_sales": level.incremental_sales,
         "incremental_sales_display": F.money(level.incremental_sales, currency),
-        "roi_pct": level.roi_pct,
-        "roi_display": F.percent(level.roi_pct),
+        "roi_multiple": level.roi_multiple,
+        "roi_display": F.multiple(level.roi_multiple),
         "margin_pct": level.margin_pct,
         "margin_display": F.percent(level.margin_pct),
         "estimable": level.estimable,

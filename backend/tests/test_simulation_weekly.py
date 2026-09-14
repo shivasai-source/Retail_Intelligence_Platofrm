@@ -33,7 +33,7 @@ CHANNEL_SCOPE = {"year": YEAR, "channel": ["CH002"]}
 FULL_YEAR = {"year": YEAR}
 
 ADDITIVE = ("incremental_sales", "incremental_units", "trade_spend")
-NON_ADDITIVE = ("roi_percent", "margin_percent", "cannibalization")
+NON_ADDITIVE = ("roi_multiple", "margin_percent", "cannibalization")
 
 
 @pytest.fixture(scope="session")
@@ -247,17 +247,17 @@ def test_ratios_are_never_summed(promotion_weekly, metric):
 def test_weekly_roi_is_computed_not_aggregated(promotion_weekly):
     """16. Weekly ROI is the engine's own function over that week's
     components -- demonstrably neither the sum nor the mean of the weeks."""
-    rois = [w["low"]["roi_percent"]["value"] for w in promotion_weekly["weeks"]]
+    rois = [w["low"]["roi_multiple"]["value"] for w in promotion_weekly["weeks"]]
     assert all(r is not None for r in rois)
 
-    aggregate = promotion_weekly["aggregate"]["low"]["kpis"]["roi_percent"]["value"]
+    aggregate = promotion_weekly["aggregate"]["low"]["kpis"]["roi_multiple"]["value"]
     assert aggregate != pytest.approx(sum(rois)), "ROI was summed"
     # Each week's ROI is a real ratio in its own right.
     for week in promotion_weekly["weeks"]:
         sales = week["low"]["incremental_sales"]["value"]
         spend = week["low"]["trade_spend"]["value"]
-        roi = week["low"]["roi_percent"]["value"]
-        assert roi == pytest.approx((sales - spend) / spend * 100, abs=0.05)
+        roi = week["low"]["roi_multiple"]["value"]
+        assert roi == pytest.approx(sales / spend, abs=0.005)
 
 
 def test_the_metric_catalogue_declares_additivity(promotion_weekly):
@@ -393,7 +393,7 @@ def test_the_weekly_aggregate_matches_the_simulate_aggregate(client):
     decomposed = _weekly(client, PROMOTION_SCOPE)
 
     for end in ("low", "high"):
-        for metric in ADDITIVE + ("roi_percent", "margin_percent"):
+        for metric in ADDITIVE + ("roi_multiple", "margin_percent"):
             assert decomposed["aggregate"][end]["kpis"][metric]["value"] == (
                 simulated["result"][end]["kpis"][metric]["value"]
             ), f"{metric}/{end}"

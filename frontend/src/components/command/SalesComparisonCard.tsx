@@ -217,7 +217,7 @@ function ComparisonColumns({
     .map((p) => p.values[spec.key]?.value)
     .filter((v): v is number => v !== null && v !== undefined)
 
-  const rawMax = Math.max(spec.unit === 'percent' ? 0 : 1, ...values)
+  const rawMax = Math.max(spec.unit === 'multiple' ? 0 : 1, ...values)
   const rawMin = Math.min(0, ...values)
   const step = columnNiceStep((rawMin < 0 ? rawMax - rawMin : rawMax) / COLUMN_DIVISIONS)
   const lo = rawMin < 0 ? Math.floor(rawMin / step) * step : 0
@@ -234,11 +234,11 @@ function ComparisonColumns({
   const centreX = (i: number) => padL + slot * i + slot / 2
   const active = hover !== null && hover < n ? hover : null
 
-  /** Axis ticks in the metric's own unit. Percent prints itself; money is
+  /** Axis ticks in the metric's own unit. A multiple prints itself; money is
    *  abbreviated to keep the gutter narrow — the exact figure is on the bar's
    *  own tooltip, already formatted by the backend. */
   const tick = (v: number) => {
-    if (spec.unit === 'percent') return `${v.toFixed(0)}%`
+    if (spec.unit === 'multiple') return v.toFixed(2)
     const symbol = currency === 'USD' ? '$' : '₹'
     const a = Math.abs(v)
     if (currency === 'USD') {
@@ -471,7 +471,7 @@ export function SalesComparisonCard() {
             'PAGO is the month before (short-term momentum), YAGO the same month a year ' +
             'earlier (year on year, with seasonality held), and YTD the cumulative ' +
             'January-to-here window against the same window last year. A ratio such as ' +
-            'ROI is compared in percentage points, not as a percentage of a percentage.'
+            'ROI is compared as a difference in multiples (+0.20), not as a percentage of a ratio.'
           : undefined
       }
       controls={

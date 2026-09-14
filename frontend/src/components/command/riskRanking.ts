@@ -25,7 +25,7 @@ export const SEVERITY_RANK: Record<Severity, number> = { Critical: 0, High: 1, M
  *  incremental revenue the event needs to reach target — not a number
  *  computed here. */
 export function rankByImpact(a: RiskAlert, b: RiskAlert): number {
-  return b.at_stake - a.at_stake || (a.roi_pct ?? 0) - (b.roi_pct ?? 0)
+  return b.at_stake - a.at_stake || (a.roi_multiple ?? 0) - (b.roi_multiple ?? 0)
 }
 
 /** THE priority order: severity band first, then largest stake, with ROI only

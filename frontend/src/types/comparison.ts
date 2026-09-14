@@ -21,8 +21,8 @@ import type { SimulateResponse, SimulationKpi, SimulationKpiKey } from './simula
  *
  *  `percent_change` is offered only for EXTENSIVE quantities — money and
  *  units. A percent change of a rate is the classic misreading: an ROI moving
- *  34% → 68% is +34 points, and calling it "+100%" suggests returns doubled
- *  when what doubled was the rate. */
+ *  1.3 → 1.6 is +0.3, and calling it "+23%" suggests returns grew by that
+ *  much when what moved was the rate. */
 export type DeltaType = 'absolute' | 'percentage_point' | 'percent_change'
 
 export type ComparisonEntryStatus = 'measured' | 'simulated' | 'excluded'

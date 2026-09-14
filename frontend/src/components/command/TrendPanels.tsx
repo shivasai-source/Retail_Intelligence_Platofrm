@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { useChartWidth } from '../charts/useChartWidth'
 import { calendarYear } from '../../lib/labels'
 import type { TrendResponse } from '../../types/commandCenter'
+import { fmtRoi } from '../../lib/roi'
 
 /** Promotion Performance Trend — three line series on a dual axis.
  *
  *  LEFT axis  (currency): Incremental Sales, Trade Spend
- *  RIGHT axis (percent) : ROI, plus the dashed target reference
+ *  RIGHT axis (multiple): ROI, plus the dashed target reference
  *
- *  ROI is never plotted against the money axis: a percentage and a rupee
+ *  ROI is never plotted against the money axis: a multiple of spend and a rupee
  *  amount share no scale, and the previous single-axis version produced an
  *  axis whose labels described neither.
  *
@@ -71,7 +72,7 @@ export function TrendPanels({
   const innerW = Math.max(120, width - padL - padR)
   const innerH = Math.max(80, height - padT - padB)
   const step = n > 1 ? innerW / n : innerW
-  const targetRoi = series.target_roi[0] ?? data.meta.target_roi_pct
+  const targetRoi = series.target_roi[0] ?? data.meta.target_roi
 
   const money = (v: number) => {
     const a = v * rate
@@ -91,7 +92,7 @@ export function TrendPanels({
   const moneyMax = moneyStep * DIVISIONS
   const yMoney = (v: number) => padT + innerH * (1 - v / moneyMax)
 
-  // --- right axis: ROI percent, negatives preserved ------------------------
+  // --- right axis: ROI multiple, negatives preserved -----------------------
   const roiValues = series.roi.filter((v): v is number => v !== null)
   const rawLo = Math.min(0, ...roiValues, targetRoi)
   const rawHi = Math.max(...roiValues, targetRoi, 1)
@@ -154,7 +155,7 @@ export function TrendPanels({
                 {money(moneyMax * f)}
               </text>
               <text x={width - padR + 8} y={y + 3} textAnchor="start" fontSize={10} fill="var(--text-muted)">
-                {Math.round(roiLo + (roiHi - roiLo) * f)}%
+                {fmtRoi(roiLo + (roiHi - roiLo) * f)}
               </text>
             </g>
           )
@@ -179,7 +180,7 @@ export function TrendPanels({
           fill="var(--text-muted)"
           fontWeight={700}
         >
-          Target {targetRoi}%
+          Target {fmtRoi(targetRoi)}
         </text>
 
         {/* Hover guide */}
@@ -240,9 +241,9 @@ export function TrendPanels({
           {roiAt === null ? (
             <div className="mt-1 text-ink-muted">ROI — no promotion / insufficient baseline</div>
           ) : (
-            <Row swatch="var(--tint-teal-icon)" k="ROI" v={`${roiAt.toFixed(1)}%`} />
+            <Row swatch="var(--tint-teal-icon)" k="ROI" v={fmtRoi(roiAt)} />
           )}
-          <Row k="Target ROI" v={`${targetRoi}%`} dashed />
+          <Row k="Target ROI" v={fmtRoi(targetRoi)} dashed />
         </div>
       )}
     </div>

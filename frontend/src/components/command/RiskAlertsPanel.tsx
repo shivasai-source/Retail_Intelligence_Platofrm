@@ -3,6 +3,7 @@ import { IconButton, Modal } from '../ui'
 import { Icon, type IconName } from '../../icons'
 import { SEVERITIES, rankByImpact, type Severity } from './riskRanking'
 import type { RiskAlert, RiskAlertsResponse } from '../../types/commandCenter'
+import { BREAKEVEN_ROI, fmtRoi } from '../../lib/roi'
 
 /** Top Risk Alerts, segmented by severity.
  *
@@ -206,7 +207,7 @@ function AlertRow({
    *  list, where a box below it would be clipped by the list's edge. */
   flip?: boolean
 }) {
-  const roi = a.roi_pct ?? 0
+  const roi = a.roi_multiple ?? 0
   return (
     <button
       type="button"
@@ -235,10 +236,10 @@ function AlertRow({
         <span className="truncate text-base font-bold text-ink-primary">{promotionOf(a)}</span>
         <span
           className={`shrink-0 text-sm font-bold tabular-nums ${
-            roi < 0 ? 'text-status-danger' : 'text-ink-primary'
+            roi < BREAKEVEN_ROI ? 'text-status-danger' : 'text-ink-primary'
           }`}
         >
-          ROI {roi.toFixed(1)}%
+          ROI {fmtRoi(roi)}
         </span>
       </div>
 

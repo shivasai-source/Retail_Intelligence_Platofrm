@@ -129,10 +129,12 @@ FINDING_SCHEMA = {
                 "compared_to": {"type": "number", "description": "The figure you are comparing it against, copied from the table."},
                 "kind": {
                     "type": "string",
-                    "enum": ["percentage_point_gap", "relative_change_pct"],
+                    "enum": ["percentage_point_gap", "multiple_gap", "relative_change_pct"],
                     "description": (
                         "percentage_point_gap when both figures are already percentages and "
-                        "the gap between them is the point (13.4% ROI against a 39.5% norm). "
+                        "the gap between them is the point (a 13.4% margin against 39.5%). "
+                        "multiple_gap when both figures are ROI multiples and the gap between "
+                        "them is the point (a 1.12 ROI against a 1.39 norm). "
                         "relative_change_pct when you mean how much smaller or larger one is "
                         "than the other (6,156 units against an expected 6,326)."
                     ),
@@ -545,7 +547,7 @@ def assemble_orchestration(
     if totals.get("total_spend") is not None:
         chips["spend"] = f"{totals['total_spend']:,.0f}"
     if totals.get("overall_roi") is not None:
-        chips["roi"] = f"{totals['overall_roi']:.1f}x"
+        chips["roi"] = f"{totals['overall_roi']:.2f}"
     chips["rows"] = f"{totals.get('rows', 0):,}"
 
     return {

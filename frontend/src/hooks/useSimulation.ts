@@ -67,11 +67,11 @@ export function useSimulateScenario() {
  *
  *  The frontend holds every number this needs and could subtract them itself.
  *  It deliberately does not: WHICH DELTA IS VALID depends on what each metric
- *  IS — points for ROI and Margin, absolute-plus-percent-change for money and
- *  units, index points for PEI — and that rule already lives in
- *  app/tpo/comparison.py. Computing deltas here would be a second copy of it,
- *  free to drift, and the first thing to drift would be somebody dividing two
- *  ROIs and printing "+100%".
+ *  IS — a difference in multiples for ROI, points for Margin,
+ *  absolute-plus-percent-change for money and units, index points for PEI —
+ *  and that rule already lives in app/tpo/comparison.py. Computing deltas
+ *  here would be a second copy of it, free to drift, and the first thing to
+ *  drift would be somebody dividing two ROIs and printing "+100%".
  *
  *  The response carries no recommendation, and this hook adds none.
  */

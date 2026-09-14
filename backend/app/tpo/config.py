@@ -6,7 +6,7 @@ path. Two of these in particular are things the spec forbids scattering:
   * `EXCHANGE_RATE_USD_PER_INR` — currency conversion is a PRESENTATION
     concern. KPI functions never see it; they return canonical INR and the
     formatter applies this once. See app/tpo/formatting.py.
-  * `PROMOTION_TARGET_ROI_PCT` — the hurdle the Risk Alert severity bands,
+  * `PROMOTION_TARGET_ROI` — the hurdle the Risk Alert severity bands,
     the "vs Target" column and the trend chart's benchmark line all read.
     Two independently hardcoded targets would silently drift apart.
 """
@@ -62,16 +62,17 @@ DATA_DIR = _resolve_data_dir()
 
 # --- targets ---------------------------------------------------------------
 
-#: The ROI a promotion must clear, as a percentage — the same units the
-#: Promotion ROI card displays. Carried over from the validated project.
-PROMOTION_TARGET_ROI_PCT: float = 50.0
+#: The ROI a promotion must clear, as a multiple of trade spend — the same
+#: units the Promotion ROI card displays (`1.50`). The validated project's
+#: 50% net-return target, restated on the multiple scale.
+PROMOTION_TARGET_ROI: float = 1.5
 
-#: Risk Alert severity bands, in ROI percent. A promotion at or above the
+#: Risk Alert severity bands, as ROI multiples. A promotion at or above the
 #: target is not an alert at all.
 SEVERITY_BANDS = {
-    "critical": 25.0,  # ROI < 25
-    "high": 40.0,      # 25 <= ROI < 40
-    "medium": 50.0,    # 40 <= ROI < 50
+    "critical": 1.25,  # ROI < 1.25
+    "high": 1.4,       # 1.25 <= ROI < 1.4
+    "medium": 1.5,     # 1.4 <= ROI < 1.5
 }
 
 
@@ -79,15 +80,15 @@ def target_incremental_sales(trade_spend: float) -> float:
     """Incremental revenue a given trade spend must return to hit target.
 
     Inverting the ROI definition,
-        ROI = (Incremental Sales - Trade Spend) / Trade Spend x 100
-    at ROI = PROMOTION_TARGET_ROI_PCT gives
-        Target Incremental Sales = Trade Spend x (1 + target/100)
+        ROI = Incremental Sales / Trade Spend
+    at ROI = PROMOTION_TARGET_ROI gives
+        Target Incremental Sales = Trade Spend x target
 
-    which at the default 50% target is `trade_spend x 1.50` — the "At Stake"
+    which at the default 1.5 target is `trade_spend x 1.5` — the "At Stake"
     formula. Written as the inversion rather than as a literal 1.5 so the two
     cannot disagree if the target ever moves.
     """
-    return round(trade_spend * (1 + PROMOTION_TARGET_ROI_PCT / 100), 1)
+    return round(trade_spend * PROMOTION_TARGET_ROI, 1)
 
 
 # --- approved promotion treatment rules ------------------------------------
@@ -122,16 +123,16 @@ TREATMENT_RULES: dict[str, tuple[float, float, float]] = {
 
 
 def breakeven_uplift(d: float, c: float = PROMOTION_COST_RATE) -> float:
-    """u* such that ROI == 0.
+    """u* such that ROI == 1.0 — break-even.
 
     DERIVED, NOT FITTED. With Base_Quantity == Actual_Quantity == b(1+u), a
     price discount d and a promotion cost rate c on Base_Revenue:
 
         Incremental Sales = b.u.P.(1-d)
         Trade Spend       = b.(1+u).P.(d+c)
-        ROI               = u(1-d) / ((1+u)(d+c)) - 1
+        ROI               = u(1-d) / ((1+u)(d+c))
 
-        ROI = 0  <=>  u* = (d + c) / (1 - c - 2d)
+        ROI = 1  <=>  u* = (d + c) / (1 - c - 2d)
 
     Relocated unchanged from scripts/audit_roi_realism.py, including its
     domain: the denominator goes non-positive once 2d + c >= 1, i.e. beyond a

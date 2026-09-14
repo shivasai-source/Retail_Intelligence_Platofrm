@@ -5,7 +5,7 @@
 // never recomputes a KPI, never converts a currency and never applies a
 // threshold — all three live in the backend so there is exactly one of each.
 
-export type Unit = 'currency' | 'percent' | 'score'
+export type Unit = 'currency' | 'percent' | 'multiple' | 'score'
 export type Currency = 'INR' | 'USD'
 
 export interface KpiInfo {
@@ -45,7 +45,8 @@ export interface Meta {
   currency: Currency
   base_currency: Currency
   exchange_rate: number
-  target_roi_pct: number
+  /** The ROI hurdle, as a multiple of trade spend (1.5 = 1.5). */
+  target_roi: number
   row_count: number
   filters_applied: Record<string, unknown>
 }
@@ -103,7 +104,7 @@ export interface RiskAlert {
   tone: 'danger' | 'warning' | 'info'
   title: string
   description: string
-  roi_pct: number | null
+  roi_multiple: number | null
   trade_spend: number
   trade_spend_display: string
   incremental_sales: number
@@ -143,9 +144,10 @@ export interface UnderperformingRow {
   channel: string
   channel_id: string
   period: string
-  roi_pct: number
+  roi_multiple: number
   roi_display: string
-  vs_target_pp: number
+  /** Distance from the target, in multiples: -0.3 is 0.3 short. */
+  vs_target: number
   trade_spend: number
   trade_spend_display: string
   at_stake: number
@@ -226,9 +228,10 @@ export interface TopPromotionRow {
   product: string
   channel: string
   period: string
-  roi_pct: number
+  roi_multiple: number
   roi_display: string
-  vs_target_pp: number
+  /** Distance from the target, in multiples: -0.3 is 0.3 short. */
+  vs_target: number
   trade_spend: number
   trade_spend_display: string
   incremental_sales: number
@@ -269,16 +272,16 @@ export interface ComparisonDelta {
   display: string
   direction: 'up' | 'down' | 'flat' | null
   good: boolean | null
-  /** "percent change" or "percentage points" — a ratio moves in points. */
+  /** "percent change" or "multiple" — a ratio moves by its difference (+0.2). */
   basis: string | null
 }
 
 export interface ComparisonMetricSpec {
   key: string
   label: string
-  unit: 'currency' | 'percent'
+  unit: 'currency' | 'multiple'
   lower_is_better: boolean
-  /** True for a ratio, which is compared in percentage POINTS. */
+  /** True for a ratio, which is compared by its DIFFERENCE, never a percent of itself. */
   ratio: boolean
   formula: string
   meaning: string

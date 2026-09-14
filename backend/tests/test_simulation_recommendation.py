@@ -12,7 +12,7 @@ kinds:
     changes the outcome without a line of the algorithm changing.
 
 Most cases use hand-built results. Real data cannot produce a tie (or a
-non-positive ROI at an approved treatment -- B2.1 established that every
+sub-break-even ROI at an approved treatment -- B2.1 established that every
 approved band clears break-even), and a decision engine has to be tested on
 the inputs that make it decide, not only the ones that happen to occur.
 
@@ -40,7 +40,7 @@ OTHER_SCOPE = {"year": YEAR, "channel": ["CH001"]}
 #: The seven metric keys a comparison carries.
 ALL_METRICS = (
     "trade_spend", "incremental_units", "incremental_sales",
-    "roi_percent", "margin_percent", "cannibalization", "pei",
+    "roi_multiple", "margin_percent", "cannibalization", "pei",
 )
 
 #: A plausible, self-consistent set of values to vary from.
@@ -48,7 +48,7 @@ DEFAULTS = {
     "trade_spend": (1_000_000.0, 1_100_000.0),
     "incremental_units": (10_000.0, 14_000.0),
     "incremental_sales": (2_000_000.0, 2_800_000.0),
-    "roi_percent": (40.0, 80.0),
+    "roi_multiple": (1.4, 1.8),
     "margin_percent": (30.0, 32.0),
     "cannibalization": (None, None),
     "pei": (60.0, 70.0),
@@ -65,7 +65,8 @@ def _kpi(key, value):
     return {
         "key": key,
         "label": key.replace("_", " ").title(),
-        "unit": "percent" if key.endswith("_percent") or key == "cannibalization" else "currency",
+        "unit": ("percent" if key.endswith("_percent") or key == "cannibalization"
+                 else "multiple" if key == "roi_multiple" else "currency"),
         "value": value,
         "display_value": ("—" if value is None else f"{value:,.2f}"),
         "available": available,
@@ -135,22 +136,22 @@ def test_a_clear_hypothetical_winner(client):
     assert result["decision_path"][0]["endpoint"] == "low"
 
 
-def test_roi_low_at_or_below_zero_excludes_a_scenario():
-    """3. The hard gate. Positive at the high end is not enough."""
-    for roi in ((-5.0, 40.0), (0.0, 40.0)):
-        loser = fake_simulated("weak", overrides={"roi_percent": roi})
+def test_roi_low_at_or_below_breakeven_excludes_a_scenario():
+    """3. The hard gate. Clearing 1.0 at the high end is not enough."""
+    for roi in ((0.95, 1.4), (1.0, 1.4)):
+        loser = fake_simulated("weak", overrides={"roi_multiple": roi})
         strong = fake_simulated("strong", overrides={"incremental_sales": (1.0, 2.0)})
         result = _recommend([fake_baseline(), loser, strong])
 
         excluded = {e["scenario_id"]: e["reason"] for e in result["excluded_scenarios"]}
         assert "weak" in excluded, roi
-        assert "not positive" in excluded["weak"]
+        assert "does not clear break-even" in excluded["weak"]
         assert result["recommended_scenario_id"] == "strong"
 
 
-def test_roi_low_above_zero_is_eligible():
-    """4. Barely positive still qualifies -- PB001's real 0.4% case."""
-    thin = fake_simulated("thin", overrides={"roi_percent": (0.4, 12.1)})
+def test_roi_low_above_breakeven_is_eligible():
+    """4. Barely above 1.0 still qualifies -- PB001's real 1.004 case."""
+    thin = fake_simulated("thin", overrides={"roi_multiple": (1.004, 1.121)})
     result = _recommend([fake_baseline(), thin])
     assert result["status"] == "recommended"
     assert result["recommended_scenario_id"] == "thin"
@@ -158,8 +159,8 @@ def test_roi_low_above_zero_is_eligible():
 
 def test_current_plan_fallback_when_nothing_is_viable():
     """2. No hypothetical is forced to win."""
-    a = fake_simulated("a", overrides={"roi_percent": (-1.0, 5.0)})
-    b = fake_simulated("b", overrides={"roi_percent": (-2.0, 5.0)})
+    a = fake_simulated("a", overrides={"roi_multiple": (0.99, 1.05)})
+    b = fake_simulated("b", overrides={"roi_multiple": (0.98, 1.05)})
     result = _recommend([fake_baseline(), a, b])
 
     assert result["status"] == "maintain_current_plan"
@@ -169,19 +170,19 @@ def test_current_plan_fallback_when_nothing_is_viable():
 
 
 def test_current_plan_is_never_judged_by_the_hypothetical_roi_rule():
-    """20. It is MEASURED, not a counterfactual: it has no band, and a negative
-    measured ROI does not disqualify it as the fallback."""
-    result = _recommend([fake_baseline(overrides={"roi_percent": (-5.9, -5.9)})])
+    """20. It is MEASURED, not a counterfactual: it has no band, and a measured
+    ROI below break-even does not disqualify it as the fallback."""
+    result = _recommend([fake_baseline(overrides={"roi_multiple": (0.941, 0.941)})])
     assert result["status"] == "maintain_current_plan"
     assert result["recommended_scenario_id"] == "current-plan"
     assert not any(e["scenario_id"] == "current-plan" for e in result["excluded_scenarios"])
-    assert result["evidence"]["current_plan"]["roi_percent"]["low"] == -5.9
+    assert result["evidence"]["current_plan"]["roi_multiple"]["low"] == 0.941
 
 
 # --- 5-9: refusals ----------------------------------------------------------
 
 
-@pytest.mark.parametrize("metric", ["incremental_sales", "roi_percent"])
+@pytest.mark.parametrize("metric", ["incremental_sales", "roi_multiple"])
 def test_a_missing_required_metric_excludes_a_scenario(metric):
     """5, 6. Never substituted with zero, never inferred."""
     broken = fake_simulated("broken", overrides={metric: (None, None)})
@@ -233,7 +234,7 @@ def test_no_baseline_is_insufficient_data():
 @pytest.mark.parametrize(
     "index,metric,winner_override,loser_override",
     [
-        (1, "roi_percent", (90.0, 95.0), (50.0, 95.0)),                 # 11
+        (1, "roi_multiple", (1.9, 1.95), (1.5, 1.95)),                  # 11
         (2, "incremental_units", (20_000.0, 25_000.0), (10_000.0, 25_000.0)),  # 12
         (3, "margin_percent", (40.0, 45.0), (20.0, 45.0)),              # 13
         (4, "pei", (80.0, 85.0), (50.0, 85.0)),                         # 14
@@ -392,22 +393,22 @@ def test_the_policy_is_exposed_in_the_result():
     assert [c["metric"] for c in policy["hierarchy"]] == [
         c.metric for c in RECOMMENDATION_POLICY.hierarchy
     ]
-    assert policy["economic_constraint"]["must_be"] == "strictly_positive"
-    assert policy["required_metrics"] == ["incremental_sales", "roi_percent"]
+    assert policy["economic_constraint"]["must_be"] == "above_breakeven"
+    assert policy["required_metrics"] == ["incremental_sales", "roi_multiple"]
     assert "LOW end" in policy["range_policy"]
 
 
 def test_the_explanation_uses_real_evidence():
     """23. Every number quoted is the winner's own."""
     a = fake_simulated("a", overrides={"incremental_sales": (7_777_777.0, 8_000_000.0),
-                                       "roi_percent": (33.3, 44.4)})
+                                       "roi_multiple": (1.333, 1.444)})
     result = _recommend([fake_baseline(overrides={"incremental_sales": (1.0, 1.0)}), a])
     reason = result["reason"]
     evidence = result["evidence"]["recommended"]
 
     assert evidence["incremental_sales"]["display_low"] in reason
-    assert evidence["roi_percent"]["display_low"] in reason
-    assert evidence["roi_percent"]["display_high"] in reason
+    assert evidence["roi_multiple"]["display_low"] in reason
+    assert evidence["roi_multiple"]["display_high"] in reason
     assert "low end" in reason
 
 
@@ -416,7 +417,7 @@ def test_the_explanation_makes_no_overclaim():
     for entries in (
         [fake_baseline(), fake_simulated("a")],
         [fake_baseline(), fake_simulated("a", overrides={"incremental_sales": (9.0, 9.0)})],
-        [fake_baseline(), fake_simulated("a", overrides={"roi_percent": (-1.0, 1.0)})],
+        [fake_baseline(), fake_simulated("a", overrides={"roi_multiple": (0.99, 1.01)})],
     ):
         reason = _recommend(entries)["reason"].lower()
         for word in ("guaranteed", "optimal", "perfect", "best possible", "will increase", "certain"):
@@ -444,10 +445,10 @@ def test_changing_the_policy_changes_the_outcome_without_touching_the_algorithm(
     The shipped policy is not modified -- a replacement is built and passed in.
     """
     strong_sales = fake_simulated(
-        "sales-leader", overrides={"incremental_sales": (9_000_000.0, 9_500_000.0), "roi_percent": (10.0, 20.0)}
+        "sales-leader", overrides={"incremental_sales": (9_000_000.0, 9_500_000.0), "roi_multiple": (1.1, 1.2)}
     )
     strong_roi = fake_simulated(
-        "roi-leader", overrides={"incremental_sales": (1_000_000.0, 1_200_000.0), "roi_percent": (95.0, 99.0)}
+        "roi-leader", overrides={"incremental_sales": (1_000_000.0, 1_200_000.0), "roi_multiple": (1.95, 1.99)}
     )
     entries = [fake_baseline(overrides={"incremental_sales": (1.0, 1.0)}), strong_sales, strong_roi]
 
@@ -464,7 +465,7 @@ def test_changing_the_policy_changes_the_outcome_without_touching_the_algorithm(
     )
     switched = _recommend(entries, policy=roi_first)
     assert switched["recommended_scenario_id"] == "roi-leader"
-    assert switched["policy"]["primary_metric"] == "roi_percent"
+    assert switched["policy"]["primary_metric"] == "roi_multiple"
 
     # The shipped policy is untouched by the experiment.
     assert RECOMMENDATION_POLICY.primary.metric == "incremental_sales"
@@ -549,7 +550,7 @@ def test_malformed_recommend_requests_are_rejected(client, body):
 def test_tolerances_are_derived_from_the_engines_precision():
     """Not arbitrary: half a rounding step of what aggregate.py actually emits."""
     tolerance = RECOMMENDATION_POLICY.tolerance
-    assert tolerance["roi_percent"] == 0.05          # engine rounds ROI to 1dp
+    assert tolerance["roi_multiple"] == 0.005        # engine rounds the ROI multiple to 2dp
     assert tolerance["margin_percent"] == 0.05       # 1dp
     assert tolerance["incremental_sales"] == 0.05    # 1dp
     assert tolerance["incremental_units"] == 0.5     # 0dp

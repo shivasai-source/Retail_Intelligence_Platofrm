@@ -38,7 +38,7 @@ const DIRECTION: Record<string, MetricDirection> = {
   incremental_units: 'higher',
   revenue: 'higher',
   units: 'higher',
-  roi_pct: 'higher',
+  roi_multiple: 'higher',
   margin_pct: 'higher',
   pei: 'higher',
   trade_spend: 'lower',
@@ -49,19 +49,19 @@ const LABEL: Record<string, string> = {
   incremental_units: 'Incremental Units',
   revenue: 'Revenue',
   units: 'Units',
-  roi_pct: 'ROI',
+  roi_multiple: 'ROI',
   margin_pct: 'Margin',
   pei: 'PEI',
   trade_spend: 'Trade Spend',
 }
 
-/** The simulation's KPI keys, mapped onto the shared vocabulary. The two
- *  differ only in spelling — `roi_percent` and `roi_pct` are the same figure
- *  from the same engine — and this map is where that is said once. */
+/** The simulation's KPI keys, mapped onto the shared vocabulary. Where the
+ *  two differ in spelling — `margin_percent` and `margin_pct` are the same
+ *  figure from the same engine — this map is where that is said once. */
 const SIM_KEYS: [SimulationKpiKey, string][] = [
   ['incremental_sales', 'incremental_sales'],
   ['trade_spend', 'trade_spend'],
-  ['roi_percent', 'roi_pct'],
+  ['roi_multiple', 'roi_multiple'],
   ['margin_percent', 'margin_pct'],
   ['incremental_units', 'incremental_units'],
   ['pei', 'pei'],
@@ -290,7 +290,7 @@ export function candidateFromRescue(
   }
   add('incremental_sales', intervention.incremental_sales, intervention.incremental_sales_display, intervention.unavailable_reason)
   add('trade_spend', intervention.trade_spend, intervention.trade_spend_display, intervention.unavailable_reason)
-  add('roi_pct', intervention.roi_pct, intervention.roi_display, intervention.unavailable_reason)
+  add('roi_multiple', intervention.roi_multiple, intervention.roi_display, intervention.unavailable_reason)
   add('margin_pct', intervention.margin_pct, intervention.margin_display, intervention.unavailable_reason)
   add('incremental_units', intervention.incremental_units, intervention.incremental_units_display, intervention.unavailable_reason)
 
@@ -463,13 +463,13 @@ export function rankCandidates(candidates: DecisionCandidate[]): CandidateRankin
   // is the trade-off the whole studio exists to show. Leaving it there means
   // the page usually declines to recommend anything, which is not a decision
   // aid. ROI is the tie-break because it is the ONE metric this project sets a
-  // target against (PROMOTION_TARGET_ROI_PCT in app/tpo/config.py), so
+  // target against (PROMOTION_TARGET_ROI in app/tpo/config.py), so
   // preferring the higher one is reusing a hurdle that already exists rather
   // than inventing a preference. It is stated in the rule above and shown as a
   // separate line in the result, never applied silently.
   const leaders = totals.filter((t) => t.points === totals[0].points).map((t) => t.id)
   const roiOf = (id: string) =>
-    candidates.find((c) => c.id === id)?.metrics.find((m) => m.key === 'roi_pct' && m.available)?.low ?? null
+    candidates.find((c) => c.id === id)?.metrics.find((m) => m.key === 'roi_multiple' && m.available)?.low ?? null
   const withRoi = leaders.map((id) => ({ id, roi: roiOf(id) })).filter((x) => x.roi != null) as {
     id: string
     roi: number

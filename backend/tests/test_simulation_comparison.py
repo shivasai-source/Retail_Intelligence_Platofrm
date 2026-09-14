@@ -43,7 +43,7 @@ NO_CANNIBALIZATION_EVIDENCE = {
 
 METRIC_KEYS = {
     "trade_spend", "incremental_units", "incremental_sales",
-    "roi_percent", "margin_percent", "cannibalization", "pei",
+    "roi_multiple", "margin_percent", "cannibalization", "pei",
 }
 
 
@@ -171,7 +171,7 @@ def test_the_measured_baseline_is_not_treated_as_a_hypothetical(client, baseline
 def test_low_and_high_are_both_preserved(client, baseline, optimized):
     """6."""
     payload = _compare(client, [baseline, optimized])
-    for key in ("trade_spend", "incremental_sales", "roi_percent"):
+    for key in ("trade_spend", "incremental_sales", "roi_multiple"):
         scenario = _metric(payload, key)["scenarios"][0]
         assert scenario["low"]["value"] is not None
         assert scenario["high"]["value"] is not None
@@ -251,9 +251,9 @@ def test_an_unavailable_kpi_stays_unavailable(client):
 
 def test_no_delta_is_fabricated_when_a_side_is_missing():
     """A null delta, not a zero. A zero claims the two are equal."""
-    rule = comparison.METRIC_RULES["roi_percent"]
-    assert comparison._delta(rule, "percent", None, 10.0, "INR")["absolute"] is None
-    assert comparison._delta(rule, "percent", 10.0, None, "INR")["absolute"] is None
+    rule = comparison.METRIC_RULES["roi_multiple"]
+    assert comparison._delta(rule, "multiple", None, 1.1, "INR")["absolute"] is None
+    assert comparison._delta(rule, "multiple", 1.1, None, "INR")["absolute"] is None
 
 
 # --- 9-14: delta semantics per metric ---------------------------------------
@@ -262,7 +262,7 @@ def test_no_delta_is_fabricated_when_a_side_is_missing():
 @pytest.mark.parametrize(
     "key,delta_type,percent_change_allowed",
     [
-        ("roi_percent", "percentage_point", False),      # 9
+        ("roi_multiple", "absolute", False),             # 9 -- a difference in multiples
         ("margin_percent", "percentage_point", False),   # 10
         ("incremental_sales", "absolute", True),         # 11
         ("incremental_units", "absolute", True),         # 12
@@ -298,13 +298,15 @@ def test_every_metric_is_present_and_labelled_from_the_kpi_spec(client, baseline
     assert {m["key"] for m in _compare(client, [baseline, optimized])["metrics"]} == METRIC_KEYS
 
 
-def test_roi_delta_is_points_not_a_ratio(client, baseline, optimized):
-    """9, spelled out. The baseline ROI here is NEGATIVE, which is exactly the
-    case where a percent change would be nonsense."""
-    metric = _metric(_compare(client, [baseline, optimized]), "roi_percent")
+def test_roi_delta_is_a_difference_in_multiples_not_a_ratio(client, baseline, optimized):
+    """9, spelled out. The baseline ROI here is BELOW BREAK-EVEN, which is
+    exactly the case where a percent change of the multiple would mislead."""
+    metric = _metric(_compare(client, [baseline, optimized]), "roi_multiple")
     base, low = metric["baseline"]["value"], metric["scenarios"][0]["low"]["value"]
     assert metric["scenarios"][0]["delta_low"]["absolute"] == pytest.approx(low - base)
-    assert "pts" in metric["scenarios"][0]["delta_low"]["display"]
+    # A signed bare difference ("+0.5"), never a percent sign or a unit sign.
+    display = metric["scenarios"][0]["delta_low"]["display"]
+    assert "%" not in display and not display.endswith("x") and display[0] in "+-0"
     assert metric["scenarios"][0]["delta_low"]["percent_change"] is None
 
 

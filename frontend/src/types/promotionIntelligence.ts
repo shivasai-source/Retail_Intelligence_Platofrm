@@ -3,7 +3,7 @@
 export interface SaturationPoint {
   mechanic: string
   depth_pct: number
-  roi_pct: number | null
+  roi_multiple: number | null
   incremental_sales: number | null
   trade_spend: number | null
   spend_share_pct: number | null
@@ -11,7 +11,7 @@ export interface SaturationPoint {
 
 export interface SaturationCurve {
   points: SaturationPoint[]
-  target_roi_pct: number
+  target_roi: number
   /** null when the curve never falls below target — no threshold is invented. */
   saturation_depth_pct: number | null
   optimal_range: string
@@ -22,7 +22,7 @@ export interface WaterfallEntry {
   label: string
   incremental_sales: number | null
   trade_spend: number | null
-  roi_pct: number | null
+  roi_multiple: number | null
 }
 
 export interface TrendFacts {
@@ -41,16 +41,16 @@ export interface DimensionRow {
   name: string
   trade_spend: number | null
   incremental_sales: number | null
-  roi_pct: number | null
+  roi_multiple: number | null
   spend_share_pct: number | null
-  vs_target_pp: number | null
+  vs_target: number | null
   status: RowStatus
 }
 
 export interface RiskFacts {
   counts: Record<string, number>
   at_stake_total: number
-  top: { title: string; severity: string; roi_pct: number | null; trade_spend: number | null; at_stake: number | null }[]
+  top: { title: string; severity: string; roi_multiple: number | null; trade_spend: number | null; at_stake: number | null }[]
 }
 
 export interface IntelligenceFacts {
@@ -59,7 +59,7 @@ export interface IntelligenceFacts {
   currency_symbol: string
   kpis: Record<string, number | null>
   whole_business_kpis: Record<string, number | null>
-  target_roi_pct: number
+  target_roi: number
   saturation: SaturationCurve
   waterfall: { items: WaterfallEntry[]; total_incremental_sales: number | null; total_trade_spend: number | null; note: string }
   trend: TrendFacts
@@ -140,7 +140,7 @@ export interface IntelligenceRun {
 /** What `sections=core` returns — always present once the page has loaded. */
 export type CoreFacts = Pick<
   IntelligenceFacts,
-  'scope' | 'currency' | 'currency_symbol' | 'target_roi_pct' | 'kpis' | 'whole_business_kpis' | 'saturation' | 'trend' | 'by_mechanic'
+  'scope' | 'currency' | 'currency_symbol' | 'target_roi' | 'kpis' | 'whole_business_kpis' | 'saturation' | 'trend' | 'by_mechanic'
 >
 
 /** The investigation this page deepens — from GET /promotion-intelligence/context. */

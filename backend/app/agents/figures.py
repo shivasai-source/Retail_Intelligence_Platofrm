@@ -223,8 +223,15 @@ def computed_delta(
         change = round((value - against) / abs(against) * 100, 1)
         text = f"{change:+.1f}%"
     else:
-        change = round(value - against, 1)
-        text = f"{change:+.1f} pp"
+        # An ROI is a multiple of spend, so two of them differ by a multiple,
+        # at the multiple's own two decimals; every other rate on the platform
+        # is a percentage and differs by points.
+        if basis.get("kind") == "multiple_gap":
+            change = round(value - against, 2)
+            text = f"{change:+.2f}"
+        else:
+            change = round(value - against, 1)
+            text = f"{change:+.1f} pp"
     # NO DIFFERENCE IS NOT A DELTA. "+0.0 pp" would still be drawn, and the
     # graph node picks its arrow on `trend === 'down'`, so an empty trend
     # renders an UP arrow beside a figure that moved nowhere.

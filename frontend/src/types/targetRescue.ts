@@ -376,7 +376,7 @@ export interface Intervention {
   incremental_units_display: string
   incremental_sales: number | null
   incremental_sales_display: string
-  roi_pct: number | null
+  roi_multiple: number | null
   roi_display: string
   margin_pct: number | null
   margin_display: string

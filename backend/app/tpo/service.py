@@ -2,7 +2,7 @@
 
 Nothing in here computes a KPI. Every number comes from app/tpo/aggregate.py,
 so the cards, the trend chart, the alerts and the two tables cannot disagree.
-ROI in particular is only ever `aggregate.roi_percent`, whether it is being
+ROI in particular is only ever `aggregate.roi_multiple`, whether it is being
 computed for the whole selection or for one promotion event.
 """
 
@@ -63,11 +63,11 @@ KPI_SPECS: tuple[KpiSpec, ...] = (
     KpiSpec(
         key="promotion_roi",
         label="Promotion ROI",
-        unit="percent",
-        formula="(Incremental Sales − Trade Spend) ÷ Trade Spend × 100",
+        unit="multiple",
+        formula="Incremental Sales ÷ Trade Spend",
         meaning=(
-            f"Return earned on every rupee invested. The target is "
-            f"{config.PROMOTION_TARGET_ROI_PCT:.0f}%."
+            f"Incremental sales returned for every rupee invested; 1.00 is break-even. "
+            f"The target is {config.PROMOTION_TARGET_ROI:.2f}."
         ),
     ),
     KpiSpec(
@@ -84,10 +84,11 @@ KPI_SPECS: tuple[KpiSpec, ...] = (
         key="pei",
         label="Promotion Efficiency Index",
         unit="score",
-        formula="0.40 × ROI + 0.30 × Incremental Qty % + 0.30 × Margin Impact",
+        formula="0.40 × (ROI − 1.00) + 0.30 × Incremental Qty % + 0.30 × Margin Impact",
         meaning=(
-            "A 0–100 composite of the three KPIs above. If a component cannot be "
-            "computed its weight is redistributed across the rest."
+            "A 0–100 composite of the three KPIs above, with ROI counted as its return "
+            "above break-even. If a component cannot be computed its weight is "
+            "redistributed across the rest."
         ),
     ),
     KpiSpec(
@@ -187,6 +188,8 @@ def _display(value: float | None, unit: str, currency: str) -> str:
         return F.money(value, currency)
     if unit == "percent":
         return F.percent(value)
+    if unit == "multiple":
+        return F.multiple(value)
     return F.score(value)
 
 
@@ -198,7 +201,7 @@ def _meta(state: FilterState, rows: Sequence[A.WeekRow], currency: str, comparis
         "currency": currency,
         "base_currency": config.BASE_CURRENCY,
         "exchange_rate": F._rate(currency),
-        "target_roi_pct": config.PROMOTION_TARGET_ROI_PCT,
+        "target_roi": config.PROMOTION_TARGET_ROI,
         "row_count": len(rows),
         "filters_applied": state.applied(),
     }
@@ -363,6 +366,13 @@ def kpis(state: FilterState, currency: str = "INR") -> dict[str, Any]:
     for spec in KPI_SPECS:
         metric: A.KpiMetric = getattr(bundle, _BUNDLE_FIELD[spec.key])
         delta_display, delta_sub = F.delta_label(metric.growth, comparison)
+        if spec.unit == "multiple" and metric.difference is not None:
+            # A ratio moves by its DIFFERENCE, the same rule the comparison
+            # card states: 1.5 -> 1.3 is "-0.2", not "-13.3%" -- a percent
+            # change of a multiple reads as a change in the return itself.
+            # `delta` still carries the growth figure the trend arrow and the
+            # sort order read; only the printed movement changes.
+            delta_display = F.multiple(metric.difference, signed=True)
         cards[spec.key] = {
             "key": spec.key,
             "label": spec.label,
@@ -438,7 +448,7 @@ class PromotionEvent:
     promotion_type: str
     trade_spend: float
     incremental_sales: float
-    roi_pct: float | None
+    roi_multiple: float | None
     at_stake: float
 
     @property
@@ -474,7 +484,7 @@ def promotion_events(state: FilterState) -> list[PromotionEvent]:
             continue
         spend = point.trade_spend
         sales = point.incremental_sales
-        roi = A.roi_percent(sales, spend)
+        roi = A.roi_multiple(sales, spend)
         product = store.dims.products.get(row.product_id)
         channel = store.dims.channels.get(row.channel_id)
         promotion = store.dims.promotions.get(row.promotion_id)
@@ -492,7 +502,7 @@ def promotion_events(state: FilterState) -> list[PromotionEvent]:
             promotion_type=promotion.type if promotion else "",
             trade_spend=spend,
             incremental_sales=sales,
-            roi_pct=roi,
+            roi_multiple=roi,
             # At Stake: the additional incremental revenue this event needs to
             # reach the ROI target. Never negative — an event already at target
             # has nothing at stake.
@@ -505,23 +515,23 @@ def _rank_key(event: PromotionEvent) -> tuple:
     """At Stake DESC, then Trade Spend DESC, then ROI ASC.
 
     At Stake leads deliberately: it is the business-priority metric — the money
-    needed to reach target. Ranking by most-negative ROI first would put a tiny
-    promotion with a catastrophic percentage above a large one quietly losing
+    needed to reach target. Ranking by lowest ROI first would put a tiny
+    promotion with a catastrophic multiple above a large one quietly losing
     far more money.
     """
-    return (-event.at_stake, -event.trade_spend, event.roi_pct if event.roi_pct is not None else 0.0)
+    return (-event.at_stake, -event.trade_spend, event.roi_multiple if event.roi_multiple is not None else 0.0)
 
 
-def _severity(roi_pct: float | None) -> str | None:
+def _severity(roi_multiple: float | None) -> str | None:
     """The severity band for an event's ROI. None once the target is met."""
-    if roi_pct is None:
+    if roi_multiple is None:
         return None
     bands = config.SEVERITY_BANDS
-    if roi_pct < bands["critical"]:
+    if roi_multiple < bands["critical"]:
         return "critical"
-    if roi_pct < bands["high"]:
+    if roi_multiple < bands["high"]:
         return "high"
-    if roi_pct < bands["medium"]:
+    if roi_multiple < bands["medium"]:
         return "medium"
     return None
 
@@ -536,20 +546,20 @@ def risk_alerts(state: FilterState, currency: str = "INR", limit: int = 20) -> d
     """Promotion events below the ROI target, banded and ranked.
 
     Counts are of unique promotion EVENTS, and every ROI here is the same
-    `roi_percent` the KPI card uses.
+    `roi_multiple` the KPI card uses.
     """
     currency = F.normalise_currency(currency)
     events = promotion_events(state)
 
     banded: dict[str, list[PromotionEvent]] = defaultdict(list)
     for event in events:
-        severity = _severity(event.roi_pct)
+        severity = _severity(event.roi_multiple)
         if severity and event.trade_spend > 0:
             banded[severity].append(event)
 
     on_target = sum(
         1 for e in events
-        if e.roi_pct is not None and e.roi_pct >= config.PROMOTION_TARGET_ROI_PCT
+        if e.roi_multiple is not None and e.roi_multiple >= config.PROMOTION_TARGET_ROI
     )
 
     alerts: list[dict[str, Any]] = []
@@ -562,9 +572,9 @@ def risk_alerts(state: FilterState, currency: str = "INR", limit: int = 20) -> d
                 "title": f"ROI below target — {event.promotion_name}",
                 "description": (
                     f"{event.product_name.strip()} · {event.channel_name} · {event.week_key}: "
-                    f"ROI {event.roi_pct:.1f}% against a {config.PROMOTION_TARGET_ROI_PCT:.0f}% target."
+                    f"ROI {event.roi_multiple:.2f} against a {config.PROMOTION_TARGET_ROI:.2f} target."
                 ),
-                "roi_pct": event.roi_pct,
+                "roi_multiple": event.roi_multiple,
                 "trade_spend": event.trade_spend,
                 "trade_spend_display": F.money(event.trade_spend, currency),
                 "incremental_sales": event.incremental_sales,
@@ -583,7 +593,7 @@ def risk_alerts(state: FilterState, currency: str = "INR", limit: int = 20) -> d
                 # of the SELECTION -- `promotion_events` holds that
                 # selection-wide baseline fixed on purpose -- and a scope
                 # narrowed to the promoted week contains no such row, so the
-                # counterfactual disappears and the ROI collapses to -100%.
+                # counterfactual disappears and the ROI collapses to 0.0.
                 # The week identifies the event; it cannot scope it.
                 "promotion_id": event.promotion_id,
                 "product_id": event.product_id,
@@ -638,7 +648,7 @@ def underperforming_promotions(
 
     under = [
         e for e in events
-        if e.roi_pct is not None and e.roi_pct < config.PROMOTION_TARGET_ROI_PCT
+        if e.roi_multiple is not None and e.roi_multiple < config.PROMOTION_TARGET_ROI
     ]
 
     rows: list[dict[str, Any]] = []
@@ -670,9 +680,9 @@ def underperforming_promotions(
             "channel": event.channel_name,
             "channel_id": event.channel_id,
             "period": event.week_key,
-            "roi_pct": event.roi_pct,
-            "roi_display": F.percent(event.roi_pct),
-            "vs_target_pp": round(event.roi_pct - config.PROMOTION_TARGET_ROI_PCT, 1),
+            "roi_multiple": event.roi_multiple,
+            "roi_display": F.multiple(event.roi_multiple),
+            "vs_target": round(event.roi_multiple - config.PROMOTION_TARGET_ROI, 2),
             "trade_spend": event.trade_spend,
             "trade_spend_display": F.money(event.trade_spend, currency),
             "at_stake": event.at_stake,
@@ -692,8 +702,8 @@ def underperforming_promotions(
 def top_promotions(state: FilterState, currency: str = "INR", limit: int = 10) -> dict[str, Any]:
     """The best-performing promotion events, by ROI descending."""
     currency = F.normalise_currency(currency)
-    events = [e for e in promotion_events(state) if e.roi_pct is not None]
-    ranked = sorted(events, key=lambda e: -(e.roi_pct or 0))[:limit]
+    events = [e for e in promotion_events(state) if e.roi_multiple is not None]
+    ranked = sorted(events, key=lambda e: -(e.roi_multiple or 0))[:limit]
     return {
         "rows": [
             {
@@ -701,14 +711,14 @@ def top_promotions(state: FilterState, currency: str = "INR", limit: int = 10) -
                 "product": e.product_name.strip(),
                 "channel": e.channel_name,
                 "period": e.week_key,
-                "roi_pct": e.roi_pct,
-                "roi_display": F.percent(e.roi_pct),
-                "vs_target_pp": round(e.roi_pct - config.PROMOTION_TARGET_ROI_PCT, 1),
+                "roi_multiple": e.roi_multiple,
+                "roi_display": F.multiple(e.roi_multiple),
+                "vs_target": round(e.roi_multiple - config.PROMOTION_TARGET_ROI, 2),
                 "trade_spend": e.trade_spend,
                 "trade_spend_display": F.money(e.trade_spend, currency),
                 "incremental_sales": e.incremental_sales,
                 "incremental_sales_display": F.money(e.incremental_sales, currency),
-                "status": "On Track" if e.roi_pct >= config.PROMOTION_TARGET_ROI_PCT else "Underperforming",
+                "status": "On Track" if e.roi_multiple >= config.PROMOTION_TARGET_ROI else "Underperforming",
             }
             for e in ranked
         ],
@@ -769,7 +779,7 @@ def trend(state: FilterState, granularity: str = "week", currency: str = "INR") 
 
     The series are a finer PARTITION of the same rows the cards read — Trade
     Spend and Incremental Sales sum back to the headline figures exactly — and
-    each point's ROI goes through the same `roi_percent`.
+    each point's ROI goes through the same `roi_multiple`.
     """
     currency = F.normalise_currency(currency)
     # The baseline-widened set: its incremental figures sum to the card, and
@@ -781,12 +791,12 @@ def trend(state: FilterState, granularity: str = "week", currency: str = "INR") 
         return f"{r.year}-{r.month:02d}" if monthly else r.week_key
 
     points = A.period_series(rows, key_of)
-    target = config.PROMOTION_TARGET_ROI_PCT
+    target = config.PROMOTION_TARGET_ROI
 
     labels, roi, incremental, spend = [], [], [], []
     for point in points:
         labels.append(_period_label(point.period_key, monthly))
-        roi.append(A.roi_percent(point.incremental_sales, point.trade_spend))
+        roi.append(A.roi_multiple(point.incremental_sales, point.trade_spend))
         incremental.append(round(point.incremental_sales, 1))
         spend.append(round(point.trade_spend, 1))
 
@@ -802,7 +812,7 @@ def trend(state: FilterState, granularity: str = "week", currency: str = "INR") 
         "display": {
             "incremental_sales": [F.money(v, currency) for v in incremental],
             "trade_spend": [F.money(v, currency) for v in spend],
-            "roi": [F.percent(v) for v in roi],
+            "roi": [F.multiple(v) for v in roi],
         },
         "meta": _meta(state, rows, currency, None),
     }
@@ -821,10 +831,9 @@ class ComparisonMetric:
     formula: str
     meaning: str
     lower_is_better: bool = False
-    #: A ratio is compared in PERCENTAGE POINTS, not as a percentage OF a
-    #: percentage. ROI moving 29.9% -> 34.1% is +4.2 pp; calling it +14.0%
-    #: would be arithmetically true of the number and useless about the
-    #: business.
+    #: A ratio is compared by its DIFFERENCE, not as a percentage OF a ratio.
+    #: ROI moving 1.30 -> 1.40 is +0.10; calling it +7.7% would be
+    #: arithmetically true of the number and useless about the business.
     ratio: bool = False
 
 
@@ -861,11 +870,11 @@ COMPARISON_METRICS: tuple[ComparisonMetric, ...] = (
     ComparisonMetric(
         key="roi",
         label="Promotion ROI",
-        unit="percent",
-        formula="(Incremental Sales − Trade Spend) ÷ Trade Spend × 100",
+        unit="multiple",
+        formula="Incremental Sales ÷ Trade Spend",
         meaning=(
-            "Return on the promotional investment for the period. A ratio of the two "
-            "sums above, so it is compared in percentage points."
+            "Incremental sales returned per rupee of trade spend for the period. A ratio "
+            "of the two sums above, so it is compared as a difference in multiples."
         ),
         ratio=True,
     ),
@@ -928,7 +937,7 @@ def _period_totals(state: FilterState) -> dict[tuple[int, int], dict[str, float 
             "sales": sales.get(point.period_key, 0.0),
             "incremental_sales": point.incremental_sales,
             "trade_spend": point.trade_spend,
-            "roi": A.roi_percent(point.incremental_sales, point.trade_spend),
+            "roi": A.roi_multiple(point.incremental_sales, point.trade_spend),
         }
     return totals
 
@@ -940,7 +949,7 @@ def _window_totals(
     """The measures over a run of months, or None if the run is incomplete.
 
     The three additive measures sum. ROI does NOT: it is recomputed from the
-    summed parts through the same `roi_percent` every other ROI goes through,
+    summed parts through the same `roi_multiple` every other ROI goes through,
     because a mean of monthly ratios is not the ratio of the period.
 
     An incomplete window returns None rather than a total over the months that
@@ -953,7 +962,7 @@ def _window_totals(
         key: sum(totals[k][key] or 0.0 for k in window)
         for key in ("sales", "incremental_sales", "trade_spend")
     }
-    summed["roi"] = A.roi_percent(summed["incremental_sales"], summed["trade_spend"])
+    summed["roi"] = A.roi_multiple(summed["incremental_sales"], summed["trade_spend"])
     return summed
 
 
@@ -976,7 +985,7 @@ def _ytd_label(year: int, month: int) -> str:
 def _amount(value: float | None, metric: ComparisonMetric, currency: str) -> dict[str, Any]:
     """One measured amount, formatted by the metric's own unit."""
     return {
-        "value": None if value is None else round(value, 1),
+        "value": None if value is None else round(value, 2 if metric.unit == "multiple" else 1),
         "display": _display(value, metric.unit, currency),
     }
 
@@ -989,7 +998,7 @@ def _delta(
 ) -> dict[str, Any]:
     """How `current` stands against `prior`, in the metric's own terms.
 
-    A ratio moves in percentage POINTS; an amount moves by a percentage of
+    A ratio moves by its difference (0.1); an amount moves by a percentage of
     itself. Both are formatted here so the card never divides and never has to
     know which kind of number it is holding.
 
@@ -1002,8 +1011,8 @@ def _delta(
 
     if metric.ratio:
         value = current - prior
-        display = f"{F.percent(value, signed=True)[:-1]} pp" if value else "0.0 pp"
-        basis = "percentage points"
+        display = F.multiple(value, signed=True) if value else "0.00"
+        basis = "multiple"
     else:
         if not prior:
             return {"value": None, "display": "—", "direction": None, "good": None, "basis": None}
@@ -1014,7 +1023,7 @@ def _delta(
     direction = "up" if value > 0 else "down" if value < 0 else "flat"
     good = None if direction == "flat" else (direction == "down") == metric.lower_is_better
     return {
-        "value": round(value, 1),
+        "value": round(value, 2 if metric.ratio else 1),
         "display": display,
         "direction": direction,
         "good": good,

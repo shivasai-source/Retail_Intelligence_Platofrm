@@ -1,6 +1,7 @@
 import { Card, CardHeader, Pill, Table, Th, Td } from '../ui'
 import { Icon, type IconName } from '../../icons'
 import { useChartWidth } from '../charts/useChartWidth'
+import { fmtRoi, fmtRoiDelta } from '../../lib/roi'
 import type {
   AnalysisDriver,
   DimensionRow,
@@ -78,9 +79,9 @@ export function DimensionTable({ title, rows, nameHeader }: { title: string; row
                 <Td>{fmtCr(r.trade_spend)}</Td>
                 <Td>{fmtPct(r.spend_share_pct)}</Td>
                 <Td>{fmtCr(r.incremental_sales)}</Td>
-                <Td className="font-extrabold">{fmtPct(r.roi_pct)}</Td>
-                <Td className={r.vs_target_pp != null && r.vs_target_pp < 0 ? 'text-status-danger' : 'text-status-success'}>
-                  {r.vs_target_pp == null ? '—' : `${r.vs_target_pp > 0 ? '+' : ''}${r.vs_target_pp} pp`}
+                <Td className="font-extrabold">{fmtRoi(r.roi_multiple)}</Td>
+                <Td className={r.vs_target != null && r.vs_target < 0 ? 'text-status-danger' : 'text-status-success'}>
+                  {fmtRoiDelta(r.vs_target)}
                 </Td>
                 <Td>
                   <Pill tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</Pill>
@@ -348,7 +349,7 @@ export function RiskPanel({ risk }: { risk: RiskFacts }) {
                   <Td>
                     <Pill tone={a.severity?.toLowerCase() === 'critical' ? 'danger' : 'warning'}>{a.severity}</Pill>
                   </Td>
-                  <Td className="font-extrabold text-status-danger">{fmtPct(a.roi_pct)}</Td>
+                  <Td className="font-extrabold text-status-danger">{fmtRoi(a.roi_multiple)}</Td>
                   <Td>{fmtCr(a.trade_spend)}</Td>
                   <Td>{fmtCr(a.at_stake)}</Td>
                 </tr>

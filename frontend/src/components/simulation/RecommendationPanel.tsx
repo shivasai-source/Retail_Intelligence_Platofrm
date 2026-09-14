@@ -125,7 +125,7 @@ export function RecommendationPanel({ recommendation }: { recommendation: Recomm
  *  figures the policy actually read. No ordinal, no "runner-up". */
 function describe(scenario: EligibleScenario): string {
   const sales = scenario.evidence.incremental_sales
-  const roi = scenario.evidence.roi_percent
+  const roi = scenario.evidence.roi_multiple
   const parts: string[] = []
   if (sales?.available) parts.push(`incremental sales from ${sales.display_low}`)
   if (roi?.available) parts.push(`ROI from ${roi.display_low}`)
@@ -223,7 +223,7 @@ function RecommendedScenario({ scenario, reason }: { scenario: EligibleScenario;
           label="Conservative Incremental Sales"
           metric={scenario.evidence.incremental_sales}
         />
-        <Conservative label="Conservative ROI" metric={scenario.evidence.roi_percent} />
+        <Conservative label="Conservative ROI" metric={scenario.evidence.roi_multiple} />
       </div>
 
       <div className="mt-3 max-w-[640px] text-base leading-[1.6] text-ink-secondary">{reason}</div>

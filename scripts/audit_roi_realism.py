@@ -1,6 +1,6 @@
 """FINAL ROI REALISM AUDIT. READ-ONLY -- this script writes nothing.
 
-Every ROI is produced by the frozen engine (app.tpo.aggregate.roi_percent), at
+Every ROI is produced by the frozen engine (app.tpo.aggregate.roi_multiple), at
 the same grain the Command Center uses:
 
   * headline / channel scopes -> aggregate.calculate_roi(rows, volume_rows)
@@ -15,9 +15,9 @@ cost rate c on Base_Revenue:
 
     Incremental Sales = b.u.P.(1-d)
     Trade Spend       = b.(1+u).P.(d+c)
-    ROI               = u(1-d) / ((1+u)(d+c)) - 1
+    ROI               = u(1-d) / ((1+u)(d+c))        (a multiple; 1.0 = break-even)
 
-    ROI = 0  <=>  u* = (d + c) / (1 - c - 2d)
+    ROI = 1  <=>  u* = (d + c) / (1 - c - 2d)
 
 Usage:  venv/Scripts/python.exe scripts/audit_roi_realism.py
 """
@@ -87,18 +87,18 @@ def main() -> int:
     for yr, tag in ((2024, "F24"), (2025, "F25"), (None, "ALL")):
         s = scope(FilterState.build(year=yr))
         overall[tag] = s
-        flag = "OK" if s["roi"] <= 50 else "OVER 50"
-        print(f"  {tag}  ROI {s['roi']:6.1f}%   TradeSpend {cr(s['ts'])}Cr   "
+        flag = "OK" if s["roi"] <= 1.5 else "OVER 1.5"
+        print(f"  {tag}  ROI {s['roi']:6.1f}   TradeSpend {cr(s['ts'])}Cr   "
               f"IncSales {cr(s['is'])}Cr   IncUnits {s['iu']:>10,.0f}   [{flag}]")
 
     # ---------------------------------------------------------------- 2
     print("\n## 2. Channel x Year ROI")
-    print(f"  {'scope':<12}{'TradeSpend Cr':>15}{'IncUnits':>13}{'IncSales Cr':>14}{'ROI %':>9}   flag")
+    print(f"  {'scope':<12}{'TradeSpend Cr':>15}{'IncUnits':>13}{'IncSales Cr':>14}{'ROI x':>9}   flag")
     print("  " + "-" * 68)
     for ch in CHANNELS:
         for yr, tag in ((2024, "F24"), (2025, "F25")):
             s = scope(FilterState.build(year=yr, channel=[ch]))
-            flag = "OK" if s["roi"] <= 50 else "OVER 50"
+            flag = "OK" if s["roi"] <= 1.5 else "OVER 1.5"
             print(f"  {ch + ' ' + tag:<12}{cr(s['ts']):>15}{s['iu']:>13,.0f}"
                   f"{cr(s['is']):>14}{s['roi']:>9.1f}   {flag}")
 
@@ -136,7 +136,7 @@ def main() -> int:
             per_year_stats[(pid, yr)] = a
 
     print(f"  {'Promotion':<26}{'yr':>5}{'events':>8}{'TS Cr':>8}{'IncU':>11}{'IS Cr':>8}"
-          f"{'ROI %':>9}{'baseU':>8}{'actU':>8}{'uplift':>8}{'disc':>7}{'PC/BR':>7}")
+          f"{'ROI x':>9}{'baseU':>8}{'actU':>8}{'uplift':>8}{'disc':>7}{'PC/BR':>7}")
     print("  " + "-" * 118)
     negative_promos = []
     over50_promos = []
@@ -158,26 +158,26 @@ def main() -> int:
                    f"{s['iu']:>11,.0f}{cr(s['is']):>8}{roi:>9.1f}"
                    f"{a['base_units']/un:>8.0f}{a['qty']/n:>8.0f}"
                    f"{100*a['u']/un:>7.1f}%{100*a['disc']/n:>6.1f}%{100*a['pc']/a['br']:>6.2f}%")
-            print(row + ("   <-- NEGATIVE" if roi < 0 else "   <-- >50" if roi > 50 else ""))
-            if roi < 0:
+            print(row + ("   <-- BELOW 1.0" if roi < 1 else "   <-- >1.5" if roi > 1.5 else ""))
+            if roi < 1:
                 negative_promos.append((pid, yr, label, roi, 100 * a["u"] / un, 100 * a["disc"] / n))
-            if roi > 50:
+            if roi > 1.5:
                 over50_promos.append((pid, yr, label, roi, 100 * a["u"] / un))
 
     # ---------------------------------------------------------------- 4
-    print("\n## 4. Negative ROI -- event level")
+    print("\n## 4. Below break-even (ROI < 1.0) -- event level")
     events = service.promotion_events(FilterState.build())
     by_treatment = defaultdict(lambda: {"n": 0, "neg": 0, "rois": []})
     for e in events:
-        if e.roi_pct is None:
+        if e.roi_multiple is None:
             continue
         t = treatment_of(e.promotion_id)
         g = by_treatment[t]
         g["n"] += 1
-        g["rois"].append(e.roi_pct)
-        if e.roi_pct < 0:
+        g["rois"].append(e.roi_multiple)
+        if e.roi_multiple < 1:
             g["neg"] += 1
-    print(f"  {'treatment':<12}{'events':>9}{'negative':>10}{'neg %':>8}"
+    print(f"  {'treatment':<12}{'events':>9}{'below 1':>10}{'neg %':>8}"
           f"{'min ROI':>10}{'median':>9}{'max ROI':>10}")
     print("  " + "-" * 68)
     for t in ["PR001", "PR002", "PR003", "PS001", "PB001"]:
@@ -190,15 +190,15 @@ def main() -> int:
               f"{rs[0]:>10.1f}{med:>9.1f}{rs[-1]:>10.1f}")
 
     print("\n  Worst 12 events by ROI:")
-    worst = sorted((e for e in events if e.roi_pct is not None), key=lambda e: e.roi_pct)[:12]
+    worst = sorted((e for e in events if e.roi_multiple is not None), key=lambda e: e.roi_multiple)[:12]
     for e in worst:
-        print(f"    {e.roi_pct:>7.1f}%  {e.promotion_name[:26]:<27}{e.channel_name[:16]:<17}"
+        print(f"    {e.roi_multiple:>7.1f}  {e.promotion_name[:26]:<27}{e.channel_name[:16]:<17}"
               f"{e.product_name.strip()[:30]:<31}{e.week_key}")
 
     # ---------------------------------------------------------------- 5
     print("\n## 5. Break-even uplift implied by the approved rules")
-    print("  ROI = 0 when realized uplift u* = (d + 0.03) / (1 - 0.03 - 2d)")
-    print(f"  {'treatment':<12}{'discount':>10}{'u* (ROI=0)':>13}{'approved band':>17}"
+    print("  ROI = 1.0 when realized uplift u* = (d + 0.03) / (1 - 0.03 - 2d)")
+    print(f"  {'treatment':<12}{'discount':>10}{'u* (ROI=1)':>13}{'approved band':>17}"
           f"{'headroom':>11}{'measured':>11}")
     print("  " + "-" * 76)
     measured_uplift = {}
@@ -218,7 +218,7 @@ def main() -> int:
               + ("   <-- NO MARGIN" if head < 2 else ""))
 
     # ---------------------------------------------------------------- 6
-    print("\n## 6. Data-integrity probes on the negative-ROI population")
+    print("\n## 6. Data-integrity probes on the below-break-even population")
     pb = [r for r in rows if treatment_of(r["Promotion_Id"].strip()) == "PB001"]
     ratios = {round(float(r["Actual_Price"]) / float(r["Base_Price"]), 3) for r in pb}
     pcr = {round(float(r["Promotion_Cost"]) / float(r["Base_Revenue"]), 3) for r in pb}

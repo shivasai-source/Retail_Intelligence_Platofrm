@@ -160,11 +160,11 @@ def test_status_bands_end_to_end(name: str, payload: dict, attainment: float, ex
 
 def test_thresholds_are_not_the_command_center_risk_bands() -> None:
     """The rescue bands are attainment percentages; the Command Center's are ROI
-    percentages. Reading one as the other is exactly the kind of drift the
+    multiples. Reading one as the other is exactly the kind of drift the
     project has already been bitten by, so they are asserted to be separate."""
     assert rescue.ON_TRACK_ATTAINMENT_PCT == 80.0
     assert rescue.WATCH_ATTAINMENT_PCT == 70.0
-    assert set(config.SEVERITY_BANDS.values()) == {25.0, 40.0, 50.0}
+    assert set(config.SEVERITY_BANDS.values()) == {1.25, 1.4, 1.5}
     assert rescue.ON_TRACK_ATTAINMENT_PCT not in set(config.SEVERITY_BANDS.values())
 
 
@@ -637,7 +637,7 @@ def test_every_derived_figure_moves_with_the_scope() -> None:
         # ROI and margin are RATIOS of the approved treatment, so they are scope
         # independent by construction -- asserted so a future change that made
         # them scope dependent would be caught rather than absorbed.
-        assert tight["roi_pct"] == pytest.approx(wide["roi_pct"], abs=0.15)
+        assert tight["roi_multiple"] == pytest.approx(wide["roi_multiple"], abs=0.015)
 
 
 def test_the_recommendation_is_made_for_the_selected_product() -> None:
@@ -1050,7 +1050,7 @@ def test_the_baseline_agreement_is_not_vacuous() -> None:
 def test_rung_roi_matches_the_approved_closed_form(name: str, payload: dict) -> None:
     """Each treated rung's ROI is the approved algebra, exactly.
 
-    `config.breakeven_uplift` was derived from ROI = u(1-d)/((1+u)(d+c)) - 1. A
+    `config.breakeven_uplift` was derived from ROI = u(1-d)/((1+u)(d+c)). A
     rung priced at the bottom of its band must therefore report that value --
     which also means the reported ROI cannot have picked up a local formula on
     the way out.
@@ -1062,8 +1062,9 @@ def test_rung_roi_matches_the_approved_closed_form(name: str, payload: dict) -> 
             continue
         d = rung["discount_pct"] / 100
         u = rung["uplift"]["low"]
-        expected = (u * (1 - d) / ((1 + u) * (d + c)) - 1) * 100
-        assert rung["roi_pct"] == pytest.approx(expected, abs=0.15), f"{name} {rung['treatment']}"
+        expected = u * (1 - d) / ((1 + u) * (d + c))
+        # The rung reports the multiple at two decimal places: half a step.
+        assert rung["roi_multiple"] == pytest.approx(expected, abs=0.005), f"{name} {rung['treatment']}"
 
 
 @pytest.mark.parametrize("name,payload", SCOPES)

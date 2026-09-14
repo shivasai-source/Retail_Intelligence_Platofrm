@@ -40,8 +40,8 @@ import {
   RiskPanel,
   TrendVsTarget,
   fmtCr,
-  fmtPct,
 } from '../components/promotionIntelligence/panels'
+import { fmtRoi } from '../lib/roi'
 import { useChannelNames } from '../hooks/useCommandCenter'
 import { proposedDiscountPct, useIntelligenceHandoffStore } from '../store/intelligenceHandoff'
 import { useGeneralOptimizationStore } from '../store/generalOptimization'
@@ -492,8 +492,8 @@ export function Intelligence() {
 
   const k = facts?.kpis
   const roi = k?.promotion_roi
-  const belowTarget = roi != null && facts != null && roi < facts.target_roi_pct
-  const gapToTarget = roi != null && facts != null ? Math.round((facts.target_roi_pct - roi) * 10) / 10 : null
+  const belowTarget = roi != null && facts != null && roi < facts.target_roi
+  const gapToTarget = roi != null && facts != null ? Math.round((facts.target_roi - roi) * 10) / 10 : null
 
   return (
     <AppShell activeKey="intelligence" crumbs={crumbs}>
@@ -545,21 +545,19 @@ export function Intelligence() {
             {
               label: 'Incremental Sales',
               value: fmtCr(k.incremental_sales),
-              // DERIVED FROM THE TARGET THE RESPONSE CARRIES, not the literal
-              // "1.5× spend" that stood here. Inverting ROI = (incremental −
-              // spend) / spend gives target incremental = spend × (1 +
-              // target/100), which is 1.5× only while the target is 50%. The
-              // sentence now moves with the configured hurdle instead of
-              // quietly contradicting it.
-              sub: `target is ${Math.round((1 + facts.target_roi_pct / 100) * 10) / 10}× spend`,
+              // DERIVED FROM THE TARGET THE RESPONSE CARRIES, not a literal
+              // "1.5× spend". ROI = incremental / spend, so the target
+              // incremental is simply spend × target, and the sentence moves
+              // with the configured hurdle instead of quietly contradicting it.
+              sub: `target is ${fmtRoi(facts.target_roi)} spend`,
             },
             {
               label: 'Promotion ROI',
-              value: fmtPct(roi),
+              value: fmtRoi(roi),
               sub:
                 gapToTarget != null && gapToTarget > 0
-                  ? `${gapToTarget} pp below target`
-                  : `target ${facts.target_roi_pct}%`,
+                  ? `${fmtRoi(gapToTarget)} below target`
+                  : `target ${fmtRoi(facts.target_roi)}`,
               danger: belowTarget,
             },
           ].map((c) => (
@@ -645,12 +643,12 @@ export function Intelligence() {
                     Each point is a real mechanic at its effective discount depth; dot size is share of trade spend.{' '}
                     {facts.saturation.saturation_depth_pct !== null ? (
                       <>
-                        ROI drops below the {facts.saturation.target_roi_pct}% target from{' '}
+                        ROI drops below the {fmtRoi(facts.saturation.target_roi)} target from{' '}
                         <strong className="text-status-danger">{facts.saturation.saturation_depth_pct}% depth</strong> onward
                         and does not recover.
                       </>
                     ) : (
-                      <>No depth in this scope falls below the {facts.saturation.target_roi_pct}% target.</>
+                      <>No depth in this scope falls below the {fmtRoi(facts.saturation.target_roi)} target.</>
                     )}
                   </p>
                 </div>

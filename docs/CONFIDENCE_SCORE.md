@@ -357,25 +357,25 @@ The Analyst's `drivers[].weight_pct` was described in its own schema as *"your
 judgement of relative contribution"*, and rendered on a card titled **Driver
 Decomposition** as a percentage against a proportional bar.
 
-Since `ROI_pct = (Incremental Sales − Trade Spend) / Trade Spend × 100` and
-Trade Spend is additive:
+Since `ROI = Incremental Sales / Trade Spend` (a multiple) and Trade Spend is
+additive:
 
 ```
 weighted_roi     = SUM(spend_g x roi_g) / SUM(spend_g)
 
-contribution_pp  = spend_g x (roi_g - target) / SUM(spend)
+contribution     = spend_g x (roi_g - target) / SUM(spend)      (in multiples)
 
-SUM(contribution_pp) = weighted_roi - target = gap_pp
+SUM(contribution) = weighted_roi - target = gap
 ```
 
-`weight_pct` is `|contribution_pp|` as a share of the total absolute
+`weight_pct` is `|contribution|` as a share of the total absolute
 contribution, apportioned to integers summing to 100 by largest remainder.
 
 Because `spend_g` is in the numerator, a mechanic holding half the budget at a
 small shortfall outranks a tiny one at a catastrophic ROI — the ranking every
 prompt in the codebase had been asking for in words.
 
-On the real 2025 dataset `weighted_roi_pct` comes out at **34.1%**, identical to
+On the real 2025 dataset `weighted_roi` comes out at **1.3**, identical to
 the headline Promotion ROI KPI: the decomposition reconciles with the Command
 Center.
 

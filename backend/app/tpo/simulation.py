@@ -6,13 +6,13 @@ same call the Command Center's cards make -- so a scenario baseline and the
 Command Center cannot disagree about the same scope.
 
 That matters most for ROI. There is exactly one Promotion ROI in this product,
-`aggregate.roi_percent`:
+`aggregate.roi_multiple`:
 
-    ROI % = (Incremental Sales - Trade Spend) / Trade Spend x 100
+    ROI = Incremental Sales / Trade Spend        (a multiple: 1.4)
 
 The Simulation Studio used to divide revenue by spend in the browser and call
-the result "ROI" -- a different formula in different units, sitting next to a
-Command Center reporting against a 50% target. It no longer computes anything.
+the result "ROI" -- a different numerator, sitting next to a Command Center
+reporting against a 1.5 target. It no longer computes anything.
 
 WHAT PHASE A DELIBERATELY DOES NOT DO
 -------------------------------------
@@ -92,7 +92,7 @@ SIMULATION_KPIS: tuple[SimulationKpi, ...] = (
         formula="Sum over promoted rows of (Actual Quantity - baseline)",
     ),
     SimulationKpi("incremental_sales", "incremental_sales"),
-    SimulationKpi("roi_percent", "promotion_roi"),
+    SimulationKpi("roi_multiple", "promotion_roi"),
     SimulationKpi("margin_percent", "margin_impact"),
     SimulationKpi("cannibalization", "cannibalization_rate"),
     SimulationKpi("pei", "pei"),
@@ -105,6 +105,8 @@ def _display(value: float | None, unit: str, currency: str) -> str:
         return F.money(value, currency)
     if unit == "percent":
         return F.percent(value)
+    if unit == "multiple":
+        return F.multiple(value)
     if unit == "quantity":
         return F.quantity(value)
     return F.score(value)
@@ -654,7 +656,7 @@ def run(
             "currency": currency,
             "base_currency": config.BASE_CURRENCY,
             "exchange_rate": F._rate(currency),
-            "target_roi_pct": config.PROMOTION_TARGET_ROI_PCT,
+            "target_roi": config.PROMOTION_TARGET_ROI,
             "phase": PHASE,
         },
     }

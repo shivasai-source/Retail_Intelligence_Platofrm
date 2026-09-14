@@ -62,10 +62,10 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Sequence
 
-# PEI = 0.40(ROI) + 0.30(Incremental qty %) + 0.30(Margin Impact).
+# PEI = 0.40(ROI net return) + 0.30(Incremental qty %) + 0.30(Margin Impact).
 #
 # Trade Spend Efficiency and the cannibalization score are deliberately NOT
-# components: TSE = ROI + 100 by definition, so carrying both would put 45% of
+# components: TSE = ROI x 100 by definition, so carrying both would put 45% of
 # the weight on one signal, and cannibalization is a headline KPI in its own
 # right. Both are still computed and shown; they simply do not feed the index.
 PEI_WEIGHTS = {
@@ -76,8 +76,13 @@ PEI_WEIGHTS = {
 
 # Ceilings used to normalise each PEI component onto 0-100. Scale references
 # for the composite only — no KPI is judged against a target here.
+#
+# ROI enters as its NET RETURN — the multiple less the 1.0 that is just the
+# spend coming back — so a break-even promotion (1.0) scores zero on this
+# component and a 2.0 one hits the ceiling. Scoring the raw multiple would
+# hand every promotion a floor of 50 for merely returning its own spend.
 PEI_SCALE = {
-    "roi_cap_pct": 100.0,
+    "roi_net_return_cap": 1.0,
     "incremental_quantity_cap_pct": 50.0,
     "margin_cap_pct": 40.0,
 }
@@ -403,14 +408,25 @@ def calculate_incremental_profit(rows: Sequence[WeekRow]) -> float | None:
 # --- ROI, margin, efficiency -----------------------------------------------
 
 
-def roi_percent(
+def roi_multiple(
     incremental_sales: float | None,
     trade_spend: float | None,
-    precision: int | None = 1,
+    precision: int | None = 2,
 ) -> float | None:
     """THE Promotion ROI formula. One expression, one rounding rule.
 
-        ROI = (Incremental Sales - Trade Spend) / Trade Spend x 100
+        ROI = Incremental Sales / Trade Spend
+
+    A multiple, displayed as `1.40`: every rupee of trade spend brought back
+    1.40 rupees of incremental sales. 1.00 is break-even — the spend came back
+    and nothing more — and anything below it lost money. (The earlier
+    definition, `(Incremental Sales - Trade Spend) / Trade Spend x 100`, was
+    the same ratio less one, in percent; 40.0% on the old scale is 1.40 here.)
+
+    TWO DECIMAL PLACES -- the one deliberate exception to the project's
+    one-decimal rule. A 0.1 step on this scale is ten points of the old one:
+    the -3.6% event that reads 0.96 here would round to 1.00 and pass for
+    break-even, which is a different and false claim.
 
     Every ROI the Command Center shows goes through this function — the KPI
     card via `calculate_roi`, and each promotion event via the service layer,
@@ -429,16 +445,16 @@ def roi_percent(
     """
     if incremental_sales is None or trade_spend is None:
         return None
-    ratio = safe_divide(incremental_sales - trade_spend, trade_spend)
+    ratio = safe_divide(incremental_sales, trade_spend)
     if ratio is None:
         return None
-    return ratio * 100 if precision is None else _round(ratio * 100, precision)
+    return ratio if precision is None else _round(ratio, precision)
 
 
 def calculate_roi(
     rows: Sequence[WeekRow],
     volume_rows: Sequence[WeekRow] | None = None,
-    precision: int | None = 1,
+    precision: int | None = 2,
 ) -> float | None:
     """Promotion ROI for a whole filtered selection — the KPI card.
 
@@ -451,7 +467,7 @@ def calculate_roi(
     """
     if not rows:
         return None
-    return roi_percent(
+    return roi_multiple(
         calculate_incremental_sales(volume_rows if volume_rows is not None else rows),
         calculate_trade_spend(rows),
         precision=precision,
@@ -473,7 +489,7 @@ def calculate_margin(rows: Sequence[WeekRow], precision: int | None = 1) -> floa
     ratio = safe_divide(revenue - _sum(rows, lambda r: r.total_cost), revenue)
     if ratio is None:
         return None
-    # `precision` rounds the RESULT only — see roi_percent.
+    # `precision` rounds the RESULT only — see roi_multiple.
     return ratio * 100 if precision is None else _round(ratio * 100, precision)
 
 
@@ -819,9 +835,11 @@ def calculate_pei(
     """0-100 composite, computed LAST — every component is one of the KPIs
     above, not a parallel calculation.
 
-        PEI = 0.40(ROI) + 0.30(Incremental qty %) + 0.30(Margin Impact)
+        PEI = 0.40(ROI net return) + 0.30(Incremental qty %) + 0.30(Margin Impact)
 
-    each component divided by its ceiling and clamped onto 0-100 first. A
+    each component divided by its ceiling and clamped onto 0-100 first. The
+    ROI component is the multiple less 1.0 (see `PEI_SCALE`), so the index is
+    numerically what it was when ROI was expressed as a net percentage. A
     component with no value contributes nothing and ITS WEIGHT IS
     REDISTRIBUTED across the rest, so PEI stays on a 0-100 scale rather than
     being dragged toward zero whenever one input is undefined.
@@ -841,7 +859,12 @@ def calculate_pei(
         if raw is not None:
             components.append((_clamp(raw / cap, 0, 1) * 100, weight))
 
-    add(calculate_roi(rows, volume), PEI_SCALE["roi_cap_pct"], PEI_WEIGHTS["roi"])
+    # The ROI component is taken UNROUNDED. The card's 1 dp multiple is a
+    # even a 0.01 step is a point of net return, and the composite should not
+    # inherit display rounding at all. The percent-scale ROI this index was calibrated on carried three more
+    # digits, and the unrounded multiple is that same figure.
+    roi = calculate_roi(rows, volume, precision=None)
+    add(None if roi is None else roi - 1, PEI_SCALE["roi_net_return_cap"], PEI_WEIGHTS["roi"])
     add(
         calculate_incremental_quantity_percent(volume),
         PEI_SCALE["incremental_quantity_cap_pct"],
@@ -854,10 +877,11 @@ def calculate_pei(
     total_weight = sum(w for _, w in components)
     weighted = sum(s * w for s, w in components)
     index = safe_divide(weighted, total_weight)
-    # `precision` rounds the RESULT only. The three COMPONENTS keep their own
-    # rounding whatever is asked for here: they are the KPIs as this project
-    # defines them, and re-deriving the index from unrounded components would
-    # be a different composite -- and would move the score on the card.
+    # `precision` rounds the RESULT only. The two percentage COMPONENTS keep
+    # their own rounding whatever is asked for here: they are the KPIs as this
+    # project defines them, and re-deriving the index from unrounded components
+    # would be a different composite -- and would move the score on the card.
+    # ROI is the exception, for the reason given where it is added.
     return index if precision is None else _round(index, precision)
 
 
@@ -890,7 +914,8 @@ def _precise(current: float | None, previous: float | None, digits: int) -> KpiM
     Two rounded numbers make a wrong ratio. PEI is reported as a whole number,
     so a delta computed from the reported pair moved by up to 0.4 percentage
     points against the same delta taken from the underlying values -- and ROI
-    and Margin Impact, reported to one decimal, moved by up to 0.1.
+    and Margin Impact, reported to one decimal, moved by up to 0.1 (0.01 for
+    the ROI multiple, reported to two).
 
     So the pair arrives here unrounded, the growth is taken from it, and only
     the REPORTED values are rounded afterwards. The card's value is unchanged
@@ -904,7 +929,8 @@ def _precise(current: float | None, previous: float | None, digits: int) -> KpiM
     return KpiMetric(
         value=_round(current, digits),
         previous_year=_round(previous, digits),
-        difference=_round(metric.difference, 1),
+        # The difference at the KPI's own precision, from the unrounded pair.
+        difference=None if metric.difference is None else _round(current - previous, digits),
         growth=metric.growth,
     )
 
@@ -1075,7 +1101,7 @@ def calculate_kpis(
         roi=_precise(
             calculate_roi(rows, vrows, precision=None),
             calculate_roi(previous_rows, prior_vrows, precision=None),
-            1,
+            2,
         ),
         margin_impact=_precise(
             calculate_margin(rows, precision=None),

@@ -6,6 +6,7 @@ import { useRiskAlerts } from '../../hooks/useCommandCenter'
 import { useAlertHandoff } from '../../hooks/useAlertHandoff'
 import { ALERT_FETCH_LIMIT, alertHeadline, topAlerts } from './riskRanking'
 import type { RiskAlert } from '../../types/commandCenter'
+import { BREAKEVEN_ROI, fmtRoi } from '../../lib/roi'
 
 /** The header's notification centre.
  *
@@ -233,7 +234,7 @@ function Message({ text }: { text: string }) {
 }
 
 function AlertRow({ alert, onSelect }: { alert: RiskAlert; onSelect: (a: RiskAlert) => void }) {
-  const roi = alert.roi_pct
+  const roi = alert.roi_multiple
   return (
     <button
       type="button"
@@ -268,10 +269,10 @@ function AlertRow({ alert, onSelect }: { alert: RiskAlert; onSelect: (a: RiskAle
         <span className="mt-0.5 flex items-center gap-1.5 text-xs tabular-nums">
           <span
             className={
-              roi !== null && roi < 0 ? 'font-bold text-status-danger' : 'font-bold text-ink-primary'
+              roi !== null && roi < BREAKEVEN_ROI ? 'font-bold text-status-danger' : 'font-bold text-ink-primary'
             }
           >
-            ROI {roi === null ? '—' : `${roi.toFixed(1)}%`}
+            ROI {fmtRoi(roi)}
           </span>
           <span className="truncate text-ink-muted">· {alert.at_stake_display} at stake</span>
         </span>
