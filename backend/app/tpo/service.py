@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any, Sequence
 
 from app.tpo import aggregate as A
@@ -118,8 +119,16 @@ _BUNDLE_FIELD = {
 # --- helpers ---------------------------------------------------------------
 
 
+@lru_cache(maxsize=256)
 def _bundle(state: FilterState) -> tuple[A.KpiBundle, str | None]:
     """The KPI bundle for a selection, with its comparison period label.
+
+    MEMOISED PER FILTER STATE, like `rows_for` beneath it. Currency is not in
+    the key because it is not in the arithmetic: the bundle is canonical INR
+    and the caller converts on the way out, so the USD toggle and a return to
+    the page cost a lookup rather than a second pass over the rows. Cleared
+    with the other row caches when a dataset is installed
+    (app/star_dataset.py).
 
     The comparison uses the SAME dimensional filters over the previous year —
     never unfiltered history. When no earlier year is loaded there is no
@@ -238,8 +247,10 @@ _LIFTED_LABEL = {
 }
 
 
+@lru_cache(maxsize=256)
 def _cannibalization_detail(state: FilterState) -> dict[str, Any]:
-    """The engine's own answer for one scope. No arithmetic lives here."""
+    """The engine's own answer for one scope. No arithmetic lives here.
+    Memoised per filter state (see `_bundle`); callers only read it."""
     return A.cannibalization_detail(
         baseline_rows_for(state.widened_to_brand_form()),
         frozenset(state.product) if state.product else None,
@@ -456,8 +467,12 @@ class PromotionEvent:
         return f"{self.promotion_name} · {self.product_name.strip()} ({self.week_key})"
 
 
-def promotion_events(state: FilterState) -> list[PromotionEvent]:
+@lru_cache(maxsize=128)
+def promotion_events(state: FilterState) -> tuple[PromotionEvent, ...]:
     """Every promotion event in the selection, priced by the shared engine.
+
+    Memoised per filter state (see `_bundle`); returned as a tuple of frozen
+    events so no caller can edit the cached copy.
 
     Trade Spend and Incremental Sales per event come from `period_series`,
     which holds the selection-wide baseline fixed — so the events sum exactly
@@ -508,7 +523,7 @@ def promotion_events(state: FilterState) -> list[PromotionEvent]:
             # has nothing at stake.
             at_stake=round(max(config.target_incremental_sales(spend) - sales, 0.0), 1),
         ))
-    return events
+    return tuple(events)
 
 
 def _rank_key(event: PromotionEvent) -> tuple:
@@ -893,9 +908,11 @@ def _pkey(year: int, month: int) -> str:
     return f"{year}-{month:02d}"
 
 
+@lru_cache(maxsize=128)
 def _period_totals(state: FilterState) -> dict[tuple[int, int], dict[str, float | None]]:
     """Every measure, per (year, month), for the selection with its own PERIOD
-    constraint lifted.
+    constraint lifted. Memoised per filter state (see `_bundle`); callers only
+    read it.
 
     ONE BASELINE ACROSS THE WHOLE SPAN, which is the point. `A.period_series`
     holds the baseline fixed at the level computed over every row passed in and
@@ -1390,6 +1407,37 @@ def breakdown(
         raise ValueError(f"Unsupported breakdown metric: {metric!r}")
 
     currency = F.normalise_currency(currency)
+    groups = [dict(g) for g in _breakdown_groups(state, by)]
+    for group in groups:
+        group["trade_spend_display"] = F.money(group["trade_spend"], currency)
+        group["incremental_sales_display"] = F.money(group["incremental_sales"], currency)
+
+    # None sorts last regardless of direction — an undefined ROI is not a
+    # ranking position, and must not masquerade as the worst or the best.
+    groups.sort(key=lambda g: (g[metric] is None, -(g[metric] or 0.0)))
+
+    total_groups = len(groups)
+    truncated = limit > 0 and total_groups > limit
+    if truncated:
+        groups = groups[:limit]
+
+    return {
+        "by": by,
+        "metric": metric,
+        "groups": groups,
+        "truncated": truncated,
+        "total_groups": total_groups,
+        "meta": _meta(state, rows_for(state), currency, None),
+    }
+
+
+@lru_cache(maxsize=256)
+def _breakdown_groups(state: FilterState, by: str) -> tuple[dict[str, Any], ...]:
+    """The engine pass behind `breakdown`: every KPI per group, in canonical
+    INR and in first-seen order. Memoised per (filter state, dimension) — the
+    expensive part — so ranking by another metric, truncating, or switching
+    the display currency never re-runs the engine. Callers copy each dict
+    before adding display strings."""
     store = get_store()
 
     mechanic_members: dict[str, list[str]] = {}
@@ -1434,10 +1482,8 @@ def breakdown(
             "code": code,
             "label": _group_label(store, by, code),
             "trade_spend": trade_spend,
-            "trade_spend_display": F.money(trade_spend, currency),
             "incremental_units": A.calculate_incremental_quantity(volume),
             "incremental_sales": A.calculate_incremental_sales(volume),
-            "incremental_sales_display": F.money(A.calculate_incremental_sales(volume), currency),
             "roi": A.calculate_roi(rows, volume),
             "margin_impact": A.calculate_margin(rows),
             "pei": A.calculate_pei(rows, volume),
@@ -1457,21 +1503,4 @@ def breakdown(
         group["share_pct"] = (
             round((group["trade_spend"] or 0.0) / total_spend * 100, 1) if total_spend else 0.0
         )
-
-    # None sorts last regardless of direction — an undefined ROI is not a
-    # ranking position, and must not masquerade as the worst or the best.
-    groups.sort(key=lambda g: (g[metric] is None, -(g[metric] or 0.0)))
-
-    total_groups = len(groups)
-    truncated = limit > 0 and total_groups > limit
-    if truncated:
-        groups = groups[:limit]
-
-    return {
-        "by": by,
-        "metric": metric,
-        "groups": groups,
-        "truncated": truncated,
-        "total_groups": total_groups,
-        "meta": _meta(state, rows_for(state), currency, None),
-    }
+    return tuple(groups)

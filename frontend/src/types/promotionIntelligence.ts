@@ -33,6 +33,8 @@ export interface TrendFacts {
   roi: (number | null)[]
   gap_to_target: (number | null)[]
   months_below_target: number
+  /** The multiple the target series is spend × — the configured ROI hurdle. */
+  target_roi: number
 }
 
 export type RowStatus = 'on_track' | 'watching' | 'underperforming' | 'unknown'

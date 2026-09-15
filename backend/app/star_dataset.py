@@ -396,7 +396,7 @@ def reset_caches() -> None:
     """
     from app.intelligence_engine import _SECTION_CACHE
     from app.store import fingerprint
-    from app.tpo import filters, promo_calendar
+    from app.tpo import filters, promo_calendar, service
     from app.tpo.loader import get_store
 
     _SECTION_CACHE.clear()
@@ -407,6 +407,12 @@ def reset_caches() -> None:
         promo_calendar._aggregate,
         promo_calendar.available_years,
         fingerprint._compute,
+        # The Command Center's memoised engine passes (app/tpo/service.py).
+        service._bundle,
+        service.promotion_events,
+        service._period_totals,
+        service._cannibalization_detail,
+        service._breakdown_groups,
     ):
         cached.cache_clear()
     get_store.cache_clear()

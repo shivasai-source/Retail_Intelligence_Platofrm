@@ -493,7 +493,8 @@ export function Intelligence() {
   const k = facts?.kpis
   const roi = k?.promotion_roi
   const belowTarget = roi != null && facts != null && roi < facts.target_roi
-  const gapToTarget = roi != null && facts != null ? Math.round((facts.target_roi - roi) * 10) / 10 : null
+  // At the ROI's own two decimals, so 1.50 - 0.96 reads 0.54 and not 0.50.
+  const gapToTarget = roi != null && facts != null ? Math.round((facts.target_roi - roi) * 100) / 100 : null
 
   return (
     <AppShell activeKey="intelligence" crumbs={crumbs}>
@@ -549,7 +550,7 @@ export function Intelligence() {
               // "1.5× spend". ROI = incremental / spend, so the target
               // incremental is simply spend × target, and the sentence moves
               // with the configured hurdle instead of quietly contradicting it.
-              sub: `target is ${fmtRoi(facts.target_roi)} spend`,
+              sub: `target is ${fmtRoi(facts.target_roi)} × trade spend`,
             },
             {
               label: 'Promotion ROI',

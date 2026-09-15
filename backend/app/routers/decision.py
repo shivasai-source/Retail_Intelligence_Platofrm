@@ -1,9 +1,8 @@
 """Decision Center routes -- B7.
 
-Mounted at `/api/decision`, which does NOT collide with the two legacy
-`/api/decision/{type}` and `/api/decision-default` page-data readers in
-routers/pages.py: those are GETs taking an investigation-type path segment,
-this is a POST to a fixed `/record`.
+Mounted at `/api/decision`. (The two seed-JSON page readers that once shared
+the prefix, `/api/decision/{type}` and `/api/decision-default`, were removed
+with routers/pages.py once nothing called them.)
 
 No business logic here. The route validates a body and delegates to
 app/tpo/decision.py, which assembles -- and recalculates nothing.

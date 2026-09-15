@@ -504,10 +504,10 @@ def test_malformed_requests_are_rejected(client, body):
     assert client.post("/api/decision/record", json=body).status_code == 422
 
 
-def test_the_legacy_decision_readers_still_answer(client):
-    """routers/pages.py is protected and unchanged. Its two readers still work;
-    they simply have no caller once Decision Center consumes the record."""
-    assert client.get("/api/decision-default").status_code == 200
-    assert client.get("/api/decision/diagnostic").status_code == 200
-    # And the new POST does not shadow them.
+def test_the_legacy_decision_readers_are_gone(client):
+    """The seed-JSON page readers (`/api/decision-default`, `/api/decision/{type}`)
+    were removed with routers/pages.py once nothing called them. The POST that
+    replaced them is unaffected."""
+    assert client.get("/api/decision-default").status_code == 404
+    assert client.get("/api/decision/diagnostic").status_code in (404, 405)
     assert client.post("/api/decision/record", json={}).status_code == 422

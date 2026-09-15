@@ -1,9 +1,8 @@
 """Simulation Studio routes -- Phase A.
 
-Mounted at `/api/simulation`, which does NOT collide with the two legacy
-`/api/simulation/{type}` and `/api/simulation-default` page-data readers in
-routers/pages.py: those take an investigation-type path segment, this one is a
-POST to a fixed `/run`.
+Mounted at `/api/simulation`. (The two seed-JSON page readers that once
+shared the prefix, `/api/simulation/{type}` and `/api/simulation-default`, were
+removed with routers/pages.py once nothing called them.)
 
 No business logic here. The route parses a body into the ONE `FilterState`
 every other module already uses, delegates to app/tpo/simulation.py, and

@@ -146,6 +146,9 @@ def inc_sales_trend(filters: dict[str, Any] | None = None) -> dict[str, Any]:
         "roi": series.get("roi") or [],
         "gap_to_target": gap,
         "months_below_target": sum(1 for g in gap if g is not None and g < 0),
+        # The multiple the target line is drawn at, so the legend can name it
+        # rather than hard-coding a "1.5" that would outlive a config change.
+        "target_roi": config.PROMOTION_TARGET_ROI,
     }
 
 

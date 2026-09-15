@@ -386,10 +386,9 @@ def test_duration_lever_disappears_with_several_promotions(client):
 # --- the legacy readers ----------------------------------------------------
 
 
-def test_legacy_simulation_endpoints_still_answer(client):
-    """§16. Unused by the frontend, deliberately NOT removed in B1. Breaking
-    them now would be a compatibility change nobody asked for."""
-    assert client.get("/api/simulation-default").status_code == 200
-    assert client.get("/api/simulation/diagnostic").status_code == 200
-    # And the new POST does not shadow them.
+def test_legacy_simulation_endpoints_are_gone(client):
+    """§16 kept them through B1; they were removed with routers/pages.py once
+    nothing called them. The POST that replaced them still answers."""
+    assert client.get("/api/simulation-default").status_code == 404
+    assert client.get("/api/simulation/diagnostic").status_code in (404, 405)
     assert client.post("/api/simulation/run", json={}).status_code == 200

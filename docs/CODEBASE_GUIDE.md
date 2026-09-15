@@ -839,17 +839,15 @@ Routers hold **no business logic**: they validate a Pydantic body or parse query
 | --- | --- | --- | --- |
 | `auth.py` | 76 | `/api/auth` | `_public()` strips salt/hash. `/me` returns **401, not `null`**, so callers can't mistake "loading" for "logged out". |
 | `briefing.py` | 58 | `/api/decision` | A separate router on the same prefix because B7's contract is frozen. `InvalidRecord` → 422, never 500. |
-| `command.py` | 12 | `/api` | Legacy static Command payload. |
 | `command_center.py` | 117 | `/api/command-center` | 8 endpoints sharing one `get_filters` dependency. The `by`/`metric` regexes are **built at import from `service.BREAKDOWN_DIMENSIONS`**, so route and implementation cannot drift. |
 | `connectors.py` | 303 | `/api/proxy` | 7 connector proxies. Credentials forwarded, never persisted or logged. Checks Databricks returned JSON, because its front door serves an HTML sign-in page with a **200**. |
 | `datasets.py` | 66 | `/api/datasets` | All 4 routes authenticated. 50 MB/file. Non-owner gets **404, not 403**, so existence can't be probed. |
 | `decision.py` | 79 | `/api/decision` | POST `/record`. All inputs are payloads the client already holds, posted back — that is what guarantees Decision Center describes the same numbers. `SectionMismatch` → 422 naming the two sections. |
 | `decision_brief.py` | 80 | `/api/decision` | POST `/brief`. **No prompt field is accepted** — it would let a caller redirect the model away from explaining the record. No key → 503; dead service → 502. |
-| `intelligence.py` | 246 | `/api/promotion-intelligence` | 5 routes, all authenticated. Prefix deliberately avoids `pages.py`'s `/api/intelligence/{type}`, whose Literal would swallow `/facts`. |
+| `intelligence.py` | 246 | `/api/promotion-intelligence` | 5 routes, all authenticated. Prefix deliberately distinct from `/api/intelligence`, once owned by a seed-JSON reader whose Literal path would have swallowed `/facts`. |
 | `investigations.py` | 207 | `/api` | 9 routes. **Route ordering is load-bearing** — `/recent` and `/runs` must precede `/investigations/{type}` or Starlette's Literal validation 422s on "recent". |
 | `misc.py` | 42 | `/api` | 5 static readers. A comment marks where a fake `/api/reports` was **deleted** — it would have shadowed the real Report Center listing. |
 | `nav.py` | 22 | `/api` | `/nav`, `/user`, `/focus`. |
-| `pages.py` | 39 | `/api` | Per-archetype authored page data + three `-default` routes kept for fidelity. |
 | `promotion_calendar.py` | 66 | `/api/promotion-calendar` | Mounted here, not `/api/calendar`, which `misc.py` already owns. Documents a Pydantic v2 gotcha: a `pattern=` on a `list[str]` query param applies to the **list**, not its items. |
 | `reports.py` | 214 | `/api/reports` | 7 routes. **GENERATE IS NOT DOWNLOAD** — POST returns a `report_id`, never bytes; exactly one route answers with a file. |
 | `simulation.py` | 697 | `/api/simulation` | 11 routes across three modes. `_REJECTED_INPUTS` rejects `spend_amount` **by name with a reason**, because a caller sending it has a mistaken model of the economics. |
@@ -1017,7 +1015,6 @@ doesn't flash the light palette.
 | `useInvestigations.ts` | 54 | `/investigation-types`, `/investigations/*` |
 | `useInvestigationRun.ts` | 39 | POST `/investigations/run`, GET `/investigations/runs/{id}` |
 | `useInvestigationContext.ts` | 70 | POST `/simulation/context` |
-| `useIntelligence.ts` | 28 | `/intelligence-default`, `/intelligence/{type}` |
 | `usePromotionIntelligence.ts` | 102 | `/promotion-intelligence/*` |
 | `useSimulation.ts` | 180 | `/simulation/{run,simulate,compare,recommend,weekly,risk}` |
 | `useOptimization.ts` | 40 | `/simulation/general-optimization[/scope]` |
@@ -1223,11 +1220,11 @@ data-derived right axis.
 - **`ActiveInvBanner.tsx`** (64) — the proceed props are **optional and deliberately omitted** where a plain link would be wrong: on a page whose action must *carry* state, a second same-labelled button would land the user on an empty page.
 - Plus `NodeDetailPopover` (84), `AccelList` (68), `BizQuestionCard` (62), `QueryBar` (50).
 
-### 10.13 `src/components/intelligence/` (8 files)
+### 10.13 `src/components/intelligence/` (3 files)
 
 - **`answerFormat.ts`** (70) + **`useStreamedAnswer.ts`** (82) — types the synthesis in character-by-character with tone-aware runs and punctuation-aware pacing. A module-level `Set` means each investigation type streams **once per session**.
 - **`AiAnswerCard.tsx`** (80) — two documented removals: the **source pills are gone** (SAP/NielsenIQ/DMS/Retail Exec were a hardcoded array claiming provenance nothing records), and the confidence badge is gone (it printed an authored 82–87%).
-- **`SaturationChart.tsx`** (70), `SalesTrendChart` (63), `RegionVarianceBars` (48), `KeyInsightsList` (52), `tabs.tsx` (397, eight tab bodies).
+- The tab bodies that once lived here (`tabs.tsx`, `SaturationChart`, `SalesTrendChart`, `RegionVarianceBars`, `KeyInsightsList`) were removed on 2026-09-15: they read the seed `intelligence.json` and nothing rendered them once `src/components/promotionIntelligence/` took over.
 
 ### 10.14 `src/components/calendar/` (4 files)
 
@@ -1402,10 +1399,15 @@ quietly disappears, **or the reverse**), `test_upstream_truthfulness.py` (scans 
 ### 11.4 `backend/app/data/` — 21 JSON files
 
 **Static content** (served via `data_loader.load`): `nav.json`, `user.json`, `focus.json`,
-`command.json`, `investigation-types.json`, `investigations.json` (35 KB, the four RCA
-node graphs), `intelligence-answers.json`, `pages-by-type.json` (43 KB, the largest),
-`intelligence.json`, `simulation.json`, `decision.json`, `calendar.json`,
-`connections.json`, `ai-watch.json`, `recommendations.json`, `settings.json`.
+`investigation-types.json`, `investigations.json` (35 KB, the four RCA node graphs),
+`intelligence-answers.json`, `calendar.json`, `connections.json`, `ai-watch.json`,
+`recommendations.json`, `settings.json`.
+
+**Removed 2026-09-15** (nothing called them): `command.json`, `pages-by-type.json`,
+`intelligence.json`, `simulation.json`, `decision.json`, together with their readers
+`routers/command.py` and `routers/pages.py` and the frontend's legacy
+`components/intelligence/{tabs,RegionVarianceBars,SalesTrendChart,KeyInsightsList,SaturationChart}`,
+`hooks/useIntelligence.ts` and `types/intelligence.ts`.
 
 **Dead:** `reports.json` — no `load("reports")` call exists anywhere. Superseded by the
 real Report Center, whose contract is that every row corresponds to a stored artifact.
@@ -1482,7 +1484,7 @@ route's OpenAPI description, and in the README.
 | `/api/datasets` | POST, GET, GET `/{id}`, DELETE `/{id}` |
 | `/api/proxy` | POST `/databricks/{warehouses,query}`, `/sap/odata`, `/powerbi/{workspaces,reports}`, `/generic/rest`, `/openai/chat` |
 | `/api` (investigations) | POST `/investigations/{run,query}`; GET `/investigations/{runs,recent,legacy,{type}}`, `/investigation-types`, `/intelligence-answers/{type}` |
-| `/api` (static) | GET `/health`, `/nav`, `/user`, `/focus`, `/command`, `/calendar`, `/connections`, `/ai-watch`, `/recommendations`, `/settings`, plus `pages.py`'s per-type routes |
+| `/api` (static) | GET `/health`, `/nav`, `/user`, `/focus`, `/calendar`, `/connections`, `/ai-watch`, `/recommendations`, `/settings` |
 
 **Error-code conventions, used consistently:**
 

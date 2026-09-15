@@ -13,10 +13,10 @@ from app.investigation_runs import create_run, get_run, latest_completed, list_r
 
 log = logging.getLogger(__name__)
 
-# NOTE: deliberately NOT /api/intelligence — pages.py already owns
-# GET /api/intelligence/{type}, whose Literal path param would swallow
-# /facts and /runs. A distinct prefix is collision-proof; relying on
-# router registration order is not.
+# NOTE: deliberately NOT /api/intelligence. That prefix was owned by the
+# seed-JSON reader GET /api/intelligence/{type} (since removed), whose Literal
+# path param would have swallowed /facts and /runs; the distinct prefix is
+# kept because it is collision-proof by construction rather than by order.
 router = APIRouter(prefix="/api/promotion-intelligence", tags=["promotion-intelligence"])
 
 

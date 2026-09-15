@@ -107,12 +107,11 @@ def _payloads(client):
     """Every upstream payload a page can actually read."""
     out = {}
     for kind in INVESTIGATION_TYPES:
-        for path in (f"/api/investigations/{kind}", f"/api/intelligence/{kind}",
-                     f"/api/intelligence-answers/{kind}"):
+        for path in (f"/api/investigations/{kind}", f"/api/intelligence-answers/{kind}"):
             response = client.get(path)
             assert response.status_code == 200, path
             out[path] = response.json()
-    for path in ("/api/investigations/legacy", "/api/intelligence-default", "/api/settings"):
+    for path in ("/api/investigations/legacy", "/api/settings"):
         response = client.get(path)
         assert response.status_code == 200, path
         out[path] = response.json()
@@ -268,10 +267,6 @@ def test_b7_and_b8_contracts_still_answer(client):
     """B9 touched content, not contracts."""
     assert client.post("/api/decision/record", json={}).status_code == 422
     assert client.post("/api/decision/briefing", json={}).status_code == 422
-    assert client.get("/api/decision-default").status_code == 200
-    for kind in INVESTIGATION_TYPES:
-        assert client.get(f"/api/decision/{kind}").status_code == 200
-        assert client.get(f"/api/simulation/{kind}").status_code == 200
 
 
 def test_upstream_pages_still_serve_their_structure(client):

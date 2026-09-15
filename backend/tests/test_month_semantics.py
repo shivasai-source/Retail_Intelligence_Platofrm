@@ -63,6 +63,10 @@ def _clear_caches() -> None:
     rows_for.cache_clear()
     baseline_rows_for.cache_clear()
     FL._present_values.cache_clear()
+    # The service memoises its engine passes per FilterState on top of the
+    # row caches, so a mutated store must drop those too.
+    for cached in (service._bundle, service.promotion_events, service._period_totals, service._cannibalization_detail, service._breakdown_groups):
+        cached.cache_clear()
 
 
 # --- the derivation is correct and total -----------------------------------

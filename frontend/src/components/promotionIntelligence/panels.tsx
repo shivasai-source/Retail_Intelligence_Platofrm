@@ -111,8 +111,14 @@ export function TrendVsTarget({ trend, height = 230 }: { trend: TrendFacts; heig
   const n = Math.max(1, trend.labels.length - 1)
   const x = (i: number) => padL + (i / n) * innerW
   const y = (v: number) => padT + innerH * (1 - v / maxV)
+  // A null month is a gap, not a zero: the line lifts (M) after every gap
+  // rather than bridging it, and a series whose first month is null no
+  // longer opens with an "L" -- which is not a path and drew nothing at all.
   const line = (series: (number | null)[]) =>
-    series.map((v, i) => (v == null ? '' : `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(v)}`)).filter(Boolean).join(' ')
+    series
+      .map((v, i) => (v == null ? '' : `${i === 0 || series[i - 1] == null ? 'M' : 'L'} ${x(i)} ${y(v)}`))
+      .filter(Boolean)
+      .join(' ')
 
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => maxV * f)
 
@@ -153,7 +159,7 @@ export function TrendVsTarget({ trend, height = 230 }: { trend: TrendFacts; heig
           <span className="inline-block h-0.5 w-4 bg-brand-violet" /> Actual incremental sales
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-0.5 w-4 border-t border-dashed border-[#9CA3AF]" /> Target (spend × 1.5)
+          <span className="inline-block h-0.5 w-4 border-t border-dashed border-[#9CA3AF]" /> Target (spend × {fmtRoi(trend.target_roi)})
         </span>
         <span className="font-semibold text-status-danger">{trend.months_below_target} of {trend.labels.length} months below target</span>
       </div>

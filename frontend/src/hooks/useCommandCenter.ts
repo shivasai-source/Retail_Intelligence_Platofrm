@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../lib/api'
 import { toQuery, useCommandFilters, type CommandFilters } from '../store/commandFilters'
 import type {
@@ -49,6 +49,20 @@ function useScope() {
   return { filters, year, currency, enabled: initialised }
 }
 
+/** Options every Command Center query shares.
+ *
+ *  `staleTime: Infinity` because the answer to a given scope cannot change
+ *  while the process runs: the star schema is read once and every figure is
+ *  a pure function of it, so refetching on a return to the page only repeats
+ *  work. The two events that DO change the answer already invalidate the
+ *  cache — installing a dataset (`useDatasets` calls `invalidateQueries()`)
+ *  and the page's own Refresh button (`['command-center']`).
+ *
+ *  `placeholderData` keeps the previous scope's payload on screen while the
+ *  next one loads, so a filter or currency change re-labels the cards rather
+ *  than blanking them. */
+const CACHED = { staleTime: Infinity, placeholderData: keepPreviousData } as const
+
 /** `year` omitted entirely means All Years — the backend reads an absent year
  *  as unconstrained and aggregates 2024 + 2025 through the same KPI logic. It
  *  is never sent as an empty string, which would be a different request. */
@@ -89,7 +103,7 @@ export function useKpis() {
     queryKey: fullKey('kpis', filters, currency),
     queryFn: () => apiFetch<KpiResponse>(`/command-center/kpis?${toQuery(filters, currency)}`),
     enabled,
-    placeholderData: (previous) => previous,
+    ...CACHED,
   })
 }
 
@@ -102,7 +116,7 @@ export function useFilterOptions() {
   return useQuery({
     queryKey: fullKey('filters', filters),
     queryFn: () => apiFetch<FiltersResponse>(`/command-center/filters?${toQuery(filters)}`),
-    placeholderData: (previous) => previous,
+    ...CACHED,
   })
 }
 
@@ -157,7 +171,7 @@ export function useSalesComparison(period: { year: number; month: number } | nul
     queryFn: () =>
       apiFetch<SalesComparisonResponse>(`/command-center/sales-comparison?${query}${own}`),
     enabled,
-    placeholderData: (previous) => previous,
+    ...CACHED,
   })
 }
 
@@ -168,7 +182,7 @@ export function useTrend(granularity: 'week' | 'month') {
     queryFn: () =>
       apiFetch<TrendResponse>(`/command-center/trend?${commandQuery(year, currency, { granularity })}`),
     enabled,
-    placeholderData: (previous) => previous,
+    ...CACHED,
   })
 }
 
@@ -179,7 +193,7 @@ export function useRiskAlerts(limit = 20) {
     queryFn: () =>
       apiFetch<RiskAlertsResponse>(`/command-center/risk-alerts?${commandQuery(year, currency, { limit })}`),
     enabled,
-    placeholderData: (previous) => previous,
+    ...CACHED,
   })
 }
 
@@ -192,7 +206,7 @@ export function useUnderperforming(limit = 20) {
         `/command-center/underperforming-promotions?${commandQuery(year, currency, { limit })}`,
       ),
     enabled,
-    placeholderData: (previous) => previous,
+    ...CACHED,
   })
 }
 
@@ -203,7 +217,7 @@ export function usePromotionMix() {
     queryFn: () =>
       apiFetch<PromotionMixResponse>(`/command-center/promotion-mix?${commandQuery(year, currency)}`),
     enabled,
-    placeholderData: (previous) => previous,
+    ...CACHED,
   })
 }
 
@@ -258,7 +272,7 @@ export function useBreakdown(
         : [...key('breakdown', year, currency), by, metric, limit, promotion ?? null],
     queryFn: () => apiFetch<BreakdownResponse>(`/command-center/breakdown?${query}`),
     enabled: enabled && callerEnabled,
-    placeholderData: (previous) => previous,
+    ...CACHED,
   })
 }
 
@@ -271,6 +285,6 @@ export function useTopPromotions(limit = 100) {
         `/command-center/top-promotions?${commandQuery(year, currency, { limit })}`,
       ),
     enabled,
-    placeholderData: (previous) => previous,
+    ...CACHED,
   })
 }
