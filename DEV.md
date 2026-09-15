@@ -12,6 +12,13 @@ python -m venv .venv                      # first time only
 ```
 Health check: http://127.0.0.1:8100/api/health
 
+**`--reload` is unreliable on this machine.** WatchFiles logs "Reloading..." but
+the old server process is never replaced (seen repeatedly on 2026-09-15, on a
+clean tree, under an OneDrive-hosted checkout), so backend edits appear to do
+nothing. Restart by hand — kill every `uvicorn`/`spawn_main` python process,
+check `netstat -ano | findstr :8100` is empty, then start again — and confirm
+with a request whose answer you changed, not with `/api/health`.
+
 Port 8100, not 8000 — 8000/8001/8002/8010/8020 were all already in use by other
 local projects on this machine when this was scaffolded. Change it in both
 `app/main.py`'s CORS origins and `frontend/vite.config.ts`'s proxy target if

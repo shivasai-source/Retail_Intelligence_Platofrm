@@ -29,7 +29,9 @@ from app.agents.pipeline import (
 from app.agents.roster import BY_KEY as ROSTER_BY_KEY
 from app.agents.roster import KEYS as ROSTER_KEYS
 from app.agents.roster import roster_catalogue
-from app.agents.star_tools import FILTER_FIELDS, _bounded_int, schema_summary, segment_kpis
+from app.agents.star_tools import (
+    FILTER_FIELDS, _bounded_int, offers_and_products_named_in, resolve_codes, schema_summary, segment_kpis,
+)
 
 INVESTIGATION_TYPES = ["diagnostic", "optimization", "launch", "strategic"]
 
@@ -48,6 +50,18 @@ _FILTER_PROPS = {
     "category": {"type": ["array", "null"], "items": {"type": "string"}},
     "brand": {"type": ["array", "null"], "items": {"type": "string"}},
     "promotion_type": {"type": ["array", "null"], "items": {"type": "string"}},
+    # A question that names an offer ("the 10% Discount", "Dussehra Deal 25")
+    # or a SKU is about THAT offer or SKU. Without these two the planner could
+    # only scope by geography and channel, so "improve the ROI of the 10%
+    # Discount in Modern Trade" investigated every promotion in Modern Trade.
+    # The codes come from the schema summary's `offers` and `products` lists;
+    # build_filter_state already accepted both, only the schema withheld them.
+    "promotion": {"type": ["array", "null"], "items": {"type": "string"},
+                  "description": ("Promotion_Id codes from `offers`, e.g. PR002 for the 10% Discount, "
+                                  "PBDU25 for Dussehra Deal 25. A mechanic shared by several offers "
+                                  "(`mechanic`, e.g. Buy3Get1) means every offer that runs it.")},
+    "product": {"type": ["array", "null"], "items": {"type": "string"},
+                "description": "Product_id codes from `products`, e.g. P13-240ct"},
 }
 FILTER_OBJECT = {
     "type": "object",
@@ -177,8 +191,15 @@ HOW TO ASSIGN — this decides whether the investigation is a real RCA:
     only in the South or everywhere".
 
 Set `global_filters` to the scope the question implies, using ONLY values from
-the schema summary. Every specialist analyses that scope, and those that need a
-comparison pull the whole-business baseline themselves.
+the schema summary. A question that names an offer or mechanic ("the 10%%
+Discount", "Buy3Get1", "Dussehra Deal 25") scopes `promotion` to those offer
+codes; one that names a product ("Cruisers Diapers Size 3 84 ct") scopes
+`product` to that SKU's code from `products` — the SKU itself, not merely
+its brand or category, which would answer for every pack size; do not add a
+brand or category beside a product, the SKU already implies them. Every
+specialist analyses
+that scope, and those that need a comparison pull the whole-business baseline
+themselves.
 
 Archetypes: diagnostic (why did X happen), optimization (how do we improve X),
 launch (new product/SKU decisions), strategic (portfolio/long-term mix).""" % (
@@ -414,7 +435,18 @@ async def run_star_pipeline(
     if scope:
         global_filters = clean_filters({k: v for k, v in scope.items() if k in FILTER_FIELDS})
     else:
-        global_filters = clean_filters(plan.get("global_filters"))
+        # Names the planner wrote where codes belong ("Cruisers Diapers Size 3
+        # 84 ct" for P-code, "10% Discount" for PR002) are resolved before the
+        # scope is checked, so a correctly identified SKU is not refused as
+        # "no rows" for having been spelled out.
+        planned = resolve_codes(plan.get("global_filters"))
+        # And what the question itself names, when the planner left it out:
+        # an offer, a mechanic or a SKU spelled out in the question is the
+        # subject of the investigation, not a detail the planner may drop.
+        for field, codes in offers_and_products_named_in(question).items():
+            if not planned.get(field):
+                planned[field] = codes
+        global_filters = clean_filters(resolve_codes(planned))
 
     # AN EMPTY SCOPE IS NOT AN INVESTIGATION. A planner can compose a filter
     # combination that is valid in the vocabulary but matches no rows at all — a
@@ -674,7 +706,7 @@ async def run_star_pipeline(
     if scoped_totals.get("trade_spend") is not None:
         chips["spend"] = f"₹{scoped_totals['trade_spend'] / 1e7:,.1f} Cr"
     if scoped_totals.get("promotion_roi") is not None:
-        chips["roi"] = f"{scoped_totals['promotion_roi']}"
+        chips["roi"] = f"{scoped_totals['promotion_roi']:.2f}"  # the multiple's own two decimals
     chips["source"] = "TPO star schema"
     orchestration["contextChips"] = chips
 

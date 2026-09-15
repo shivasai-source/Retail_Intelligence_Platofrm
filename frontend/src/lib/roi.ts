@@ -23,3 +23,21 @@ export function fmtRoiDelta(v: number | null | undefined, dp = 2): string {
   if (v == null || !Number.isFinite(v)) return '—'
   return `${v > 0 ? '+' : ''}${v.toFixed(dp)}`
 }
+
+/** The Insights Hub's severity bands, restated for display (the authority is
+ *  `config.SEVERITY_BANDS` in app/tpo/config.py, which every alert's own
+ *  `severity` comes from). A promotion at or above the 1.50 target is not an
+ *  alert at all. Used where a page shows a scope's standing without an alert
+ *  object in hand — the Investigations scope strip reads it off the scope's
+ *  own ROI — and kept in step with the popover text on the Insights Hub. */
+export const SEVERITY_BANDS = { critical: 1.25, high: 1.4, medium: 1.5 } as const
+
+export type RoiStanding = 'Critical' | 'High' | 'Medium' | 'On target'
+
+export function standingOf(roi: number | null | undefined): RoiStanding | null {
+  if (roi == null || !Number.isFinite(roi)) return null
+  if (roi < SEVERITY_BANDS.critical) return 'Critical'
+  if (roi < SEVERITY_BANDS.high) return 'High'
+  if (roi < SEVERITY_BANDS.medium) return 'Medium'
+  return 'On target'
+}

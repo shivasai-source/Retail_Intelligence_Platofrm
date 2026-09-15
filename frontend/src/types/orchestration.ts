@@ -46,7 +46,9 @@ export interface OrchestrationProgress {
 
 export interface Orchestration {
   center: { label: string; sub: string }
-  contextChips: { period: string; channel: string; region: string; spend: string }
+  /** `roi` is the scope's Promotion ROI multiple as text ("0.96"); `source`
+   *  names the dataset. Optional because older stored runs predate them. */
+  contextChips: { period: string; channel: string; region: string; spend: string; roi?: string; source?: string }
   nodes: OrchNode[]
   accelerators: Accelerator[]
   progress: OrchestrationProgress

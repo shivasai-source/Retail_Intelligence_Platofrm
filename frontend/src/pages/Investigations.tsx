@@ -26,6 +26,7 @@ import { InvestigationGraph } from '../components/investigations/InvestigationGr
 import { bindCannibalizationNode } from '../components/investigations/cannibalizationNode'
 import { NodeDetailPopover } from '../components/investigations/NodeDetailPopover'
 import { BizQuestionCard } from '../components/investigations/BizQuestionCard'
+import { AgentFindings } from '../components/investigations/AgentFindings'
 import { AccelList } from '../components/investigations/AccelList'
 import { ProgressStrip } from '../components/investigations/ProgressStrip'
 import { QueryBar } from '../components/investigations/QueryBar'
@@ -372,7 +373,6 @@ export function Investigations() {
     hasAsked,
     beginRun,
     clearRun,
-    handoffLabel,
     setHandoffLabel,
     intentKey: launchedIntentKey,
     markIntent,
@@ -418,6 +418,18 @@ export function Investigations() {
     show('That investigation is no longer stored on the server — ask again to re-run it.', { duration: 4000 })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vanished])
+
+  // THE MODE IS THE PLANNER'S DECISION, NOT A REGEX'S. `inferTypeOffline`
+  // guesses an archetype from the wording so the badge has something to say
+  // while the run is in flight; once the planner has classified the question
+  // (`result.investigation_type`), that classification replaces the guess —
+  // "diagnostic" on a question the agents treated as an optimisation was the
+  // page contradicting its own run.
+  const plannedType = run?.status === 'done' ? run.result?.investigation_type : undefined
+  useEffect(() => {
+    if (plannedType && plannedType !== activeType) setActive(plannedType, activeQuestion)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plannedType])
 
   const typeMeta = types?.find((t) => t.key === activeType) ?? types?.[0]
 
@@ -668,7 +680,6 @@ export function Investigations() {
   // the specialist's data are dropped before rendering, which shifts the very
   // indices it read as (subject, benchmark).
   const graphNodes = view ? bindCannibalizationNode(view.nodes, run?.result?.findings ?? []) : []
-  const isAgentRun = Boolean(liveOrch)
   const running = run?.status === 'running'
 
   // While the pipeline runs, accelerator rows mirror real specialist state
@@ -734,21 +745,7 @@ export function Investigations() {
             </h1>
           </div>
           <p className="mt-1.5 text-base text-ink-muted">
-            {/* Agent count only means something once a run has produced one —
-                "0 specialist agents orchestrated" reads like a failure. */}
-            Investigation Compression Engine
-            {(() => {
-              const count = (runAccelerators ?? view?.accelerators ?? []).length
-              if (!showWorkspace) return ' · ask a question to begin'
-              if (!count) return ' · composing the specialist team…'
-              return (
-                <>
-                  {' · '}
-                  <strong className="text-brand-violet">{typeMeta.title}</strong> mode · {count} specialist agents
-                  orchestrated
-                </>
-              )
-            })()}
+            Ask why a promotion behaved as it did — specialist agents pull the evidence and name the cause.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -801,8 +798,9 @@ export function Investigations() {
             </Button>
           }
         />
-        {handoffLabel && <Pill tone="violet">{handoffLabel}</Pill>}
-        {isAgentRun && <Pill tone="success">Live agent analysis</Pill>}
+        {/* The hand-off chip and the "live analysis" pill used to sit here. The
+            scope strip below names the promotion, and every run is live, so
+            both said what the page already showed. */}
         {!datasets?.length && (
           <Link to="/home" className="font-semibold text-brand-violet">
             Upload your own data →
@@ -813,45 +811,6 @@ export function Investigations() {
       {run?.status === 'error' && (
         <div className="mt-3 rounded-[var(--r-md)] bg-status-danger-bg p-[10px_14px] text-base text-[#B91C1C]">
           Investigation failed — {run.error}
-        </div>
-      )}
-
-      {run?.status === 'done' && run.result && (
-        // THE SUMMARY TARGET. "View Insights Summary" scrolls here rather than
-        // opening a second rendering of the synthesis this card already shows.
-        <div className="scroll-mt-6">
-        <Card className="fade-in mt-3.5">
-          <CardHeader
-            title={
-              <span className="flex items-center gap-1.5">
-                <Icon name="sparkles" className="h-5 w-5 text-brand-violet" /> Agent Findings
-              </span>
-            }
-            actions={<Pill tone="violet">{run.result.synthesis.confidence}% confidence</Pill>}
-          />
-          <div className="flex flex-col gap-2.5 p-5 pt-3.5">
-            <p className="text-md leading-[1.65] text-ink-secondary">{run.result.synthesis.summary}</p>
-            <div className="rounded-[var(--r-md)] border border-[rgba(124,92,255,0.2)] bg-brand-violet-50 p-[10px_14px]">
-              <div className="text-xs font-bold uppercase tracking-[0.06em] text-ink-muted">Root cause</div>
-              <div className="mt-1 text-md font-semibold text-ink-primary">{run.result.synthesis.root_cause}</div>
-            </div>
-            {run.result.synthesis.recommendations.length > 0 && (
-              <div>
-                <div className="mb-1.5 text-xs font-bold uppercase tracking-[0.06em] text-ink-muted">
-                  Recommended actions
-                </div>
-                <ul className="flex flex-col gap-1.5">
-                  {run.result.synthesis.recommendations.map((r, i) => (
-                    <li key={i} className="flex items-start gap-2 text-base leading-[1.55] text-ink-secondary">
-                      <Icon name="checkCircle" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-status-success" />
-                      <span>{r}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        </Card>
         </div>
       )}
 
@@ -886,7 +845,20 @@ export function Investigations() {
         />
       ) : (
         <>
-      <BizQuestionCard typeMeta={typeMeta} question={activeQuestion} contextChips={view.contextChips} />
+      {/* The question and its scope first, the agents' answer second — the
+          order a post-mortem is read in. The findings card used to sit above
+          this one, before the workspace branch, so the answer came before the
+          question and the three blocks read as repeats of each other. */}
+      <BizQuestionCard subject={view.center} contextChips={view.contextChips} />
+
+      {run?.status === 'done' && run.result && (
+        <AgentFindings
+          summary={run.result.synthesis.summary}
+          rootCause={run.result.synthesis.root_cause}
+          recommendations={run.result.synthesis.recommendations}
+          confidence={run.result.synthesis.confidence}
+        />
+      )}
 
       {/* 1000, not 1280: the content column is 1248px on a 1536-wide screen at
           100% zoom, so a 1280 threshold stacked the graph and the accelerator

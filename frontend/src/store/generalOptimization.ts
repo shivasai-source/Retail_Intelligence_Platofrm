@@ -26,11 +26,17 @@ import { create } from 'zustand'
 export type SimulationMode = 'investigation' | 'general' | 'rescue'
 
 export interface OptimizationControls {
-  /** dim_product Category values, or null for every category. */
+  /** Calendar year the plan and its reference describe. Null only until the
+   *  data's years are known; the screen never offers "all years". */
+  year: number | null
+  /** ONE dim_product Category. Null only until the list is known — the screen
+   *  no longer offers "All Categories": a budget is allocated within a
+   *  category, and a plan across every category is not a decision anyone
+   *  takes. */
   category: string | null
-  /** Channel_Id, or null for every channel. */
+  /** ONE Channel_Id, for the same reason. */
   channel: string | null
-  /** Real calendar month 1–12, or null for every month. */
+  /** ONE real calendar month 1–12, for the same reason. */
   month: number | null
   /** The ceiling, in base currency. Null until the historical average that
    *  bounds it has been measured — there is no honest default before that. */
@@ -51,6 +57,7 @@ interface State {
 }
 
 const DEFAULT_CONTROLS: OptimizationControls = {
+  year: null,
   category: null,
   channel: null,
   month: null,
@@ -70,7 +77,7 @@ export const useGeneralOptimizationStore = create<State>()((set) => ({
       const controls = { ...s.controls, [key]: value }
       // A ceiling belongs to the scope it was measured for. Moving the scope
       // invalidates it rather than carrying a stale number across.
-      if (key === 'category' || key === 'channel' || key === 'month') {
+      if (key === 'year' || key === 'category' || key === 'channel' || key === 'month') {
         controls.maxTradeSpend = null
       }
       // The window cannot invert. Whichever handle moved wins, and the other

@@ -84,7 +84,7 @@ from app.tpo import config
 from app.tpo import formatting as F
 from app.tpo import response
 from app.tpo.filters import FilterState, rows_for
-from app.tpo.loader import get_store
+from app.tpo.loader import MONTHS, get_store
 
 #: The phase marker carried on every response, so a client can never mistake a
 #: budget allocation for an investigation scenario.
@@ -95,10 +95,14 @@ MODE = "general_optimization"
 #: (`PB001`, 25%), read from the rules rather than written down again.
 MAX_DISCOUNT_PCT: float = max(response.APPROVED_DISCOUNT_PCT)
 
-def reference_years() -> tuple[int, ...]:
-    """The years the historical reference is built from: EVERY year the dataset
-    holds. A single year is one observation of a month and the reference is an
-    average across the years the data actually carries.
+def reference_years(state: FilterState | None = None) -> tuple[int, ...]:
+    """The years the historical reference is built from.
+
+    A scope that names a YEAR is that year alone: the reference is then that
+    year's own trading for the month, the plan describes that same year, and
+    nothing is averaged. With no year named, it is EVERY year the dataset
+    holds -- a single year is one observation of a month and the reference is
+    an average across the years the data actually carries.
 
     Read from the loaded store rather than written down here. This was a
     literal `(2024, 2025)`, which stopped being true the day 2026 rows arrived:
@@ -109,6 +113,8 @@ def reference_years() -> tuple[int, ...]:
     rows for a scope (2026 runs January-August) still contributes nothing --
     `historical_reference` counts observations, not years.
     """
+    if state is not None and state.year is not None:
+        return (state.year,)
     return tuple(get_store().years())
 
 #: How many buckets the budget is discretised into for the exact solve. 2,000
@@ -189,6 +195,11 @@ class Candidate:
     #: statements, and the row keeps them apart.
     base_promoted: bool = False
     base_promotions: tuple[str, ...] = ()
+    #: Where the non-promoted baseline came from -- "scope" when the selected
+    #: month itself holds non-promoted rows for this (product, channel),
+    #: "year" when it did not and the same year's other months supplied them,
+    #: "all_years" when only the whole dataset did. See `_baseline_fallback`.
+    baseline_window: str = "scope"
 
     @property
     def base_gross(self) -> float:
@@ -263,6 +274,39 @@ def _price_and_baseline(rows: Sequence[A.WeekRow]) -> tuple[float | None, float 
     return price, baseline, transactions
 
 
+def _baseline_fallback(state: FilterState, product_id: str, channel_id: str) -> tuple[float | None, str]:
+    """The non-promoted baseline rate for a (product, channel) the selected
+    scope holds NO non-promoted row for, from the nearest wider window.
+
+    A product promoted in every week of the selected month has no ordinary
+    demand level inside that month -- and it used to be dropped from the plan
+    for exactly that reason, which emptied the optimizer of the products a
+    planner most wants to reallocate: on a month-scoped run, half a category
+    was "excluded" and the half that remained had never been promoted at all.
+
+    The baseline is a per-transaction RATE (`_price_and_baseline`), so it can
+    be read from a wider window without mixing volumes: first the same year
+    with the month lifted, then every year the data holds. Only the rate is
+    borrowed -- units, revenue, spend and price stay the selected scope's own.
+    Nothing is interpolated: if no window holds a non-promoted row, there is
+    still no baseline and the candidate is still excluded.
+    """
+    windows: list[tuple[str, FilterState]] = []
+    if state.month is not None:
+        windows.append(("year", state.replace(month=None)))
+    if state.year is not None:
+        windows.append(("all_years", state.replace(month=None, year=None)))
+    for label, wider in windows:
+        rows = [
+            r for r in rows_for(wider)
+            if r.product_id == product_id and r.channel_id == channel_id
+        ]
+        _, baseline, _ = _price_and_baseline(rows)
+        if baseline is not None:
+            return baseline, label
+    return None, "scope"
+
+
 def reference_year_count(state: FilterState) -> int:
     """How many of the reference years actually carry rows for this scope.
 
@@ -279,7 +323,7 @@ def reference_year_count(state: FilterState) -> int:
     scope with no rows produces no candidates and never reaches this -- but the
     guard keeps the division total.
     """
-    return sum(1 for year in reference_years() if rows_for(_reference_state(state, year))) or 1
+    return sum(1 for year in reference_years(state) if rows_for(_reference_state(state, year))) or 1
 
 
 def _candidates(state: FilterState) -> tuple[list[Candidate], list[dict[str, Any]]]:
@@ -312,12 +356,16 @@ def _candidates(state: FilterState) -> tuple[list[Candidate], list[dict[str, Any
         product = store.dims.products.get(product_id)
         channel = store.dims.channels.get(channel_id)
 
+        baseline_window = "scope"
+        if baseline is None:
+            baseline, baseline_window = _baseline_fallback(state, product_id, channel_id)
         if baseline is None:
             excluded.append({
                 "product_id": product_id,
                 "channel_id": channel_id,
                 "reason": (
-                    "No non-promoted row in this scope, so there is no ordinary "
+                    "No non-promoted row for this product and channel in the selected "
+                    "scope, its year or the whole dataset, so there is no ordinary "
                     "demand level to apply a treatment to."
                 ),
             })
@@ -356,6 +404,7 @@ def _candidates(state: FilterState) -> tuple[list[Candidate], list[dict[str, Any
             base_promotions=promotions,
             baseline_units=baseline * transactions / years,
             list_price=price,
+            baseline_window=baseline_window,
         ))
 
     return candidates, excluded
@@ -551,7 +600,7 @@ def historical_reference(state: FilterState) -> dict[str, Any]:
     single category's plan by every category's spend would leave the constraint
     non-binding and the slider meaningless.
     """
-    years = reference_years()
+    years = reference_years(state)
     observations: list[dict[str, Any]] = []
     for year in years:
         rows = rows_for(_reference_state(state, year))
@@ -660,11 +709,15 @@ def _scope_block(state: FilterState, candidates: Sequence[Candidate], excluded: 
         ),
         "channels_in_scope": len(channels),
         "month": state.month,
-        "month_label": F.period_label(None, state.month) if state.month else "All months",
-        "years": list(reference_years()),
+        # The month by name. `F.period_label(None, month)` reads a missing year
+        # as "All Time" whatever the month, which is how this strip came to say
+        # "All Time" over a scope that was one month wide.
+        "month_label": MONTHS[state.month - 1] if state.month else "All months",
+        "year": state.year,
+        "years": list(reference_years(state)),
         "period_label": (
-            f"{F.period_label(None, state.month)} · {years_label(reference_years())}"
-            if state.month else years_label(reference_years())
+            f"{MONTHS[state.month - 1]} · {years_label(reference_years(state))}"
+            if state.month else years_label(reference_years(state))
         ),
         "candidate_count": len(candidates),
         "excluded_count": len(excluded),
@@ -1027,6 +1080,7 @@ def _row(candidate: Candidate, option: Option, currency: str) -> dict[str, Any]:
         "base_discount_display": F.percent(round(candidate.base_discount_pct, 1)),
         "base_promoted": candidate.base_promoted,
         "base_promotions": list(candidate.base_promotions),
+        "baseline_window": candidate.baseline_window,
 
         "promoted": option.promoted,
         "treatment": option.treatment,

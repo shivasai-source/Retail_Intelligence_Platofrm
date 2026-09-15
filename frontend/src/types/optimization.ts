@@ -60,6 +60,7 @@ export interface OptimizationScopeBlock {
   channels_in_scope: number
   month: number | null
   month_label: string
+  year: number | null
   years: number[]
   period_label: string
   candidate_count: number
@@ -210,6 +211,8 @@ export interface OptimizationResponse {
 }
 
 export interface OptimizationScopeRequest {
+  /** Pins the plan and its reference to one year; omitted, every year the data holds is averaged. */
+  year?: number | null
   category?: string[] | null
   channel?: string[] | null
   month?: number | null

@@ -37,9 +37,14 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
 
-const ALL_CATEGORIES = 'All Categories'
-const ALL_CHANNELS = 'All Channels'
-const ALL_MONTHS = 'All Months'
+/** The year the controls open on: the most recent COMPLETED year the data
+ *  holds, the same rule the Insights Hub applies — a year still in progress
+ *  is a partial month-set and would make "October" mean nothing. */
+function defaultYear(years: number[]): number | null {
+  if (!years.length) return null
+  const completed = years.filter((y) => y < new Date().getFullYear())
+  return Math.max(...(completed.length ? completed : years))
+}
 
 /** Approved depths are 5/10/15/20/25, so the handle steps in fives and can
  *  never land between two of them. Nothing here writes down the approved list
@@ -59,13 +64,36 @@ export function GeneralOptimization({ options }: { options: FiltersResponse | un
   const scope = useOptimizationScope()
   const optimize = useGeneralOptimization()
 
+  // From the shared filter options, not from the scope response: the scope
+  // cannot be measured until a category is chosen, so the list to choose from
+  // has to come from somewhere that does not wait for it.
+  const categories = options?.categories ?? scope.data?.scope.available_categories ?? []
+  const channels = options?.channels ?? []
+  const years = options?.years ?? []
+
+  // EVERY CONTROL NAMES ONE VALUE. The scope used to open on "All Categories ·
+  // All Channels · All Months", which is not a scope a budget is allocated
+  // within, and the historical reference it produced described nothing a
+  // planner would recognise. Each control is seeded from the data the first
+  // time its options arrive, and the user picks from there.
+  useEffect(() => {
+    if (controls.year == null && years.length) setControl('year', defaultYear(years))
+    if (controls.channel == null && channels.length) setControl('channel', channels[0].code)
+    if (controls.category == null && categories.length) setControl('category', categories[0])
+    if (controls.month == null) setControl('month', new Date().getMonth() + 1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [years.length, channels.length, categories.length])
+
+  const complete = controls.year != null && controls.category != null && controls.channel != null && controls.month != null
+
   const scopeBody = useMemo(
     () => ({
+      year: controls.year,
       category: controls.category ? [controls.category] : null,
       channel: controls.channel ? [controls.channel] : null,
       month: controls.month,
     }),
-    [controls.category, controls.channel, controls.month],
+    [controls.year, controls.category, controls.channel, controls.month],
   )
 
   // Re-measure whenever the scope moves. The ceiling slider cannot be bounded
@@ -75,6 +103,9 @@ export function GeneralOptimization({ options }: { options: FiltersResponse | un
   const scopeKey = JSON.stringify(scopeBody)
   const scopeMutate = scope.mutate
   useEffect(() => {
+    // Not until every control has a value: measuring the unscoped dataset on
+    // the way to the seeded scope would flash a meaningless reference first.
+    if (!complete) return
     if (measuredFor.current === scopeKey) return
     measuredFor.current = scopeKey
     optimize.reset()
@@ -88,7 +119,7 @@ export function GeneralOptimization({ options }: { options: FiltersResponse | un
       measuredFor.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scopeKey])
+  }, [scopeKey, complete])
 
   const reference = scope.data?.reference
   const ceilingMax = reference?.average_trade_spend ?? 0
@@ -105,8 +136,6 @@ export function GeneralOptimization({ options }: { options: FiltersResponse | un
     })
   }
 
-  const categories = scope.data?.scope.available_categories ?? []
-  const channels = options?.channels ?? []
   // The reference window is named from the payload, never written down here:
   // it is every year the data holds, and the data has moved past a literal
   // "2024 and 2025" once already.
@@ -145,28 +174,30 @@ export function GeneralOptimization({ options }: { options: FiltersResponse | un
           }
         />
         <CardBody>
-          <div className="grid grid-cols-3 gap-4 @max-[900px]:grid-cols-1">
+          <div className="grid grid-cols-4 gap-4 @max-[900px]:grid-cols-2">
+            <Picker
+              label="Year"
+              value={controls.year != null ? String(controls.year) : '—'}
+              options={years.map(String)}
+              onSelect={(v) => setControl('year', Number(v))}
+            />
             <Picker
               label="Category"
-              value={controls.category ?? ALL_CATEGORIES}
-              options={[ALL_CATEGORIES, ...categories]}
-              onSelect={(v) => setControl('category', v === ALL_CATEGORIES ? null : v)}
+              value={controls.category ?? '—'}
+              options={categories}
+              onSelect={(v) => setControl('category', v)}
             />
             <Picker
               label="Channel"
-              value={channelName ?? ALL_CHANNELS}
-              options={[ALL_CHANNELS, ...channels.map((c) => c.name)]}
-              onSelect={(v) =>
-                setControl('channel', v === ALL_CHANNELS ? null : (channels.find((c) => c.name === v)?.code ?? null))
-              }
+              value={channelName ?? '—'}
+              options={channels.map((c) => c.name)}
+              onSelect={(v) => setControl('channel', channels.find((c) => c.name === v)?.code ?? controls.channel)}
             />
             <Picker
               label="Month"
-              value={controls.month ? MONTH_NAMES[controls.month - 1] : ALL_MONTHS}
-              options={[ALL_MONTHS, ...MONTH_NAMES]}
-              onSelect={(v) =>
-                setControl('month', v === ALL_MONTHS ? null : MONTH_NAMES.indexOf(v) + 1)
-              }
+              value={controls.month ? MONTH_NAMES[controls.month - 1] : '—'}
+              options={MONTH_NAMES}
+              onSelect={(v) => setControl('month', MONTH_NAMES.indexOf(v) + 1)}
             />
           </div>
 
@@ -183,7 +214,9 @@ export function GeneralOptimization({ options }: { options: FiltersResponse | un
               disabled={!reference?.available}
               hint={
                 reference?.available
-                  ? `Historical average: ${reference.display_average} · mean of ${reference.observed_years} of ${reference.years.length} reference years`
+                  ? reference.years.length === 1
+                    ? `Measured trade spend for this scope in ${reference.years[0]}: ${reference.display_average}`
+                    : `Historical average: ${reference.display_average} · mean of ${reference.observed_years} of ${reference.years.length} reference years`
                   : (reference?.unavailable_reason ??
                      'Select a scope to measure its historical trade spend.')
               }
@@ -225,7 +258,7 @@ export function GeneralOptimization({ options }: { options: FiltersResponse | un
               {scope.isPending
                 ? 'Measuring the selected scope…'
                 : scope.data
-                  ? `${scope.data.scope.category_label} · ${scope.data.scope.channel_label} · ${scope.data.scope.month_label}`
+                  ? `${scope.data.scope.category_label} · ${scope.data.scope.channel_label} · ${scope.data.scope.period_label}`
                   : ' '}
             </div>
             <Button variant="primary" onClick={runOptimization} disabled={!canRun || optimize.isPending}>

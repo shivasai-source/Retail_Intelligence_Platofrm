@@ -135,7 +135,15 @@ def schema_summary() -> dict[str, Any]:
             "category": _codes(opts.get("categories", [])),
             "brand": _codes(opts.get("brands", [])),
             "promotion_type": _codes(opts.get("promotion_types", [])),
-            "offers": [{"code": o["code"], "name": o["name"], "type": o.get("type")} for o in opts.get("offers", [])],
+            # `mechanic` is Promotion_Name -- "Buy3Get1", "20% Discount" -- which
+            # the seasonal calendar shares across offers, so a question about
+            # "Buy3Get1" can be scoped to every offer that runs it.
+            "offers": [
+                {"code": o["code"], "name": o["name"], "type": o.get("type"),
+                 "mechanic": _mechanic_of(o["code"])}
+                for o in opts.get("offers", [])
+            ],
+            "products": [{"code": p["code"], "name": p["name"]} for p in opts.get("products", [])],
         },
         "breakdown_dimensions": list(BREAKDOWN_DIMENSIONS),
         "breakdown_metrics": list(BREAKDOWN_METRICS),
@@ -156,6 +164,109 @@ def _bounded_int(value: Any, low: int, high: int) -> int | None:
     except (TypeError, ValueError):
         return None
     return n if low <= n <= high else None
+
+
+#: Dimensions whose options carry a display name beside the code. A planner
+#: shown `{"code": "P13-240ct", "name": "Outdoor Fresh Dryer Sheets 240 ct"}`
+#: writes the NAME often enough that a scope built from it selected nothing.
+_NAMED_DIMENSIONS = {"channel": "channels", "promotion": "offers", "product": "products"}
+
+
+def _mechanic_of(code: str) -> str | None:
+    promotion = get_store().dims.promotions.get(code)
+    return promotion.name.strip() if promotion and promotion.name else None
+
+
+def resolve_codes(raw: dict[str, Any] | None) -> dict[str, Any]:
+    """Planner filter values written as display names, turned back into codes.
+
+    Only the named dimensions are touched, only a value that is not already a
+    code is looked up, and the lookup is exact after case-folding -- a value
+    that matches neither a code nor a name is left as written, so the
+    empty-scope guard downstream still reports it rather than a guess.
+    """
+    raw = dict(raw or {})
+    options = service.filters(FilterState())
+    for field, option_key in _NAMED_DIMENSIONS.items():
+        values = raw.get(field)
+        if not values:
+            continue
+        if isinstance(values, str):
+            values = [values]
+        if not isinstance(values, list):
+            continue
+        entries = [o for o in options.get(option_key, []) if isinstance(o, dict)]
+        codes = {str(o["code"]) for o in entries}
+        by_name = {str(o.get("name", "")).strip().casefold(): str(o["code"]) for o in entries}
+        # An offer MECHANIC ("Buy3Get1", "20% Discount") is shared by several
+        # seasonal offers; naming it means all of them.
+        by_mechanic: dict[str, list[str]] = {}
+        if field == "promotion":
+            for o in entries:
+                mechanic = _mechanic_of(str(o["code"]))
+                if mechanic:
+                    by_mechanic.setdefault(mechanic.casefold(), []).append(str(o["code"]))
+        resolved: list[str] = []
+        for v in values:
+            key = str(v).strip().casefold()
+            if str(v) in codes:
+                resolved.append(str(v))
+            elif key in by_name:
+                resolved.append(by_name[key])
+            elif key in by_mechanic:
+                resolved.extend(by_mechanic[key])
+            else:
+                resolved.append(v)
+        raw[field] = list(dict.fromkeys(resolved))
+    # A SKU implies its brand and category, and an offer implies its promotion
+    # type: a planner that names both can only agree with itself or contradict
+    # itself, and it contradicted itself often enough (brand "L_Diapers" beside
+    # a Taped Diapers SKU) to empty the scope. The most specific filter wins.
+    if raw.get("product"):
+        raw.pop("brand", None)
+        raw.pop("category", None)
+    if raw.get("promotion"):
+        raw.pop("promotion_type", None)
+    return raw
+
+
+def offers_and_products_named_in(question: str) -> dict[str, list[str]]:
+    """The offers, mechanics and SKUs a question names verbatim, as codes.
+
+    THE BACKSTOP behind the planner. A question that says "Buy3Get1" or
+    "Cruisers Diapers Size 3 84 ct" is about that thing whatever the planner
+    made of it, and the planner leaves `promotion` unset often enough for a
+    mechanic that this is checked deterministically: every offer label,
+    mechanic and product name in the dimension tables is looked for in the
+    question, longest first so "Diwali Special 25" is not also read as the
+    "25" in another name. Case-insensitive, whole-string containment, nothing
+    fuzzy -- a name that is not literally in the question is not matched.
+    """
+    text = " ".join(question.casefold().split())
+    if not text:
+        return {}
+    options = service.filters(FilterState())
+    found: dict[str, list[str]] = {}
+    offers = [o for o in options.get("offers", []) if isinstance(o, dict)]
+    names: list[tuple[str, list[str]]] = []
+    for o in offers:
+        names.append((str(o.get("name", "")).strip().casefold(), [str(o["code"])]))
+    by_mechanic: dict[str, list[str]] = {}
+    for o in offers:
+        mechanic = _mechanic_of(str(o["code"]))
+        if mechanic:
+            by_mechanic.setdefault(mechanic.casefold(), []).append(str(o["code"]))
+    names.extend(by_mechanic.items())
+    for name, codes in sorted(names, key=lambda n: -len(n[0])):
+        if name and name in text:
+            found.setdefault("promotion", [])
+            found["promotion"].extend(c for c in codes if c not in found["promotion"])
+    products = [p for p in options.get("products", []) if isinstance(p, dict)]
+    for p in sorted(products, key=lambda p: -len(str(p.get("name", "")))):
+        name = " ".join(str(p.get("name", "")).casefold().split())
+        if name and name in text:
+            found.setdefault("product", []).append(str(p["code"]))
+    return found
 
 
 def build_filter_state(raw: dict[str, Any] | None) -> FilterState:

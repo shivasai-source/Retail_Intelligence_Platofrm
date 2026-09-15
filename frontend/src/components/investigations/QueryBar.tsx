@@ -1,7 +1,10 @@
 import { Icon } from '../../icons'
 import { Button, Spinner } from '../ui'
+import { AlertPicker } from './AlertPicker'
 
-// Ported from js/pages/investigations.js's `.inv-query` block.
+// Ported from js/pages/investigations.js's `.inv-query` block. Two ways in:
+// type a question and run it, or pick one of the Insights Hub's underperforming
+// promotion events (AlertPicker) and let the hand-off compose the question.
 export function QueryBar({
   value,
   onChange,
@@ -34,6 +37,7 @@ export function QueryBar({
         placeholder="Ask TIQ to investigate a promotion… e.g. Why did South MT Push underperform despite higher trade spend?"
         className="min-w-0 flex-1 border-0 bg-transparent p-[6px_2px] text-base font-medium text-ink-primary outline-none placeholder:font-normal placeholder:text-ink-muted"
       />
+      <AlertPicker disabled={loading} />
       <Button variant="primary" onClick={onSubmit} disabled={loading} className="shrink-0 whitespace-nowrap">
         {loading ? (
           <>

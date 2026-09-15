@@ -449,25 +449,29 @@ def run(body: SimulationRunRequest) -> dict[str, Any]:
 class GeneralOptimizationScopeRequest(BaseModel):
     """The scope controls, before a budget has been chosen.
 
-    Deliberately NOT a `SimulationFilters`: this mode offers exactly three
-    dimensions -- category, channel and month -- and accepting the other eleven
-    would let a caller build a scope the screen cannot show or explain. The
+    Deliberately NOT a `SimulationFilters`: this mode offers exactly four
+    dimensions -- year, category, channel and month -- and accepting the other
+    ten would let a caller build a scope the screen cannot show or explain. The
     fields are handed to the same `FilterState.build`, so they are the same
     dimensions the rest of the project filters on.
+
+    `year` pins the reference and the plan to one year's trading for the month
+    (see `optimization.reference_years`); omitted, the service averages every
+    year the data holds, as it always did.
     """
 
     model_config = ConfigDict(extra="forbid")
 
+    year: int | None = None
     category: list[str] | None = None
     channel: list[str] | None = None
     month: Annotated[int | None, Field(ge=1, le=12)] = None
     currency: Annotated[str, Field(pattern="^(INR|USD|inr|usd)$")] = "INR"
 
     def to_state(self) -> FilterState:
-        # `year` is deliberately absent. The historical reference is BOTH 2024
-        # and 2025 by contract, and the service resolves each year itself --
-        # letting a caller pin one would silently halve the reference.
-        return FilterState.build(month=self.month, category=self.category, channel=self.channel)
+        return FilterState.build(
+            year=self.year, month=self.month, category=self.category, channel=self.channel
+        )
 
 
 class GeneralOptimizationRequest(GeneralOptimizationScopeRequest):
