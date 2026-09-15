@@ -159,16 +159,20 @@ CHECKPOINT_WEEK = "week"
 #: docstring on why there is no trustworthy daily grain to read a day from.
 MONTHLY_CHECKPOINT_WEEK = 3
 
-#: Target attainment bands, as PERCENTAGES of the monthly unit target. These
-#: are the brief's own thresholds and they are RAW ATTAINMENT, not
-#: pace-normalised: at a day-20 checkpoint, 80% attainment means running ahead
-#: of a flat month, which is what "on track" is meant to mean.
+#: Target attainment threshold, as a PERCENTAGE of the monthly unit target,
+#: read at the day-20 checkpoint. ONE line, decided 2026-09-15: at or above
+#: 55% of the month's target with roughly a third of the month still to
+#: trade, the plan continues unchanged; below it, a recovery treatment is
+#: laddered for the remaining weeks. It is RAW ATTAINMENT, not
+#: pace-normalised. `WATCH_ATTAINMENT_PCT` sits on the same line so the
+#: former three-band reading collapses to two -- the code still carries the
+#: `watch` status for compatibility, but no attainment can reach it.
 #:
-#: Deliberately NOT `config.SEVERITY_BANDS`. Those are ROI bands for Command
-#: Center risk alerts -- different units, a different question -- and nothing
+#: Deliberately NOT `config.SEVERITY_BANDS`. Those are ROI bands for Insights
+#: Hub risk alerts -- different units, a different question -- and nothing
 #: here reads or changes them.
-ON_TRACK_ATTAINMENT_PCT: float = 80.0
-WATCH_ATTAINMENT_PCT: float = 70.0
+ON_TRACK_ATTAINMENT_PCT: float = 55.0
+WATCH_ATTAINMENT_PCT: float = 55.0
 
 #: The hard discount ceiling, as a PERCENTAGE. Not a rule of its own -- it is
 #: the deepest APPROVED treatment depth, read from the approved rules rather
@@ -184,7 +188,7 @@ STATUS_NO_DATA = "no_data"
 #: between the API and the screen. The intents are the platform's existing
 #: status vocabulary; no Insights Hub risk colour changes meaning.
 TARGET_STATUS: dict[str, tuple[str, str, str]] = {
-    "on_track": ("ON TRACK", "success", "Maintain current treatment."),
+    "on_track": ("ON TRACK", "success", "Continue the current plan -- no change to the treatment."),
     "watch": ("WATCH", "warning", "Monitor pace; intervention may not be required."),
     "at_risk": ("TARGET AT RISK", "danger", "Recovery action recommended."),
     "achieved": ("TARGET ACHIEVED", "success", "No intervention required."),
@@ -555,15 +559,17 @@ def resolve_checkpoint(
 ) -> Checkpoint:
     """Resolve a checkpoint selection to one of the month's business weeks.
 
-    THE AUTO RULE IS CADENCE-AWARE, which is the point of this resolution:
+    THE AUTO RULE IS THE DAY-20 CHECKPOINT FOR EVERY CHANNEL: the third
+    completed business week, which is approximately day 20 of the analytical
+    month, leaving the month's remaining week(s) -- roughly ten days in a
+    four-week month -- for a recovery treatment to act on. Where the month
+    holds fewer than three weeks, the latest completed week is used instead;
+    there is no third week to wait for.
 
-      * A WEEKLY-cadence channel plans a separate promotion each week, so its
-        natural read is the LATEST COMPLETED WEEK -- the most evidence available.
-      * A MONTHLY-cadence channel runs one treatment across the month's weeks, so
-        its natural read is the MID-MONTH checkpoint: the third completed business
-        week, which is approximately the brief's day 20. Where the month holds
-        fewer than three, the latest completed week is used instead -- there is no
-        third week to wait for.
+    It used to be cadence-aware (a weekly-cadence channel read at its latest
+    completed week), which in this fully recorded dataset meant the month's
+    LAST week -- a final result, with nothing left to rescue. The user set the
+    single day-20 read on 2026-09-15 so every channel is planned the same way.
 
     An explicit ordinal outside the month raises `ImpossibleCheckpoint`. It is
     not clamped: a request for week 6 of a four-week month is a question about a
@@ -576,7 +582,7 @@ def resolve_checkpoint(
 
     if checkpoint is None or checkpoint == CHECKPOINT_AUTO:
         kind = CHECKPOINT_AUTO
-        ordinal = total if cadence.weekly else min(MONTHLY_CHECKPOINT_WEEK, total)
+        ordinal = min(MONTHLY_CHECKPOINT_WEEK, total)
     elif checkpoint == CHECKPOINT_LATEST:
         kind, ordinal = CHECKPOINT_LATEST, total
     else:
@@ -600,55 +606,35 @@ def resolve_checkpoint(
 
 
 def checkpoint_options(calendar: MonthCalendar, cadence: Cadence) -> list[dict[str, Any]]:
-    """Every checkpoint the selected month and channel actually allow.
+    """The checkpoint the screen offers: ONE, the day-20 read.
 
-    ONLY WEEKS THE MONTH CONTAINS. The brief forbids offering an impossible
-    future week, so the list is generated from the calendar rather than fixed at
-    four or five entries. Each week carries the remaining-week count it would
-    leave, because that is what decides whether an intervention can be evaluated
-    at all.
+    The list used to enumerate every business week of the month plus "latest",
+    which let a demo be read at week 1 (nothing to judge yet) or at the last
+    week (nothing left to rescue). The API still resolves an explicit ordinal
+    or `latest` for a caller that asks (see `resolve_checkpoint`), but the
+    control lists only the read the rescue is designed around.
     """
     total = calendar.weeks_in_month
     auto = resolve_checkpoint(calendar, cadence, CHECKPOINT_AUTO)
-    options: list[dict[str, Any]] = [{
+    left = auto.weeks_remaining
+    # Named as the day-20 checkpoint, not as the exact day the business weeks
+    # add up to: a five-week analytical month covers 36 days and its third
+    # week closes on day 22, which read as a contradiction of "day 20" on the
+    # screen. The exact day count still drives the run-rate and is reported
+    # under Progress; the checkpoint itself is the business rule's name.
+    return [{
         "value": CHECKPOINT_AUTO,
-        "label": "Auto",
+        "label": f"Day 20 checkpoint · week {auto.ordinal} of {total}",
         "ordinal": auto.ordinal,
         "week_key": auto.week_key,
-        "weeks_remaining": auto.weeks_remaining,
+        "days_covered": auto.days_elapsed,
+        "weeks_remaining": left,
         "note": (
-            "Latest completed business week -- a weekly-cadence channel plans a "
-            "separate promotion each week."
-            if cadence.weekly else
-            f"Week {auto.ordinal} of {total} -- the mid-month checkpoint for a "
-            f"monthly-cadence channel, approximately day {auto.days_elapsed}."
+            f"Read after completed business week {auto.ordinal} of {total}, with "
+            f"{left} week{'' if left == 1 else 's'} of the month left for a recovery "
+            "treatment to act on."
         ),
     }]
-    for ordinal, week_key in enumerate(calendar.week_keys, start=1):
-        options.append({
-            "value": ordinal,
-            "label": f"Week {ordinal}",
-            "ordinal": ordinal,
-            "week_key": week_key,
-            "days_covered": calendar.days_through(ordinal),
-            "weeks_remaining": total - ordinal,
-            "note": (
-                f"After week {ordinal} · {calendar.days_through(ordinal)} of "
-                f"{calendar.days_in_month} days covered"
-            ),
-        })
-    options.append({
-        "value": CHECKPOINT_LATEST,
-        "label": "Latest Completed Week",
-        "ordinal": total,
-        "week_key": calendar.week_keys[-1] if calendar.week_keys else None,
-        "weeks_remaining": 0,
-        "note": (
-            "The month's last business week. Every week is complete in the recorded "
-            "data, so this leaves no remaining week for an intervention to act on."
-        ),
-    })
-    return options
 
 
 # --- candidates for an intervention ----------------------------------------
@@ -1240,13 +1226,15 @@ def _recommend(
     phase: str,
     current_discount_pct: float,
     currency: str,
+    attainment_pct: float | None = None,
 ) -> dict[str, Any]:
     """Choose the least aggressive validated action, or say why there is none.
 
-    THE CONSERVATIVE CHECK COMES FIRST, exactly as the brief orders it. If the
-    measured pace already lands the month at or above target, the answer is to
-    maintain the current treatment -- no discount is recommended to solve a
-    problem the trajectory does not have.
+    THE CHECKPOINT RULE COMES FIRST: at or above `ON_TRACK_ATTAINMENT_PCT` of
+    the target at the day-20 read, the plan continues unchanged -- that is what
+    the threshold means, and it is answered before any ladder is walked. A
+    run-rate that already lands the month at target is the same answer for a
+    second reason.
 
     Only then is the ladder walked, and it is walked from the bottom. The first
     rung that reaches the target at the LOW end of its approved band wins; a
@@ -1278,6 +1266,21 @@ def _recommend(
         }
 
     maintain = usable[0]
+
+    if attainment_pct is not None and attainment_pct >= ON_TRACK_ATTAINMENT_PCT:
+        return {
+            "action": "maintain",
+            "level": maintain.level,
+            "reason": (
+                f"{attainment_pct:g}% of the {F.quantity(target_units)} unit target is already "
+                f"in at the day-20 checkpoint, at or above the {ON_TRACK_ATTAINMENT_PCT:g}% "
+                "threshold, so the current plan continues unchanged for the rest of the "
+                "month. No additional discount is recommended."
+            ),
+            "reaches_target": bool(maintain.reaches_target),
+            "ranking_basis": RANKING_BASIS,
+            "candidates_considered": len(usable),
+        }
 
     if projected_run_rate >= target_units:
         return {
@@ -1408,9 +1411,11 @@ def target_status(attainment_pct: float | None, phase: str, achieved: bool) -> d
             "on_track_pct": ON_TRACK_ATTAINMENT_PCT,
             "watch_pct": WATCH_ATTAINMENT_PCT,
             "basis": (
-                f"Target attainment at or above {ON_TRACK_ATTAINMENT_PCT:g}% is on track; "
-                f"at or above {WATCH_ATTAINMENT_PCT:g}% is watch; below that is at risk. "
-                "Raw attainment against the monthly target, not pace-normalised."
+                f"Target attainment at or above {ON_TRACK_ATTAINMENT_PCT:g}% at the "
+                "day-20 checkpoint is on track and the plan continues unchanged; below "
+                "it the target is at risk and a recovery treatment is laddered for the "
+                "remaining weeks. Raw attainment against the monthly target, not "
+                "pace-normalised."
             ),
         },
     }
@@ -1487,7 +1492,7 @@ def measured_depth_pct(rows: Sequence[A.WeekRow]) -> float | None:
 # --- scope, provenance, presentation ---------------------------------------
 
 
-def resolve_year(year: int | None) -> int:
+def resolve_year(year: int | None, month: int | None = None) -> int:
     """The year the evaluation runs over.
 
     A YEAR IS REQUIRED HERE, unlike in General Optimization, and the difference
@@ -1497,11 +1502,19 @@ def resolve_year(year: int | None) -> int:
     would put "day 20 of 36.5" on screen, which is not a day in any month.
 
     An unrecognised or absent year resolves to the most recent year the data
-    holds, which is the month a user asking about pace means.
+    holds THAT CONTAINS THE SELECTED MONTH. The running year covers January to
+    August, so "latest year" for October used to land on a month with no
+    business weeks at all -- "0 business weeks · 0 days covered" -- when the
+    month a user asking about pace means is the most recent one that traded.
     """
-    years = get_store().years()
+    store = get_store()
+    years = store.years()
     if year is not None and year in years:
         return year
+    if month is not None:
+        for candidate in sorted(years, reverse=True):
+            if rows_for(FilterState.build(year=candidate, month=month)):
+                return candidate
     return max(years)
 
 
@@ -1666,12 +1679,10 @@ def _cadence_block(cadence: Cadence) -> dict[str, Any]:
             "is not written down a second time here."
         ),
         "checkpoint_rule": (
-            "A weekly-cadence channel plans a separate promotion each week, so its "
-            "checkpoint defaults to the latest completed business week. A "
-            "monthly-cadence channel runs one treatment across the month's weeks, so "
-            f"its checkpoint defaults to the mid-month read -- completed business week "
+            f"Progress is read at the day-20 checkpoint -- completed business week "
             f"{MONTHLY_CHECKPOINT_WEEK}, or the latest completed week where the month "
-            "holds fewer than that."
+            "holds fewer than that -- for every channel, and the recovery plan covers "
+            "the week(s) the month has left after it."
         ),
     }
 
@@ -1806,10 +1817,10 @@ def _provenance() -> dict[str, Any]:
             "fabricated and no partial week is prorated."
         ),
         "cadence_basis": (
-            "Checkpoint behaviour follows the channel's promotion cadence, read from "
-            "app/tpo/promo_calendar.CADENCE. A weekly-cadence channel is read at its "
-            "latest completed business week; a monthly-cadence channel at the mid-month "
-            f"checkpoint, completed business week {MONTHLY_CHECKPOINT_WEEK}."
+            "The channel's promotion cadence is read from app/tpo/promo_calendar.CADENCE "
+            "and decides how the remaining weeks are treated -- separate weekly events or "
+            "one monthly treatment. Every cadence is read at the day-20 checkpoint, "
+            f"completed business week {MONTHLY_CHECKPOINT_WEEK}."
         ),
         "promotion_identity": (
             "A weekly channel's promotions stay separate: every remaining week is "
@@ -2081,11 +2092,7 @@ def _checkpoint_block(
         # sales figure is read.
         "days_elapsed": checkpoint.days_elapsed,
         "days_in_month": calendar.days_in_month,
-        "auto_rule": (
-            "Latest completed business week"
-            if cadence.weekly
-            else f"Completed business week {MONTHLY_CHECKPOINT_WEEK} (mid-month)"
-        ),
+        "auto_rule": f"Completed business week {MONTHLY_CHECKPOINT_WEEK} (day 20)",
         "options": checkpoint_options(calendar, cadence),
         "note": (
             "Progress is read at complete business-week boundaries only. The day count "
@@ -2117,7 +2124,7 @@ def scope(
     It evaluates nothing and recommends nothing.
     """
     currency = F.normalise_currency(currency)
-    state = state.replace(year=resolve_year(state.year))
+    state = state.replace(year=resolve_year(state.year, state.month))
     validate_selection(state)
     cadence = resolve_cadence(state)
     rows = rows_for(state)
@@ -2299,13 +2306,8 @@ def _evidence(
         f"completed business weeks, not a daily read."
     )
     lines.append(
-        f"{cadence.label} cadence: the checkpoint "
-        + (
-            f"defaults to the latest completed business week."
-            if cadence.weekly
-            else f"defaults to completed business week {MONTHLY_CHECKPOINT_WEEK}, the "
-            f"mid-month read."
-        )
+        f"{cadence.label} cadence: the checkpoint is the day-20 read, completed "
+        f"business week {MONTHLY_CHECKPOINT_WEEK}."
         + (
             f" It was chosen automatically."
             if checkpoint.kind == CHECKPOINT_AUTO
@@ -2331,9 +2333,8 @@ def _evidence(
             "No business week of the month remains, so this is a final result rather than a "
             "rescue. No intervention can act on a period that has closed."
             + (
-                " The checkpoint resolved automatically to the latest completed business "
-                "week, which is the month's last; select an earlier week to evaluate a "
-                "mid-month rescue."
+                " The month holds too few business weeks for a day-20 read to leave "
+                "anything after it."
                 if checkpoint.kind in (CHECKPOINT_AUTO, CHECKPOINT_LATEST)
                 else ""
             )
@@ -2374,7 +2375,7 @@ def rescue(
     would read as "the target was missed" rather than "nothing was measured".
     """
     currency = F.normalise_currency(currency)
-    state = state.replace(year=resolve_year(state.year))
+    state = state.replace(year=resolve_year(state.year, state.month))
     validate_selection(state)
     cadence = resolve_cadence(state)
     rows = rows_for(state)
@@ -2476,6 +2477,7 @@ def rescue(
         phase=phase,
         current_discount_pct=current_depth,
         currency=currency,
+        attainment_pct=attainment_pct,
     )
     recommended = next(
         (

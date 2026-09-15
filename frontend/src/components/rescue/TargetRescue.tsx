@@ -173,9 +173,9 @@ export function TargetRescue({ options }: { options: FiltersResponse | undefined
                   Is this month's unit target on track, and what is the least aggressive approved
                   intervention that recovers it?
                 </InfoBlock>
-                <InfoBlock label="Status bands">
+                <InfoBlock label="Checkpoint rule">
                   {scope.data
-                    ? `On track at or above ${scope.data.meta.on_track_attainment_pct}% attainment; watch at or above ${scope.data.meta.watch_attainment_pct}%; below that, at risk.`
+                    ? `Read at the day-20 checkpoint. At or above ${scope.data.meta.on_track_attainment_pct}% of the target the plan continues unchanged; below that the target is at risk and a recovery treatment is laddered for the remaining weeks.`
                     : 'Raw target attainment against the monthly target.'}
                 </InfoBlock>
                 <InfoBlock label="Scope">
@@ -197,7 +197,7 @@ export function TargetRescue({ options }: { options: FiltersResponse | undefined
           }
           subtitle={
             scope.data
-              ? `${scope.data.scope.period_label} · ${scope.data.scope.weeks_in_month} business weeks · ${scope.data.scope.days_in_month} days covered`
+              ? `${scope.data.scope.period_label} · ${scope.data.scope.weeks_in_month} business weeks`
               : 'Select a month to measure'
           }
           actions={
@@ -523,9 +523,12 @@ function Result({
             <Line
               label="Completed business weeks"
               value={`${progress.weeks_completed} of ${progress.weeks_total}`}
+              // Weeks only. The analytical month's business weeks add up to
+              // 36 days in a five-week month, and "22 of 36 days" beside a
+              // day-20 checkpoint read as a contradiction; the day count still
+              // drives the run-rate, it is just not printed.
               note={
-                `${progress.weeks_remaining} remaining · ` +
-                `${progress.days_elapsed} of ${progress.days_in_month} days covered` +
+                `${progress.weeks_remaining} remaining` +
                 (progress.week_key ? ` · through ${progress.week_key}` : '')
               }
             />
@@ -546,11 +549,9 @@ function Result({
                   .map((c) => `${c.channel_id} ${c.cadence}`)
                   .join(', ')}). `
               : `${result.cadence.code} cadence. `}
-            {progress.checkpoint_type === 'auto'
-              ? `The checkpoint resolved automatically to ${result.checkpoint?.auto_rule.toLowerCase()} — week ${progress.checkpoint_week} of ${progress.weeks_total}.`
-              : `Week ${progress.checkpoint_week} of ${progress.weeks_total} was selected.`}{' '}
-            Progress is the sum of the completed business weeks; the day count beside it is what
-            those weeks cover in the calendar, not a daily sales read.
+            {`Read at the day-20 checkpoint — week ${progress.checkpoint_week} of ${progress.weeks_total}, with ${progress.weeks_remaining} week${progress.weeks_remaining === 1 ? '' : 's'} left for a recovery treatment.`}{' '}
+            Progress is the sum of the completed business weeks, read as recorded — not a daily
+            sales read.
           </Callout>
           {remaining && remaining.weeks_remaining > 0 && (
             <Callout icon="info">
@@ -919,11 +920,12 @@ function CadenceBadge({ cadence }: { cadence: CadenceBlock }) {
 
 /** The progress checkpoint: a COMPLETED BUSINESS WEEK.
  *
- *  A list, not a slider, and the list comes from the API. Only weeks the selected
- *  month actually contains are offered — the brief forbids presenting an
- *  impossible future week — and each option says what it would leave for an
- *  intervention to act on, because an option leaving nothing produces a final
- *  result rather than a ladder.
+ *  The API now offers exactly one — the day-20 read, completed business week 3
+ *  (or the latest completed week in a month with fewer) — so this renders as a
+ *  labelled fact rather than a menu: which week it is and what it leaves for
+ *  a recovery treatment to act on. The list shape is kept so
+ *  a second option from the API would render as a choice again without a
+ *  code change.
  */
 function CheckpointPicker({
   options,
@@ -946,20 +948,20 @@ function CheckpointPicker({
   // remaining week produces a final result rather than a ladder, and that is
   // worth knowing before it is picked rather than after.
   const labelOf = (option: CheckpointOption) => {
-    const base = option.value === 'auto' ? `Auto · Week ${option.ordinal}` : option.label
     const left =
       option.weeks_remaining === 0
         ? 'no week left'
         : `${option.weeks_remaining} week${option.weeks_remaining === 1 ? '' : 's'} left`
-    return `${base} · ${left}`
+    return `${option.label} · ${left}`
   }
 
-  const current = options.find((option) => option.value === value)
+  const current = options.find((option) => option.value === value) ?? options[0]
   const display = current
     ? labelOf(current)
     : typeof value === 'number'
       ? `Week ${value}`
       : 'Auto'
+  const single = options.length <= 1
 
   return (
     <div className="min-w-0">
@@ -967,30 +969,35 @@ function CheckpointPicker({
         <div className="text-xs font-semibold uppercase tracking-[0.04em] text-ink-muted">
           Checkpoint
         </div>
-        {resolved && (
+        {resolved && !single && (
           <span className="text-xs tabular-nums text-ink-muted">
             week {resolved.checkpoint_week} of {resolved.weeks_total}
           </span>
         )}
       </div>
-      <Dropdown
-        selected={display}
-        options={options.map((option) => ({ label: labelOf(option) }))}
-        onSelect={(picked) => {
-          const match = options.find((option) => labelOf(option) === picked)
-          if (match) onSelect(match.value)
-        }}
-        trigger={
-          <Button variant="secondary" block className="mt-1.5 cursor-pointer justify-between">
-            <span className="truncate">{display}</span>
-            <Icon name="chevronDown" />
-          </Button>
-        }
-      />
+      {single ? (
+        <div className="mt-1.5 flex h-9 items-center gap-2 rounded-[var(--r-md)] border border-border-default bg-surface-muted px-3 text-base font-semibold text-ink-primary">
+          <Icon name="calendar" className="h-4 w-4 text-brand-violet" />
+          <span className="truncate">{current ? labelOf(current) : 'Day-20 checkpoint'}</span>
+        </div>
+      ) : (
+        <Dropdown
+          selected={display}
+          options={options.map((option) => ({ label: labelOf(option) }))}
+          onSelect={(picked) => {
+            const match = options.find((option) => labelOf(option) === picked)
+            if (match) onSelect(match.value)
+          }}
+          trigger={
+            <Button variant="secondary" block className="mt-1.5 cursor-pointer justify-between">
+              <span className="truncate">{display}</span>
+              <Icon name="chevronDown" />
+            </Button>
+          }
+        />
+      )}
       <div className="mt-1.5 text-xs leading-[1.45] text-ink-muted">
-        {resolved
-          ? `${resolved.note} Auto: ${resolved.auto_rule.toLowerCase()}.`
-          : (cadence?.checkpoint_rule ?? 'Select a month to list its business weeks.')}
+        {current?.note ?? cadence?.checkpoint_rule ?? 'Select a month to read its day-20 checkpoint.'}
       </div>
     </div>
   )

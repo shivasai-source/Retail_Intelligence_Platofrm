@@ -120,23 +120,36 @@ def target_for_attainment(payload: dict, attainment_pct: float) -> float:
     return units_sold_at_default_checkpoint(payload) / (attainment_pct / 100)
 
 
+#: An AT-RISK target the ladder can still recover: attainment just under the
+#: 55% threshold. Above the threshold the rule is "continue the plan" and no
+#: rung is consulted, so every test that wants to see the ladder decide
+#: something has to sit below it.
+AT_RISK_ATTAINMENT_PCT = 54.0
+
+
+def at_risk_target(payload: dict) -> float:
+    return target_for_attainment(payload, AT_RISK_ATTAINMENT_PCT)
+
+
 # --- the status bands -------------------------------------------------------
 #
-# The brief's four worked examples, asserted twice each: once against the pure
-# band function, where the arithmetic is exactly its own 100-unit example, and
-# once end to end over real rows, where the target is derived from measured
-# units so the same attainment lands on the same band.
+# ONE threshold since 2026-09-15: at or above 55% of the target at the day-20
+# checkpoint the plan continues unchanged; below it the target is at risk.
+# Asserted twice: once against the pure band function on the 100-unit
+# example, and once end to end over real rows, where the target is derived
+# from measured units so the same attainment lands on the same band.
 
 
 @pytest.mark.parametrize(
     "sold,target,expected",
     [
-        (75, 100, "watch"),      # brief case 1: 75% -> WATCH
-        (80, 100, "on_track"),   # brief case 2: 80% -> ON TRACK
-        (90, 100, "on_track"),   # brief case 3: 90% -> ON TRACK
-        (65, 100, "at_risk"),    # brief case 4: 65% -> TARGET AT RISK
-        (70, 100, "watch"),      # the lower watch boundary is INCLUSIVE
-        (69, 100, "at_risk"),    # and one unit below it is not
+        (75, 100, "on_track"),   # comfortably above the threshold
+        (80, 100, "on_track"),
+        (90, 100, "on_track"),
+        (55, 100, "on_track"),   # the boundary is INCLUSIVE
+        (54, 100, "at_risk"),    # and one unit below it is not
+        (65, 100, "on_track"),
+        (40, 100, "at_risk"),
         (100, 100, "on_track"),
     ],
 )
@@ -149,7 +162,7 @@ def test_status_bands_match_the_brief(sold: int, target: int, expected: str) -> 
     assert status["action"] == rescue.TARGET_STATUS[expected][2]
 
 
-@pytest.mark.parametrize("attainment,expected", [(75.0, "watch"), (85.0, "on_track"), (65.0, "at_risk")])
+@pytest.mark.parametrize("attainment,expected", [(75.0, "on_track"), (85.0, "on_track"), (50.0, "at_risk")])
 @pytest.mark.parametrize("name,payload", SCOPES)
 def test_status_bands_end_to_end(name: str, payload: dict, attainment: float, expected: str) -> None:
     target = target_for_attainment(payload, attainment)
@@ -162,8 +175,8 @@ def test_thresholds_are_not_the_command_center_risk_bands() -> None:
     """The rescue bands are attainment percentages; the Insights Hub's are ROI
     multiples. Reading one as the other is exactly the kind of drift the
     project has already been bitten by, so they are asserted to be separate."""
-    assert rescue.ON_TRACK_ATTAINMENT_PCT == 80.0
-    assert rescue.WATCH_ATTAINMENT_PCT == 70.0
+    assert rescue.ON_TRACK_ATTAINMENT_PCT == 55.0
+    assert rescue.WATCH_ATTAINMENT_PCT == 55.0  # the watch band is empty: one threshold
     assert set(config.SEVERITY_BANDS.values()) == {1.25, 1.4, 1.5}
     assert rescue.ON_TRACK_ATTAINMENT_PCT not in set(config.SEVERITY_BANDS.values())
 
@@ -278,25 +291,19 @@ def test_a_monthly_channel_defaults_to_the_third_completed_week(channel: str) ->
 
 
 @pytest.mark.parametrize("channel", WEEKLY_CHANNELS)
-def test_a_weekly_channel_defaults_to_the_latest_completed_week(channel: str) -> None:
-    """Brief case 2. A weekly-cadence channel plans a separate promotion each
-    week, so its default read is the most evidence available.
-
-    In this fully-recorded dataset the latest completed week IS the month's last,
-    which leaves no remaining week -- so the correct answer is a final result and
-    no intervention, per section 17. That consequence is asserted here rather
-    than worked around."""
+def test_a_weekly_channel_reads_at_the_day_20_checkpoint_too(channel: str) -> None:
+    """Since 2026-09-15 every channel reads at the day-20 checkpoint. A weekly
+    channel used to default to its latest completed week, which in this fully
+    recorded dataset was the month's LAST -- a final result with nothing left
+    to rescue. Now it leaves the month's remaining week for a plan."""
     result = evaluate_auto({"month": 10, "year": 2025, "channel": [channel]})
     progress = result["progress"]
     assert progress["checkpoint_type"] == "auto"
-    assert progress["checkpoint_week"] == progress["weeks_total"]
-    assert progress["weeks_remaining"] == 0
-    assert progress["phase"] == "complete"
-    assert result["interventions"] == []
-    assert result["recommendation"]["action"] is None
-    assert result["checkpoint"]["auto_rule"] == "Latest completed business week"
-    # And the response says how to get a mid-month read instead.
-    assert any("select an earlier week" in line.lower() for line in result["evidence"])
+    assert progress["checkpoint_week"] == 3
+    assert progress["weeks_remaining"] == progress["weeks_total"] - 3
+    assert progress["phase"] == "checkpoint"
+    assert result["interventions"]
+    assert result["checkpoint"]["auto_rule"] == "Completed business week 3 (day 20)"
 
 
 def test_a_short_month_falls_back_to_the_latest_completed_week() -> None:
@@ -376,21 +383,23 @@ def test_a_malformed_checkpoint_is_rejected(value) -> None:
 
 
 @pytest.mark.parametrize("name,payload", SCOPES)
-def test_the_selector_offers_only_weeks_the_month_contains(name: str, payload: dict) -> None:
-    """Brief section 5: no impossible future week is offered."""
+def test_the_selector_offers_only_the_day_20_checkpoint(name: str, payload: dict) -> None:
+    """Since 2026-09-15 the control offers ONE read -- completed business week
+    3, the day-20 checkpoint -- rather than every week of the month. It still
+    names the remainder it leaves, because that is what a recovery acts on."""
     scope = client.post(SCOPE_URL, json=payload)
     assert scope.status_code == 200
     body = scope.json()
     total = body["scope"]["weeks_total"]
     options = body["checkpoint"]["options"]
-    weeks = [o["value"] for o in options if isinstance(o["value"], int)]
-    assert weeks == list(range(1, total + 1)), name
-    assert options[0]["value"] == "auto"
-    assert options[-1]["value"] == "latest"
-    # Every option names the remainder it would leave, because that is what
-    # decides whether an intervention can be evaluated at all.
-    for option in options:
-        assert option["weeks_remaining"] == total - option["ordinal"]
+    assert [o["value"] for o in options] == ["auto"], name
+    only = options[0]
+    assert only["ordinal"] == min(3, total)
+    assert only["weeks_remaining"] == total - only["ordinal"]
+    # Named as the day-20 checkpoint on screen even in a 36-day analytical
+    # month, where the third week actually closes on day 22.
+    assert only["label"] == f"Day 20 checkpoint · week {only['ordinal']} of {total}"
+    assert "days covered" not in only["note"]
 
 
 def test_the_mid_month_checkpoint_covers_about_twenty_days() -> None:
@@ -651,11 +660,13 @@ def test_the_recommendation_is_made_for_the_selected_product() -> None:
         )[1] is not None
     )
     payload = {
-        "month": 10, "year": 2025, "channel": ["CH002"], "checkpoint": 3,
+        "month": 6, "year": 2025, "channel": ["CH002"], "checkpoint": 3,
         "category": ["Baby Care"], "product": [pid],
     }
-    reference = scope_of(payload)["reference_target"]["units"]
-    result = evaluate(payload, target_units=reference * 1.12, current_discount_pct=10.0)
+    # At risk (under the 55% threshold) in a five-week month, so a rung can
+    # still recover it over the two remaining weeks.
+    target = at_risk_target(payload)
+    result = evaluate(payload, target_units=target, current_discount_pct=0.0)
 
     recommended = result["recommendation"]["intervention"]
     assert recommended is not None
@@ -664,7 +675,7 @@ def test_the_recommendation_is_made_for_the_selected_product() -> None:
     # The product's own volume, not the category's.
     category_only = evaluate(
         {k: v for k, v in payload.items() if k != "product"},
-        target_units=reference * 1.12, current_discount_pct=10.0,
+        target_units=target, current_discount_pct=0.0,
     )
     assert (
         recommended["units"]["low"]
@@ -703,7 +714,7 @@ def test_the_scope_summary_names_every_level() -> None:
 
     broad = scope_of({"month": 1, "year": 2025, "channel": ["CH001"]})
     assert broad["scope"]["scope_summary"] == (
-        "January F25 · E-commerce · All categories · All products · Week 5 checkpoint"
+        "January F25 · E-commerce · All categories · All products · Week 3 checkpoint"
     )
 
     narrow = scope_of({
@@ -1255,9 +1266,9 @@ def test_the_least_aggressive_reaching_rung_is_selected(name: str, payload: dict
     """Brief cases 8 and 9, together. The selected rung reaches the target, and
     no shallower rung does -- which is the same statement as "a stronger
     intervention is not selected when a weaker approved one already reaches"."""
-    projected = evaluate(payload)["pace"]["projected_month_end"]
-    # A target the trajectory misses but an approved treatment can recover.
-    result = evaluate(payload, target_units=projected * 1.02, current_discount_pct=0.0)
+    # A target the scope is AT RISK of (under the 55% threshold, so the ladder
+    # is consulted at all) but that an approved treatment can still recover.
+    result = evaluate(payload, target_units=at_risk_target(payload), current_discount_pct=0.0)
     rungs = result["interventions"]
     reaching = [r for r in rungs if r["reaches_target"] and r["within_budget"] and r["estimable"]]
     if not reaching:
@@ -1311,9 +1322,10 @@ def test_the_ranking_policy_is_stated_on_the_response() -> None:
 
 
 def test_a_budget_ceiling_is_never_silently_exceeded() -> None:
-    payload = {"month": 10, "year": 2025, "channel": ["CH002"]}
-    projected = evaluate(payload)["pace"]["projected_month_end"]
-    target = projected * 1.02
+    # A five-week month, so two weeks remain after the day-20 read and an
+    # approved treatment can still recover an at-risk target.
+    payload = {"month": 6, "year": 2025, "channel": ["CH002"]}
+    target = at_risk_target(payload)
     open_result = evaluate(payload, target_units=target, current_discount_pct=0.0)
     chosen = open_result["recommendation"]["intervention"]
     assert chosen is not None and chosen["additional_trade_spend"] > 0
