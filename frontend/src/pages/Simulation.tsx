@@ -74,9 +74,9 @@ export function Simulation() {
   // TWO VALID ENTRY PATHS, and the scope resolution is the only difference
   // between them:
   //
-  //   A. Direct navigation -> the Command Center's current selection, exactly
+  //   A. Direct navigation -> the Insights Hub's current selection, exactly
   //      as before B3.2.
-  //   B. Drilled in from an investigation -> the scope the Command Center
+  //   B. Drilled in from an investigation -> the scope the Insights Hub
   //      handed over when the user clicked the alert or promotion, which is
   //      that same validated FilterState narrowed by identifiers the source
   //      genuinely provided.
@@ -101,7 +101,7 @@ export function Simulation() {
       ? 'Enter a monthly unit target before exporting a Target Rescue report.'
       : undefined
   // The option lists General Optimization's own pickers read. The same
-  // endpoint the Command Center uses; no second source of dimension values.
+  // endpoint the Insights Hub uses; no second source of dimension values.
   const filterOptions = useFilterOptions()
 
   const commandFilters = useCommandFilters((s) => s.filters)
@@ -112,7 +112,7 @@ export function Simulation() {
   // It resolves its scope exactly like the other two — one FilterState, sent
   // verbatim to /run and /simulate — and it takes precedence while it is set
   // because it is the most recent thing the user asked for. The investigation
-  // being deepened is what the studio must model; the Command Center's current
+  // being deepened is what the studio must model; the Insights Hub's current
   // selection is what the user was looking at some time before that.
   const handoff = useIntelligenceHandoffStore((s) => s.handoff)
   const clearHandoff = useIntelligenceHandoffStore((s) => s.clear)
@@ -1015,7 +1015,7 @@ function exportModule(mode: SimulationMode) {
 
 /** THE SCOPE EACH MODE ACTUALLY WORKS OVER — read at click time.
  *
- *  Investigation Simulation scopes from the Command Center's FilterState (or the
+ *  Investigation Simulation scopes from the Insights Hub's FilterState (or the
  *  RCA hand-off that narrowed it), exactly as its own /run and /simulate calls
  *  do. General Optimization and Target Rescue each own their controls, and each
  *  store is read directly here, so an export reflects that mode's selection and

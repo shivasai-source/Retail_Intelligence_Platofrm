@@ -159,12 +159,12 @@ export function toComparisonRequest(
   }
 }
 
-/** The Command Center's filter state, as the simulation API wants it.
+/** The Insights Hub's filter state, as the simulation API wants it.
  *
  *  Empty lists are dropped rather than sent as `[]`: an absent dimension means
  *  unconstrained, which is a different request from one constrained to
  *  nothing. `year: null` is likewise omitted — the backend reads an absent
- *  year as All Years, exactly as the Command Center's own query strings do.
+ *  year as All Years, exactly as the Insights Hub's own query strings do.
  */
 export function toSimulationFilters(filters: CommandFilters): SimulationRunRequest['filters'] {
   const out: SimulationRunRequest['filters'] = {}

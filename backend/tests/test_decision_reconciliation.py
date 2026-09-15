@@ -1,4 +1,4 @@
-"""Cross-module reconciliation: Command Center -> RCA -> Simulation -> Decision.
+"""Cross-module reconciliation: Insights Hub -> RCA -> Simulation -> Decision.
 
 ONE SCOPE, WALKED ONCE, ASSERTED EVERYWHERE. Decision Center computes nothing,
 so the only way it can be wrong is by carrying a value badly: dropping it,
@@ -9,7 +9,7 @@ the module that owns the value.
 FIVE PROPERTIES:
 
   1. SHARED KPIs RECONCILE. The measured figures Decision Center shows are the
-     same ones Command Center shows for the same scope, to the character.
+     same ones Insights Hub shows for the same scope, to the character.
   2. SCENARIO VALUES RECONCILE. Every expected-impact figure equals the
      /simulate payload it came from, at BOTH ends of the band.
   3. NOTHING IS DROPPED IN ASSEMBLY. Fields the upstream payloads carry arrive
@@ -87,9 +87,9 @@ def excluding(client):
     return _journey(client, EXCLUDING_SCOPE)
 
 
-# --- 1. Command Center -------------------------------------------------------
+# --- 1. Insights Hub -------------------------------------------------------
 
-#: Command Center's key -> the label the simulation stack uses for the same KPI.
+#: Insights Hub's key -> the label the simulation stack uses for the same KPI.
 SHARED_KPIS = {
     "trade_spend": "Trade Spend",
     "incremental_sales": "Incremental Sales",
@@ -101,7 +101,7 @@ SHARED_KPIS = {
 
 def test_the_measured_figures_match_command_center_to_the_character(client, journey):
     """SAME SCOPE, SAME NUMBER. Decision Center's Current column is measured by
-    the same engine Command Center reads, so a difference here means one of them
+    the same engine Insights Hub reads, so a difference here means one of them
     is carrying a value badly -- there is no second calculation to blame."""
     cc = client.get("/api/command-center/kpis",
                     params={"year": YEAR, "channel": ["CH002"]}).json()["kpis"]

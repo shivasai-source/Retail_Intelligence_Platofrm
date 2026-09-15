@@ -141,7 +141,7 @@ export function CommandCenter() {
     initialise(Math.max(...(completed.length ? completed : years)))
   }, [options.data?.years, initialise])
 
-  const crumbs = [{ label: 'TPO Intelligence' }, { label: 'Command Center' }]
+  const crumbs = [{ label: 'TPO Intelligence' }, { label: 'Insights Hub' }]
 
   const refreshing = kpis.isFetching || trend.isFetching || alerts.isFetching || mix.isFetching
 
@@ -165,7 +165,7 @@ export function CommandCenter() {
           <div className="cc-ambient" aria-hidden="true" />
           <div className="flex items-end justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-extrabold leading-[1.1] tracking-[-0.025em]">TPO Command Center</h1>
+              <h1 className="text-2xl font-extrabold leading-[1.1] tracking-[-0.025em]">TPO Insights Hub</h1>
               <p className="mt-1.5 text-base text-ink-muted">Loading the latest promotion performance…</p>
             </div>
           </div>
@@ -176,7 +176,7 @@ export function CommandCenter() {
               ))}
             </TpoKpiGrid>
           </div>
-          <span className="sr-only" role="status">Loading Command Center</span>
+          <span className="sr-only" role="status">Loading Insights Hub</span>
         </div>
       </AppShell>
     )
@@ -225,7 +225,7 @@ export function CommandCenter() {
       <div className="fade-in relative z-20 flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-extrabold tracking-[-0.025em] leading-[1.1]">TPO Command Center</h1>
+            <h1 className="text-2xl font-extrabold tracking-[-0.025em] leading-[1.1]">TPO Insights Hub</h1>
           </div>
           <p className="mt-1.5 text-base text-ink-muted">
             Real-time overview of promotions, performance and risks · {calendarYear(meta.period)}

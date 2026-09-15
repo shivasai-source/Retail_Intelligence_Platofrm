@@ -318,7 +318,7 @@ def test_trade_spend_direction_is_stated_but_not_judged(client, baseline, optimi
     assert scenario["direction_low"] in ("higher", "lower", "unchanged")
     assert metric["preference"] is None
     assert "business-policy" in metric["preference_reason"]
-    # The Command Center's display convention is reported, and labelled as one.
+    # The Insights Hub's display convention is reported, and labelled as one.
     assert metric["lower_is_better_display"] is True
 
 

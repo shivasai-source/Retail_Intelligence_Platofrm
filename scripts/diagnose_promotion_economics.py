@@ -6,7 +6,7 @@ frozen and correct.
 
 Every KPI number is produced by importing app.tpo and calling the real engine
 (filters.rows_for -> aggregate.calculate_*), so the diagnosis cannot drift from
-what the Command Center shows. The per-treatment breakdown is computed straight
+what the Insights Hub shows. The per-treatment breakdown is computed straight
 off the CSV, against the SAME baseline definition the engine uses:
 
     baseline(product, channel) = mean(Base_Quantity) over Promotion_Id = -1 rows

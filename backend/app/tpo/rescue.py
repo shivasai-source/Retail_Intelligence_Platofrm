@@ -182,7 +182,7 @@ STATUS_NO_DATA = "no_data"
 #: Target status code -> (label, colour intent, the explicit action sentence).
 #: One table, so the label, the severity and the sentence cannot drift apart
 #: between the API and the screen. The intents are the platform's existing
-#: status vocabulary; no Command Center risk colour changes meaning.
+#: status vocabulary; no Insights Hub risk colour changes meaning.
 TARGET_STATUS: dict[str, tuple[str, str, str]] = {
     "on_track": ("ON TRACK", "success", "Maintain current treatment."),
     "watch": ("WATCH", "warning", "Monitor pace; intervention may not be required."),
@@ -1602,7 +1602,7 @@ def cascade_options(state: FilterState) -> dict[str, Any]:
         "products": within["products"],
         "basis": (
             "Each list is generated from the rows the levels above it admit, by the "
-            "same app/tpo/filters.options_for the Command Center uses. An option "
+            "same app/tpo/filters.options_for the Insights Hub uses. An option "
             "appears only if selecting it returns at least one row, so no dead choice "
             "is ever offered."
         ),
@@ -1832,7 +1832,7 @@ def _provenance() -> dict[str, Any]:
         "option_cascade": (
             "Channel, then category, then product. Each list is generated from the rows "
             "the levels above it admit, by the same app/tpo/filters.options_for the "
-            "Command Center uses, so an option appears only if selecting it returns a row."
+            "Insights Hub uses, so an option appears only if selecting it returns a row."
         ),
         "days_in_month_basis": (
             "The days the analytical month's business weeks cover, from dim_date -- not the "

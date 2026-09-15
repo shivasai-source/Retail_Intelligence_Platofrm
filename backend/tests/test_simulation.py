@@ -70,7 +70,7 @@ def test_endpoint_responds(client):
 
 @pytest.mark.parametrize("name,kwargs", SCOPES)
 def test_valid_filter_state_works(client, name, kwargs):
-    """2. Every filter combination the Command Center accepts is accepted here
+    """2. Every filter combination the Insights Hub accepts is accepted here
     and returns the scope it was asked for."""
     payload = _run(client, filters=kwargs)
     applied = payload["scope"]["filters_applied"]
@@ -142,7 +142,7 @@ def test_cannibalization_equals_validated_engine(client, name, kwargs):
 @pytest.mark.parametrize("name,kwargs", SCOPES)
 def test_every_kpi_matches_the_command_center_card(client, name, kwargs):
     """The stronger statement the two tests above imply: for one scope, the
-    Simulation Studio and the Command Center show the SAME numbers. This is the
+    Simulation Studio and the Insights Hub show the SAME numbers. This is the
     test that fails if a formula is ever reintroduced into the simulation."""
     cards = service.kpis(FilterState.build(**kwargs))["kpis"]
     kpis = _run(client, filters=kwargs)["kpis"]

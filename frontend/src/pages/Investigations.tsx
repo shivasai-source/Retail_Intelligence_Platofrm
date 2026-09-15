@@ -395,7 +395,7 @@ export function Investigations() {
     : 'TPO star schema (built-in)'
   const liveOrch = run?.status === 'done' ? run.result?.orchestration : undefined
 
-  // An "Ask why" handoff from the Command Center arrives as router state.
+  // An "Ask why" handoff from the Insights Hub arrives as router state.
   const location = useLocation()
   const intent = (location.state as Record<string, unknown> | null)?.[ASK_WHY_STATE_KEY] as
     | AskWhyIntent
@@ -547,7 +547,7 @@ export function Investigations() {
   // Always a real agent run. Omitting dataset_id investigates the built-in
   // star schema; passing one investigates that uploaded file.
   // `scope` is only ever present on an "Ask why" hand-off: it is the
-  // Command Center's validated FilterState narrowed to the clicked event.
+  // Insights Hub's validated FilterState narrowed to the clicked event.
   // Sending it pins the run to that event, so Promotion Intelligence and
   // the Decision Center — which read the run's stored scope — describe the
   // same population the alert did. A typed question carries none, and the
@@ -892,7 +892,7 @@ export function Investigations() {
           100% zoom, so a 1280 threshold stacked the graph and the accelerator
           list on exactly the machine this is demonstrated on — they only sat
           side by side once the browser was zoomed out. Same threshold the
-          Command Center's chart rows use. */}
+          Insights Hub's chart rows use. */}
       <div className="grid grid-cols-[1.7fr_1fr] gap-4 @max-[1000px]:grid-cols-1">
         <Card
           className={

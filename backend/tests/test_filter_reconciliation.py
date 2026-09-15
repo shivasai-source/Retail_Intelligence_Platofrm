@@ -265,7 +265,7 @@ def test_12_promotion_type_is_available_and_cascades():
 
 
 def test_13_and_14_f24_f25_are_calendar_years():
-    """Command Center periods are CALENDAR years. April-March fiscal semantics
+    """Insights Hub periods are CALENDAR years. April-March fiscal semantics
     are deliberately not implemented — dim_date has no fiscal-year field."""
     from app.tpo import formatting as F
 

@@ -153,7 +153,7 @@ export function FilterBar({
   if (!options) return null
 
   // Calendar years. The API also ships F24/F25 display labels in
-  // `year_labels`; the Command Center deliberately does not use them — see
+  // `year_labels`; the Insights Hub deliberately does not use them — see
   // lib/labels.ts for why the rest of the page rewrites that shorthand.
   const years: Option[] = options.years.map((y) => ({ code: String(y), name: String(y) }))
 
@@ -171,7 +171,7 @@ export function FilterBar({
       {/* Primary controls — same row, same order, same controls as before.
           `flex-wrap` lets the bar reflow on tablet/mobile instead of forcing a
           horizontal scrollbar; nothing is hidden or reordered. */}
-      <div className="flex flex-wrap items-center justify-end gap-2" role="group" aria-label="Command Center filters">
+      <div className="flex flex-wrap items-center justify-end gap-2" role="group" aria-label="Insights Hub filters">
         <Dropdown
           selected={yearLabel}
           options={[{ label: 'All Years' }, ...years.map((y) => ({ label: y.name }))]}

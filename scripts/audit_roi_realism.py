@@ -1,7 +1,7 @@
 """FINAL ROI REALISM AUDIT. READ-ONLY -- this script writes nothing.
 
 Every ROI is produced by the frozen engine (app.tpo.aggregate.roi_multiple), at
-the same grain the Command Center uses:
+the same grain the Insights Hub uses:
 
   * headline / channel scopes -> aggregate.calculate_roi(rows, volume_rows)
   * per promotion             -> the same, with an Offer filter, so the

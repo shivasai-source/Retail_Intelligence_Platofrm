@@ -165,7 +165,7 @@ def test_a_generated_report_appears_in_the_library() -> None:
     row = body["reports"][0]
     assert row["report_id"] == report["report_id"]
     assert row["module"] == "command-center"
-    assert row["module_label"] == "Command Center"
+    assert row["module_label"] == "Insights Hub"
     assert row["scope_label"] == "October F25 · Modern Trade"
     assert row["status"] == "ready"
     assert row["available_formats"] == ["pdf", "xlsx"]
@@ -270,7 +270,7 @@ def test_an_unknown_module_is_a_404_and_stores_nothing() -> None:
 def test_a_failed_report_is_never_shown_as_ready() -> None:
     """The store refuses to flip a row to READY without bytes."""
     report_id = report_store.begin(
-        module="command-center", module_label="Command Center", name="n", title="t",
+        module="command-center", module_label="Insights Hub", name="n", title="t",
         scope_label="s", scope={}, options={}, currency="INR",
     )
     report_store.finish(report_id, artifacts={"xlsx": ("x.xlsx", b"")},
@@ -361,7 +361,7 @@ def test_clear_frees_the_stored_bytes() -> None:
 def test_ui_api_preview_excel_and_pdf_all_carry_the_same_kpis() -> None:
     """SECTION 34, end to end and at precision.
 
-    `service.kpis` is what the Command Center screen renders from, so its
+    `service.kpis` is what the Insights Hub screen renders from, so its
     `display_value` IS the number on the tile. That string must appear unchanged
     in the stored preview, in the workbook and in the PDF — for every one of the
     six cards.
@@ -428,7 +428,7 @@ def test_the_pei_precision_defect_stays_fixed() -> None:
 
 
 def test_a_kpi_the_scope_cannot_support_still_shows_its_wider_measurement() -> None:
-    """The Command Center tile falls back to the narrowest WIDER scope that can
+    """The Insights Hub tile falls back to the narrowest WIDER scope that can
     measure cannibalization, and names it. A report that dropped that showed less
     than the screen and read as a missing KPI — which is what was reported."""
     state = FilterState.build(year=2025, month=10, channel=["CH002"])
@@ -550,11 +550,11 @@ def test_the_preview_is_the_one_the_report_was_generated_with() -> None:
 def test_the_report_name_is_readable_not_a_filename() -> None:
     """Section 23: a person scanning a library reads a name, not a filename."""
     report = created("command-center", CC_SCOPE)
-    assert report["name"] == "Command Center — October F25 · Modern Trade"
+    assert report["name"] == "Insights Hub — October F25 · Modern Trade"
     assert ".xlsx" not in report["name"]
     assert "_" not in report["name"]
     # The FILENAME is still the sanitised one, on the artifact.
-    assert report["formats"]["xlsx"] == "TPO_Command_Center_2025_Oct_Modern_Trade.xlsx"
+    assert report["formats"]["xlsx"] == "TPO_Insights_Hub_2025_Oct_Modern_Trade.xlsx"
 
 
 def test_ownership_is_not_invented() -> None:

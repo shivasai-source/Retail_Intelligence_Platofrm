@@ -27,7 +27,7 @@ export function useInvestigationContext() {
  *    * `commandFilters` holds the scope. RCA produces no FilterState: its own
  *      "context chips" are display strings like "Modern Trade" and
  *      "Apr – Jun 2025", and converting those back into Channel_Ids and a
- *      month range would be guessing. The Command Center's selection is the
+ *      month range would be guessing. The Insights Hub's selection is the
  *      validated scope, and it is what Simulation already simulates.
  *
  *  `investigation_started` is the load-bearing flag. The store seeds itself

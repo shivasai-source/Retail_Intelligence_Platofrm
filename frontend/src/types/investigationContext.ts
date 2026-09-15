@@ -12,7 +12,7 @@
  *
  *  NOTE what this contract does NOT carry: any KPI value. RCA's figures are
  *  presentation data. The scope travels as a FilterState and Simulation
- *  measures it for itself through the same engine the Command Center uses.
+ *  measures it for itself through the same engine the Insights Hub uses.
  */
 
 /** Where a field's value came from. `unavailable` means no system in this

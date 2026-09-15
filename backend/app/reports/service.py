@@ -57,7 +57,7 @@ class Module:
     label: str
     #: (state, currency, options) -> ReportDoc
     build: Callable[[FilterState, str, dict[str, Any]], ReportDoc]
-    #: Filename stem prefix, e.g. "TPO_Command_Center".
+    #: Filename stem prefix, e.g. "TPO_Insights_Hub".
     stem: str
     #: Appended to the stem from the scope, e.g. the year or the mode.
     scoped_stem: bool = True
@@ -69,7 +69,7 @@ class Module:
 #: Connections have none.
 MODULES: dict[str, Module] = {
     "command-center": Module(
-        "command-center", "Command Center", adapters.command_center, "TPO_Command_Center"),
+        "command-center", "Insights Hub", adapters.command_center, "TPO_Insights_Hub"),
     "simulation-investigation": Module(
         "simulation-investigation", "Simulation Studio — Investigation Simulation",
         adapters.simulation_investigation, "TPO_Simulation_Investigation"),
@@ -248,8 +248,8 @@ def build(module_key: str, fmt: str, scope: dict[str, Any], options: dict[str, A
 
 
 #: A readable report name, per module. Deliberately not the filename: a person
-#: scanning a library reads "TPO Command Center — October F25 · Modern Trade",
-#: not "TPO_Command_Center_2025_Oct_Modern_Trade.xlsx".
+#: scanning a library reads "TPO Insights Hub — October F25 · Modern Trade",
+#: not "TPO_Insights_Hub_2025_Oct_Modern_Trade.xlsx".
 def report_name(module: Module, doc: ReportDoc) -> str:
     return f"{module.label} — {doc.scope_line}" if doc.scope_line else module.label
 

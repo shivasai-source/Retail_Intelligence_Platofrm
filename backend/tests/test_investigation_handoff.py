@@ -1,7 +1,7 @@
-"""Validation for the Command Center -> RCA -> Simulation hand-off -- B3.2.
+"""Validation for the Insights Hub -> RCA -> Simulation hand-off -- B3.2.
 
 B3.2 is mostly frontend wiring, so these tests cover the half a server can
-actually prove: that a scope narrowed the way the Command Center narrows it
+actually prove: that a scope narrowed the way the Insights Hub narrows it
 survives the context contract intact, reaches the simulation endpoints
 unchanged, and carries none of RCA's authored figures with it.
 
@@ -27,7 +27,7 @@ from app.tpo.filters import FilterState, rows_for
 
 YEAR = 2025
 
-#: What the Command Center holds when the user has narrowed to Modern Trade.
+#: What the Insights Hub holds when the user has narrowed to Modern Trade.
 COMMAND_CENTER_SCOPE = {"year": YEAR, "channel": ["CH002"]}
 
 #: The same scope after clicking a risk alert for PBDI25 -- narrowed by the one
@@ -66,7 +66,7 @@ def _simulate(client, filters, discount_pct=25, scenario_id="optimized-plan"):
 
 
 def test_command_center_context_is_preserved(client):
-    """1. Everything the Command Center held arrives intact."""
+    """1. Everything the Insights Hub held arrives intact."""
     ctx = _context(client, filters=HANDED_OFF_SCOPE, investigation_started=True, question=REAL_QUESTION)
     assert ctx["filter_state"]["value"] == FilterState.build(**HANDED_OFF_SCOPE).applied()
     assert ctx["filter_state"]["source"] == "command_center"
@@ -81,7 +81,7 @@ def test_promotion_identifier_is_preserved(client):
 
 
 def test_channel_identifier_is_preserved(client):
-    """3. From the Command Center's own selection -- never parsed out of the
+    """3. From the Insights Hub's own selection -- never parsed out of the
     alert's "Modern Trade" display name."""
     ctx = _context(client, filters=HANDED_OFF_SCOPE, investigation_started=True)
     assert ctx["filter_state"]["value"]["channel"] == ["CH002"]

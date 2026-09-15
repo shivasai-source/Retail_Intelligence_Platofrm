@@ -407,7 +407,7 @@ def reset_caches() -> None:
         promo_calendar._aggregate,
         promo_calendar.available_years,
         fingerprint._compute,
-        # The Command Center's memoised engine passes (app/tpo/service.py).
+        # The Insights Hub's memoised engine passes (app/tpo/service.py).
         service._bundle,
         service.promotion_events,
         service._period_totals,

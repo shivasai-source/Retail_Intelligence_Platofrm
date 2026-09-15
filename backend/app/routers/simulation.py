@@ -8,7 +8,7 @@ No business logic here. The route parses a body into the ONE `FilterState`
 every other module already uses, delegates to app/tpo/simulation.py, and
 serialises. The filter contract is deliberately the same object the Command
 Center's query parameters build, so "the Simulation Studio's South Modern
-Trade" and "the Command Center's South Modern Trade" are the same rows by
+Trade" and "the Insights Hub's South Modern Trade" are the same rows by
 construction rather than by coincidence.
 """
 

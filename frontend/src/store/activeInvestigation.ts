@@ -22,14 +22,14 @@ export interface ActiveInvEntry {
 /** Where an investigation was started from. */
 export type InvestigationOrigin = 'risk_alert' | 'underperforming' | 'query'
 
-/** The context the Command Center HANDS OVER when the user drills into an
+/** The context the Insights Hub HANDS OVER when the user drills into an
  *  investigation — B3.2.
  *
  *  Until B3.2 this was thrown away: the alert and promotion click handlers had
  *  the clicked entity in hand and called a bare `navigate('/investigations')`,
  *  so every downstream page had to guess what the user was looking at.
  *
- *  THE ONE RULE HERE. `filters` is the Command Center's own validated
+ *  THE ONE RULE HERE. `filters` is the Insights Hub's own validated
  *  FilterState, narrowed only by identifiers the source ACTUALLY PROVIDED.
  *  Display labels stay in `labels` and are never turned into codes.
  *  Converting a name back into a code by guessing would be a second filter
@@ -43,7 +43,7 @@ export type InvestigationOrigin = 'risk_alert' | 'underperforming' | 'query'
  *  a week: FilterState has no week.
  */
 export interface InvestigationScope {
-  /** The validated Command Center FilterState at the moment of hand-off. */
+  /** The validated Insights Hub FilterState at the moment of hand-off. */
   filters: CommandFilters
   origin: InvestigationOrigin
   /** What the user clicked, for display. */
@@ -84,7 +84,7 @@ interface InvestigationRunState {
    *  prompt until this is true, and a run id is not enough on its own because
    *  a launch that failed has no id and must still show its failure. */
   hasAsked: boolean
-  /** The Command Center hand-off chip, when the question came from one. */
+  /** The Insights Hub hand-off chip, when the question came from one. */
   handoffLabel: string | null
   /** The `AskWhyIntent` id already acted on.
    *
@@ -100,7 +100,7 @@ interface ActiveInvestigationState extends InvestigationRunState {
   activeQuestion: string
   list: ActiveInvEntry[]
   /** Null when the user navigated straight to a page rather than drilling in
-   *  from the Command Center. Both entry paths stay valid. */
+   *  from the Insights Hub. Both entry paths stay valid. */
   scope: InvestigationScope | null
   setActive: (type: InvestigationType, question: string) => void
   addActive: (type: InvestigationType, question: string) => void

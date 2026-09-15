@@ -30,7 +30,7 @@ const toPath = (route: string) => (route.startsWith('#') ? route.slice(1) : rout
  *  at `--sidebar-rail-w` and widened under the pointer, so the navigation
  *  changed size as a matter of course: labels appeared and vanished while they
  *  were being read, and the one fixed landmark on every screen was the one thing
- *  that kept moving. A later revision held it open on the Command Center alone,
+ *  that kept moving. A later revision held it open on the Insights Hub alone,
  *  which only made the chrome disagree with itself between routes. It is now the
  *  same column everywhere.
  *

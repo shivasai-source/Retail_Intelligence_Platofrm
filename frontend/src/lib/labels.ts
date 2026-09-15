@@ -1,8 +1,8 @@
-/** Command Center label policy: calendar years, never fiscal shorthand.
+/** Insights Hub label policy: calendar years, never fiscal shorthand.
  *
  *  The API renders periods through `app/tpo/formatting.fiscal_label`, which
  *  emits "F24" / "F25" — the label the analytical pages were specified with.
- *  The Command Center is specified the other way: plain 2024 / 2025.
+ *  The Insights Hub is specified the other way: plain 2024 / 2025.
  *
  *  Rewriting on the way out rather than changing `fiscal_label` is deliberate.
  *  That function is shared by every page's `_meta`, its KPI deltas and its

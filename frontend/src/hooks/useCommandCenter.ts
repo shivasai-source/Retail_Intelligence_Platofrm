@@ -49,7 +49,7 @@ function useScope() {
   return { filters, year, currency, enabled: initialised }
 }
 
-/** Options every Command Center query shares.
+/** Options every Insights Hub query shares.
  *
  *  `staleTime: Infinity` because the answer to a given scope cannot change
  *  while the process runs: the star schema is read once and every figure is

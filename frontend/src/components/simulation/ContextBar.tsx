@@ -7,7 +7,7 @@ import type { InvestigationOrigin } from '../../store/activeInvestigation'
 /** "What are we simulating?" — the resolved scope, in the words people use.
  *
  *  Every value comes from the API's resolved FilterState: channel codes are
- *  already turned into names by the same labeller the Command Center's
+ *  already turned into names by the same labeller the Insights Hub's
  *  breakdowns use, and an unconstrained dimension reads "All channels" rather
  *  than being given an invented default. Nothing on this bar is written down
  *  in the frontend.

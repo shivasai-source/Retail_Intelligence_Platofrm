@@ -241,7 +241,7 @@ h4 { font-size: 15px; line-height: 1.4; }
 }
 
 /* ============================================================================
-   Command Center — filter motion and ambient lighting
+   Insights Hub — filter motion and ambient lighting
    Added for the UI polish pass. Presentation only; no component reads these
    to decide anything. Every animation is short (150-250ms) and every one is
    disabled under prefers-reduced-motion below.
@@ -264,7 +264,7 @@ h4 { font-size: 15px; line-height: 1.4; }
 .panel-enter { animation: panelEnter 200ms var(--ease-out) both; }
 
 /* Ambient lighting: two very low-alpha radial washes behind the page content,
-   echoing the previous Command Center's "lights" without neon. Purely
+   echoing the previous Insights Hub's "lights" without neon. Purely
    decorative, so it is aria-hidden at the markup level and sits behind
    everything via a negative z-index.
 

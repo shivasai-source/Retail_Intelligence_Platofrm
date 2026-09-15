@@ -53,7 +53,7 @@ writeJson('nav.json', { navMain: DATA.navMain, navSecondary: DATA.navSecondary }
 writeJson('user.json', DATA.user);
 writeJson('focus.json', DATA.focus);
 
-// ---- command center ----
+// ---- insights hub ----
 writeJson('command.json', DATA.command);
 
 // ---- investigation types (the 4 archetypes) ----

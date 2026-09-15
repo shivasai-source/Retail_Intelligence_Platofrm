@@ -2,7 +2,7 @@
   "navMain": [
     {
       "key": "command",
-      "label": "Command Center",
+      "label": "Insights Hub",
       "icon": "grid",
       "route": "#/command"
     },

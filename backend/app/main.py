@@ -50,7 +50,7 @@ def _warm_caches() -> None:
                 log.info("No dataset in the data folder yet — upload the star-schema CSVs to populate it.")
                 return
             log.info("Warmed fact store: %s rows", store.row_count)
-            # The latest year in the data, which is where the Command Center
+            # The latest year in the data, which is where the Insights Hub
             # opens -- not a year written down here that the data may have
             # moved past.
             latest = max(store.years())

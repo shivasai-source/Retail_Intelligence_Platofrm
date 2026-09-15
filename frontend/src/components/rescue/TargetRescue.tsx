@@ -133,7 +133,7 @@ export function TargetRescue({ options }: { options: FiltersResponse | undefined
   }
 
   // THE CASCADE'S OWN LISTS, from the scope measurement. `options` is the
-  // Command Center's unconstrained channel list and is used only as the
+  // Insights Hub's unconstrained channel list and is used only as the
   // first-paint fallback, before the first scope response arrives -- after that
   // every list is the one the backend generated for THIS scope.
   const cascade = scope.data?.options

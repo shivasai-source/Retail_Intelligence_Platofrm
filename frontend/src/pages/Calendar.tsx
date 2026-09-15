@@ -24,7 +24,7 @@ const ALL_CHANNELS = 'All Channels'
 
 export function Calendar() {
   // Opens on the LATEST year the data carries, adopted from the matrix payload
-  // once it reports which years exist -- the same rule the Command Center
+  // once it reports which years exist -- the same rule the Insights Hub
   // initialises its period by. The literal below is only the first request's
   // year; the data decides where the page lands, and a year the user has
   // clicked is never overridden.

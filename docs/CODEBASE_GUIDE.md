@@ -40,7 +40,7 @@ The platform is built around a **decision journey** rather than a set of dashboa
 Each module hands off to the next:
 
 ```
-Command Center  →  Investigations  →  Promotion Intelligence  →  Simulation Studio
+Insights Hub  →  Investigations  →  Promotion Intelligence  →  Simulation Studio
    (what?)          (why?)              (what does it mean?)      (what if?)
                                                                        ↓
    Reports    ←    Promotion Calendar   ←        Decision Center
@@ -125,7 +125,7 @@ uvicorn process. There is no separate connector proxy.
 load  →  filter  →  aggregate  →  calculate  →  format
 ```
 
-**Never** calculate-then-filter. Every Command Center endpoint resolves the *same*
+**Never** calculate-then-filter. Every Insights Hub endpoint resolves the *same*
 `FilterState` object, so the KPI cards, trend chart, risk alerts, promotion mix and
 both tables are always describing the identical scope. This is why the six cards on
 screen can never disagree with each other.
@@ -234,7 +234,7 @@ cookie, and `RequireAuth` gates every frontend route but `/login`.
 
 ### 4.3 The filter → KPI pipeline (the heart of the system)
 
-This is the path taken by every Command Center request:
+This is the path taken by every Insights Hub request:
 
 ```
 Query params  (year, month, channel[], retailer[], region[], …)
@@ -370,7 +370,7 @@ infinity — when nothing was spent: there is no return to express against no
 investment.
 
 > The Simulation Studio used to divide revenue by spend in the browser and call the
-> result "ROI" — a different numerator, sitting next to a Command Center reporting
+> result "ROI" — a different numerator, sitting next to a Insights Hub reporting
 > against a 1.5 target. It no longer computes anything.
 
 ### Margin Impact
@@ -504,7 +504,7 @@ January's ordinary trading, and the year's against the year's. Pinned by
 
 ## 6. The Nine Modules & Their Journeys
 
-### 1 · Command Center — `#/command`
+### 1 · Insights Hub — `#/command`
 **The "what".** Six KPI cards (Trade Spend, Incremental Sales, ROI, Margin Impact,
 PEI, Cannibalization), a trend chart with the 50% target benchmark line, risk alerts
 banded by severity, an underperforming-promotions table, promotion mix by offer, and
@@ -674,10 +674,10 @@ That is what keeps the rendered graph stable across runs.
 | `star_pipeline.py` | The TPO star schema → `app/tpo/service.py` via `star_tools.py` |
 
 Both produce the identical finding/synthesis schemas, so the graph renders the same.
-The star pipeline's figures agree with the Command Center **by construction** —
+The star pipeline's figures agree with the Insights Hub **by construction** —
 `star_tools.py` is a thin adapter over the same engine, deliberately *not* a pandas
 reimplementation, because that would quietly drift and make Investigations
-contradict the Command Center on the same dataset.
+contradict the Insights Hub on the same dataset.
 
 ### The specialist roster — `roster.py`
 
@@ -742,7 +742,7 @@ axis. Columns with >50 distinct values are `text` (identifiers), not `categorica
 
 ## 8. Request Lifecycle — A Traced Example
 
-**User action:** on Command Center, selects Region = South, Channel = Modern Trade,
+**User action:** on Insights Hub, selects Region = South, Channel = Modern Trade,
 Period = March F25.
 
 ```
@@ -783,7 +783,7 @@ Period = March F25.
 7. JSON → useCommandCenter → <TpoKpi> cards render
 ```
 
-Every other Command Center endpoint (`/trend`, `/risk-alerts`, `/promotion-mix`, …)
+Every other Insights Hub endpoint (`/trend`, `/risk-alerts`, `/promotion-mix`, …)
 resolves the **same `FilterState`** — which is why the six cards, the chart and the
 tables can never describe different populations.
 
@@ -813,7 +813,7 @@ tables can never describe different populations.
 | `loader.py` | 418 | The 5 CSVs → one cached columnar store. Derives product rank and the analytical month from `(Year, Week)`. Raises loudly on an unresolvable week. |
 | `filters.py` | 520 | THE filter engine. `FilterState` (14 dims, frozen, hashable), bitmask fail-masks per code, `rows_for` / `baseline_rows_for`, and dependent option generation. |
 | `aggregate.py` | 1,097 | THE KPI engine. Every formula in §5 lives here. |
-| `service.py` | 1,079 | Payloads for the Command Center endpoints. Computes no KPI — assembles cards, labels, meta and the cannibalization scope ladder. |
+| `service.py` | 1,079 | Payloads for the Insights Hub endpoints. Computes no KPI — assembles cards, labels, meta and the cannibalization scope ladder. |
 | `formatting.py` | 120 | Currency, magnitude, F24/F25 labels, delta strings. The only place the exchange rate is read. |
 | `response.py` | 183 | The approved promotion response model. Refuses interpolation, midpoints and spend inputs. Carries `PROVENANCE` on every answer. |
 | `execution.py` | 423 | B2.2 — synthesizes counterfactual `WeekRow`s at each end of the approved uplift band and hands them to the engine. Computes no KPI itself. |
@@ -945,8 +945,8 @@ a palette, not a redesign.*
 | --- | --- | --- |
 | `api.ts` | 77 | The single fetch layer. `ApiError` carries `status`. `apiFetch`/`apiPost`/`apiUpload` (sets no Content-Type so the browser generates the multipart boundary)/`apiDelete`, all funnelling through `unwrap` → `detailOf`, which flattens FastAPI's 422 field-error array to `"field.path: msg; …"`. |
 | `queryClient.ts` | 11 | `staleTime: 30_000`, `retry: 1`, `refetchOnWindowFocus: false`. |
-| `labels.ts` | 33 | `calendarYear()` — Command Center display policy only: `F25` → `2025`. A display-side rewrite rather than a change to the shared backend `fiscal_label`, which would relabel four other modules. |
-| `askWhy.ts` | 109 | The Command Center → Investigations hand-off contract. `AskWhyIntent.id` is minted **per click** because comparing question *text* meant clicking the same alert twice read as already-run and did nothing. |
+| `labels.ts` | 33 | `calendarYear()` — Insights Hub display policy only: `F25` → `2025`. A display-side rewrite rather than a change to the shared backend `fiscal_label`, which would relabel four other modules. |
+| `askWhy.ts` | 109 | The Insights Hub → Investigations hand-off contract. `AskWhyIntent.id` is minted **per click** because comparing question *text* meant clicking the same alert twice read as already-run and did nothing. |
 | `portalConnectors.ts` | 146 | Connector plumbing. Accepts both `{detail}` and legacy `{error}`. **Azure Blob is backend-free** — real browser→Blob REST, because Blob supports CORS. `loadMsal()` lazily injects MSAL from a CDN for Power BI AAD sign-in. |
 | `decisionCandidates.ts` | 579 | **Pure functions only.** Converts each module's response into a common `DecisionCandidate` and ranks them. |
 
@@ -963,7 +963,7 @@ a palette, not a redesign.*
 
 | File | Lines | Persisted | Purpose |
 | --- | --- | --- | --- |
-| `commandFilters.ts` | 244 | no | THE one filter state for the Command Center |
+| `commandFilters.ts` | 244 | no | THE one filter state for the Insights Hub |
 | `activeInvestigation.ts` | 175 | ✅ v2 | Active investigation + workspace pointer + CC scope hand-off |
 | `simulationScenarios.ts` | 219 | no | Scenario cards, levers, results |
 | `targetRescue.ts` | 114 | no | Target Rescue controls |
@@ -1088,7 +1088,7 @@ promotions.
 #### `Intelligence.tsx` (644)
 
 Deliberately has **no filter bar** — it inherits the investigation's scope, and
-re-scoping is the Command Center's job. Seven tabs, each lazily pulling its own fact
+re-scoping is the Insights Hub's job. Seven tabs, each lazily pulling its own fact
 section. The Incremental Sales target multiple is *derived from* `target_roi` rather
 than a hardcoded "1.5×".
 
@@ -1172,9 +1172,9 @@ data-derived right axis.
 
 - **`AppShell.tsx`** (52) — content inset is **one number at every width**: `md:pl-[var(--sidebar-w)]`. Replaced a three-way rule that existed to serve a sidebar that changed width under the pointer.
 - **`Topbar.tsx`** (90) — sticky 62px header. The Help button was removed (it opened a toast promising a nonexistent help centre).
-- **`Sidebar.tsx`** (310) — a **static** 224px column that never changes width. It used to collapse to a rail and expand on hover, so labels appeared mid-read and content reflowed; a later revision held it open on the Command Center only, making the chrome disagree between routes. The keyboard-focus tooltip is **portaled to body** so neither `overflow-x-hidden` nor the nav's scroll container can clip it.
+- **`Sidebar.tsx`** (310) — a **static** 224px column that never changes width. It used to collapse to a rail and expand on hover, so labels appeared mid-read and content reflowed; a later revision held it open on the Insights Hub only, making the chrome disagree between routes. The keyboard-focus tooltip is **portaled to body** so neither `overflow-x-hidden` nor the nav's scroll container can clip it.
 
-### 10.9 `src/components/command/` — Command Center (12 files)
+### 10.9 `src/components/command/` — Insights Hub (12 files)
 
 | File | Lines | Notes |
 | --- | --- | --- |
@@ -1430,7 +1430,7 @@ default to `E2E_BASE=http://127.0.0.1:8011`.
 - **`cdp.mjs`** — the shared library, not a test. Spawns Chrome into a temp profile, opens the WebSocket, correlates requests via an id→promise map, collects console errors, page exceptions and failed requests, and supports per-method CDP event handlers.
 - **`concurrent-runs.mjs`** — a regression pin. `useSimulateScenario` is one *shared* mutation observer, and `mutate(vars, {onSuccess})` stores callbacks on the **observer, not the request** — so running A then B before A returned overwrote A's callbacks. A's request succeeded server-side and the client never heard: `applyResult` never ran and the card sat on "Running…" forever. Documents why this must be a browser test: **the store was never at fault, so a store-level unit test passes against the broken code.**
 - **`concurrent-failures.mjs`** — the mixed success/failure companion: a failing run must settle its own card and **must not settle anybody else's**. Induces the failure with Chrome's `Fetch` domain, pausing each `/simulate` request, reading the scenario id from the POST body and failing exactly one. Nothing in the application is stubbed.
-- **`full-platform.mjs`** — final QA in one real browser pass: Login → Command Center → RCA → Simulation (all three modes) → Decision → Calendar → Reports. Asserts each module loads, **settles** (a probe scans body text for ~14 spinner phrases) and shows no unexplained value. **Counts duplicate API requests per route.** Explicitly read-only: it writes nothing to the store.
+- **`full-platform.mjs`** — final QA in one real browser pass: Login → Insights Hub → RCA → Simulation (all three modes) → Decision → Calendar → Reports. Asserts each module loads, **settles** (a probe scans body text for ~14 spinner phrases) and shows no unexplained value. **Counts duplicate API requests per route.** Explicitly read-only: it writes nothing to the store.
 
 ### 11.6 Dependencies
 
@@ -1458,7 +1458,7 @@ API_ENDPOINT_MAP, DATASET_MAP, FILE_MAP, KNOWN_LIMITATIONS, VALIDATION_MATRIX),
 
 Two worth knowing: **`06_API_REFERENCE.md`** (35 KB, every route by module) and
 **`appendices/KNOWN_LIMITATIONS.md`** — the honest list, including that RCA/Investigations
-and Promotion Intelligence *page content* is static, that Command Center filter reach
+and Promotion Intelligence *page content* is static, that Insights Hub filter reach
 differs from the documentation in places, and that authentication/authorization on the
 store is **[Deferred]**.
 
@@ -1506,7 +1506,7 @@ These recur across the whole repository and explain most of its structure.
 **1. One definition, one place.**
 One `roi_multiple()`. One `FilterState`. One `ReportDoc` feeding two writers rather than
 fourteen bespoke generators. One `Promotion.label`. One promotion-status palette for the
-Calendar. The Command Center's `by`/`metric` route regexes are built at import from the
+Calendar. The Insights Hub's `by`/`metric` route regexes are built at import from the
 service's own lists so they cannot drift. Where a rule genuinely is written twice
 (`optimization._price_and_baseline` restating `aggregate._volume`'s baseline for a
 population `_volume` skips), a test asserts the two agree — *"the duplication is guarded

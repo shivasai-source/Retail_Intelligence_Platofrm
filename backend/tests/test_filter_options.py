@@ -26,7 +26,7 @@ from app.tpo.loader import get_store
 
 YEAR = 2025
 
-#: The §30 matrix — one entry per filter shape the Command Center can produce.
+#: The §30 matrix — one entry per filter shape the Insights Hub can produce.
 CASES: list[tuple[str, dict]] = [
     ("1  no filters", {}),
     ("2  year", {"year": YEAR}),

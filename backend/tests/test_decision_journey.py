@@ -2,7 +2,7 @@
 
 B3.3 froze the chain up to a simulated scenario. This freezes the rest of it:
 
-    Command Center -> RCA -> Simulation -> scenarios -> comparison ->
+    Insights Hub -> RCA -> Simulation -> scenarios -> comparison ->
     recommendation
 
 B4.4 is presentation and freeze, so nothing here tests new logic. It tests the

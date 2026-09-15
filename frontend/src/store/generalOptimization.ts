@@ -3,7 +3,7 @@ import { create } from 'zustand'
 /** The Simulation Studio's two modes, and General Optimization's own controls.
  *
  *  DELIBERATELY SEPARATE FROM `commandFilters`. The Investigation Simulation
- *  scopes itself from the Command Center's validated FilterState (or from the
+ *  scopes itself from the Insights Hub's validated FilterState (or from the
  *  RCA hand-off that narrowed it), and General Optimization must not be able to
  *  move that. A shared month or channel would mean changing a control in one
  *  mode silently re-scoped the other — which is the exact state leakage the

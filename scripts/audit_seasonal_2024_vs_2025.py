@@ -4,7 +4,7 @@ READ-ONLY. Writes nothing.
 
 Every ROI comes from the frozen engine (aggregate.roi_multiple) via
 calculate_roi(rows_for(state), baseline_rows_for(state)) -- the same call the
-Offer breakdown makes, so the numbers here are the numbers the Command Center
+Offer breakdown makes, so the numbers here are the numbers the Insights Hub
 shows. The per-row economics are read straight from the CSV.
 
 Usage:  venv/Scripts/python.exe scripts/audit_seasonal_2024_vs_2025.py

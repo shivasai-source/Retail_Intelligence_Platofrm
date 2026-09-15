@@ -6,7 +6,7 @@ import type { Recommendation } from '../types/promotionIntelligence'
  *
  *  WHAT IT REPLACES. "Go Deeper" on a recommendation used to toast
  *  "Simulation Studio doesn't accept parameters yet" and then navigate with
- *  nothing at all: the studio opened on whatever scope the Command Center
+ *  nothing at all: the studio opened on whatever scope the Insights Hub
  *  happened to be holding, in whichever mode was last selected, with no trace
  *  of the recommendation that sent the user there. The advice and the tool for
  *  testing it were two unconnected pages.
@@ -58,7 +58,7 @@ export const useIntelligenceHandoffStore = create<IntelligenceHandoffStore>()((s
  *  the same dimension vocabulary `CommandFilters` defines and carry the same
  *  real codes — which is why Promotion Intelligence can already send them to
  *  /facts unchanged. Keys the scope does not carry stay EMPTY rather than
- *  inheriting the Command Center's current selection: merging the two would
+ *  inheriting the Insights Hub's current selection: merging the two would
  *  simulate a population neither the investigation nor the user chose.
  */
 export function filtersFromScope(scope: Record<string, unknown>): CommandFilters {

@@ -93,7 +93,7 @@ const KPI_ORDER: SimulationKpiKey[] = [
 /** Projected Business Impact, Phase A: the scope's MEASURED performance.
  *
  *  Every row is a value the validated KPI engine produced — the same number
- *  the Command Center's card shows for the same selection. A KPI the selection
+ *  the Insights Hub's card shows for the same selection. A KPI the selection
  *  cannot support renders its reason, never a zero.
  *
  *  There is one column because there is one result. A second column would have
@@ -161,7 +161,7 @@ export function KpiTable({ kpis, targetRoi }: { kpis: Record<SimulationKpiKey, S
 /** What was actually measured — the scope the numbers above describe.
  *
  *  Replaces the promotion/period dropdowns, which were hardcoded strings that
- *  changed nothing when selected. Scope comes from the Command Center's filter
+ *  changed nothing when selected. Scope comes from the Insights Hub's filter
  *  selection, and this panel reports what the backend resolved it to.
  */
 export function ScopeSummary({ scope }: { scope: SimulationRunResponse['scope'] }) {
@@ -215,7 +215,7 @@ export function NoDataPanel() {
         <div className="text-base font-bold text-ink-primary">No rows in this scope</div>
         <div className="mt-1 text-base text-ink-secondary">
           The current filter selection matches no sales rows, so there is nothing to measure. Widen the
-          selection in the Command Center.
+          selection in the Insights Hub.
         </div>
       </div>
     </div>

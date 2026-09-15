@@ -97,7 +97,7 @@ def get_recent_investigations() -> list[dict[str, Any]]:
 class InvestigationRunRequest(BaseModel):
     question: str
     # Omit (or pass null) to investigate the built-in TPO star schema — the
-    # same data the Command Center reports on. Pass an id to investigate an
+    # same data the Insights Hub reports on. Pass an id to investigate an
     # uploaded file instead.
     dataset_id: str | None = None
     # The scope the caller drilled in with, as a FilterState-shaped dict.

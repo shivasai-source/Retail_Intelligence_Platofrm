@@ -49,10 +49,10 @@ export function useTargetRescue() {
  *  Target Rescue's own scope at the recommended depth.
  *
  *  WHY THIS AND NOT A HAND-OFF INTO THE INVESTIGATION SIMULATION. That mode
- *  scopes itself from the Command Center's FilterState, and Target Rescue is
+ *  scopes itself from the Insights Hub's FilterState, and Target Rescue is
  *  state-isolated from it by design — pushing a scenario across would either
  *  simulate the recommended treatment over a scope the user never chose, or
- *  require moving the Command Center's filters from here. Neither is acceptable,
+ *  require moving the Insights Hub's filters from here. Neither is acceptable,
  *  so no new mutation path is invented: the recommended treatment is executed by
  *  the same validated endpoint, over the scope it was recommended for, and the
  *  result is shown in place for review.

@@ -10,7 +10,7 @@
  */
 
 /** The one filter contract, mirroring backend FilterState. Identical to the
- *  Command Center's `CommandFilters` by design: the two modules must select
+ *  Insights Hub's `CommandFilters` by design: the two modules must select
  *  the same rows for the same selection. */
 export interface SimulationFilters {
   year: number | null

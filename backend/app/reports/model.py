@@ -71,7 +71,7 @@ class Table:
 
 @dataclass(frozen=True)
 class KpiEntry:
-    """One KPI card, as the Command Center displays it.
+    """One KPI card, as the Insights Hub displays it.
 
     THE DISPLAY STRING IS THE AUTHORITATIVE ONE. `display` is the card's own
     `display_value` — the exact text on screen — and a writer that shows text
@@ -133,7 +133,7 @@ class Section:
 class ReportDoc:
     """One report, ready to be written in either format."""
 
-    #: "Command Center", "Simulation Studio — Target Rescue", ...
+    #: "Insights Hub", "Simulation Studio — Target Rescue", ...
     module: str
     #: "Trade Promotion Performance Report"
     title: str

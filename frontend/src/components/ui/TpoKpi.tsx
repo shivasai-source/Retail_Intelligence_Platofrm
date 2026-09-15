@@ -2,7 +2,7 @@ import { Icon, type IconName } from '../../icons'
 import { InfoBlock, InfoPopover } from './InfoPopover'
 
 // Ported from css/tpo.css .tpo-kpi-grid / .tpo-kpi* — the icon-leading KPI tile used
-// across the 5 main pages (Command Center, Investigations, Intelligence, Simulation,
+// across the 5 main pages (Insights Hub, Investigations, Intelligence, Simulation,
 // Decision), distinct from the generic `.kpi` tile (see ui/Kpi.tsx) used elsewhere
 // (e.g. the simulate-recommendation modal).
 const TINTS: Record<string, { bg: string; fg: string }> = {
@@ -14,7 +14,7 @@ const TINTS: Record<string, { bg: string; fg: string }> = {
   rose: { bg: '#FFE4E6', fg: '#F43F5E' },
 }
 
-// Six columns, not five: the Command Center carries six KPI cards (Cannibalization
+// Six columns, not five: the Insights Hub carries six KPI cards (Cannibalization
 // Rate joined the original five). Only the column count changed — the tile itself
 // and its breakpoints are untouched. The grid carries no bottom margin: the page
 // owns the vertical rhythm between bands, so every gap is stated in one place.

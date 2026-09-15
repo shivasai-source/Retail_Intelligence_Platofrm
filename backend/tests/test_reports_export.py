@@ -12,7 +12,7 @@ THE FILES ARE REAL. A CSV renamed .xlsx does not load as a workbook, and HTML
 renamed .pdf has no %PDF header and no page tree. Both are asserted directly.
 
 THE NUMBERS ARE THE ENGINE'S. A KPI in a workbook is compared against
-`service.kpis` for the same scope — the same function the Command Center screen
+`service.kpis` for the same scope — the same function the Insights Hub screen
 reads — so the export cannot have recomputed or rounded its way to a different
 answer.
 
@@ -180,7 +180,7 @@ def test_pdf_has_page_numbers_on_every_page(module: str, scope: dict, options: d
 
 
 def test_wide_tables_get_landscape_pages() -> None:
-    """A wide table is re-framed, not clipped. The Command Center's alert table
+    """A wide table is re-framed, not clipped. The Insights Hub's alert table
     and the optimizer's product plan both ask for landscape, so those documents
     genuinely carry landscape pages beside their portrait ones."""
     for module, scope, options in (("command-center", CC_SCOPE, {}),
@@ -201,7 +201,7 @@ def test_command_center_kpis_match_the_engine() -> None:
     """The workbook's KPI values ARE `service.kpis`'s values for the same scope.
 
     This is the test that would fail if the export ever recalculated anything:
-    the numbers are compared against the function the Command Center screen
+    the numbers are compared against the function the Insights Hub screen
     itself reads, not against a fixture.
     """
     state = FilterState.build(year=2025, month=10, channel=["CH002"])
@@ -715,7 +715,7 @@ def test_reports_carry_their_provenance() -> None:
 
 def test_filenames_are_predictable_and_sanitised() -> None:
     _, cc = ok("command-center", "xlsx", CC_SCOPE)
-    assert cc == "TPO_Command_Center_2025_Oct_Modern_Trade.xlsx"
+    assert cc == "TPO_Insights_Hub_2025_Oct_Modern_Trade.xlsx"
 
     _, tr = ok("simulation-target-rescue", "pdf", TR_SCOPE, TR_OPTIONS)
     assert tr == "TPO_Simulation_Target_Rescue_2025_Oct_Modern_Trade.pdf"

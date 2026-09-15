@@ -1,6 +1,6 @@
 """The end-to-end TPO journey, frozen -- B3.3.
 
-Command Center -> RCA -> Simulation Studio -> hypothetical scenario -> real
+Insights Hub -> RCA -> Simulation Studio -> hypothetical scenario -> real
 result. Every earlier phase has its own suite; this one walks the whole chain
 in a single pass and asserts the properties that only appear when the parts are
 joined together.
@@ -13,7 +13,7 @@ a test rather than being discovered in a demo.
 The four properties worth stating plainly, because each one is a way the chain
 could quietly become wrong:
 
-  1. THE SCOPE IS ONE SCOPE. What the Command Center selected, what the context
+  1. THE SCOPE IS ONE SCOPE. What the Insights Hub selected, what the context
      reports, and what /run and /simulate measure are the same FilterState. Not
      equivalent, not converted -- the same.
   2. NO AUTHORED NUMBER CROSSES THE BOUNDARY. RCA's chips report a trade spend
@@ -57,7 +57,7 @@ def client():
 
 @pytest.fixture(scope="session")
 def alert(client):
-    """A real risk alert for the Command Center scope, with its real id."""
+    """A real risk alert for the Insights Hub scope, with its real id."""
     response = client.get("/api/command-center/risk-alerts", params={**{"year": YEAR}, "channel": "CH002", "limit": 50})
     assert response.status_code == 200
     alerts = response.json()["alerts"]
@@ -75,8 +75,8 @@ def _post(client, path, body):
 
 
 def test_the_full_journey(client, alert):
-    """Command Center -> RCA -> Simulation -> scenario -> real result."""
-    # 1-3. The Command Center holds a validated scope.
+    """Insights Hub -> RCA -> Simulation -> scenario -> real result."""
+    # 1-3. The Insights Hub holds a validated scope.
     # 4-6. Clicking an alert narrows it by the identifiers the alert carries:
     #      the promotion, product and channel CODES of the event it measured.
     #      Its channel NAME travels alongside them as a label and narrows

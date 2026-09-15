@@ -3,7 +3,7 @@ import { Button } from '../ui'
 import { Icon } from '../../icons'
 import { ApiError } from '../../lib/api'
 
-/** Skeletons, empty and error states for the Command Center.
+/** Skeletons, empty and error states for the Insights Hub.
  *
  *  The rule they exist to enforce: while a new filter scope is loading, the
  *  screen must not keep presenting the previous scope's numbers as though they

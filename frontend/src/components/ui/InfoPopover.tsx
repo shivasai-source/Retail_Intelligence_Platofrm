@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { createPortal } from 'react-dom'
 import { Icon } from '../../icons'
 
-/** The one "i" affordance used across the Command Center.
+/** The one "i" affordance used across the Insights Hub.
  *
  *  Every info button on the page — KPI cards and card headers alike — renders
  *  through this, so size, icon, hover state, placement and popover styling

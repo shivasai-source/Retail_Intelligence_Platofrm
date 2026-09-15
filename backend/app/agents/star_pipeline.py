@@ -5,7 +5,7 @@ Same four stages as the uploaded-CSV pipeline (plan -> analyse -> specialists
 -> synthesis) and the same finding/synthesis schemas, so both produce the
 identical orchestration the graph renders. The difference is where the
 numbers come from: this one calls app/tpo/service.py through star_tools,
-so every figure agrees with the Command Center by construction.
+so every figure agrees with the Insights Hub by construction.
 
 The planner's real job here is choosing SEGMENTS. A breakdown alone answers
 "which channel is worst"; a filter plus a breakdown answers "within Modern
@@ -189,7 +189,7 @@ launch (new product/SKU decisions), strategic (portfolio/long-term mix).""" % (
 STAR_SPECIALIST_SYSTEM = """You are a specialist analyst on a trade promotion intelligence platform.
 
 You are given one pre-computed breakdown. Every figure was produced by the
-platform's validated KPI engine — the same one the Command Center displays.
+platform's validated KPI engine — the same one the Insights Hub displays.
 Analyse ONLY what is in front of you.
 
 Rules:
@@ -627,7 +627,7 @@ async def run_star_pipeline(
     # ran on) or from `scoped_totals` (the validated KPI bundle for that same
     # scope). Nothing here is inferred from the question's wording and nothing
     # is computed: `service._group_label` is the SAME code->name resolver the
-    # Command Center's breakdowns use, so a channel is named identically in
+    # Insights Hub's breakdowns use, so a channel is named identically in
     # both places.
     from app.tpo import service as _service
 

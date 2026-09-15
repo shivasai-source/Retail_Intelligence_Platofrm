@@ -16,7 +16,7 @@ the whole point of this module: the previous `/export` endpoint answered with a
 file, which is why a click downloaded immediately.
 
 NO EXISTING ENDPOINT WAS CHANGED to support any of this. The report service calls
-the same `app/tpo/*` functions the Command Center, Simulation Studio and Decision
+the same `app/tpo/*` functions the Insights Hub, Simulation Studio and Decision
 Center endpoints call, and those endpoints are untouched.
 
 THE CLIENT POSTS A SCOPE, NOT RESULTS. What travels is what the user SELECTED --

@@ -12,7 +12,7 @@ import { BREAKEVEN_ROI, fmtRoi } from '../../lib/roi'
  *
  *  IT COMPUTES NOTHING. Every figure below — ROI, At Stake, severity, the
  *  counts — is the value `/api/command-center/risk-alerts` produced, read
- *  through the SAME `useRiskAlerts` hook the Command Center's own panel uses,
+ *  through the SAME `useRiskAlerts` hook the Insights Hub's own panel uses,
  *  at the SAME `ALERT_FETCH_LIMIT`. React Query therefore serves both from one
  *  cache entry: the bell costs no extra request, and it cannot disagree with
  *  the panel beneath it.
@@ -45,7 +45,7 @@ import { BREAKEVEN_ROI, fmtRoi } from '../../lib/roi'
  *  reader who cannot use motion. See `.bell-ring` in index.css.
  */
 
-/** How many alerts the panel shows. The rest stay in the Command Center's own
+/** How many alerts the panel shows. The rest stay in the Insights Hub's own
  *  Risk Alerts panel, which is what the footer links to. */
 const TOP_N = 3
 
@@ -176,7 +176,7 @@ export function NotificationBell() {
 
             {rows.length > 0 && total > rows.length && (
               <div className="border-t border-border-subtle px-4 py-2 text-xs text-ink-muted">
-                Showing the top {rows.length} of {total}. The Command Center lists them all.
+                Showing the top {rows.length} of {total}. The Insights Hub lists them all.
               </div>
             )}
           </div>,
@@ -203,10 +203,10 @@ function PanelBody({
 }) {
   if (error) return <Message text="Could not load alerts." />
   if (loading) return <Message text="Loading alerts…" />
-  // Not an empty state: alerts are scoped to the Command Center's selection,
+  // Not an empty state: alerts are scoped to the Insights Hub's selection,
   // and before that has resolved there is nothing to report either way. Saying
   // "no alerts" here would be a claim the client cannot support yet.
-  if (!hasData) return <Message text="Open the Command Center to load alerts." />
+  if (!hasData) return <Message text="Open the Insights Hub to load alerts." />
 
   if (total === 0) {
     return (

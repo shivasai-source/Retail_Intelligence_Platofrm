@@ -1,6 +1,6 @@
 import type { RiskAlert } from '../../types/commandCenter'
 
-/** How Risk Alerts are prioritised in the Command Center.
+/** How Risk Alerts are prioritised in the Insights Hub.
  *
  *  Kept apart from the panel component so both the panel and the hero banner
  *  read ONE definition — the banner cannot disagree with the list beneath it.
@@ -64,11 +64,11 @@ export function alertHeadline(alert: RiskAlert): string {
   return dash === -1 ? alert.title : alert.title.slice(0, dash).trim()
 }
 
-/** How many alerts the Command Center fetches.
+/** How many alerts the Insights Hub fetches.
  *
  *  DELIBERATELY THE WHOLE SET. `/risk-alerts` emits ONE concatenated
  *  Critical -> High -> Medium list and truncates the tail, so a small `limit`
- *  cannot reach the top of the High band. Both the Command Center panel and the
+ *  cannot reach the top of the High band. Both the Insights Hub panel and the
  *  notification bell request this same figure, which means React Query serves
  *  them from ONE cache entry and one request rather than two. */
 export const ALERT_FETCH_LIMIT = 100000

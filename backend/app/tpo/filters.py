@@ -1,7 +1,7 @@
 """The shared filter engine — ONE filter state, applied ONCE, before any KPI.
 
 The order is load -> filter -> aggregate -> calculate, never calculate then
-filter the displayed values. Every Command Center endpoint resolves the same
+filter the displayed values. Every Insights Hub endpoint resolves the same
 `FilterState`, so the KPI cards, trend chart, risk alerts, promotion mix and
 the two tables are always describing the same scope.
 

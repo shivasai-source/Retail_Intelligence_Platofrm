@@ -73,7 +73,7 @@ def test_context_resolves_the_selected_scope(client, filters):
 
 
 def test_context_uses_display_names_not_codes(client):
-    """Codes are resolved through the SAME labeller the Command Center's
+    """Codes are resolved through the SAME labeller the Insights Hub's
     breakdowns use, so CH002 reads as Modern Trade in both places or neither."""
     dimensions = {d["key"]: d for d in _run(client, filters={"year": YEAR, "channel": ["CH002"]})["context"]["dimensions"]}
     assert dimensions["channel"]["summary"] == "Modern Trade"
@@ -255,7 +255,7 @@ def test_guard_rejects_a_fabricated_hypothetical_result():
 @pytest.mark.parametrize("filters", [SINGLE_PROMOTION, MANY_PROMOTIONS, {"year": YEAR}, {}])
 def test_current_plan_kpis_match_the_phase_a_endpoint(client, filters):
     """12. B1 changed no number. The Current Plan's result is the same KPI
-    block Phase A returned, which is itself the Command Center's."""
+    block Phase A returned, which is itself the Insights Hub's."""
     payload = _run(client, filters=filters)
     assert payload["scenarios"][0]["result"] == payload["kpis"]
     assert set(payload["kpis"]) == {

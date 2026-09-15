@@ -210,9 +210,9 @@ def synthesize(
 # --- running the engine over the counterfactual ----------------------------
 
 
-#: KPI key -> the Command Center spec that names and explains it. Read from
+#: KPI key -> the Insights Hub spec that names and explains it. Read from
 #: service.KPI_SPECS so a scenario cannot describe a KPI differently from the
-#: way the Command Center and the measured baseline describe it.
+#: way the Insights Hub and the measured baseline describe it.
 _SPEC_BY_CARD = {spec.key: spec for spec in service.KPI_SPECS}
 
 

@@ -64,7 +64,7 @@ export interface ComparisonMetric {
   delta_type: DeltaType
   delta_rationale: string
   supports_percent_change: boolean
-  /** The Command Center's DISPLAY convention for arrow colour — not a
+  /** The Insights Hub's DISPLAY convention for arrow colour — not a
    *  comparison objective. See `preference`. */
   lower_is_better_display: boolean | null
   /** Always null in B4.1: whether higher or lower wins is business policy. */

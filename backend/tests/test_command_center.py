@@ -1,4 +1,4 @@
-"""Validation for the Command Center KPI engine.
+"""Validation for the Insights Hub KPI engine.
 
 Covers the 18 filter cases in the spec, the currency rules, and the
 period-comparison rules. Run with:
@@ -380,7 +380,7 @@ def test_narrowing_by_a_rows_identifiers_reproduces_its_roi():
     """The drill-down contract, end to end.
 
     Filtering the SAME scope by a row's three codes must select that event's
-    rows and no others -- which is what makes the Command Center's row and the
+    rows and no others -- which is what makes the Insights Hub's row and the
     Simulation Studio's Current Plan describe one population. Asserted on rows
     whose (promotion, product, channel) traded in exactly one week, because a
     week is the one part of the grain FilterState cannot express: where the

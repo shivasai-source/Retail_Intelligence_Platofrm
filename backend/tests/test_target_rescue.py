@@ -159,7 +159,7 @@ def test_status_bands_end_to_end(name: str, payload: dict, attainment: float, ex
 
 
 def test_thresholds_are_not_the_command_center_risk_bands() -> None:
-    """The rescue bands are attainment percentages; the Command Center's are ROI
+    """The rescue bands are attainment percentages; the Insights Hub's are ROI
     multiples. Reading one as the other is exactly the kind of drift the
     project has already been bitten by, so they are asserted to be separate."""
     assert rescue.ON_TRACK_ATTAINMENT_PCT == 80.0

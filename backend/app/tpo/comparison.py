@@ -63,7 +63,7 @@ class MetricRule:
     """How one KPI is compared, and why that way.
 
     `lower_is_better` is carried through from `service.KPI_SPECS` and is
-    DELIBERATELY NOT a comparison objective. It is the Command Center's display
+    DELIBERATELY NOT a comparison objective. It is the Insights Hub's display
     convention -- which way the delta arrow points and what colour it takes --
     and service.py's own docstring is explicit that "a rising Trade Spend is a
     rise, not an improvement". Whether a scenario with lower spend is BETTER is
@@ -131,7 +131,7 @@ _NO_OBJECTIVE = (
 
 
 def _spec_for(key: str) -> Any:
-    """The Command Center KPI spec behind a simulation metric key, so labels
+    """The Insights Hub KPI spec behind a simulation metric key, so labels
     and units cannot drift between the two."""
     card_key = next(k.card_key for k in simulation.SIMULATION_KPIS if k.key == key)
     if card_key is None:

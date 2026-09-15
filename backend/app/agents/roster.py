@@ -125,7 +125,7 @@ def _fetch_cannibalization(f: dict[str, Any]) -> dict[str, Any]:
     ordinary level. See star_tools.neighbour_sales_decline for where every input
     comes from.
 
-    `kpis.segment.cannibalization` is the Command Center's validated rate and is
+    `kpis.segment.cannibalization` is the Insights Hub's validated rate and is
     UNCHANGED. It answers a different question -- what share of the promoted
     SKU's uplift came out of its adjacent pack sizes, in quantity -- so it is
     carried alongside rather than replaced. The two can legitimately disagree,

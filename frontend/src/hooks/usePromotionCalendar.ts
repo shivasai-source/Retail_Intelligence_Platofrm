@@ -11,7 +11,7 @@ import type { CalendarCellDetail, CalendarMatrix, UpcomingResponse } from '../ty
 export function usePromotionMatrix(year: number, channels: string[]) {
   const query = new URLSearchParams({ year: String(year) })
   // Repeated `channel` params, matching the list-parameter convention the
-  // Command Center filters already use.
+  // Insights Hub filters already use.
   for (const channel of channels) query.append('channel', channel)
 
   return useQuery({

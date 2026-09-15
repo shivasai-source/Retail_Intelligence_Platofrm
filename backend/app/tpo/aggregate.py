@@ -428,7 +428,7 @@ def roi_multiple(
     the -3.6% event that reads 0.96 here would round to 1.00 and pass for
     break-even, which is a different and false claim.
 
-    Every ROI the Command Center shows goes through this function — the KPI
+    Every ROI the Insights Hub shows goes through this function — the KPI
     card via `calculate_roi`, and each promotion event via the service layer,
     which then feeds the Risk Alerts' displayed ROI, their severity banding,
     and the Underperforming Promotions table. The inputs differ (whole

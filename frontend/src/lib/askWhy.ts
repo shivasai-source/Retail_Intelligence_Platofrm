@@ -1,4 +1,4 @@
-// The Command Center -> Investigations handoff.
+// The Insights Hub -> Investigations handoff.
 //
 // "Ask why" used to navigate and drop everything it knew — the alert's
 // promotion, product, channel, week and ROI were all discarded, so the

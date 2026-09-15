@@ -4,7 +4,7 @@ import type { CheckpointValue } from '../types/targetRescue'
 /** Target Rescue's own controls — the third Simulation Studio mode.
  *
  *  DELIBERATELY ITS OWN STORE, sharing state with nothing. The Investigation
- *  Simulation scopes itself from the Command Center's validated FilterState (or
+ *  Simulation scopes itself from the Insights Hub's validated FilterState (or
  *  from the RCA hand-off that narrowed it) and General Optimization holds its
  *  own three dimensions; Target Rescue must not be able to move either, and
  *  neither may move this. A month or channel shared between two modes would

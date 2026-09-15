@@ -32,7 +32,7 @@ import type { ReportFormat, ReportRecord } from '../types/reportCenter'
  *  with no file behind any.
  *
  *  THIS IS THE ONLY PLACE THE APPLICATION SAVES A FILE. Generating a report from
- *  Command Center, Simulation Studio or Decision Center stores it; a download
+ *  Insights Hub, Simulation Studio or Decision Center stores it; a download
  *  happens here, and only when a person clicks Excel or PDF.
  *
  *  A BUTTON IS OFFERED ONLY FOR A FORMAT THAT EXISTS. `formats.xlsx` and
@@ -287,7 +287,7 @@ function EmptyState({ filtered }: { filtered: boolean }) {
         <div className="mt-1 text-base leading-[1.55] text-ink-secondary">
           {filtered
             ? 'Clear the module, format or search filter to see the whole Report Center.'
-            : 'Generate a report from Command Center, Simulation Studio or Decision Center. It will be stored here, and you can download it as Excel or PDF.'}
+            : 'Generate a report from Insights Hub, Simulation Studio or Decision Center. It will be stored here, and you can download it as Excel or PDF.'}
         </div>
       </div>
     </div>

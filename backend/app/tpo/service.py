@@ -1,4 +1,4 @@
-"""The Command Center service — every payload the UI reads, one filter state.
+"""The Insights Hub service — every payload the UI reads, one filter state.
 
 Nothing in here computes a KPI. Every number comes from app/tpo/aggregate.py,
 so the cards, the trend chart, the alerts and the two tables cannot disagree.
@@ -158,7 +158,7 @@ def _bundle(state: FilterState) -> tuple[A.KpiBundle, str | None]:
     # when a promotion is selected, so no SKU had a baseline and EVERY
     # candidate event was excluded ("no non-promoted row in this selection").
     # A scope naming one promotion -- the Simulation Studio's normal scope, and
-    # the Command Center's whenever an Offer is picked -- could therefore never
+    # the Insights Hub's whenever an Offer is picked -- could therefore never
     # report a rate, however much evidence the Brand Form held.
     #
     # For every other scope shape this is the same row set as before:
@@ -401,7 +401,7 @@ def kpis(state: FilterState, currency: str = "INR") -> dict[str, Any]:
             "info": {"name": spec.label, "formula": spec.formula, "meaning": spec.meaning},
         }
 
-    # The floor and the ladder, applied ONCE and here, so the Command Center
+    # The floor and the ladder, applied ONCE and here, so the Insights Hub
     # card and everything reading `service.kpis` -- the Simulation Studio
     # included -- report the same rate from the same evidence.
     _cannibalization_card(cards["cannibalization_rate"], state, bundle)

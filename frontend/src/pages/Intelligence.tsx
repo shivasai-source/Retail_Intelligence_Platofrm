@@ -372,9 +372,9 @@ function DeepeningState({
 }
 
 // Promotion Intelligence is the layer BELOW an investigation, not a second
-// Command Center. It inherits the investigation's question and scope and
+// Insights Hub. It inherits the investigation's question and scope and
 // explains the mechanism behind the root cause — which is why there is no
-// independent filter bar here: re-scoping is what the Command Center is for.
+// independent filter bar here: re-scoping is what the Insights Hub is for.
 export function Intelligence() {
   const navigate = useNavigate()
   const { show } = useToast()

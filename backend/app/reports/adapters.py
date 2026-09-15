@@ -148,7 +148,7 @@ def base_meta(state: FilterState, currency: str, source: str, extra: tuple = ())
 
 
 def _kpi(card: dict[str, Any], kind: str) -> KpiEntry:
-    """One Command Center KPI card, copied — not recomputed.
+    """One Insights Hub KPI card, copied — not recomputed.
 
     Every field here exists on the payload the card itself rendered from, and
     the two the SCREEN shows but a naive copy would drop are picked up
@@ -156,7 +156,7 @@ def _kpi(card: dict[str, Any], kind: str) -> KpiEntry:
 
       * `comparable_events` — how much evidence stood behind the rate;
       * `measured_at` — the wider scope's measurement the tile falls back to
-        when the selected scope cannot support one. The Command Center renders
+        when the selected scope cannot support one. The Insights Hub renders
         it as "2.3% across all channels · 144 comparable events"; a report
         without it says only "not available" and looks like a missing value.
     """
@@ -193,17 +193,17 @@ def _kpi(card: dict[str, Any], kind: str) -> KpiEntry:
     )
 
 
-#: KPI key -> the column kind it should be formatted as. The Command Center's own
+#: KPI key -> the column kind it should be formatted as. The Insights Hub's own
 #: `unit` field drives this; the map exists only to translate its vocabulary.
 _UNIT_KIND = {"currency": "currency", "percent": "percent", "multiple": "multiple",
               "quantity": "units", "score": "number", "number": "number"}
 
 
-# --- Command Center ----------------------------------------------------------
+# --- Insights Hub ----------------------------------------------------------
 
 
 def command_center(state: FilterState, currency: str, options: dict[str, Any]) -> ReportDoc:
-    """The Command Center, as the six cards, the risk summary and the alerts.
+    """The Insights Hub, as the six cards, the risk summary and the alerts.
 
     `service.kpis` and `service.risk_alerts` are the SAME functions
     `/api/command-center/kpis` and `/risk-alerts` call. No formula is repeated.
@@ -256,7 +256,7 @@ def command_center(state: FilterState, currency: str, options: dict[str, Any]) -
     total_alerts = sum(count for _, count in severities)
 
     doc = ReportDoc(
-        module="Command Center",
+        module="Insights Hub",
         title="Trade Promotion Performance Report",
         generated_at="", generated_display="",
         scope_line=scope_line(state),
@@ -264,7 +264,7 @@ def command_center(state: FilterState, currency: str, options: dict[str, Any]) -
         meta=base_meta(
             state, currency,
             "Measured from fact_sales by the validated KPI engine "
-            "(app/tpo/aggregate.py), through the same endpoints the Command Center "
+            "(app/tpo/aggregate.py), through the same endpoints the Insights Hub "
             "screen reads.",
         ),
         disclaimers=(
@@ -280,7 +280,7 @@ def command_center(state: FilterState, currency: str, options: dict[str, Any]) -
 
     sections: list[Section] = [
         Section("KPI summary", "kpi", entries,
-                note="Values, previous period and delta exactly as the Command Center "
+                note="Values, previous period and delta exactly as the Insights Hub "
                      "cards display them."),
         Section("Risk summary", "kv", (
             *((label, str(count)) for label, count in severities),

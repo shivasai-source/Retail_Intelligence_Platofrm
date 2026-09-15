@@ -6,7 +6,7 @@ import { RankedBar } from './RankedBar'
 import type { BreakdownGroup } from '../../types/commandCenter'
 import { BREAKEVEN_ROI, fmtRoi } from '../../lib/roi'
 
-/** The chart sections of the Command Center.
+/** The chart sections of the Insights Hub.
  *
  *  Every one takes its SCOPE from the same filter state as the KPI cards,
  *  through the same `useBreakdown` hook. There is no chart-local copy of a
@@ -79,7 +79,7 @@ export function ChannelSection() {
   // available, so the card never sits on an empty selection.
   const level = levels.find((l) => l.code === picked) ?? levels[0]
 
-  // Year is the Command Center's only global filter, so the mechanic is the
+  // Year is the Insights Hub's only global filter, so the mechanic is the
   // sole extra scope this card applies. limit 20 comfortably exceeds the five
   // channels, so nothing is truncated.
   //

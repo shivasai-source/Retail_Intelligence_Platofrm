@@ -1,7 +1,7 @@
 /**
  * FINAL PLATFORM QA — every module, in one real browser pass.
  *
- * Drives the running application through Login → Command Center → RCA →
+ * Drives the running application through Login → Insights Hub → RCA →
  * Simulation Studio (all three modes) → Decision Center → Calendar → Reports,
  * asserting that each module loads, settles, and shows no fabricated or
  * unexplained value. It also counts duplicate API requests per route, so a
@@ -105,7 +105,7 @@ async function main() {
   // ─────────────────────────────────────────────────── COMMAND CENTER
   section('COMMAND CENTER')
   let mark = since()
-  ok('loads and settles', await goto('#/command', 'Command Center'))
+  ok('loads and settles', await goto('#/command', 'Insights Hub'))
   ok('KPI cards render', await b.eval(
     'return document.body.innerText.includes("Trade Spend") ? 1 : 0') === 1)
   const ccBlanks = await b.eval(
@@ -231,7 +231,7 @@ async function main() {
 
   // ───────────────────────────────────────────────────────── NAVIGATION
   section('NAVIGATION + SETTINGS')
-  for (const [hash, label] of [['#/command', 'Command Center'], ['#/simulation', 'Simulation'],
+  for (const [hash, label] of [['#/command', 'Insights Hub'], ['#/simulation', 'Simulation'],
                                ['#/decision', 'Decision Center'], ['#/settings', 'Settings'],
                                ['#/connections', 'Connections'], ['#/home', 'Home']]) {
     ok(`${label} route settles`, await goto(hash, label))

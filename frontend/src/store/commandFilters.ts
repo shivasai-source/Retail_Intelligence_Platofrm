@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { Currency, FiltersResponse } from '../types/commandCenter'
 
-/** ONE filter state for the whole Command Center.
+/** ONE filter state for the whole Insights Hub.
  *
  *  Every panel — KPI cards, trend, risk alerts, promotion mix, both tables —
  *  reads this same object and sends it to the backend verbatim. There is no

@@ -324,7 +324,7 @@ function SpendField({
             <InfoPopover label="About current trade spend" title="Measured, not proposed" width={264}>
               <div className="mt-1 text-sm leading-[1.5] text-ink-secondary">
                 {definition?.basis ??
-                  'The validated Trade Spend KPI for this scope, from the same engine the Command Center reads.'}
+                  'The validated Trade Spend KPI for this scope, from the same engine the Insights Hub reads.'}
               </div>
             </InfoPopover>
           </label>

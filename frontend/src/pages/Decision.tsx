@@ -28,7 +28,7 @@ import type { RiskFinding } from '../types/risk'
 /** Governed Promotion Decision Center.
  *
  *  THE LAST STAGE OF THE WORKFLOW, and an assembly rather than a dashboard.
- *  Command Center → RCA → Simulation Studio → here. The page answers one
+ *  Insights Hub → RCA → Simulation Studio → here. The page answers one
  *  question: what exactly am I deciding, why was this scenario selected, what
  *  is it expected to do, what is risky about it, and what evidence stands
  *  behind it.

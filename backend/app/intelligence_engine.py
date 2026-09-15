@@ -22,7 +22,7 @@ from app.tpo import config, service
 from app.tpo.filters import rows_for
 
 # Effective discount depth per mechanic. Buy3Get1 is 25% (one unit free in
-# four) — the same reading the Command Center's economics fix applied.
+# four) — the same reading the Insights Hub's economics fix applied.
 _BUY_N_GET_M = re.compile(r"buy\s*(\d+)\s*get\s*(\d+)", re.I)
 _PERCENT = re.compile(r"(\d+(?:\.\d+)?)\s*%")
 
@@ -126,7 +126,7 @@ def inc_sales_trend(filters: dict[str, Any] | None = None) -> dict[str, Any]:
     """Realised incremental sales against the spend-implied target, by month.
 
     Target comes from config.target_incremental_sales — the same inversion of
-    the ROI definition the Command Center's "At Stake" figure uses, so the two
+    the ROI definition the Insights Hub's "At Stake" figure uses, so the two
     pages cannot disagree about what "on target" means.
     """
     t = service.trend(build_filter_state(filters), "month")

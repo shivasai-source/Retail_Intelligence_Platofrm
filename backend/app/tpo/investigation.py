@@ -30,7 +30,7 @@ contract carries no KPI value at all: the scope is expressed as a FilterState
 and Simulation measures it for itself, through the same engine the Command
 Center uses.
 
-NO SECOND FILTER MODEL. The scope is `FilterState`, the one the Command Center
+NO SECOND FILTER MODEL. The scope is `FilterState`, the one the Insights Hub
 builds and the one /simulation/run and /simulation/simulate already take. RCA's
 own "context chips" are display strings -- "Modern Trade", "Apr - Jun 2025" --
 and are NOT converted into filters here. A conversion that guessed at codes

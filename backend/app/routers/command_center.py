@@ -1,4 +1,4 @@
-"""The Command Center endpoints.
+"""The Insights Hub endpoints.
 
 Every route parses query parameters into the one shared `FilterState`,
 delegates, and serialises. No business logic lives here — see app/tpo/service.py

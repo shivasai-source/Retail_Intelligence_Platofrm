@@ -2,12 +2,12 @@
 Star-schema analysis tools for the investigation agents.
 
 The agents do NOT recompute promotion economics here. Every number comes
-from app/tpo/service.py — the same engine the Command Center renders and
+from app/tpo/service.py — the same engine the Insights Hub renders and
 that backend/tests covers with 289 tests. That is deliberate: incremental
 sales are measured against a per-(product, channel) baseline derived from
 non-promoted rows, not a naive `actual - base`. Reimplementing that in
 pandas would quietly drift, and the Investigations tab would then contradict
-the Command Center on the same dataset — the fastest way to make an
+the Insights Hub on the same dataset — the fastest way to make an
 analytics product untrustworthy.
 
 So this module is a thin, agent-shaped adapter over that engine:
@@ -293,7 +293,7 @@ def _neighbour_sales_decline(filters: dict[str, Any] | None = None) -> dict[str,
     decline is consistent with cannibalization; it does not establish that the
     promotion caused it, and the payload says so in `causality_note`.
 
-    NOT A SECOND KPI. `aggregate.cannibalization_detail` -- the Command Center's
+    NOT A SECOND KPI. `aggregate.cannibalization_detail` -- the Insights Hub's
     validated Cannibalization Rate -- is untouched and still travels beside this
     on the same finding. That one asks "what share of the promoted SKU's uplift
     came out of its ADJACENT pack sizes", in QUANTITY, at +/-1 rank. This asks

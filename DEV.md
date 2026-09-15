@@ -40,7 +40,7 @@ What actually depends on it:
 
 | Needs the key | Works without it |
 | --- | --- |
-| Investigations (the whole module) | Command Center, Simulation, Decision, Reports, Calendar |
+| Investigations (the whole module) | Insights Hub, Simulation, Decision, Reports, Calendar |
 | Promotion Intelligence — "Go deeper" analysis | Promotion Intelligence — facts, KPIs, charts (`/facts`, `/context`) |
 
 ## 2. Frontend (Vite + React)
@@ -177,9 +177,9 @@ ported 1:1 from `js/components/charts.js` et al. in the vanilla app.
 rules onto Tailwind utilities that reference the tokens in `tokens.css` —
 no new colors/spacing invented, only translated.
 
-## TPO Command Center backend (real data)
+## TPO Insights Hub backend (real data)
 
-The Command Center reads the finalized TPO datasets through a new FastAPI
+The Insights Hub reads the finalized TPO datasets through a new FastAPI
 service. Run it exactly as above — no extra process, no database.
 
 ```

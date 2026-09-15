@@ -10,7 +10,7 @@ export function useStartInvestigationRun() {
     mutationFn: (body: {
       question: string
       dataset_id: string | null
-      /** The scope a Command Center hand-off drilled in with, when there was
+      /** The scope a Insights Hub hand-off drilled in with, when there was
        *  one. The backend pins the run to it instead of letting the planning
        *  agent infer a scope from the question's wording. */
       scope?: Record<string, unknown> | null

@@ -10,7 +10,7 @@ not — see excel.py. It walks the sections an adapter built.
 VALUES ARRIVE RAW AND ARE RENDERED THROUGH THE PROJECT'S OWN FORMATTER. A
 currency cell holds `9071892.0` and is printed by `app/tpo/formatting.money`,
 which is the function the screen used — so the PDF carries the same figure in
-the same currency the Command Center showed, rather than inventing a second
+the same currency the Insights Hub showed, rather than inventing a second
 formatting rule. The one substitution is the rupee SYMBOL, which none of the
 fonts available here can draw; see `_UNPRINTABLE`.
 
@@ -138,7 +138,7 @@ def _kpi_number(value: float | None, kind: str, currency: str) -> str:
     it, so this fills the gap — and it must fill it with the SAME rule the card
     used, or the two columns of one row disagree about precision. That is why
     `score` is called at its default zero decimals here and not at the one the
-    generic table renderer uses: the Command Center prints PEI as "66", so the
+    generic table renderer uses: the Insights Hub prints PEI as "66", so the
     previous period must print as "70", not "70.0".
     """
     if value is None:

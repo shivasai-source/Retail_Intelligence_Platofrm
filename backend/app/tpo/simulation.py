@@ -2,8 +2,8 @@
 
 ORCHESTRATION ONLY. Not one KPI is computed in this module. Every number it
 returns comes out of app/tpo/aggregate.py by way of app/tpo/service.py -- the
-same call the Command Center's cards make -- so a scenario baseline and the
-Command Center cannot disagree about the same scope.
+same call the Insights Hub's cards make -- so a scenario baseline and the
+Insights Hub cannot disagree about the same scope.
 
 That matters most for ROI. There is exactly one Promotion ROI in this product,
 `aggregate.roi_multiple`:
@@ -11,7 +11,7 @@ That matters most for ROI. There is exactly one Promotion ROI in this product,
     ROI = Incremental Sales / Trade Spend        (a multiple: 1.4)
 
 The Simulation Studio used to divide revenue by spend in the browser and call
-the result "ROI" -- a different numerator, sitting next to a Command Center
+the result "ROI" -- a different numerator, sitting next to a Insights Hub
 reporting against a 1.5 target. It no longer computes anything.
 
 WHAT PHASE A DELIBERATELY DOES NOT DO
@@ -65,10 +65,10 @@ LEVERS_NOT_MODELLED = (
 class SimulationKpi:
     """One output figure and where it is read from.
 
-    `card_key` names the Command Center KPI card this figure IS -- not one
+    `card_key` names the Insights Hub KPI card this figure IS -- not one
     computed the same way, the same call. Reading the label, formula text and
     unavailability reason from that card too means the Simulation Studio
-    cannot describe a KPI differently from the way the Command Center
+    cannot describe a KPI differently from the way the Insights Hub
     describes it.
     """
 
@@ -80,7 +80,7 @@ class SimulationKpi:
 
 
 #: The seven Phase A figures. `incremental_units` is the only one that is not
-#: a Command Center card; it is read straight off the same engine function
+#: a Insights Hub card; it is read straight off the same engine function
 #: `aggregate.calculate_kpis` uses for it (see `_incremental_units`).
 SIMULATION_KPIS: tuple[SimulationKpi, ...] = (
     SimulationKpi("trade_spend", "trade_spend"),
@@ -127,7 +127,7 @@ def _incremental_units(state: FilterState) -> float | None:
 
 
 def _kpis(state: FilterState, currency: str) -> dict[str, Any]:
-    """The seven figures, read from the Command Center's own KPI payload.
+    """The seven figures, read from the Insights Hub's own KPI payload.
 
     Deliberately `service.kpis` and not a fresh `aggregate.calculate_kpis`
     call: the scope rules that surround the engine -- the baseline-widened
@@ -157,7 +157,7 @@ def _kpis(state: FilterState, currency: str) -> dict[str, Any]:
             # stood behind the rate, and -- when this scope could not support
             # one -- the wider scope `service.cannibalization_resolution`
             # settled on. Copied rather than recomputed, so the studio and the
-            # Command Center cannot disagree about either.
+            # Insights Hub cannot disagree about either.
             for extra in ("comparable_events", "measured_at"):
                 if extra in card:
                     out[kpi.key][extra] = card[extra]

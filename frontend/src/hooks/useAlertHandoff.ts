@@ -9,12 +9,12 @@ import type { RiskAlert } from '../types/commandCenter'
  *
  *  EXTRACTED, NOT REWRITTEN. This is the function that lived in
  *  `pages/CommandCenter.tsx`, moved verbatim so the notification bell in the
- *  Topbar can open the SAME investigation the Command Center's own alert rows
+ *  Topbar can open the SAME investigation the Insights Hub's own alert rows
  *  open. A second copy in the header would be a second RCA flow, free to drift
  *  from the first about what scope it hands over.
  *
  *  These call sites already held the clicked entity and threw it away,
- *  navigating with nothing. They hand over the Command Center's own validated
+ *  navigating with nothing. They hand over the Insights Hub's own validated
  *  FilterState, narrowed only by identifiers the source ACTUALLY provides.
  *
  *  A RISK ALERT CARRIES THE EVENT'S CODES — promotion, product and channel —
@@ -40,14 +40,14 @@ import type { RiskAlert } from '../types/commandCenter'
  *  carried, the investigation's headline matches the alert's own figure.
  *
  *  The YEAR comes from the same string for the same reason: "2025-W41" is only
- *  a week once you know which year's week it is, and the Command Center may be
+ *  a week once you know which year's week it is, and the Insights Hub may be
  *  showing All Years.
  *
  *  Display names ("Modern Trade", not "CH002") still stay in `labels` —
  *  turning one back into a code by guessing would select different rows from
  *  the ones clicked.
  *
- *  Nothing here recomputes anything, and the Command Center's own filter state
+ *  Nothing here recomputes anything, and the Insights Hub's own filter state
  *  is not mutated — the hand-off is a copy.
  *
  *  TWO CONSUMERS, ONE CLICK. The scope above is what the Simulation Studio
@@ -74,7 +74,7 @@ function periodOf(week?: string | null): { year?: number; week?: number } {
 
 export function useAlertHandoff(): (alert: RiskAlert) => void {
   const navigate = useNavigate()
-  // Read-only. The Command Center's own filter state is never written here.
+  // Read-only. The Insights Hub's own filter state is never written here.
   const filters = useCommandFilters((s) => s.filters)
   const startFromCommandCenter = useActiveInvestigationStore((s) => s.startFromCommandCenter)
 

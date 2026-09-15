@@ -16,7 +16,7 @@ export interface ComboLineSpec {
 }
 
 // Ported from js/components/charts.js Charts.comboBarLine — dual-axis bars + lines
-// (Command Center trend chart).
+// (Insights Hub trend chart).
 export function ComboBarLine({
   labels,
   bars,
