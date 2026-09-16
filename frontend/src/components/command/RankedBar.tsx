@@ -1,5 +1,6 @@
 import type { BreakdownGroup } from '../../types/commandCenter'
-import { BREAKEVEN_ROI, fmtRoi } from '../../lib/roi'
+import { ROI_TONE_CLASS, fmtRoi, roiTone } from '../../lib/roi'
+import { SERIES_CLASS } from './series'
 
 /** Horizontal ranking of one breakdown dimension.
  *
@@ -16,6 +17,7 @@ export function RankedBar({
   symbol,
   rowTooltip,
   fill = false,
+  targetRoi,
 }: {
   groups: BreakdownGroup[]
   /** Distribute the rows over a stretched card instead of stacking them at its
@@ -30,6 +32,8 @@ export function RankedBar({
    *  backend defines. Never a second conversion mechanism. */
   rate: number
   symbol: string
+  /** `meta.target_roi` — what each row's ROI is judged against. */
+  targetRoi: number
 }) {
   const max = Math.max(
     ...groups.map((g) => Math.max(g.incremental_sales ?? 0, g.trade_spend ?? 0)),
@@ -63,11 +67,7 @@ export function RankedBar({
               {' · '}
               {/* ROI is a multiple of spend and is never currency-converted. */}
               <span
-                className={
-                  g.roi === null ? 'text-ink-muted'
-                  : g.roi < BREAKEVEN_ROI ? 'font-semibold text-status-danger'
-                  : 'font-semibold text-status-success'
-                }
+                className={ROI_TONE_CLASS[roiTone(g.roi, targetRoi)]}
               >
                 {fmtRoi(g.roi)}
               </span>
@@ -83,7 +83,7 @@ export function RankedBar({
             </div>
             <div className={`${fill ? 'h-2' : 'h-1.5'} w-full overflow-hidden rounded-full bg-ink-primary/[0.03]`}>
               <div
-                className="h-full rounded-full bg-status-danger transition-[width] duration-300 group-hover:brightness-110"
+                className={`h-full rounded-full transition-[width] duration-300 group-hover:brightness-110 ${SERIES_CLASS.spend}`}
                 style={{ width: pct(g.trade_spend) }}
                 title={`Trade Spend ${g.trade_spend_display}`}
               />
@@ -96,7 +96,7 @@ export function RankedBar({
           <span className="h-2 w-3 rounded-sm bg-brand-violet" /> Incremental Sales
         </span>
         <span className="inline-flex items-center gap-1">
-          <span className="h-1.5 w-3 rounded-sm bg-status-danger" /> Trade Spend
+          <span className={`h-1.5 w-3 rounded-sm ${SERIES_CLASS.spend}`} /> Trade Spend
         </span>
         <span>· ROI shown per row</span>
       </div>

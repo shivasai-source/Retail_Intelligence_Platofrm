@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Icon } from '../../icons'
 import { useSalesComparison } from '../../hooks/useCommandCenter'
 import { useCommandFilters } from '../../store/commandFilters'
 import { ChartFrame } from './ChartFrame'
@@ -111,8 +112,23 @@ function Segmented<T extends string>({
   )
 }
 
-const SELECT =
-  'h-[23px] cursor-pointer rounded-[var(--r-sm)] border border-border-subtle bg-surface-card px-1.5 text-xs font-semibold text-ink-primary focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet'
+/** A native <select> dressed as one of the card's own controls: the same
+ *  23px height, radius, border and type as the segmented switch beside it,
+ *  the browser's arrow replaced by the app's chevron. Native underneath, so
+ *  the keyboard and screen-reader behaviour is the platform's. */
+function Select({ children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <span className="relative inline-flex">
+      <select
+        {...props}
+        className="h-[23px] cursor-pointer appearance-none rounded-[var(--r-sm)] border border-border-subtle bg-surface-card pl-2 pr-6 text-xs font-semibold text-ink-primary transition-colors hover:bg-surface-hover focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet"
+      >
+        {children}
+      </select>
+      <Icon name="chevronDown" className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-ink-muted" />
+    </span>
+  )
+}
 
 /** Month and year — the only two values the card asks for.
  *
@@ -142,8 +158,7 @@ function PeriodPicker({
 
   return (
     <div className="inline-flex items-center gap-1.5">
-      <select
-        className={SELECT}
+      <Select
         aria-label="Month"
         value={month}
         onChange={(e) => onChange({ year, month: Number(e.target.value) })}
@@ -153,9 +168,8 @@ function PeriodPicker({
             {MONTH_ABBR[m - 1]}
           </option>
         ))}
-      </select>
-      <select
-        className={SELECT}
+      </Select>
+      <Select
         aria-label="Year"
         value={year}
         onChange={(e) => {
@@ -169,7 +183,7 @@ function PeriodPicker({
             {`F${String(y).slice(2)}`}
           </option>
         ))}
-      </select>
+      </Select>
     </div>
   )
 }
@@ -351,7 +365,7 @@ function ComparisonColumns({
                     x={centreX(i)}
                     y={height - 7}
                     textAnchor="middle"
-                    fontSize={9}
+                    fontSize={10}
                     fontWeight={700}
                     fill="var(--text-muted)"
                   >
@@ -476,8 +490,7 @@ export function SalesComparisonCard() {
       }
       controls={
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            className={SELECT}
+          <Select
             aria-label="Measure"
             value={spec?.key ?? ''}
             onChange={(e) => setMetricKey(e.target.value)}
@@ -487,7 +500,7 @@ export function SalesComparisonCard() {
                 {m.label}
               </option>
             ))}
-          </select>
+          </Select>
           <Segmented
             ariaLabel="Comparison period"
             value={comparison}

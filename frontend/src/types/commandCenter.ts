@@ -34,6 +34,10 @@ export interface KpiCard {
   /** Cannibalization only — see MeasuredAt in types/simulation.ts. */
   comparable_events?: number
   measured_at?: MeasuredAt | null
+  /** The inputs the value was made from, already in the display currency,
+   *  so a reader can reconcile the figure by hand. Null when the card is
+   *  unavailable. */
+  evidence?: string | null
 }
 
 import type { MeasuredAt } from './simulation'
@@ -45,14 +49,28 @@ export interface Meta {
   currency: Currency
   base_currency: Currency
   exchange_rate: number
-  /** The ROI hurdle, as a multiple of trade spend (1.5 = 1.5). */
+  /** The ROI hurdle every figure in this payload was judged against, as a
+   *  multiple of trade spend. The reader can set it from the filter bar. */
   target_roi: number
+  /** The configured default the reader can reset to. */
+  default_target_roi: number
+  /** Inclusive bounds the backend accepts for `target_roi`. */
+  target_roi_range: [number, number]
+  /** Risk Alert band ceilings at `target_roi` — Critical < critical,
+   *  High < high, Medium < medium (= the target). */
+  severity_bands: { critical: number; high: number; medium: number }
   row_count: number
   filters_applied: Record<string, unknown>
 }
 
 export interface KpiResponse {
+  /** The six headline cards. Never more: every other reader of this payload
+   *  (reports, Simulation Studio, the agent) counts on exactly these. */
   kpis: Record<string, KpiCard>
+  /** The three diagnostic cards — `service.SECONDARY_KPI_SPECS`. Same
+   *  card shape. Optional only so a payload cached from before they existed
+   *  still renders the six. */
+  secondary?: Record<string, KpiCard>
   meta: Meta
 }
 

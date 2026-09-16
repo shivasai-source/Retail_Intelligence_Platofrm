@@ -3,6 +3,7 @@ import { Button, Dropdown, IconButton } from '../ui'
 import { Icon } from '../../icons'
 import { useCommandFilters, type ListFilterKey } from '../../store/commandFilters'
 import { MultiSelect, SelectionChips, type MultiOption } from './MultiSelect'
+import { TargetRoiControl, type TargetRoiInfo } from './TargetRoiControl'
 import type { Currency, FiltersResponse, Option } from '../../types/commandCenter'
 
 /** A single-select dropdown over a filter the API models as a list.
@@ -113,16 +114,25 @@ export function FilterBar({
   options,
   onRefresh,
   refreshing,
+  target,
+  refreshInline = true,
 }: {
   options: FiltersResponse | undefined
   onRefresh: () => void
   refreshing: boolean
+  /** False when the page draws the refresh button itself (the Insights Hub
+   *  keeps it beside Export, so a wrapping filter row never strands it). */
+  refreshInline?: boolean
+  /** The target ROI control — current value, default and bounds, from the
+   *  KPI payload's meta. Omitted where the page has no target to set. */
+  target?: TargetRoiInfo
 }) {
   const filters = useCommandFilters((s) => s.filters)
   const currency = useCommandFilters((s) => s.currency)
   const expanded = useCommandFilters((s) => s.expanded)
   const set = useCommandFilters((s) => s.set)
   const setCurrency = useCommandFilters((s) => s.setCurrency)
+  const setTargetRoi = useCommandFilters((s) => s.setTargetRoi)
   const toggleExpanded = useCommandFilters((s) => s.toggleExpanded)
   const reset = useCommandFilters((s) => s.reset)
   const reconcile = useCommandFilters((s) => s.reconcile)
@@ -171,7 +181,7 @@ export function FilterBar({
       {/* Primary controls — same row, same order, same controls as before.
           `flex-wrap` lets the bar reflow on tablet/mobile instead of forcing a
           horizontal scrollbar; nothing is hidden or reordered. */}
-      <div className="flex flex-wrap items-center justify-end gap-2" role="group" aria-label="Insights Hub filters">
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Insights Hub filters">
         <Dropdown
           selected={yearLabel}
           options={[{ label: 'All Years' }, ...years.map((y) => ({ label: y.name }))]}
@@ -272,7 +282,11 @@ export function FilterBar({
 
         <CurrencyToggle currency={currency} onChange={setCurrency} />
 
-        <IconButton icon="refresh" className="!h-9 !w-9" title="Refresh data" spinning={refreshing} disabled={refreshing} onClick={onRefresh} />
+        {target && <TargetRoiControl target={target} onApply={setTargetRoi} />}
+
+        {refreshInline && (
+          <IconButton icon="refresh" className="!h-9 !w-9" title="Refresh data" spinning={refreshing} disabled={refreshing} onClick={onRefresh} />
+        )}
       </div>
 
     </>

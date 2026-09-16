@@ -67,28 +67,47 @@ DATA_DIR = _resolve_data_dir()
 #: 50% net-return target, restated on the multiple scale.
 PROMOTION_TARGET_ROI: float = 1.5
 
-#: Risk Alert severity bands, as ROI multiples. A promotion at or above the
-#: target is not an alert at all.
-SEVERITY_BANDS = {
-    "critical": 1.25,  # ROI < 1.25
-    "high": 1.4,       # 1.25 <= ROI < 1.4
-    "medium": 1.5,     # 1.4 <= ROI < 1.5
+#: The range a reader may set the target to on the Insights Hub. Below 1.00
+#: a promotion "hits target" while losing money; above 2.00 nothing in the
+#: data clears it and every panel goes red. Both ends are inclusive.
+TARGET_ROI_MIN: float = 1.0
+TARGET_ROI_MAX: float = 2.0
+
+#: How far beneath the target each Risk Alert band starts, as ROI multiples.
+#: Stated as OFFSETS so the bands travel with the target: at the default 1.50
+#: they are the long-standing 1.25 / 1.40 / 1.50, and a reader who sets 1.70
+#: gets 1.45 / 1.60 / 1.70 -- the same shape, moved.
+SEVERITY_OFFSETS = {
+    "critical": -0.25,  # ROI < target - 0.25
+    "high": -0.10,      # target - 0.25 <= ROI < target - 0.10
+    "medium": 0.0,      # target - 0.10 <= ROI < target
 }
 
 
-def target_incremental_sales(trade_spend: float) -> float:
+def severity_bands(target: float = PROMOTION_TARGET_ROI) -> dict[str, float]:
+    """The three band ceilings for a given target. A promotion at or above
+    the target is not an alert at all."""
+    return {band: round(target + offset, 2) for band, offset in SEVERITY_OFFSETS.items()}
+
+
+#: The bands at the default target -- what every module other than the
+#: Insights Hub reads, and what the Insights Hub reads until a target is set.
+SEVERITY_BANDS = severity_bands()
+
+
+def target_incremental_sales(trade_spend: float, target: float = PROMOTION_TARGET_ROI) -> float:
     """Incremental revenue a given trade spend must return to hit target.
 
     Inverting the ROI definition,
         ROI = Incremental Sales / Trade Spend
-    at ROI = PROMOTION_TARGET_ROI gives
+    at ROI = target gives
         Target Incremental Sales = Trade Spend x target
 
     which at the default 1.5 target is `trade_spend x 1.5` — the "At Stake"
     formula. Written as the inversion rather than as a literal 1.5 so the two
-    cannot disagree if the target ever moves.
+    cannot disagree when the target moves.
     """
-    return round(trade_spend * PROMOTION_TARGET_ROI, 1)
+    return round(trade_spend * target, 1)
 
 
 # --- approved promotion treatment rules ------------------------------------

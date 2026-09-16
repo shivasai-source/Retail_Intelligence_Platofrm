@@ -3,7 +3,7 @@ import { IconButton, Modal } from '../ui'
 import { Icon, type IconName } from '../../icons'
 import { SEVERITIES, rankByImpact, type Severity } from './riskRanking'
 import type { RiskAlert, RiskAlertsResponse } from '../../types/commandCenter'
-import { BREAKEVEN_ROI, fmtRoi } from '../../lib/roi'
+import { ROI_TONE_CLASS, fmtRoi, roiTone } from '../../lib/roi'
 
 /** Top Risk Alerts, segmented by severity.
  *
@@ -159,6 +159,7 @@ export function RiskAlertsPanel({
                 onSelect={choose}
                 delayMs={i * 60}
                 flip={i === rows.length - 1}
+                targetRoi={data.meta.target_roi}
               />
             ))}
           </div>
@@ -186,6 +187,7 @@ export function RiskAlertsPanel({
         total={listing === null ? 0 : counts[listing]}
         onClose={() => setListing(null)}
         onSelect={choose}
+        targetRoi={data.meta.target_roi}
       />
     </div>
   )
@@ -199,10 +201,13 @@ function AlertRow({
   onSelect,
   delayMs,
   flip = false,
+  targetRoi,
 }: {
   alert: RiskAlert
   onSelect: (alert: RiskAlert) => void
   delayMs: number
+  /** `meta.target_roi` — what the row's ROI is judged against. */
+  targetRoi: number
   /** Open the detail box ABOVE the row. For the last row of a scrolling
    *  list, where a box below it would be clipped by the list's edge. */
   flip?: boolean
@@ -235,9 +240,7 @@ function AlertRow({
       <div className="flex min-w-0 items-baseline justify-between gap-3">
         <span className="truncate text-base font-bold text-ink-primary">{promotionOf(a)}</span>
         <span
-          className={`shrink-0 text-sm font-bold tabular-nums ${
-            roi < BREAKEVEN_ROI ? 'text-status-danger' : 'text-ink-primary'
-          }`}
+          className={`shrink-0 text-sm font-bold tabular-nums ${ROI_TONE_CLASS[roiTone(roi, targetRoi)]}`}
         >
           ROI {fmtRoi(roi)}
         </span>
@@ -288,12 +291,14 @@ function SeverityListModal({
   total,
   onClose,
   onSelect,
+  targetRoi,
 }: {
   severity: Severity | null
   alerts: RiskAlert[]
   total: number
   onClose: () => void
   onSelect: (alert: RiskAlert) => void
+  targetRoi: number
 }) {
   const shown = alerts.slice(0, PER_SEVERITY_LIST)
 
@@ -324,6 +329,7 @@ function SeverityListModal({
                 onSelect={onSelect}
                 delayMs={0}
                 flip={i === shown.length - 1}
+                targetRoi={targetRoi}
               />
             ))}
           </div>

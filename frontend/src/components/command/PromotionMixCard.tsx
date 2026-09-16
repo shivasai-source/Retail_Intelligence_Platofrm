@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { SERIES } from './series'
 import { Card, CardHeader, CardBody, InfoBlock, InfoPopover } from '../ui'
 import { DonutBreakdown } from '../charts'
 import type { BreakdownResponse, PromotionMixResponse } from '../../types/commandCenter'
@@ -13,10 +14,10 @@ import type { BreakdownResponse, PromotionMixResponse } from '../../types/comman
  *  offer scattered the largest 2024 scheme across six slices and never named
  *  it.
  *
- *  COLOUR IS THE TREND CHART'S SERIES PALETTE, BY RANK. The Performance Trend
- *  draws Incremental Sales in the brand violet, Trade Spend in the danger
- *  red and ROI in teal; the slices take those three in order of size, then a
- *  light pink, so the two charts share one vocabulary.
+ *  COLOUR IS THE PAGE'S SERIES PALETTE, BY RANK (see series.ts). The
+ *  Performance Trend draws Incremental Sales in the brand violet, Trade
+ *  Spend in orange and ROI in teal; the slices take those three in order of
+ *  size, then a light pink, so the two charts share one vocabulary.
  *  The six-colour palette `/promotion-mix` carries (violet, blue, teal,
  *  amber, red, grey) was the one thing on the page that did not match, and
  *  is ignored on purpose; its labels are still used.
@@ -148,15 +149,15 @@ export function PromotionMixCard({
   )
 }
 
-/** Largest slice first: the Performance Trend's Incremental Sales, Trade
- *  Spend and ROI colours (see TrendPanels.tsx), then a light pink -- the rose
+/** Largest slice first: the page's Incremental Sales, Trade Spend and ROI
+ *  colours (series.ts), then a light pink -- the rose
  *  tint's icon colour, softened -- for the fourth, which the trend chart has
  *  no series for. The tokens resolve per theme, so the dark palette needs no
  *  second list. */
 const RAMP = [
-  'var(--brand-violet)',
-  'var(--status-danger)',
-  'var(--tint-teal-icon)',
+  SERIES.incremental,
+  SERIES.spend,
+  SERIES.roi,
   // Toward WHITE, not transparent: over the dark card a translucent pink
   // went mauve. A tint stays pink on either ground.
   'color-mix(in srgb, var(--tint-rose-icon) 55%, white)',

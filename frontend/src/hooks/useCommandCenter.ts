@@ -46,7 +46,8 @@ function useScope() {
   // without this gate every panel would fetch the whole two-year dataset and
   // then immediately refetch the real year, doubling first-load traffic.
   const initialised = useCommandFilters((s) => s.initialised)
-  return { filters, year, currency, enabled: initialised }
+  const targetRoi = useCommandFilters((s) => s.targetRoi)
+  return { filters, year, currency, targetRoi, enabled: initialised }
 }
 
 /** Options every Insights Hub query shares.
@@ -70,10 +71,12 @@ function commandQuery(
   year: number | null,
   currency?: Currency,
   extra?: Record<string, string | number | string[] | undefined>,
+  targetRoi?: number | null,
 ): string {
   const params = new URLSearchParams()
   if (year !== null && year !== undefined) params.set('year', String(year))
   if (currency) params.set('currency', currency)
+  if (targetRoi !== null && targetRoi !== undefined) params.set('target_roi', String(targetRoi))
   for (const [k, v] of Object.entries(extra ?? {})) {
     if (v === undefined) continue
     // A list is REPEATED, not joined: the API models every list filter as
@@ -87,21 +90,21 @@ function commandQuery(
 
 /** Cache key for a chart: the year scope only, so a Channel or Product change
  *  cannot invalidate it. */
-function key(name: string, year: number | null, currency?: Currency) {
-  return ['command-center', name, year ?? 'all', currency ?? null] as const
+function key(name: string, year: number | null, currency?: Currency, targetRoi?: number | null) {
+  return ['command-center', name, year ?? 'all', currency ?? null, targetRoi ?? null] as const
 }
 
 /** Cache key for a KPI-scoped query: every filter, because every filter moves
  *  the answer. */
-function fullKey(name: string, filters: CommandFilters, currency?: Currency) {
-  return ['command-center', name, filters, currency ?? null] as const
+function fullKey(name: string, filters: CommandFilters, currency?: Currency, targetRoi?: number | null) {
+  return ['command-center', name, filters, currency ?? null, targetRoi ?? null] as const
 }
 
 export function useKpis() {
-  const { filters, currency, enabled } = useScope()
+  const { filters, currency, targetRoi, enabled } = useScope()
   return useQuery({
-    queryKey: fullKey('kpis', filters, currency),
-    queryFn: () => apiFetch<KpiResponse>(`/command-center/kpis?${toQuery(filters, currency)}`),
+    queryKey: fullKey('kpis', filters, currency, targetRoi),
+    queryFn: () => apiFetch<KpiResponse>(`/command-center/kpis?${toQuery(filters, currency, targetRoi)}`),
     enabled,
     ...CACHED,
   })
@@ -176,34 +179,34 @@ export function useSalesComparison(period: { year: number; month: number } | nul
 }
 
 export function useTrend(granularity: 'week' | 'month') {
-  const { year, currency, enabled } = useScope()
+  const { year, currency, targetRoi, enabled } = useScope()
   return useQuery({
-    queryKey: [...key('trend', year, currency), granularity],
+    queryKey: [...key('trend', year, currency, targetRoi), granularity],
     queryFn: () =>
-      apiFetch<TrendResponse>(`/command-center/trend?${commandQuery(year, currency, { granularity })}`),
+      apiFetch<TrendResponse>(`/command-center/trend?${commandQuery(year, currency, { granularity }, targetRoi)}`),
     enabled,
     ...CACHED,
   })
 }
 
 export function useRiskAlerts(limit = 20) {
-  const { year, currency, enabled } = useScope()
+  const { year, currency, targetRoi, enabled } = useScope()
   return useQuery({
-    queryKey: [...key('risk-alerts', year, currency), limit],
+    queryKey: [...key('risk-alerts', year, currency, targetRoi), limit],
     queryFn: () =>
-      apiFetch<RiskAlertsResponse>(`/command-center/risk-alerts?${commandQuery(year, currency, { limit })}`),
+      apiFetch<RiskAlertsResponse>(`/command-center/risk-alerts?${commandQuery(year, currency, { limit }, targetRoi)}`),
     enabled,
     ...CACHED,
   })
 }
 
 export function useUnderperforming(limit = 20) {
-  const { year, currency, enabled } = useScope()
+  const { year, currency, targetRoi, enabled } = useScope()
   return useQuery({
-    queryKey: [...key('underperforming', year, currency), limit],
+    queryKey: [...key('underperforming', year, currency, targetRoi), limit],
     queryFn: () =>
       apiFetch<UnderperformingResponse>(
-        `/command-center/underperforming-promotions?${commandQuery(year, currency, { limit })}`,
+        `/command-center/underperforming-promotions?${commandQuery(year, currency, { limit }, targetRoi)}`,
       ),
     enabled,
     ...CACHED,
@@ -277,12 +280,12 @@ export function useBreakdown(
 }
 
 export function useTopPromotions(limit = 100) {
-  const { year, currency, enabled } = useScope()
+  const { year, currency, targetRoi, enabled } = useScope()
   return useQuery({
-    queryKey: [...key('top-promotions', year, currency), limit],
+    queryKey: [...key('top-promotions', year, currency, targetRoi), limit],
     queryFn: () =>
       apiFetch<TopPromotionsResponse>(
-        `/command-center/top-promotions?${commandQuery(year, currency, { limit })}`,
+        `/command-center/top-promotions?${commandQuery(year, currency, { limit }, targetRoi)}`,
       ),
     enabled,
     ...CACHED,

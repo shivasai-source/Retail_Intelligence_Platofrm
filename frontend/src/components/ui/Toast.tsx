@@ -3,7 +3,7 @@ import { Icon } from '../../icons'
 
 // React port of js/components/toast.js's imperative `Toast.show(message, opts)`.
 // Same call shape via useToast().show(...), but state-driven instead of raw DOM mutation.
-export type ToastVariant = 'success' | 'info'
+export type ToastVariant = 'success' | 'info' | 'error'
 
 interface ToastItem {
   id: number
@@ -55,8 +55,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             }`}
           >
             <Icon
-              name={t.variant === 'success' ? 'checkCircle' : 'info'}
-              className={t.variant === 'success' ? 'text-status-success' : ''}
+              name={t.variant === 'success' ? 'checkCircle' : t.variant === 'error' ? 'alertTriangle' : 'info'}
+              className={t.variant === 'success' ? 'text-status-success' : t.variant === 'error' ? 'text-status-danger' : ''}
             />
             <span>{t.message}</span>
           </div>

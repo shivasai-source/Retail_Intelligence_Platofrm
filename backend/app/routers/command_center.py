@@ -14,7 +14,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query
 
-from app.tpo import service
+from app.tpo import config, service
 from app.tpo.filters import FilterState
 
 router = APIRouter(prefix="/api/command-center", tags=["command-center"])
@@ -50,6 +50,11 @@ def get_filters(
 Filters = Annotated[FilterState, Depends(get_filters)]
 Currency = Annotated[str, Query(pattern="^(INR|USD|inr|usd)$")]
 
+#: The ROI hurdle the reader may set from the Insights Hub filter bar. Bounded
+#: at the API as well as in the control, so a hand-typed URL cannot judge the
+#: promotions against a target the product does not allow.
+TargetRoi = Annotated[float, Query(ge=config.TARGET_ROI_MIN, le=config.TARGET_ROI_MAX)]
+
 
 @router.get("/filters")
 def filters(state: Filters) -> dict[str, Any]:
@@ -58,9 +63,11 @@ def filters(state: Filters) -> dict[str, Any]:
 
 
 @router.get("/kpis")
-def kpis(state: Filters, currency: Currency = "INR") -> dict[str, Any]:
+def kpis(
+    state: Filters, currency: Currency = "INR", target_roi: TargetRoi = config.PROMOTION_TARGET_ROI
+) -> dict[str, Any]:
     """The six KPI cards, from the single engine in app/tpo/aggregate.py."""
-    return service.kpis(state, currency)
+    return service.kpis(state, currency, target_roi)
 
 
 @router.get("/trend")
@@ -68,20 +75,29 @@ def trend(
     state: Filters,
     granularity: Annotated[str, Query(pattern="^(week|month)$")] = "week",
     currency: Currency = "INR",
+    target_roi: TargetRoi = config.PROMOTION_TARGET_ROI,
 ) -> dict[str, Any]:
-    return service.trend(state, granularity, currency)
+    return service.trend(state, granularity, currency, target=target_roi)
 
 
 @router.get("/risk-alerts")
-def risk_alerts(state: Filters, currency: Currency = "INR", limit: int = 20) -> dict[str, Any]:
-    return service.risk_alerts(state, currency, limit)
+def risk_alerts(
+    state: Filters,
+    currency: Currency = "INR",
+    limit: int = 20,
+    target_roi: TargetRoi = config.PROMOTION_TARGET_ROI,
+) -> dict[str, Any]:
+    return service.risk_alerts(state, currency, limit, target_roi)
 
 
 @router.get("/underperforming-promotions")
 def underperforming_promotions(
-    state: Filters, currency: Currency = "INR", limit: int = 20
+    state: Filters,
+    currency: Currency = "INR",
+    limit: int = 20,
+    target_roi: TargetRoi = config.PROMOTION_TARGET_ROI,
 ) -> dict[str, Any]:
-    return service.underperforming_promotions(state, currency, limit)
+    return service.underperforming_promotions(state, currency, limit, target_roi)
 
 
 @router.get("/promotion-mix")
@@ -90,8 +106,13 @@ def promotion_mix(state: Filters, currency: Currency = "INR") -> dict[str, Any]:
 
 
 @router.get("/top-promotions")
-def top_promotions(state: Filters, currency: Currency = "INR", limit: int = 10) -> dict[str, Any]:
-    return service.top_promotions(state, currency, limit)
+def top_promotions(
+    state: Filters,
+    currency: Currency = "INR",
+    limit: int = 10,
+    target_roi: TargetRoi = config.PROMOTION_TARGET_ROI,
+) -> dict[str, Any]:
+    return service.top_promotions(state, currency, limit, target_roi)
 
 
 #: Built from the service's own whitelists so the route and the implementation

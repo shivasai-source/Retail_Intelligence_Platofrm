@@ -3,8 +3,9 @@ import { useBreakdown, useFilterOptions, useTopPromotions } from '../../hooks/us
 import { useCommandFilters } from '../../store/commandFilters'
 import { ChartFrame } from './ChartFrame'
 import { RankedBar } from './RankedBar'
+import { SERIES, SERIES_CLASS } from './series'
 import type { BreakdownGroup } from '../../types/commandCenter'
-import { BREAKEVEN_ROI, fmtRoi } from '../../lib/roi'
+import { ROI_TONE_CLASS, ROI_TONE_VAR, fmtRoi, roiTone } from '../../lib/roi'
 
 /** The chart sections of the Insights Hub.
  *
@@ -144,6 +145,7 @@ export function ChannelSection() {
           fill
           groups={data.groups}
           rate={data.meta.exchange_rate}
+          targetRoi={data.meta.target_roi}
           symbol={symbol}
           rowTooltip={(g) =>
             `${g.label}
@@ -349,15 +351,14 @@ ${r.channel} · ${r.period}
                   </span>
                 </span>
               </span>
-              <span className="shrink-0 font-bold tabular-nums text-status-success">{r.roi_display}</span>
+              <span className={`shrink-0 font-bold tabular-nums ${ROI_TONE_CLASS[roiTone(r.roi_multiple, q.data?.meta.target_roi ?? 1.5)]}`}>{r.roi_display}</span>
             </div>
-            {/* TEAL, because this bar is the ROI -- the colour the trend line and
-                the type chart already give that figure. It also tells the three
-                ranked-bar cards apart: Contribution keeps the violet of the money
-                it composes, Product Performance takes the sky blue. */}
+            {/* TEAL, because this bar is the ROI -- the colour every chart on
+                the page gives that figure (see series.ts). A bar's colour is
+                the metric it draws, never the card it sits in. */}
             <div className="mt-1 h-2.5 w-full overflow-hidden rounded-full bg-ink-primary/[0.05]">
               <div
-                className="h-full rounded-full bg-tint-teal-icon transition-[width] duration-300 group-hover:brightness-110"
+                className={`h-full rounded-full transition-[width] duration-300 group-hover:brightness-110 ${SERIES_CLASS.roi}`}
                 style={{ width: `${Math.max(0, Math.min(100, (r.roi_multiple / peak) * 100))}%` }}
               />
             </div>
@@ -485,7 +486,7 @@ export function PromotionContributionSection() {
                   the money. The share is the number to the right. */}
               <div className="mt-1.5 h-4 w-full overflow-hidden rounded-full bg-ink-primary/[0.05]">
                 <div
-                  className="h-full rounded-full bg-brand-violet transition-[width] duration-300 group-hover:brightness-110"
+                  className={`h-full rounded-full transition-[width] duration-300 group-hover:brightness-110 ${metric === 'trade_spend' ? SERIES_CLASS.spend : SERIES_CLASS.incremental}`}
                   style={{ width: `${Math.max(0, Math.min(100, (value(g) / peak) * 100))}%` }}
                 />
               </div>
@@ -501,11 +502,7 @@ export function PromotionContributionSection() {
                 <span className="shrink-0 tabular-nums">
                   ROI{' '}
                   <span
-                    className={
-                      g.roi === null ? 'text-ink-muted'
-                      : g.roi < BREAKEVEN_ROI ? 'font-semibold text-status-danger'
-                      : 'font-semibold text-status-success'
-                    }
+                    className={ROI_TONE_CLASS[roiTone(g.roi, q.data?.meta.target_roi ?? 1.5)]}
                   >
                     {fmtRoi(g.roi)}
                   </span>
@@ -643,6 +640,7 @@ export function PromotionTypeSection() {
           total={total}
           rate={q.data.meta.exchange_rate}
           symbol={symbol}
+          targetRoi={q.data.meta.target_roi}
         />
       )}
     </ChartFrame>
@@ -664,6 +662,7 @@ function TypeColumns({
   total,
   rate,
   symbol,
+  targetRoi,
 }: {
   groups: BreakdownGroup[]
   metric: PerfMetric
@@ -671,6 +670,8 @@ function TypeColumns({
   total: number
   rate: number
   symbol: string
+  /** `meta.target_roi` — what the ROI under each column is judged against. */
+  targetRoi: number
 }) {
   const { ref, width, height } = useChartSize(360, 300)
   const [hover, setHover] = useState<number | null>(null)
@@ -805,7 +806,7 @@ function TypeColumns({
                   x={centreX(i)}
                   y={v !== null && v < 0 ? Math.max(y(v), zeroY) + 13 : Math.min(y(v ?? 0), zeroY) - 7}
                   textAnchor="middle"
-                  fontSize={10.5}
+                  fontSize={10}
                   fontWeight={700}
                   fill="var(--text-primary)"
                 >
@@ -830,13 +831,7 @@ function TypeColumns({
                     textAnchor="middle"
                     fontSize={10}
                     fontWeight={700}
-                    fill={
-                      roi === null
-                        ? 'var(--text-muted)'
-                        : roi < BREAKEVEN_ROI
-                          ? 'var(--status-danger)'
-                          : 'var(--status-success)'
-                    }
+                    fill={ROI_TONE_VAR[roiTone(roi, targetRoi)]}
                   >
                     {fmtRoi(roi)}
                   </text>
@@ -949,11 +944,7 @@ export function ProductSection() {
                   <>
                     {' · '}
                     <span
-                      className={
-                        g.roi === null ? 'text-ink-muted'
-                        : g.roi < BREAKEVEN_ROI ? 'font-semibold text-status-danger'
-                        : 'font-semibold text-status-success'
-                      }
+                      className={ROI_TONE_CLASS[roiTone(g.roi, q.data?.meta.target_roi ?? 1.5)]}
                     >
                       {fmtRoi(g.roi)}
                     </span>
@@ -961,10 +952,13 @@ export function ProductSection() {
                 )}
               </span>
             </div>
-            {/* Sky blue: see the note on the Top Performing bar. */}
+            {/* The colour of the metric being ranked, so switching the toggle
+                recolours the bars to match the same metric everywhere else. */}
             <div className="mt-1 h-2.5 w-full overflow-hidden rounded-full bg-ink-primary/[0.05]">
               <div
-                className="h-full rounded-full bg-tint-sky-icon transition-[width] duration-300 group-hover:brightness-110"
+                className={`h-full rounded-full transition-[width] duration-300 group-hover:brightness-110 ${
+                  metric === 'roi' ? SERIES_CLASS.roi : metric === 'trade_spend' ? SERIES_CLASS.spend : SERIES_CLASS.incremental
+                }`}
                 style={{
                   width: `${Math.max(0, Math.min(100, (Math.abs(perfValue(g, metric) ?? 0) / peak) * 100))}%`,
                 }}
@@ -1049,15 +1043,13 @@ function fitLabel(text: string, px: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text
 }
 
-export const SERIES = {
-  incremental: 'var(--brand-violet)',
-  spend: 'var(--status-danger)',
-} as const
+export { SERIES } from './series'
 
 function RegionColumns({
   groups,
   rate,
   symbol,
+  targetRoi,
 }: {
   groups: BreakdownGroup[]
   /** From `meta.exchange_rate` — the single backend-defined rate. Used for the
@@ -1065,6 +1057,8 @@ function RegionColumns({
    *  group is the backend's own `*_display` string. */
   rate: number
   symbol: string
+  /** `meta.target_roi` — what the ROI under each column is judged against. */
+  targetRoi: number
 }) {
   const { ref, width, height } = useChartSize(700, 300)
   const [hover, setHover] = useState<number | null>(null)
@@ -1229,7 +1223,7 @@ function RegionColumns({
                       : Math.min(y(g.incremental_sales ?? 0), zeroY) - 7
                   }
                   textAnchor="middle"
-                  fontSize={10.5}
+                  fontSize={10}
                   fontWeight={700}
                   fill="var(--text-primary)"
                 >
@@ -1253,13 +1247,7 @@ function RegionColumns({
                   textAnchor="middle"
                   fontSize={10}
                   fontWeight={700}
-                  fill={
-                    roi === null
-                      ? 'var(--text-muted)'
-                      : roi < BREAKEVEN_ROI
-                        ? 'var(--status-danger)'
-                        : 'var(--status-success)'
-                  }
+                  fill={ROI_TONE_VAR[roiTone(roi, targetRoi)]}
                 >
                   {fmtRoi(roi)}
                 </text>
@@ -1415,7 +1403,7 @@ export function SalesByRegionSection() {
       emptyMessage={`No promotion activity in any region for ${cut}.`}
       footnote={`${rows.length} region${rows.length === 1 ? '' : 's'} ranked by Incremental Sales · ${cut}. A ranking, not a share — Incremental Sales is re-baselined per region, so the regions do not sum to the headline figure.`}
     >
-      <RegionColumns groups={rows} rate={q.data?.meta.exchange_rate ?? 1} symbol={symbol} />
+      <RegionColumns groups={rows} rate={q.data?.meta.exchange_rate ?? 1} symbol={symbol} targetRoi={q.data?.meta.target_roi ?? 1.5} />
     </ChartFrame>
   )
 }

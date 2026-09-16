@@ -12,6 +12,11 @@ const TINTS: Record<string, { bg: string; fg: string }> = {
   amber: { bg: '#FEF1D7', fg: '#F59E0B' },
   mint: { bg: '#D8F3E6', fg: '#10B981' },
   rose: { bg: '#FFE4E6', fg: '#F43F5E' },
+  // The Insights Hub's second row. Three tints the first row does not use,
+  // so the nine cards stay tellable apart at a glance.
+  teal: { bg: '#CCEFE9', fg: '#14B8A6' },
+  peach: { bg: '#FFE4D1', fg: '#F97316' },
+  lemon: { bg: '#FFF4CF', fg: '#CA8A04' },
 }
 
 // Six columns, not five: the Insights Hub carries six KPI cards (Cannibalization
@@ -33,7 +38,7 @@ export interface KpiInfo {
 /** The KPI card's ⓘ. Formula only — the definition, not documentation.
  *  Rendered through the shared InfoPopover so it is identical in size,
  *  placement and styling to every other info button on the page. */
-function InfoDot({ info, unit }: { info: KpiInfo; unit?: string }) {
+function InfoDot({ info, unit, evidence }: { info: KpiInfo; unit?: string; evidence?: string | null }) {
   const unitLabel =
     unit === 'currency' ? 'Currency · base INR'
     : unit === 'percent' ? 'Percent'
@@ -42,8 +47,12 @@ function InfoDot({ info, unit }: { info: KpiInfo; unit?: string }) {
     : undefined
 
   return (
-    <InfoPopover label={`About ${info.name}`} title={info.name}>
+    <InfoPopover label={`About ${info.name}`} title={info.name} width={evidence ? 272 : 232}>
       <InfoBlock label="Formula">{info.formula}</InfoBlock>
+      {/* The numbers this card's value was made from. Always in the popover,
+          so a card whose width has no room for the evidence line still has
+          it one click away. */}
+      {evidence && <InfoBlock label="This selection">{evidence}</InfoBlock>}
       {unitLabel && <div className="mt-1.5 text-xs text-ink-muted">{unitLabel}</div>}
     </InfoPopover>
   )
@@ -63,6 +72,9 @@ export function TpoKpiTile({
   info,
   unit,
   lowerIsBetter = false,
+  evidence,
+  className = '',
+  labelLines = 1,
 }: {
   label: string
   value: string
@@ -83,6 +95,17 @@ export function TpoKpiTile({
   /** Trade Spend and Cannibalization improve as they fall, so a rise is not
    *  good news. Direction and desirability are separate facts. */
   lowerIsBetter?: boolean
+  /** The inputs the value was made from — "1,414 of 3,240 events at or
+   *  above 1.50". Shown in the ⓘ, under the formula, so the tile itself
+   *  stays a label, a value and a movement. Omitted on every other surface. */
+  evidence?: string | null
+  /** Grid placement only — a headline tile passes its column span. The
+   *  tile itself never changes size: one card, one shape, everywhere. */
+  className?: string
+  /** How many lines the label may take. 1 truncates (the default every
+   *  other page keeps); 2 wraps and reserves the space so a whole row of
+   *  tiles keeps its values on one baseline. */
+  labelLines?: 1 | 2
 }) {
   const t = TINTS[tint] ?? { bg: 'var(--brand-violet-50)', fg: 'var(--brand-violet)' }
   const isGood = trend === null ? null : (trend === 'up') !== lowerIsBetter
@@ -100,14 +123,14 @@ export function TpoKpiTile({
     // box or shift the grid. The transform is behind `motion-safe`, leaving
     // just the shadow under prefers-reduced-motion.
     <div
-      className="fade-in-up group/kpi relative flex items-center gap-3 rounded-[var(--r-lg)] border border-border-subtle bg-surface-card p-[16px_18px] shadow-[var(--shadow-card-soft)] transition-[transform,box-shadow,border-color] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] [animation-fill-mode:backwards] hover:border-border-default hover:shadow-[0_6px_16px_rgba(0,0,0,0.12)] motion-safe:hover:-translate-y-[3px] motion-safe:hover:scale-[1.005]"
+      className={`fade-in-up group/kpi relative flex items-center gap-3 rounded-[var(--r-lg)] border border-border-subtle bg-surface-card p-[16px_18px] shadow-[var(--shadow-card-soft)] transition-[transform,box-shadow,border-color] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] [animation-fill-mode:backwards] hover:border-border-default hover:shadow-[0_6px_16px_rgba(0,0,0,0.12)] motion-safe:hover:-translate-y-[3px] motion-safe:hover:scale-[1.005] ${className}`}
       style={{ animationDelay: `${delayMs}ms` }}
     >
       {/* Top-right, and out of the label's flex row so a long label can use the
           full width before truncating. */}
       {info && (
         <span className="absolute right-2.5 top-2.5 z-10">
-          <InfoDot info={info} unit={unit} />
+          <InfoDot info={info} unit={unit} evidence={evidence} />
         </span>
       )}
       <div
@@ -117,8 +140,17 @@ export function TpoKpiTile({
         <Icon name={icon} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1 pr-4 text-sm font-medium leading-tight text-ink-muted transition-colors duration-[220ms] group-hover/kpi:text-brand-violet">
-          <span className="truncate">{label}</span>
+        {/* `labelLines: 2` reserves two lines for EVERY tile in the row and
+            bottom-aligns the label inside them, so a name that wraps
+            ("Promotion Efficiency Index" on a six-column row) and one that
+            does not still put their values on the same baseline. The
+            default keeps the single-line tile every other page renders. */}
+        <div
+          className={`flex gap-1 pr-4 text-sm font-medium leading-tight text-ink-muted transition-colors duration-[220ms] group-hover/kpi:text-brand-violet ${
+            labelLines === 2 ? 'min-h-[2lh] items-end' : 'items-center'
+          }`}
+        >
+          <span className={labelLines === 2 ? 'line-clamp-2 break-words' : 'truncate'}>{label}</span>
         </div>
         <div className="mt-2.5 text-xl font-bold leading-[1.15] tracking-[-0.015em] text-ink-primary opacity-90 transition-opacity duration-[220ms] group-hover/kpi:opacity-100 [font-variant-numeric:tabular-nums]">
           {value}
@@ -129,6 +161,7 @@ export function TpoKpiTile({
             <strong className={`font-bold ${tone}`}>{delta}</strong> {deltaSub}
           </span>
         </div>
+
       </div>
 
       {/* THE HOVER ACCENT. A 3px rule along the bottom edge that grows out of the

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { SERIES } from './series'
 import { useChartWidth } from '../charts/useChartWidth'
 import { calendarYear } from '../../lib/labels'
 import type { TrendResponse } from '../../types/commandCenter'
@@ -199,7 +200,7 @@ export function TrendPanels({
         <polyline fill="none" stroke="var(--brand-violet)" strokeWidth={2} strokeLinejoin="round"
           points={path(series.incremental_sales)} />
         {/* 2 — Trade Spend (left axis) */}
-        <polyline fill="none" stroke="var(--status-danger)" strokeWidth={2} strokeLinejoin="round"
+        <polyline fill="none" stroke={SERIES.spend} strokeWidth={2} strokeLinejoin="round"
           points={path(series.trade_spend)} />
         {/* 3 — ROI (right axis), one run per unbroken stretch */}
         {runs.map((r, k) => (
@@ -210,7 +211,7 @@ export function TrendPanels({
         {active !== null && (
           <>
             <circle cx={cx(active)} cy={yMoney(series.incremental_sales[active])} r={3.5} fill="var(--brand-violet)" />
-            <circle cx={cx(active)} cy={yMoney(series.trade_spend[active])} r={3.5} fill="var(--status-danger)" />
+            <circle cx={cx(active)} cy={yMoney(series.trade_spend[active])} r={3.5} fill={SERIES.spend} />
             {roiAt !== null && <circle cx={cx(active)} cy={yRoi(roiAt)} r={3.5} fill="var(--tint-teal-icon)" />}
           </>
         )}
@@ -237,7 +238,7 @@ export function TrendPanels({
             {periodWord} {calendarYear(labels[active])}
           </div>
           <Row swatch="var(--brand-violet)" k="Incremental Sales" v={data.display.incremental_sales[active]} />
-          <Row swatch="var(--status-danger)" k="Trade Spend" v={data.display.trade_spend[active]} />
+          <Row swatch={SERIES.spend} k="Trade Spend" v={data.display.trade_spend[active]} />
           {roiAt === null ? (
             <div className="mt-1 text-ink-muted">ROI — no promotion / insufficient baseline</div>
           ) : (

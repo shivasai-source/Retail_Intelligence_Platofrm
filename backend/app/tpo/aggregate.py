@@ -146,6 +146,8 @@ class KpiBundle:
     roi: KpiMetric = field(default_factory=KpiMetric)
     margin_impact: KpiMetric = field(default_factory=KpiMetric)
     trade_spend_efficiency: KpiMetric = field(default_factory=KpiMetric)
+    incremental_profit: KpiMetric = field(default_factory=KpiMetric)
+    net_incremental_profit: KpiMetric = field(default_factory=KpiMetric)
     cannibalization: KpiMetric = field(default_factory=KpiMetric)
     cannibalization_score: float | None = None
     pei: KpiMetric = field(default_factory=KpiMetric)
@@ -393,16 +395,52 @@ def average_promotion_price(rows: Sequence[WeekRow]) -> float | None:
     )
 
 
-def calculate_incremental_profit(rows: Sequence[WeekRow]) -> float | None:
+def calculate_incremental_profit(
+    rows: Sequence[WeekRow], volume_rows: Sequence[WeekRow] | None = None
+) -> float | None:
     """Incremental Sales - Incremental Product Cost - Trade Spend: what the
-    extra volume brought in, less what it cost to make and to move."""
+    extra volume brought in, less what it cost to make and to move.
+
+    Reads the two sets the same way `calculate_roi` does -- uplift and its
+    product cost from the baseline-widened `volume_rows`, spend from the
+    selection itself. The two agree on spend anyway (a non-promoted row
+    contributes nothing to it), so the split is about reading the same rows
+    ROI reads, not about a different number.
+    """
     if not rows:
         return None
-    volume = _volume(rows)
+    volume = _volume(volume_rows if volume_rows is not None else rows)
     if not volume.has_promotion:
         return None
     spend = calculate_trade_spend(rows) or 0.0
     return _round(volume.incremental_sales - volume.incremental_cost - spend, 1)
+
+
+def calculate_net_incremental_profit(
+    rows: Sequence[WeekRow], volume_rows: Sequence[WeekRow] | None = None
+) -> float | None:
+    """Incremental Sales - Trade Spend: the absolute money behind the ROI
+    multiple, the same two figures ROI divides, subtracted instead.
+
+    DELIBERATELY NOT `calculate_incremental_profit` above, which also takes
+    off the product cost of the extra units. The Insights Hub card states
+    itself against the two headline cards beside it -- what was spent and
+    what came back -- so a reader can check it by subtracting them, and a
+    third term they cannot see on the page would break that. Positive
+    exactly when ROI > 1.00, by construction.
+    """
+    if not rows:
+        return None
+    vrows = volume_rows if volume_rows is not None else rows
+    # Nothing promoted means nothing to net -- the card says so, rather than
+    # reporting a zero that reads as "the promotions broke even".
+    if not _volume(vrows).has_promotion:
+        return None
+    sales = calculate_incremental_sales(vrows)
+    spend = calculate_trade_spend(rows)
+    if sales is None or spend is None:
+        return None
+    return _round(sales - spend, 1)
 
 
 # --- ROI, margin, efficiency -----------------------------------------------
@@ -981,7 +1019,7 @@ def build_debug(
         "total_cost": _round(_sum(rows, lambda r: r.total_cost), 1),
         "baseline_quantity": _round(volume.baseline_quantity, 1),
         "incremental_product_cost": _round(volume.incremental_cost, 1),
-        "incremental_profit": calculate_incremental_profit(vrows),
+        "incremental_profit": calculate_incremental_profit(rows, vrows),
         "products_without_baseline": list(volume.skipped),
         # --- KPIs ---
         "trade_spend": _round(calculate_trade_spend(rows), 1),
@@ -1109,6 +1147,8 @@ def calculate_kpis(
             1,
         ),
         trade_spend_efficiency=paired(calculate_trade_spend_efficiency),
+        incremental_profit=paired(calculate_incremental_profit),
+        net_incremental_profit=paired(calculate_net_incremental_profit),
         cannibalization=_cannibalization_metric(cannib_rows, cannib_prior, promoted_products),
         cannibalization_score=cannibalization_score(
             calculate_cannibalization(cannib_rows, promoted_products)

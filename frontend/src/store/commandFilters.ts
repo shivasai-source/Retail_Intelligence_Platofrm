@@ -94,6 +94,12 @@ function codesOf(options: FiltersResponse, key: ListFilterKey): string[] {
 interface CommandFilterStore {
   filters: CommandFilters
   currency: Currency
+  /** The ROI hurdle the reader set, or null for the backend's default. Not a
+   *  filter — it selects no rows — but every "below target" on the page is
+   *  judged against it, so it travels with every request the same way the
+   *  currency does. Session-scoped: it is the reader's working assumption,
+   *  not a saved setting. */
+  targetRoi: number | null
   expanded: boolean
   /** The default period, adopted once the backend reports which years exist —
    *  never hardcoded to a year the data might not contain. */
@@ -112,6 +118,7 @@ interface CommandFilterStore {
   set: <K extends keyof CommandFilters>(key: K, value: CommandFilters[K]) => void
   toggle: (key: ListFilterKey, value: string) => void
   setCurrency: (currency: Currency) => void
+  setTargetRoi: (target: number | null) => void
   toggleExpanded: () => void
   reset: () => void
   initialise: (year: number) => void
@@ -121,6 +128,7 @@ interface CommandFilterStore {
 export const useCommandFilters = create<CommandFilterStore>((set, get) => ({
   filters: EMPTY_FILTERS,
   currency: 'INR',
+  targetRoi: null,
   expanded: false,
   defaultYear: null,
   initialised: false,
@@ -147,6 +155,7 @@ export const useCommandFilters = create<CommandFilterStore>((set, get) => ({
     }),
 
   setCurrency: (currency) => set({ currency }),
+  setTargetRoi: (targetRoi) => set({ targetRoi }),
   toggleExpanded: () => set((s) => ({ expanded: !s.expanded })),
 
   /** Reset restores the default period and clears everything else to "All".
@@ -229,7 +238,7 @@ export const useCommandFilters = create<CommandFilterStore>((set, get) => ({
 /** Query-string form of the filter state, for the API layer. Empty lists are
  *  omitted entirely so "no constraint" and "constrained to nothing" stay
  *  distinguishable on the wire. */
-export function toQuery(filters: CommandFilters, currency?: Currency): string {
+export function toQuery(filters: CommandFilters, currency?: Currency, targetRoi?: number | null): string {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(filters)) {
     if (value === null || value === undefined) continue
@@ -240,5 +249,8 @@ export function toQuery(filters: CommandFilters, currency?: Currency): string {
     }
   }
   if (currency) params.set('currency', currency)
+  // Omitted entirely at the default, so the request is byte-for-byte the one
+  // the page has always sent and the backend's own default answers it.
+  if (targetRoi !== null && targetRoi !== undefined) params.set('target_roi', String(targetRoi))
   return params.toString()
 }

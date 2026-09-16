@@ -37,6 +37,13 @@ class KpiSpec:
     #: True when a lower value is the better outcome, so the delta arrow's
     #: colour can be right without the frontend knowing the semantics.
     lower_is_better: bool = False
+    #: How the year-on-year movement is PRINTED. "growth" is the percent change
+    #: every original card shows. "points" prints a rate's movement in
+    #: percentage points (20.0% -> 25.0% is "+5.0 pp", not "+25.0%"), and
+    #: "difference" prints a signed amount in the card's own currency -- for a
+    #: figure that can be negative, where a percent change of the previous
+    #: value says nothing a reader can use (-10 -> +5 is not "+150%").
+    delta_as: str = "growth"
 
 
 KPI_SPECS: tuple[KpiSpec, ...] = (
@@ -105,6 +112,59 @@ KPI_SPECS: tuple[KpiSpec, ...] = (
     ),
 )
 
+#: THE SECOND ROW. Three cards the Insights Hub reveals on request beneath the
+#: six above. Kept in their own tuple, and returned under their own key, so
+#: every reader of `KPI_SPECS` and of `kpis()["kpis"]` -- the reports, the
+#: Simulation Studio, the comparison engine, the agent tools -- sees exactly
+#: the six cards it saw before. Nothing about the first row moves.
+#:
+#: Each one answers a question the six cannot: Volume Uplift is the demand
+#: response without the price in it; Net Incremental Profit is the money left
+#: after spend, the scale a ROI multiple hides by construction;
+#: Target Hit Rate is how many individual promotions cleared the target, which
+#: a portfolio ROI of 1.6 built on a few big winners will never say.
+SECONDARY_KPI_SPECS: tuple[KpiSpec, ...] = (
+    KpiSpec(
+        key="volume_uplift",
+        label="Volume Uplift",
+        unit="percent",
+        formula="Incremental Quantity ÷ Baseline Quantity × 100",
+        meaning=(
+            "How much more volume the promoted rows moved than they would have "
+            "at their ordinary trading level, independent of price. The same "
+            "figure the Promotion Efficiency Index weights at 0.30."
+        ),
+        delta_as="points",
+    ),
+    KpiSpec(
+        key="net_incremental_profit",
+        label="Net Incremental Profit",
+        unit="currency",
+        formula="Incremental Sales − Trade Spend",
+        meaning=(
+            "The absolute money behind the ROI multiple: what the promotions "
+            "returned above their ordinary trading level, less what was spent "
+            "to run them. Negative when they cost more than they brought back."
+        ),
+        delta_as="difference",
+    ),
+    KpiSpec(
+        key="target_hit_rate",
+        label="Target Hit Rate",
+        unit="percent",
+        formula=(
+            f"Promotion events with ROI ≥ {config.PROMOTION_TARGET_ROI:.2f} "
+            "÷ All promotion events × 100"
+        ),
+        meaning=(
+            "The share of individual promotion events -- one product, channel, "
+            "week and offer -- that cleared the ROI target. Counted from the same "
+            "events the Risk Alerts panel reports."
+        ),
+        delta_as="points",
+    ),
+)
+
 #: KPI key -> the KpiBundle attribute holding it.
 _BUNDLE_FIELD = {
     "trade_spend": "trade_spend",
@@ -113,6 +173,8 @@ _BUNDLE_FIELD = {
     "margin_impact": "margin_impact",
     "pei": "pei",
     "cannibalization_rate": "cannibalization",
+    "volume_uplift": "incremental_quantity_percent",
+    "net_incremental_profit": "net_incremental_profit",
 }
 
 
@@ -202,7 +264,13 @@ def _display(value: float | None, unit: str, currency: str) -> str:
     return F.score(value)
 
 
-def _meta(state: FilterState, rows: Sequence[A.WeekRow], currency: str, comparison: str | None) -> dict[str, Any]:
+def _meta(
+    state: FilterState,
+    rows: Sequence[A.WeekRow],
+    currency: str,
+    comparison: str | None,
+    target: float = config.PROMOTION_TARGET_ROI,
+) -> dict[str, Any]:
     return {
         "period": F.period_label(state.year, state.month),
         "period_label": F.fiscal_label(state.year),
@@ -210,7 +278,13 @@ def _meta(state: FilterState, rows: Sequence[A.WeekRow], currency: str, comparis
         "currency": currency,
         "base_currency": config.BASE_CURRENCY,
         "exchange_rate": F._rate(currency),
-        "target_roi": config.PROMOTION_TARGET_ROI,
+        # The target every figure in this payload was judged against, and the
+        # default it can be reset to. The bands travel with it so the alert
+        # legend can name them instead of restating 1.25 / 1.40 in code.
+        "target_roi": target,
+        "default_target_roi": config.PROMOTION_TARGET_ROI,
+        "target_roi_range": [config.TARGET_ROI_MIN, config.TARGET_ROI_MAX],
+        "severity_bands": config.severity_bands(target),
         "row_count": len(rows),
         "filters_applied": state.applied(),
     }
@@ -362,12 +436,22 @@ def _thin_evidence_reason(comparable: int, bundle: A.KpiBundle) -> str:
 # --- KPI cards -------------------------------------------------------------
 
 
-def kpis(state: FilterState, currency: str = "INR") -> dict[str, Any]:
-    """The six KPI cards.
+def kpis(
+    state: FilterState, currency: str = "INR", target: float = config.PROMOTION_TARGET_ROI
+) -> dict[str, Any]:
+    """The six KPI cards, and the three the Insights Hub reveals beneath them.
 
     `value` is always the canonical base-currency number; `display_value` is
     what the card shows, converted only if the KPI is monetary. ROI, PEI and
     Cannibalization carry the same `value` in both currencies by construction.
+
+    `kpis` holds the six and nothing else -- see `SECONDARY_KPI_SPECS` for why
+    the second row travels under `secondary` rather than joining them.
+
+    `target` is the ROI hurdle the Insights Hub reader may set (see
+    `config.TARGET_ROI_MIN/MAX`). It reaches ONLY what is judged against a
+    target -- Target Hit Rate, and the target named in a card's text. No
+    figure the six cards report depends on it.
     """
     currency = F.normalise_currency(currency)
     bundle, comparison = _bundle(state)
@@ -376,37 +460,194 @@ def kpis(state: FilterState, currency: str = "INR") -> dict[str, Any]:
     cards: dict[str, Any] = {}
     for spec in KPI_SPECS:
         metric: A.KpiMetric = getattr(bundle, _BUNDLE_FIELD[spec.key])
-        delta_display, delta_sub = F.delta_label(metric.growth, comparison)
-        if spec.unit == "multiple" and metric.difference is not None:
-            # A ratio moves by its DIFFERENCE, the same rule the comparison
-            # card states: 1.5 -> 1.3 is "-0.2", not "-13.3%" -- a percent
-            # change of a multiple reads as a change in the return itself.
-            # `delta` still carries the growth figure the trend arrow and the
-            # sort order read; only the printed movement changes.
-            delta_display = F.multiple(metric.difference, signed=True)
-        cards[spec.key] = {
-            "key": spec.key,
-            "label": spec.label,
-            "unit": spec.unit,
-            "value": metric.value,
-            "display_value": _display(metric.value, spec.unit, currency),
-            "previous_value": metric.previous_year,
-            "delta": metric.growth,
-            "delta_display": delta_display,
-            "delta_sub": delta_sub,
-            "difference": metric.difference,
-            "trend": _trend_of(metric.growth, spec.lower_is_better),
-            "available": metric.value is not None,
-            "unavailable_reason": None if metric.value is not None else _why_unavailable(spec.key, bundle),
-            "info": {"name": spec.label, "formula": spec.formula, "meaning": spec.meaning},
-        }
+        cards[spec.key] = _card(spec, metric, comparison, currency, bundle, target)
 
     # The floor and the ladder, applied ONCE and here, so the Insights Hub
     # card and everything reading `service.kpis` -- the Simulation Studio
     # included -- report the same rate from the same evidence.
     _cannibalization_card(cards["cannibalization_rate"], state, bundle)
 
-    return {"kpis": cards, "meta": _meta(state, rows, currency, comparison)}
+    secondary: dict[str, Any] = {}
+    for spec in SECONDARY_KPI_SPECS:
+        if spec.key == "target_hit_rate":
+            metric = _target_hit_rate_metric(state, target)
+        else:
+            metric = getattr(bundle, _BUNDLE_FIELD[spec.key])
+        secondary[spec.key] = _card(spec, metric, comparison, currency, bundle, target)
+
+    # The reconciliation line, on every card. A display string beside the
+    # figure, never a figure of its own: the six cards' values, deltas and
+    # every other field are exactly what they were before it existed. It
+    # belongs to a figure, so an unavailable card carries its reason instead,
+    # never a row of zeros.
+    for card in (*cards.values(), *secondary.values()):
+        card["evidence"] = _evidence(card, state, bundle, currency, target) if card["available"] else None
+
+    return {
+        "kpis": cards,
+        "secondary": secondary,
+        "meta": _meta(state, rows, currency, comparison, target),
+    }
+
+
+def _card(
+    spec: KpiSpec,
+    metric: A.KpiMetric,
+    comparison: str | None,
+    currency: str,
+    bundle: A.KpiBundle,
+    target: float = config.PROMOTION_TARGET_ROI,
+) -> dict[str, Any]:
+    """One card's payload. The six original cards and the second row are
+    built by this same function, so a field cannot exist on one and not the
+    other."""
+    delta_display, delta_sub = F.delta_label(metric.growth, comparison)
+    trend = _trend_of(metric.growth, spec.lower_is_better)
+    if spec.unit == "multiple" and metric.difference is not None:
+        # A ratio moves by its DIFFERENCE, the same rule the comparison
+        # card states: 1.5 -> 1.3 is "-0.2", not "-13.3%" -- a percent
+        # change of a multiple reads as a change in the return itself.
+        # `delta` still carries the growth figure the trend arrow and the
+        # sort order read; only the printed movement changes.
+        delta_display = F.multiple(metric.difference, signed=True)
+    elif spec.delta_as != "growth" and comparison and metric.value is not None and metric.previous_year is not None:
+        # Points and differences are taken from the pair directly rather than
+        # from `growth`, which is undefined when the prior value is zero -- a
+        # hit rate that rose from 0.0% to 12.5% moved by 12.5 pp, and saying
+        # so is not a fabricated figure the way a percent change would be.
+        difference = round(metric.value - metric.previous_year, 1)
+        delta_display = (
+            f"{difference:+,.1f} pp" if spec.delta_as == "points"
+            else _signed_money(difference, currency)
+        )
+        trend = None if difference == 0 else ("up" if difference > 0 else "down")
+    return {
+        "key": spec.key,
+        "label": spec.label,
+        "unit": spec.unit,
+        "value": metric.value,
+        "display_value": _display(metric.value, spec.unit, currency),
+        "previous_value": metric.previous_year,
+        "delta": metric.growth,
+        "delta_display": delta_display,
+        "delta_sub": delta_sub,
+        "difference": metric.difference,
+        "trend": trend,
+        "available": metric.value is not None,
+        "unavailable_reason": None if metric.value is not None else _why_unavailable(spec.key, bundle),
+        "info": {
+            "name": spec.label,
+            "formula": _retarget(spec.formula, target),
+            "meaning": _retarget(spec.meaning, target),
+        },
+    }
+
+
+def _retarget(text: str, target: float) -> str:
+    """A spec's text names the DEFAULT target ("The target is 1.50"); when
+    the reader has set another, the text says that one instead. The specs
+    themselves stay written at the default, because every other reader of
+    `KPI_SPECS` -- scenarios, the comparison engine, the weekly view --
+    describes the KPI at the default and must go on doing so."""
+    if target == config.PROMOTION_TARGET_ROI:
+        return text
+    return text.replace(f"{config.PROMOTION_TARGET_ROI:.2f}", f"{target:.2f}")
+
+
+def _signed_money(value: float, currency: str) -> str:
+    """`F.money` with an explicit plus, for a movement rather than an amount."""
+    text = F.money(value, currency)
+    return f"+{text}" if value > 0 else text
+
+
+def _target_hits(events: Sequence[PromotionEvent], target: float = config.PROMOTION_TARGET_ROI) -> tuple[int, int]:
+    """(events at or above the ROI target, all events). THE one count the
+    Risk Alerts panel and the Target Hit Rate card both report, so a reader
+    who divides the panel's figures gets the card's number exactly."""
+    on_target = sum(1 for e in events if e.roi_multiple is not None and e.roi_multiple >= target)
+    return on_target, len(events)
+
+
+def _hit_rate(events: Sequence[PromotionEvent], target: float) -> float | None:
+    hits, total = _target_hits(events, target)
+    ratio = A.safe_divide(hits, total)
+    return None if ratio is None else round(ratio * 100, 1)
+
+
+def _target_hit_rate_metric(state: FilterState, target: float) -> A.KpiMetric:
+    """Target Hit Rate against the same-filters-previous-year selection, the
+    comparison every other card makes. Not in the bundle because it is a
+    count of events, not a sum over rows -- it reads `promotion_events`, the
+    same memoised set the alerts are ranked from."""
+    previous_state = state.comparison(get_store())
+    previous = _hit_rate(promotion_events(previous_state, target), target) if previous_state else None
+    return A.calculate_growth(_hit_rate(promotion_events(state, target), target), previous)
+
+
+def _evidence(
+    card: dict[str, Any],
+    state: FilterState,
+    bundle: A.KpiBundle,
+    currency: str,
+    target: float = config.PROMOTION_TARGET_ROI,
+) -> str | None:
+    """The one line that lets a reader reconcile a card by hand: the inputs
+    its value was made from, in the card's own currency. Read from the
+    bundle's debug trace, which is the reconciliation record every headline
+    figure is already traceable through, so nothing here is a second
+    computation of anything."""
+    d = bundle.debug
+    key = card["key"]
+    money = lambda v: F.money(v, currency)  # noqa: E731 -- one currency, many calls
+    if key == "trade_spend":
+        discount, cost = d.get("trade_spend_discount"), d.get("trade_spend_promotion_cost")
+        if discount is None or cost is None:
+            return None
+        return f"{money(discount)} discount given + {money(cost)} promotion cost"
+    if key == "incremental_sales":
+        units, channels = d.get("incremental_quantity"), d.get("promoted_product_channels")
+        if units is None or not channels:
+            return None
+        return f"{units:+,.0f} units across {channels:,} promoted product-channel{'' if channels == 1 else 's'}"
+    if key == "promotion_roi":
+        sales, spend = d.get("incremental_sales"), d.get("trade_spend")
+        if sales is None or not spend:
+            return None
+        return f"{money(sales)} returned on {money(spend)} spend · target {target:.2f}"
+    if key == "margin_impact":
+        revenue, cost = d.get("actual_revenue"), d.get("total_cost")
+        if not revenue or cost is None:
+            return None
+        return f"{money(revenue)} revenue − {money(cost)} cost"
+    if key == "pei":
+        roi, uplift, margin = d.get("roi"), d.get("incremental_quantity_percent"), d.get("margin_impact")
+        parts = [
+            f"ROI {F.multiple(roi)}" if roi is not None else None,
+            f"uplift {F.percent(uplift)}" if uplift is not None else None,
+            f"margin {F.percent(margin)}" if margin is not None else None,
+        ]
+        return " · ".join(p for p in parts if p) or None
+    if key == "cannibalization_rate":
+        events = card.get("comparable_events")
+        if not isinstance(events, int) or not events:
+            return None
+        return f"Measured on {events:,} comparable promotion event{'' if events == 1 else 's'}"
+    if key == "volume_uplift":
+        incremental, baseline = d.get("incremental_quantity"), d.get("baseline_quantity")
+        if incremental is None or not baseline:
+            return None
+        return f"{incremental:+,.0f} units on a {baseline:,.0f} baseline"
+    if key == "net_incremental_profit":
+        sales, spend = d.get("incremental_sales"), d.get("trade_spend")
+        if sales is None or spend is None:
+            return None
+        return f"{money(sales)} incremental sales − {money(spend)} trade spend"
+    if key == "target_hit_rate":
+        hits, total = _target_hits(promotion_events(state, target), target)
+        if not total:
+            return None
+        return f"{hits:,} of {total:,} events at or above {target:.2f}"
+    return None
 
 
 def _trend_of(growth: float | None, lower_is_better: bool) -> str | None:
@@ -430,6 +671,10 @@ def _why_unavailable(key: str, bundle: A.KpiBundle) -> str:
         )
     if key == "pei":
         return "Nothing in this selection was promoted, so there is no promotion efficiency to index."
+    if key in ("volume_uplift", "net_incremental_profit"):
+        return "Nothing in this selection was promoted, so there is no uplift to measure."
+    if key == "target_hit_rate":
+        return "No promotion event in this selection, so there is nothing to score against the target."
     return "No data in this selection."
 
 
@@ -468,11 +713,15 @@ class PromotionEvent:
 
 
 @lru_cache(maxsize=128)
-def promotion_events(state: FilterState) -> tuple[PromotionEvent, ...]:
+def promotion_events(
+    state: FilterState, target: float = config.PROMOTION_TARGET_ROI
+) -> tuple[PromotionEvent, ...]:
     """Every promotion event in the selection, priced by the shared engine.
 
-    Memoised per filter state (see `_bundle`); returned as a tuple of frozen
-    events so no caller can edit the cached copy.
+    Memoised per filter state AND target (see `_bundle`); returned as a tuple
+    of frozen events so no caller can edit the cached copy. Only `at_stake`
+    reads the target -- spend, sales and ROI are the same events whatever the
+    hurdle.
 
     Trade Spend and Incremental Sales per event come from `period_series`,
     which holds the selection-wide baseline fixed — so the events sum exactly
@@ -521,7 +770,7 @@ def promotion_events(state: FilterState) -> tuple[PromotionEvent, ...]:
             # At Stake: the additional incremental revenue this event needs to
             # reach the ROI target. Never negative — an event already at target
             # has nothing at stake.
-            at_stake=round(max(config.target_incremental_sales(spend) - sales, 0.0), 1),
+            at_stake=round(max(config.target_incremental_sales(spend, target) - sales, 0.0), 1),
         ))
     return tuple(events)
 
@@ -537,11 +786,11 @@ def _rank_key(event: PromotionEvent) -> tuple:
     return (-event.at_stake, -event.trade_spend, event.roi_multiple if event.roi_multiple is not None else 0.0)
 
 
-def _severity(roi_multiple: float | None) -> str | None:
+def _severity(roi_multiple: float | None, target: float = config.PROMOTION_TARGET_ROI) -> str | None:
     """The severity band for an event's ROI. None once the target is met."""
     if roi_multiple is None:
         return None
-    bands = config.SEVERITY_BANDS
+    bands = config.severity_bands(target)
     if roi_multiple < bands["critical"]:
         return "critical"
     if roi_multiple < bands["high"]:
@@ -557,25 +806,27 @@ _SEVERITY_TONE = {"critical": "danger", "high": "danger", "medium": "warning"}
 _SEVERITY_LABEL = {"critical": "Critical", "high": "High", "medium": "Medium"}
 
 
-def risk_alerts(state: FilterState, currency: str = "INR", limit: int = 20) -> dict[str, Any]:
+def risk_alerts(
+    state: FilterState,
+    currency: str = "INR",
+    limit: int = 20,
+    target: float = config.PROMOTION_TARGET_ROI,
+) -> dict[str, Any]:
     """Promotion events below the ROI target, banded and ranked.
 
     Counts are of unique promotion EVENTS, and every ROI here is the same
     `roi_multiple` the KPI card uses.
     """
     currency = F.normalise_currency(currency)
-    events = promotion_events(state)
+    events = promotion_events(state, target)
 
     banded: dict[str, list[PromotionEvent]] = defaultdict(list)
     for event in events:
-        severity = _severity(event.roi_multiple)
+        severity = _severity(event.roi_multiple, target)
         if severity and event.trade_spend > 0:
             banded[severity].append(event)
 
-    on_target = sum(
-        1 for e in events
-        if e.roi_multiple is not None and e.roi_multiple >= config.PROMOTION_TARGET_ROI
-    )
+    on_target, _ = _target_hits(events, target)
 
     alerts: list[dict[str, Any]] = []
     for severity in ("critical", "high", "medium"):
@@ -587,7 +838,7 @@ def risk_alerts(state: FilterState, currency: str = "INR", limit: int = 20) -> d
                 "title": f"ROI below target — {event.promotion_name}",
                 "description": (
                     f"{event.product_name.strip()} · {event.channel_name} · {event.week_key}: "
-                    f"ROI {event.roi_multiple:.2f} against a {config.PROMOTION_TARGET_ROI:.2f} target."
+                    f"ROI {event.roi_multiple:.2f} against a {target:.2f} target."
                 ),
                 "roi_multiple": event.roi_multiple,
                 "trade_spend": event.trade_spend,
@@ -624,7 +875,7 @@ def risk_alerts(state: FilterState, currency: str = "INR", limit: int = 20) -> d
             "total_events": len(events),
         },
         "alerts": alerts[:limit],
-        "meta": _meta(state, rows_for(state), currency, None),
+        "meta": _meta(state, rows_for(state), currency, None, target),
     }
 
 
@@ -649,7 +900,10 @@ _CAUSES = (
 
 
 def underperforming_promotions(
-    state: FilterState, currency: str = "INR", limit: int = 20
+    state: FilterState,
+    currency: str = "INR",
+    limit: int = 20,
+    target: float = config.PROMOTION_TARGET_ROI,
 ) -> dict[str, Any]:
     """Promotion events with ROI below target, sorted by At Stake DESC.
 
@@ -657,14 +911,11 @@ def underperforming_promotions(
     the two panels are two views of one computation.
     """
     currency = F.normalise_currency(currency)
-    events = promotion_events(state)
+    events = promotion_events(state, target)
     bundle, _ = _bundle(state)
     by_brand = bundle.debug.get("brand_form_cannibalization", {}) or {}
 
-    under = [
-        e for e in events
-        if e.roi_multiple is not None and e.roi_multiple < config.PROMOTION_TARGET_ROI
-    ]
+    under = [e for e in events if e.roi_multiple is not None and e.roi_multiple < target]
 
     rows: list[dict[str, Any]] = []
     for event in sorted(under, key=_rank_key)[:limit]:
@@ -697,7 +948,7 @@ def underperforming_promotions(
             "period": event.week_key,
             "roi_multiple": event.roi_multiple,
             "roi_display": F.multiple(event.roi_multiple),
-            "vs_target": round(event.roi_multiple - config.PROMOTION_TARGET_ROI, 2),
+            "vs_target": round(event.roi_multiple - target, 2),
             "trade_spend": event.trade_spend,
             "trade_spend_display": F.money(event.trade_spend, currency),
             "at_stake": event.at_stake,
@@ -710,14 +961,19 @@ def underperforming_promotions(
     return {
         "rows": rows,
         "total": len(under),
-        "meta": _meta(state, rows_for(state), currency, None),
+        "meta": _meta(state, rows_for(state), currency, None, target),
     }
 
 
-def top_promotions(state: FilterState, currency: str = "INR", limit: int = 10) -> dict[str, Any]:
+def top_promotions(
+    state: FilterState,
+    currency: str = "INR",
+    limit: int = 10,
+    target: float = config.PROMOTION_TARGET_ROI,
+) -> dict[str, Any]:
     """The best-performing promotion events, by ROI descending."""
     currency = F.normalise_currency(currency)
-    events = [e for e in promotion_events(state) if e.roi_multiple is not None]
+    events = [e for e in promotion_events(state, target) if e.roi_multiple is not None]
     ranked = sorted(events, key=lambda e: -(e.roi_multiple or 0))[:limit]
     return {
         "rows": [
@@ -728,16 +984,16 @@ def top_promotions(state: FilterState, currency: str = "INR", limit: int = 10) -
                 "period": e.week_key,
                 "roi_multiple": e.roi_multiple,
                 "roi_display": F.multiple(e.roi_multiple),
-                "vs_target": round(e.roi_multiple - config.PROMOTION_TARGET_ROI, 2),
+                "vs_target": round(e.roi_multiple - target, 2),
                 "trade_spend": e.trade_spend,
                 "trade_spend_display": F.money(e.trade_spend, currency),
                 "incremental_sales": e.incremental_sales,
                 "incremental_sales_display": F.money(e.incremental_sales, currency),
-                "status": "On Track" if e.roi_multiple >= config.PROMOTION_TARGET_ROI else "Underperforming",
+                "status": "On Track" if e.roi_multiple >= target else "Underperforming",
             }
             for e in ranked
         ],
-        "meta": _meta(state, rows_for(state), currency, None),
+        "meta": _meta(state, rows_for(state), currency, None, target),
     }
 
 
@@ -789,7 +1045,12 @@ def promotion_mix(state: FilterState, currency: str = "INR") -> dict[str, Any]:
 # --- trend -----------------------------------------------------------------
 
 
-def trend(state: FilterState, granularity: str = "week", currency: str = "INR") -> dict[str, Any]:
+def trend(
+    state: FilterState,
+    granularity: str = "week",
+    currency: str = "INR",
+    target: float = config.PROMOTION_TARGET_ROI,
+) -> dict[str, Any]:
     """Trade Spend, Incremental Sales and ROI over time.
 
     The series are a finer PARTITION of the same rows the cards read — Trade
@@ -806,7 +1067,6 @@ def trend(state: FilterState, granularity: str = "week", currency: str = "INR") 
         return f"{r.year}-{r.month:02d}" if monthly else r.week_key
 
     points = A.period_series(rows, key_of)
-    target = config.PROMOTION_TARGET_ROI
 
     labels, roi, incremental, spend = [], [], [], []
     for point in points:
@@ -829,7 +1089,7 @@ def trend(state: FilterState, granularity: str = "week", currency: str = "INR") 
             "trade_spend": [F.money(v, currency) for v in spend],
             "roi": [F.multiple(v) for v in roi],
         },
-        "meta": _meta(state, rows, currency, None),
+        "meta": _meta(state, rows, currency, None, target),
     }
 
 

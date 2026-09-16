@@ -8,8 +8,8 @@ import {
   CardBody,
   TpoKpiGrid,
   TpoKpiTile,
-  AlertBanner,
   Dropdown,
+  IconButton,
   useLiveStatus,
   useToast,
 } from '../components/ui'
@@ -22,6 +22,10 @@ import { SalesComparisonCard } from '../components/command/SalesComparisonCard'
 import { RiskAlertsPanel } from '../components/command/RiskAlertsPanel'
 import { ALERT_FETCH_LIMIT, topPriorityAlert } from '../components/command/riskRanking'
 import { EmptyState as CcEmptyState, ErrorState, KpiSkeleton, PanelSkeleton, Stale } from '../components/command/States'
+import { MoreKpis } from '../components/command/MoreKpis'
+import { SERIES_CLASS } from '../components/command/series'
+import { PriorityAlert } from '../components/command/PriorityAlert'
+import { HERO_TILE_CLASS, readMoreKpisOpen } from '../components/command/moreKpisState'
 import { TrendPanels } from '../components/command/TrendPanels'
 import {
   ChannelSection,
@@ -68,15 +72,28 @@ const KPI_STYLE: Record<string, { icon: IconName; tint: string; accent: string }
   margin_impact: { icon: 'coins', tint: 'amber', accent: 'var(--brand-blue)' },
   pei: { icon: 'gauge', tint: 'mint', accent: 'var(--tint-teal-icon)' },
   cannibalization_rate: { icon: 'cannib', tint: 'rose', accent: 'var(--tint-peach-icon)' },
+  // The second row (SecondaryKpis). Three tints and glyphs the first row
+  // does not use, so a reader can tell the nine apart without reading.
+  volume_uplift: { icon: 'uplift', tint: 'teal', accent: 'var(--tint-sky-icon)' },
+  net_incremental_profit: { icon: 'trending', tint: 'peach', accent: 'var(--status-success)' },
+  target_hit_rate: { icon: 'checkCircle', tint: 'lemon', accent: 'var(--tint-lemon-icon)' },
 }
 
-const KPI_ORDER = [
-  'trade_spend',
-  'incremental_sales',
-  'promotion_roi',
+/** THE HEADLINE ROW: what was spent, what it returned, and the ratio of the
+ *  two. Always on screen. */
+const HERO_KPI_ORDER = ['trade_spend', 'incremental_sales', 'promotion_roi']
+
+/** THE REST, behind the reveal (MoreKpis). The three remaining headline
+ *  cards first, in their long-standing order, then the diagnostic three —
+ *  volume (the demand response), the money it made after cost, and how many
+ *  promotions cleared the bar. */
+const MORE_KPI_ORDER = [
   'margin_impact',
   'pei',
   'cannibalization_rate',
+  'volume_uplift',
+  'net_incremental_profit',
+  'target_hit_rate',
 ]
 
 const LOWER_IS_BETTER = new Set(['trade_spend', 'cannibalization_rate'])
@@ -93,6 +110,44 @@ function cannibalizationSub(card: KpiCard): string | null {
 }
 
 
+/** One KPI card as a tile. Both rows render through this, so a card cannot
+ *  be wired differently depending on where it sits. */
+function KpiTile({
+  card,
+  index,
+  className,
+}: {
+  card: KpiCard | undefined
+  index: number
+  className?: string
+}) {
+  if (!card) return null
+  const style = KPI_STYLE[card.key]
+  return (
+    <TpoKpiTile
+      className={className}
+      labelLines={2}
+      label={card.label}
+      value={card.display_value}
+      delta={card.delta_display}
+      // Cannibalization carries its evidence: how many comparable events
+      // stood behind the rate, or -- when this selection cannot support
+      // one -- the narrowest wider scope that can, named so it is never
+      // read as this selection's own figure.
+      deltaSub={calendarYear(cannibalizationSub(card) ?? (card.available ? card.delta_sub : (card.unavailable_reason ?? card.delta_sub)))}
+      trend={card.trend}
+      icon={style.icon}
+      tint={style.tint}
+      accent={style.accent}
+      delayMs={index * 60}
+      info={card.info}
+      unit={card.unit}
+      lowerIsBetter={LOWER_IS_BETTER.has(card.key)}
+      evidence={card.evidence}
+    />
+  )
+}
+
 export function CommandCenter() {
   const [granularity, setGranularity] = useState<'week' | 'month'>('week')
   const { show } = useToast()
@@ -102,6 +157,7 @@ export function CommandCenter() {
   const initialise = useCommandFilters((s) => s.initialise)
   const initialised = useCommandFilters((s) => s.initialised)
   const reset = useCommandFilters((s) => s.reset)
+  const targetRoi = useCommandFilters((s) => s.targetRoi)
   /** The RCA hand-off for a risk alert. EXTRACTED to hooks/useAlertHandoff.ts
    *  so the header's notification bell opens the same investigation this page's
    *  own alert rows open — one definition, not two that can drift. Behaviour is
@@ -171,10 +227,21 @@ export function CommandCenter() {
           </div>
           <div className="mt-[14px]">
             <TpoKpiGrid>
-              {KPI_ORDER.map((key, i) => (
-                <KpiSkeleton key={key} delayMs={i * 50} />
+              {HERO_KPI_ORDER.map((key, i) => (
+                <KpiSkeleton key={key} delayMs={i * 50} className={HERO_TILE_CLASS} />
               ))}
             </TpoKpiGrid>
+            {/* A reader who left the rest open gets its skeleton too, so the
+                page lands in the shape it will keep. */}
+            {readMoreKpisOpen() && (
+              <div className="mt-[46px]">
+                <TpoKpiGrid>
+                  {MORE_KPI_ORDER.map((key, i) => (
+                    <KpiSkeleton key={key} delayMs={150 + i * 50} />
+                  ))}
+                </TpoKpiGrid>
+              </div>
+            )}
           </div>
           <span className="sr-only" role="status">Loading Insights Hub</span>
         </div>
@@ -199,6 +266,10 @@ export function CommandCenter() {
   }
 
   const meta = kpis.data.meta
+  // Every card by key, headline and diagnostic alike. The backend keeps the
+  // two under separate keys so its other readers see exactly the six they
+  // always did; the page reads them as one set.
+  const allCards: Record<string, KpiCard | undefined> = { ...kpis.data.kpis, ...(kpis.data.secondary ?? {}) }
   // Highest-priority risk in the CURRENT scope: Critical before High before
   // Medium, then worst ROI, then largest stake. Derived from the data, so it
   // follows every filter change and names no promotion in code.
@@ -222,28 +293,64 @@ export function CommandCenter() {
           the row would otherwise paint in normal document order, i.e. beneath
           its later siblings. Same trap components/ui/Dropdown.tsx documents.
           No effect while the popover is closed: nothing else here overlaps. */}
-      <div className="fade-in relative z-20 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
+      <div className="fade-in relative z-20">
+        {/* THE TITLE ROW: the page's name and what it is looking at on the
+            left; its one leading alert on the right, where a reader looks for
+            status first. The toolbar is its own row beneath. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0">
             <h1 className="text-2xl font-extrabold tracking-[-0.025em] leading-[1.1]">TPO Insights Hub</h1>
+            {/* ONE SHORT LINE under the title: the idea the whole page rests
+                on -- every figure here is the difference between what a
+                promotion sold and what would have sold without it -- and the
+                period being shown. The scope's own numbers live in the cards
+                and panels; a command centre's header is not for reading. */}
+            <p className="mt-1.5 text-base text-ink-muted">
+              Every promotion, judged against what would have sold anyway
+              <span className="text-ink-disabled"> · </span>
+              {calendarYear(meta.period)}
+            </p>
           </div>
-          <p className="mt-1.5 text-base text-ink-muted">
-            Real-time overview of promotions, performance and risks · {calendarYear(meta.period)}
-          </p>
+          {headline && !isEmpty && (
+            <div className="ml-auto">
+              <PriorityAlert alert={headline} onOpen={() => handOffAlert(headline)} />
+            </div>
+          )}
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <FilterBar options={options.data} onRefresh={handleRefresh} refreshing={refreshing} />
+
+        {/* THE TOOLBAR: every control that changes what the page shows on
+            the left, Export pinned to the right. The outer row never wraps;
+            when the width runs out the FILTER GROUP wraps inside itself, so
+            Export keeps its corner instead of dropping to a line of its own. */}
+        <div className="mt-4 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <FilterBar
+              options={options.data}
+              onRefresh={handleRefresh}
+              refreshing={refreshing}
+              // `current` is the STORE's value, not the payload's: the pill flips
+              // the moment the reader applies a target, while the panels catch
+              // up behind the Stale wash. The default and bounds are the
+              // backend's, so nothing here hard-codes 1.5.
+              target={{ current: targetRoi ?? meta.default_target_roi, defaultValue: meta.default_target_roi, range: meta.target_roi_range }}
+              refreshInline={false}
+            />
+          </div>
           {/* EXPORTS WHAT THE SCREEN IS SHOWING. `scope` is read at click time
               from the same `commandFilters` store every card, chart and table on
               this page reads, so a report can never describe a different
               selection from the one on screen. */}
-          <ExportReportButton
-            module="command-center"
-            scope={() => toReportScope(useCommandFilters.getState().filters)}
-            currency={meta.currency}
-            disabled={isEmpty}
-            disabledReason="This filter selection matches no sales rows, so there is nothing to report."
-          />
+          <div className="flex shrink-0 items-center gap-2">
+            <IconButton icon="refresh" className="!h-9 !w-9" title="Refresh data" spinning={refreshing} disabled={refreshing} onClick={handleRefresh} />
+            <ExportReportButton
+              module="command-center"
+              label="Export"
+              scope={() => toReportScope(useCommandFilters.getState().filters)}
+              currency={meta.currency}
+              disabled={isEmpty}
+              disabledReason="This filter selection matches no sales rows, so there is nothing to report."
+            />
+          </div>
         </div>
       </div>
 
@@ -259,43 +366,20 @@ export function CommandCenter() {
       <Stale when={refreshing}>
       <div className="mt-[14px]">
         <TpoKpiGrid>
-          {KPI_ORDER.map((key, i) => {
-            const card: KpiCard | undefined = kpis.data.kpis[key]
-            if (!card) return null
-            const style = KPI_STYLE[key]
-            return (
-              <TpoKpiTile
-                key={key}
-                label={card.label}
-                value={card.display_value}
-                delta={card.delta_display}
-                // Cannibalization carries its evidence: how many comparable
-                // events stood behind the rate, or -- when this selection
-                // cannot support one -- the narrowest wider scope that can,
-                // named so it is never read as this selection's own figure.
-                deltaSub={calendarYear(cannibalizationSub(card) ?? (card.available ? card.delta_sub : (card.unavailable_reason ?? card.delta_sub)))}
-                trend={card.trend}
-                icon={style.icon}
-                tint={style.tint}
-                accent={style.accent}
-                delayMs={i * 60}
-                info={card.info}
-                unit={card.unit}
-                lowerIsBetter={LOWER_IS_BETTER.has(key)}
-              />
-            )
-          })}
+          {HERO_KPI_ORDER.map((key, i) => (
+            <KpiTile key={key} card={allCards[key]} index={i} className={HERO_TILE_CLASS} />
+          ))}
         </TpoKpiGrid>
-      </div>
 
-      {headline && (
-        <AlertBanner
-          title={headline.title}
-          desc={`${headline.description} ${headline.at_stake_display} at stake.`}
-          ctaTo="/investigations"
-          onClick={() => handOffAlert(headline)}
-        />
-      )}
+        {/* THE REST. Same tile, same backend card shape, same filter scope;
+            only the reveal is new. Every value, delta and formula still
+            comes from the backend — see MoreKpis for the fold. */}
+        <MoreKpis>
+          {MORE_KPI_ORDER.map((key, i) => (
+            <KpiTile key={key} card={allCards[key]} index={i} />
+          ))}
+        </MoreKpis>
+      </div>
 
       <div className="mt-[14px] grid grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] gap-4 @max-[1000px]:grid-cols-1">
         <Card>
@@ -332,7 +416,7 @@ export function CommandCenter() {
                 swatches mirror the stroke colours in TrendPanels. */}
             <div className="mb-2 flex flex-wrap gap-4 pb-2">
               <LegendItem swatch={<span className="h-0.5 w-[18px] rounded-sm bg-brand-violet" />} label={`Incremental Sales (${meta.currency})`} />
-              <LegendItem swatch={<span className="h-0.5 w-[18px] rounded-sm bg-status-danger" />} label={`Trade Spend (${meta.currency})`} />
+              <LegendItem swatch={<span className={`h-0.5 w-[18px] rounded-sm ${SERIES_CLASS.spend}`} />} label={`Trade Spend (${meta.currency})`} />
               <LegendItem swatch={<span className="h-0.5 w-[18px] rounded-sm" style={{ background: 'var(--tint-teal-icon)' }} />} label="ROI" />
               <LegendItem
                 swatch={<span className="h-0 w-[18px] border-t-2 border-dashed border-ink-muted" />}
@@ -386,11 +470,11 @@ export function CommandCenter() {
                     One promotion on one product, in one channel, in one business week
                   </InfoBlock>
                   <InfoBlock label="Severity">
-                    Critical &lt; 1.25
+                    Critical &lt; {fmtRoi(meta.severity_bands.critical)}
                     <br />
-                    High 1.25–1.40
+                    High {fmtRoi(meta.severity_bands.critical)}–{fmtRoi(meta.severity_bands.high)}
                     <br />
-                    Medium 1.40–{fmtRoi(meta.target_roi)}
+                    Medium {fmtRoi(meta.severity_bands.high)}–{fmtRoi(meta.target_roi)}
                     <br />
                     Target ≥ {fmtRoi(meta.target_roi)}
                   </InfoBlock>

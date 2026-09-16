@@ -6,7 +6,7 @@ import { useRiskAlerts } from '../../hooks/useCommandCenter'
 import { useAlertHandoff } from '../../hooks/useAlertHandoff'
 import { ALERT_FETCH_LIMIT, alertHeadline, topAlerts } from './riskRanking'
 import type { RiskAlert } from '../../types/commandCenter'
-import { BREAKEVEN_ROI, fmtRoi } from '../../lib/roi'
+import { ROI_TONE_CLASS, fmtRoi, roiTone } from '../../lib/roi'
 
 /** The header's notification centre.
  *
@@ -172,6 +172,7 @@ export function NotificationBell() {
               loading={alerts.isFetching && !alerts.data}
               error={Boolean(alerts.error)}
               onSelect={openAlert}
+              targetRoi={alerts.data?.meta.target_roi ?? 1.5}
             />
 
             {rows.length > 0 && total > rows.length && (
@@ -193,6 +194,7 @@ function PanelBody({
   loading,
   error,
   onSelect,
+  targetRoi,
 }: {
   rows: RiskAlert[]
   total: number
@@ -200,6 +202,8 @@ function PanelBody({
   loading: boolean
   error: boolean
   onSelect: (alert: RiskAlert) => void
+  /** `meta.target_roi` — what each row's ROI is judged against. */
+  targetRoi: number
 }) {
   if (error) return <Message text="Could not load alerts." />
   if (loading) return <Message text="Loading alerts…" />
@@ -223,7 +227,7 @@ function PanelBody({
   return (
     <div className="max-h-[min(60vh,360px)] overflow-y-auto">
       {rows.map((a) => (
-        <AlertRow key={a.id} alert={a} onSelect={onSelect} />
+        <AlertRow key={a.id} alert={a} onSelect={onSelect} targetRoi={targetRoi} />
       ))}
     </div>
   )
@@ -233,7 +237,7 @@ function Message({ text }: { text: string }) {
   return <div className="px-4 py-7 text-center text-sm text-ink-muted">{text}</div>
 }
 
-function AlertRow({ alert, onSelect }: { alert: RiskAlert; onSelect: (a: RiskAlert) => void }) {
+function AlertRow({ alert, onSelect, targetRoi }: { alert: RiskAlert; onSelect: (a: RiskAlert) => void; targetRoi: number }) {
   const roi = alert.roi_multiple
   return (
     <button
@@ -268,9 +272,7 @@ function AlertRow({ alert, onSelect }: { alert: RiskAlert; onSelect: (a: RiskAle
         </span>
         <span className="mt-0.5 flex items-center gap-1.5 text-xs tabular-nums">
           <span
-            className={
-              roi !== null && roi < BREAKEVEN_ROI ? 'font-bold text-status-danger' : 'font-bold text-ink-primary'
-            }
+            className={`font-bold ${ROI_TONE_CLASS[roiTone(roi, targetRoi)]}`}
           >
             ROI {fmtRoi(roi)}
           </span>

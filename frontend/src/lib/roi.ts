@@ -14,6 +14,44 @@
 /** The ROI multiple at which trade spend has exactly come back. */
 export const BREAKEVEN_ROI = 1
 
+/** HOW AN ROI FIGURE IS COLOURED, everywhere on the Insights Hub.
+ *
+ *  Three states, judged against the page's target rather than break-even:
+ *    success  at or above the target -- the promotion did what was asked
+ *    neutral  returned its spend but missed the target -- a fact, not a win
+ *    danger   below 1.00 -- lost money
+ *
+ *  It used to be two states around break-even, so a 1.07 printed GREEN in
+ *  the ranked cards while the alerts panel beside them filed the same
+ *  promotion as Critical. One rule, one reading. The middle state is plain
+ *  ink rather than amber: amber text at 12px does not meet contrast on a
+ *  white card, and "missed target" is already said by not being green. */
+export type RoiTone = 'success' | 'neutral' | 'danger' | 'muted'
+
+export function roiTone(roi: number | null | undefined, target: number): RoiTone {
+  if (roi == null || !Number.isFinite(roi)) return 'muted'
+  if (roi >= target) return 'success'
+  if (roi >= BREAKEVEN_ROI) return 'neutral'
+  return 'danger'
+}
+
+/** Tailwind text classes for each tone (`font-semibold` included for the
+ *  judged states, so a muted dash never reads as a verdict). */
+export const ROI_TONE_CLASS: Record<RoiTone, string> = {
+  success: 'font-semibold text-status-success',
+  neutral: 'font-semibold text-ink-primary',
+  danger: 'font-semibold text-status-danger',
+  muted: 'text-ink-muted',
+}
+
+/** The same tones as CSS colours, for SVG text. */
+export const ROI_TONE_VAR: Record<RoiTone, string> = {
+  success: 'var(--status-success)',
+  neutral: 'var(--text-primary)',
+  danger: 'var(--status-danger)',
+  muted: 'var(--text-muted)',
+}
+
 export function fmtRoi(v: number | null | undefined, dp = 2): string {
   return v == null || !Number.isFinite(v) ? '—' : `${v.toFixed(dp)}`
 }
