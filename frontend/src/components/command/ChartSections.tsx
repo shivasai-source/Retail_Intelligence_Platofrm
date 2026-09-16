@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useBreakdown, useFilterOptions, useTopPromotions } from '../../hooks/useCommandCenter'
+import { useBreakdown, useFilterOptions, useTargetRoi, useTopPromotions } from '../../hooks/useCommandCenter'
 import { useCommandFilters } from '../../store/commandFilters'
 import { ChartFrame } from './ChartFrame'
 import { RankedBar } from './RankedBar'
@@ -96,6 +96,7 @@ export function ChannelSection() {
     enabled: Boolean(level) && !mechanics.isPlaceholderData,
   })
   const data = q.data
+  const targetRoi = useTargetRoi(data?.meta)
 
   return (
     <ChartFrame
@@ -145,7 +146,7 @@ export function ChannelSection() {
           fill
           groups={data.groups}
           rate={data.meta.exchange_rate}
-          targetRoi={data.meta.target_roi}
+          targetRoi={targetRoi}
           symbol={symbol}
           rowTooltip={(g) =>
             `${g.label}
@@ -248,6 +249,7 @@ const TOP_FETCH_LIMIT = 100000
 
 export function TopPerformingSection() {
   const q = useTopPromotions(TOP_FETCH_LIMIT)
+  const targetRoi = useTargetRoi(q.data?.meta)
   const mechanicByPromotion = useMechanicByPromotion()
 
   const rows = useMemo(() => {
@@ -351,7 +353,7 @@ ${r.channel} · ${r.period}
                   </span>
                 </span>
               </span>
-              <span className={`shrink-0 font-bold tabular-nums ${ROI_TONE_CLASS[roiTone(r.roi_multiple, q.data?.meta.target_roi ?? 1.5)]}`}>{r.roi_display}</span>
+              <span className={`shrink-0 font-bold tabular-nums ${ROI_TONE_CLASS[roiTone(r.roi_multiple, targetRoi)]}`}>{r.roi_display}</span>
             </div>
             {/* TEAL, because this bar is the ROI -- the colour every chart on
                 the page gives that figure (see series.ts). A bar's colour is
@@ -396,6 +398,7 @@ type ContributionMetric = (typeof CONTRIBUTION_METRICS)[number]['key']
 export function PromotionContributionSection() {
   const [metric, setMetric] = useState<ContributionMetric>('incremental_sales')
   const q = useBreakdown('promotion_mechanic', { metric, limit: 50 })
+  const targetRoi = useTargetRoi(q.data?.meta)
 
   const { rows, total } = useMemo(() => {
     const groups = q.data?.groups ?? []
@@ -502,7 +505,7 @@ export function PromotionContributionSection() {
                 <span className="shrink-0 tabular-nums">
                   ROI{' '}
                   <span
-                    className={ROI_TONE_CLASS[roiTone(g.roi, q.data?.meta.target_roi ?? 1.5)]}
+                    className={ROI_TONE_CLASS[roiTone(g.roi, targetRoi)]}
                   >
                     {fmtRoi(g.roi)}
                   </span>
@@ -591,6 +594,7 @@ export function PromotionTypeSection() {
   const [metric, setMetric] = useState<PerfMetric>('incremental_sales')
   const { symbol } = useDisplay()
   const q = useBreakdown('promotion_type', { metric, limit: 50 })
+  const targetRoi = useTargetRoi(q.data?.meta)
 
   const groups = useMemo(() => {
     const rows = [...(q.data?.groups ?? [])]
@@ -640,7 +644,7 @@ export function PromotionTypeSection() {
           total={total}
           rate={q.data.meta.exchange_rate}
           symbol={symbol}
-          targetRoi={q.data.meta.target_roi}
+          targetRoi={targetRoi}
         />
       )}
     </ChartFrame>
@@ -887,6 +891,7 @@ export function ProductSection() {
   // The full population, so the tie-break below chooses from all 36 products
   // rather than from a head the server already cut at ten.
   const q = useBreakdown('product', { metric, limit: 50 })
+  const targetRoi = useTargetRoi(q.data?.meta)
 
   const rows = useMemo(() => {
     const groups = q.data?.groups ?? []
@@ -944,7 +949,7 @@ export function ProductSection() {
                   <>
                     {' · '}
                     <span
-                      className={ROI_TONE_CLASS[roiTone(g.roi, q.data?.meta.target_roi ?? 1.5)]}
+                      className={ROI_TONE_CLASS[roiTone(g.roi, targetRoi)]}
                     >
                       {fmtRoi(g.roi)}
                     </span>
@@ -1348,6 +1353,7 @@ export function SalesByRegionSection() {
     limit: REGION_LIMIT,
     scope: 'page',
   })
+  const targetRoi = useTargetRoi(q.data?.meta)
 
   // The page's own option lists, already in flight for the filter bar — reused
   // here only to turn the selected month number and channel codes into the
@@ -1403,7 +1409,7 @@ export function SalesByRegionSection() {
       emptyMessage={`No promotion activity in any region for ${cut}.`}
       footnote={`${rows.length} region${rows.length === 1 ? '' : 's'} ranked by Incremental Sales · ${cut}. A ranking, not a share — Incremental Sales is re-baselined per region, so the regions do not sum to the headline figure.`}
     >
-      <RegionColumns groups={rows} rate={q.data?.meta.exchange_rate ?? 1} symbol={symbol} targetRoi={q.data?.meta.target_roi ?? 1.5} />
+      <RegionColumns groups={rows} rate={q.data?.meta.exchange_rate ?? 1} symbol={symbol} targetRoi={targetRoi} />
     </ChartFrame>
   )
 }

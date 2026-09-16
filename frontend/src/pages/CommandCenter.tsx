@@ -83,6 +83,8 @@ const KPI_STYLE: Record<string, { icon: IconName; tint: string; accent: string }
  *  two. Always on screen. */
 const HERO_KPI_ORDER = ['trade_spend', 'incremental_sales', 'promotion_roi']
 
+const FALLBACK_KPI_STYLE = { icon: 'gauge' as IconName, tint: 'lavender', accent: 'var(--brand-violet)' }
+
 /** THE REST, behind the reveal (MoreKpis). The three remaining headline
  *  cards first, in their long-standing order, then the diagnostic three —
  *  volume (the demand response), the money it made after cost, and how many
@@ -122,7 +124,10 @@ function KpiTile({
   className?: string
 }) {
   if (!card) return null
-  const style = KPI_STYLE[card.key]
+  // A card the page has no glyph for (a KPI added on the backend before the
+  // page learned its icon) still renders, in the neutral tint, rather than
+  // taking the page down on `style.icon`.
+  const style = KPI_STYLE[card.key] ?? FALLBACK_KPI_STYLE
   return (
     <TpoKpiTile
       className={className}
@@ -300,13 +305,12 @@ export function CommandCenter() {
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <div className="min-w-0">
             <h1 className="text-2xl font-extrabold tracking-[-0.025em] leading-[1.1]">TPO Insights Hub</h1>
-            {/* ONE SHORT LINE under the title: the idea the whole page rests
-                on -- every figure here is the difference between what a
-                promotion sold and what would have sold without it -- and the
-                period being shown. The scope's own numbers live in the cards
-                and panels; a command centre's header is not for reading. */}
+            {/* ONE SHORT LINE under the title: what this page is for, in
+                seven words, and the period it is showing. The scope's own
+                numbers live in the cards and panels -- a command centre's
+                header should not be the first thing a reader has to read. */}
             <p className="mt-1.5 text-base text-ink-muted">
-              Every promotion, judged against what would have sold anyway
+              Where promotion spend meets its return
               <span className="text-ink-disabled"> · </span>
               {calendarYear(meta.period)}
             </p>

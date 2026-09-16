@@ -31,7 +31,7 @@ export function KpiSkeleton({ delayMs = 0, className = '' }: { delayMs?: number;
       <div className="min-w-0 flex-1">
         {/* The label's two-line reservation (TpoKpiTile labelLines=2), so
             the skeleton is the tile's exact height. */}
-        <div className="flex min-h-[2lh] items-end text-sm leading-tight"><Bar className="h-3 w-20" /></div>
+        <div className="flex min-h-[2.5em] items-end text-sm leading-tight"><Bar className="h-3 w-20" /></div>
         <Bar className="mt-2.5 h-5 w-24" />
         <Bar className="mt-2.5 h-3 w-28" />
       </div>

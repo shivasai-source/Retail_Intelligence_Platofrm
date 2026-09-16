@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { apiFetch } from '../lib/api'
+import { SEVERITY_BANDS } from '../lib/roi'
 import { toQuery, useCommandFilters, type CommandFilters } from '../store/commandFilters'
 import type {
   BreakdownDimension,
@@ -48,6 +49,20 @@ function useScope() {
   const initialised = useCommandFilters((s) => s.initialised)
   const targetRoi = useCommandFilters((s) => s.targetRoi)
   return { filters, year, currency, targetRoi, enabled: initialised }
+}
+
+/** THE TARGET EVERY ROI ON THE PAGE IS JUDGED AGAINST.
+ *
+ *  The reader's value from the store when one is set, else the backend's
+ *  configured default as every payload's `meta.default_target_roi` reports
+ *  it. Read this rather than a payload's own `meta.target_roi`: only the
+ *  requests that need the target send it (KPIs, trend, alerts, the ranked
+ *  promotion lists), so a breakdown's meta still names the default even
+ *  while the reader has set 1.75 -- and a chart that coloured its ROIs by
+ *  that would disagree with the cards above it. */
+export function useTargetRoi(meta?: { default_target_roi: number } | null): number {
+  const set = useCommandFilters((s) => s.targetRoi)
+  return set ?? meta?.default_target_roi ?? SEVERITY_BANDS.medium
 }
 
 /** Options every Insights Hub query shares.

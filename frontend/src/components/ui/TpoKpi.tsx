@@ -147,7 +147,7 @@ export function TpoKpiTile({
             default keeps the single-line tile every other page renders. */}
         <div
           className={`flex gap-1 pr-4 text-sm font-medium leading-tight text-ink-muted transition-colors duration-[220ms] group-hover/kpi:text-brand-violet ${
-            labelLines === 2 ? 'min-h-[2lh] items-end' : 'items-center'
+            labelLines === 2 ? 'min-h-[2.5em] items-end' : 'items-center'
           }`}
         >
           <span className={labelLines === 2 ? 'line-clamp-2 break-words' : 'truncate'}>{label}</span>

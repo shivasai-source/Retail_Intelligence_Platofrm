@@ -100,11 +100,28 @@ export function TargetRoiControl({
         anchorRef.current?.focus()
       }
     }
+    // The panel is position: fixed against the anchor's last measured
+    // place. A scroll would leave it hanging in space, so it closes; a
+    // resize re-measures instead, since the reader is likely mid-edit.
+    const onScroll = (e: Event) => {
+      if (panelRef.current?.contains(e.target as Node)) return
+      setOpen(false)
+    }
+    const onResize = () => {
+      const r = anchorRef.current?.getBoundingClientRect()
+      if (!r) return
+      const width = 320
+      setCoords({ left: Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8)), top: r.bottom + 8 })
+    }
     document.addEventListener('mousedown', onPointer)
     document.addEventListener('keydown', onKey)
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onResize)
     return () => {
       document.removeEventListener('mousedown', onPointer)
       document.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onResize)
     }
   }, [open])
 

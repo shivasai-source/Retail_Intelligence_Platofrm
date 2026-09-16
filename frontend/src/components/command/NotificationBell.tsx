@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon, type IconName } from '../../icons'
 import { IconButton } from '../ui'
-import { useRiskAlerts } from '../../hooks/useCommandCenter'
+import { useRiskAlerts, useTargetRoi } from '../../hooks/useCommandCenter'
 import { useAlertHandoff } from '../../hooks/useAlertHandoff'
 import { ALERT_FETCH_LIMIT, alertHeadline, topAlerts } from './riskRanking'
 import type { RiskAlert } from '../../types/commandCenter'
@@ -79,6 +79,7 @@ export function NotificationBell() {
   const panelRef = useRef<HTMLDivElement>(null)
 
   const alerts = useRiskAlerts(ALERT_FETCH_LIMIT)
+  const targetRoi = useTargetRoi(alerts.data?.meta)
   const handOff = useAlertHandoff()
 
   const counts = alerts.data?.counts
@@ -172,7 +173,7 @@ export function NotificationBell() {
               loading={alerts.isFetching && !alerts.data}
               error={Boolean(alerts.error)}
               onSelect={openAlert}
-              targetRoi={alerts.data?.meta.target_roi ?? 1.5}
+              targetRoi={targetRoi}
             />
 
             {rows.length > 0 && total > rows.length && (

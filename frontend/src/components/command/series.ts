@@ -25,5 +25,3 @@ export const SERIES_CLASS = {
   spend: 'bg-tint-peach-icon',
   roi: 'bg-tint-teal-icon',
 } as const
-
-export type SeriesKey = keyof typeof SERIES
