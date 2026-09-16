@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Dropdown, IconButton, ThemeToggle, useToast } from '../components/ui'
-import { Icon } from '../icons'
 import { useCurrentUser, useLogout } from '../hooks/useAuth'
 import { useStarStatus } from '../hooks/useDatasets'
 import { HeroArt } from '../components/portal/HeroArt'
@@ -146,15 +145,6 @@ export function Home() {
               Trade Promotion Optimization is live — measure, diagnose and simulate every promotion against its baseline.
               Five more modules are on the roadmap.
             </p>
-            {/* THE ONE THING TO DO on this page, said once as a button rather
-                than left to the card grid to imply. */}
-            <Link
-              to="/command"
-              className="mt-4 inline-flex h-10 items-center gap-2 rounded-[var(--r-md)] bg-brand-violet px-4 text-base font-semibold text-white no-underline shadow-[var(--shadow-violet)] transition-[background-color,transform] duration-150 hover:bg-brand-violet-600 motion-safe:hover:-translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet/60 [&_svg]:h-4 [&_svg]:w-4"
-            >
-              Open Trade Promotion Optimization
-              <Icon name="arrowRight" />
-            </Link>
           </div>
           <div className="hidden shrink-0 md:block">
             <HeroArt />
