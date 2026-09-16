@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, Field, Input, useToast } from '../components/ui'
+import { Icon } from '../icons'
 import { useCurrentUser, useLogin } from '../hooks/useAuth'
 import { ApiError } from '../lib/api'
 
@@ -43,17 +44,35 @@ export function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-page p-6">
-      <div className="fade-in-up w-full max-w-[400px] rounded-[var(--r-xl)] border border-border-subtle bg-surface-card p-[36px_32px_30px] shadow-[var(--shadow-lg)]">
+    // A quiet brand wash behind the card -- two low-alpha radial gradients in
+    // the brand violet and blue, the same "lights" the Insights Hub header
+    // wears -- so the sign-in page belongs to the product rather than to a
+    // blank grey screen.
+    <div className="flex min-h-screen items-center justify-center bg-surface-page p-6 [background-image:radial-gradient(600px_400px_at_15%_10%,var(--brand-violet-50),transparent_70%),radial-gradient(500px_360px_at_90%_90%,var(--brand-blue-50),transparent_70%)]">
+      <div className="fade-in-up w-full max-w-[400px] rounded-[var(--r-xl)] border border-border-subtle bg-surface-card p-[36px_32px_28px] shadow-[var(--shadow-lg)]">
+        {/* THE BRAND, in the same voice as everywhere else in the product: a
+            mark and a wordmark in title case, not a shout in capitals. */}
         <div className="mb-7 flex items-center gap-2.5">
-          <img src="/image.png" alt="TransOrg" className="h-8 w-8" />
-          <span className="text-base font-extrabold tracking-[-0.01em]">TRANSORG ANALYTICS</span>
+          <img src="/image.png" alt="" className="h-8 w-8" />
+          <span className="text-base font-semibold tracking-[-0.01em] text-ink-primary">TransOrg Analytics</span>
         </div>
-        <h1 className="mb-1.5 text-xl">Retail Intelligence Platform</h1>
-        <p className="mb-6 text-base leading-[1.5] text-ink-muted">Sign in to continue to your workspace.</p>
 
-        <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          {error && <div className="rounded-[var(--r-sm)] bg-status-danger-bg p-[8px_12px] text-base text-[#B91C1C]">{error}</div>}
+        {/* Eyebrow names the product; the heading greets the person; the line
+            beneath says what to do. One idea per line, largest to smallest. */}
+        <div className="mb-0.5 text-2xs font-bold uppercase tracking-[0.12em] text-brand-violet">Retail Intelligence Platform</div>
+        <h1 className="text-2xl font-extrabold leading-[1.15] tracking-[-0.02em]">Welcome back</h1>
+        <p className="mb-6 mt-1.5 text-base leading-[1.5] text-ink-muted">Sign in to your workspace.</p>
+
+        <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+          {/* The same alert vocabulary as the rest of the app: alert tokens,
+              which hold their contrast in both themes, and a role so a screen
+              reader hears it without hunting. */}
+          {error && (
+            <div role="alert" className="flex items-start gap-2 rounded-[var(--r-md)] border border-[var(--alert-border)] bg-[var(--alert-bg)] px-3 py-2 text-sm font-medium text-[var(--alert-ink)]">
+              <Icon name="alertTriangle" className="mt-px h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
 
           <Field label="Work email">
             {/* An INSTRUCTION, not a specimen address. The placeholder used to be
@@ -61,20 +80,35 @@ export function Login() {
                 otherwise-empty field and reads as a value somebody had already
                 filled in. `autoComplete="username"` is deliberately kept — the
                 browser's own saved-credential fill is a feature, not a bug. */}
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email address" autoComplete="username" />
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@company.com"
+              autoComplete="username"
+              autoFocus
+              aria-invalid={Boolean(error) || undefined}
+            />
           </Field>
           <Field label="Password">
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Your password"
+              autoComplete="current-password"
+              aria-invalid={Boolean(error) || undefined}
+            />
           </Field>
 
-          <div className="flex items-center justify-between">
-            <label className="flex items-center gap-1.5 text-base text-ink-secondary">
-              <input type="checkbox" defaultChecked className="h-3.5 w-3.5 accent-brand-violet" /> Keep me signed in
-            </label>
+          {/* The "keep me signed in" box that used to sit here did nothing --
+              the session is a cookie either way -- so it is gone; a control
+              that does not control anything is a small lie. */}
+          <div className="flex justify-end">
             <button
               type="button"
-              onClick={() => show('Password reset coming soon.')}
-              className="text-base font-semibold text-brand-violet"
+              onClick={() => show('Password reset is coming soon. Ask your administrator in the meantime.', { variant: 'info' })}
+              className="cursor-pointer text-sm font-semibold text-brand-violet transition-colors hover:text-brand-violet-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet"
             >
               Forgot password?
             </button>
@@ -85,9 +119,9 @@ export function Login() {
           </Button>
         </form>
 
-        <div className="mt-5 border-t border-border-subtle pt-4 text-center text-sm leading-[1.6] text-ink-muted">
-          First sign-in creates your workspace — after that, your password is checked for real.
-        </div>
+        <p className="mt-5 border-t border-border-subtle pt-4 text-center text-sm leading-[1.6] text-ink-muted">
+          New here? Your first sign-in creates your workspace.
+        </p>
       </div>
     </div>
   )

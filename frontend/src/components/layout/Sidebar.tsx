@@ -1,10 +1,11 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import { useNav } from '../../hooks/useNav'
 import { useCurrentUser, useLogout } from '../../hooks/useAuth'
 import { Icon, type IconName } from '../../icons'
 import { Dropdown } from '../ui'
+import { useSidebar } from '../../store/sidebar'
 
 // Ported from js/components/sidebar.js + css/layout.css .sidebar*.
 // nav.json routes are stored as "#/command" (verbatim from the vanilla app); the
@@ -12,36 +13,36 @@ import { Dropdown } from '../ui'
 // its own "#" when rendering the href.
 const toPath = (route: string) => (route.startsWith('#') ? route.slice(1) : route)
 
-/** THE NAVIGATION COLUMN - one width, and it does not move.
+/** THE NAVIGATION: an icon rail that reveals its labels on demand.
  *
  *  PRESENTATION ONLY. Every route, label, icon and destination still comes from
  *  `/api/nav` exactly as before. Nothing here renames, reorders, adds or removes
  *  a navigation item, and no page's data path is touched.
  *
  *  BELOW `md` - an off-canvas DRAWER at full width, with a backdrop, opened by
- *  the Topbar's menu button. A permanent column is what used to make every page
- *  overflow horizontally on a phone, so that behaviour stays.
+ *  the Topbar's menu button, always labelled. Unchanged.
  *
- *  AT `md` AND UP - a STATIC COLUMN, always at `--sidebar-w`, always labelled.
- *  The content is genuinely inset by it (see AppShell), so the column overlays
- *  nothing and casts no shadow.
+ *  AT `md` AND UP - three states, one width rule:
  *
- *  IT USED TO COLLAPSE, and that is what this shape exists to undo. The rail sat
- *  at `--sidebar-rail-w` and widened under the pointer, so the navigation
- *  changed size as a matter of course: labels appeared and vanished while they
- *  were being read, and the one fixed landmark on every screen was the one thing
- *  that kept moving. A later revision held it open on the Insights Hub alone,
- *  which only made the chrome disagree with itself between routes. It is now the
- *  same column everywhere.
+ *    unpinned, at rest     68px icon rail; the content is inset by 68px.
+ *    unpinned, hovered or  224px, drawn OVER the content with a shadow. The
+ *      focused within      inset stays 68px, so nothing behind it moves.
+ *    pinned                224px column; the content is inset by 224px.
  *
- *  NOTHING HERE READS HOVER. No hover state, no width transition, no per-route
- *  exception to keep in sync - the width is a constant, so the layout cannot be
- *  caught mid-animation and the content never reflows.
+ *  THE OVERLAY IS THE POINT. An earlier expanding rail widened the content
+ *  inset as it grew, so every page reflowed under the pointer and labels came
+ *  and went while they were being read; it was replaced by a static column,
+ *  which then cost every page 224px of width it did not use. Expanding as an
+ *  overlay keeps the content still, and the pin (the round button on the
+ *  rail's edge, remembered per browser) gives a reader who wants the labels
+ *  permanently the old column back.
  *
- *  `NavRow` STILL CARRIES ITS COLLAPSED-STATE AFFORDANCES - the focus tooltip
- *  and the native `title` - behind an `expanded` prop this file now always
- *  passes true. They are inert rather than deleted: the row is a general
- *  component, and a labelled row needs neither.
+ *  Hover expansion is DEBOUNCED both ways -- a short delay in, a slightly
+ *  longer delay out -- so a pointer crossing the rail on its way to the
+ *  content does not flash it open, and a pointer that strays a few pixels
+ *  outside while reading a label does not snap it shut. Keyboard focus
+ *  inside the rail expands it immediately, so a tab through the navigation
+ *  is always labelled.
  */
 export function Sidebar({
   activeKey,
@@ -74,10 +75,22 @@ export function Sidebar({
     else if (value === 'signout') logout.mutate(undefined, { onSuccess: () => navigate('/login', { replace: true }) })
   }
 
-  // ALWAYS. Named rather than inlined so the brand, every row and the account
-  // footer read one fact: at `md` and up the column is open, and below `md` the
-  // drawer is full width whenever it is open at all. There is no third state.
-  const labelled = true
+  const pinned = useSidebar((s) => s.pinned)
+  const togglePinned = useSidebar((s) => s.togglePinned)
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const hoverTimer = useRef<number | null>(null)
+
+  const hover = (next: boolean) => {
+    if (hoverTimer.current) window.clearTimeout(hoverTimer.current)
+    hoverTimer.current = window.setTimeout(() => setHovered(next), next ? 120 : 220)
+  }
+  useEffect(() => () => { if (hoverTimer.current) window.clearTimeout(hoverTimer.current) }, [])
+
+  // The drawer (below `md`) is always labelled when it is open at all. At `md`
+  // and up the labels show when pinned, or while the pointer or focus is in.
+  const revealed = pinned || hovered || focused
+  const labelled = open || revealed
 
   return (
     <>
@@ -90,22 +103,61 @@ export function Sidebar({
       )}
       <aside
         aria-label="Main navigation"
-        data-expanded="true"
+        data-expanded={labelled ? 'true' : 'false'}
+        data-pinned={pinned ? 'true' : 'false'}
+        onMouseEnter={() => hover(true)}
+        onMouseLeave={() => hover(false)}
+        onFocus={() => setFocused(true)}
+        onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setFocused(false) }}
         className={[
-          'fixed inset-y-0 left-0 z-50 flex h-screen flex-col border-r border-white/[0.06]',
+          'group/nav fixed inset-y-0 left-0 z-50 flex h-screen flex-col border-r border-white/[0.06]',
           'bg-sidebar-bg text-sidebar-item',
-          // ONE WIDTH AT EVERY BREAKPOINT. Below `md` it is the drawer's width;
-          // at `md` and up it is the column's, and they are the same number.
+          // Below `md` the drawer is always the full width. From `md` the width
+          // is the rail's until the labels are revealed.
           'w-[var(--sidebar-w)]',
+          revealed ? 'md:w-[var(--sidebar-w)]' : 'md:w-[var(--sidebar-rail-w)]',
+          // A shadow ONLY while overlaying the content (revealed but not
+          // pinned): a pinned column sits beside the content and casts nothing.
+          revealed && !pinned ? 'md:shadow-[8px_0_24px_-8px_rgba(0,0,0,0.45)]' : '',
           // Below `md` the drawer slides in and out; from `md` it is simply
-          // there. This is the only thing left that moves.
+          // there.
           open ? 'translate-x-0' : '-translate-x-full',
           'md:translate-x-0',
-          // No shadow: the content is inset by this column rather than sitting
-          // under it, so there is nothing for it to cast onto.
-          'transition-transform duration-200 ease-[var(--ease-out)] motion-reduce:transition-none',
+          'transition-[transform,width,box-shadow] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none',
         ].join(' ')}
       >
+        {/* THE PIN. A round button on the rail's edge, on the brand row's
+            centre line, that turns the overlay into a permanent column and
+            back. Hidden below `md`, where the drawer needs no pin. Faded
+            until the rail is in use, so its edge stays clean. */}
+        <button
+          type="button"
+          onClick={(e) => {
+            // Collapsing must collapse NOW, not when the pointer happens to
+            // leave: drop the hover and focus that would otherwise keep the
+            // labels revealed until the reader moved away.
+            if (pinned) {
+              if (hoverTimer.current) window.clearTimeout(hoverTimer.current)
+              setHovered(false)
+              setFocused(false)
+              e.currentTarget.blur()
+            }
+            togglePinned()
+          }}
+          aria-pressed={pinned}
+          aria-label={pinned ? 'Collapse navigation to icons' : 'Keep navigation expanded'}
+          title={pinned ? 'Collapse navigation' : 'Keep navigation open'}
+          className={[
+            'absolute -right-3 top-[calc(var(--topbar-h)/2)] z-10 hidden h-6 w-6 -translate-y-1/2 cursor-pointer place-items-center rounded-full',
+            'border border-border-default bg-surface-card text-ink-muted shadow-[var(--shadow-card-soft)]',
+            'transition-[opacity,color,border-color] duration-150 hover:border-brand-violet hover:text-brand-violet',
+            'focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-brand-violet md:grid',
+            revealed ? 'opacity-100' : 'opacity-0 group-hover/nav:opacity-100',
+            '[&_svg]:h-3.5 [&_svg]:w-3.5',
+          ].join(' ')}
+        >
+          <Icon name={pinned ? 'chevronLeft' : 'chevronRight'} />
+        </button>
         {/* ---- brand ------------------------------------------------------- */}
         {/* Exactly the topbar's height, so the rail's first separator lines up
             with the one across the content and the two read as one chrome. */}

@@ -1,21 +1,21 @@
 import { useState, type ReactNode } from 'react'
 import { Sidebar } from './Sidebar'
 import { Topbar, type Crumb } from './Topbar'
+import { useSidebar } from '../../store/sidebar'
 
 /** The page shell. Ported from css/layout.css #app / .main / .content.
  *
- *  THE CONTENT IS INSET BY THE FULL NAVIGATION COLUMN, at every width the column
- *  is on screen. Two insets, not three:
+ *  THE CONTENT IS INSET BY THE NAVIGATION'S PINNED WIDTH, and by nothing else:
  *
- *      below md      ->  none                     (off-canvas drawer)
- *      md and up     ->  --sidebar-w   (224px)    always
+ *      below md      ->  none                       (off-canvas drawer)
+ *      md, unpinned  ->  --sidebar-rail-w  (68px)   the icon rail
+ *      md, pinned    ->  --sidebar-w       (224px)  the full column
  *
- *  ONE NUMBER, AND IT NEVER CHANGES. This used to be a three-way rule - a 68px
- *  rail inset, widened to 224px only when the rail was pinned, and only from
- *  `lg` - which existed to serve a sidebar that changed width under the pointer.
- *  The sidebar no longer does (see Sidebar.tsx), so the layout has nothing left
- *  to respond to: the column is a fixed 224px, the content starts where it ends,
- *  and no pointer movement, route change or breakpoint reflows the page.
+ *  Only PINNING changes the inset, and pinning is a click. The rail's hover
+ *  and focus expansion is an overlay drawn by the sidebar over the content
+ *  (see Sidebar.tsx), so no pointer movement, route change or breakpoint
+ *  reflows a page -- the failure of the earlier expanding rail, whose inset
+ *  followed the pointer. The one transition here runs when the pin changes.
  *
  *  BELOW `md` there is no inset at all: the sidebar is an off-canvas drawer
  *  there, and a permanent column is what used to leave no room for any page's
@@ -31,6 +31,7 @@ export function AppShell({
   children: ReactNode
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const pinned = useSidebar((s) => s.pinned)
 
   return (
     <div className="min-h-screen">
@@ -38,10 +39,8 @@ export function AppShell({
       <div
         className={[
           'flex min-h-screen min-w-0 flex-col bg-surface-page',
-          // The column's own width, from `md` up, and nothing else. No
-          // transition: this value is a constant now, so there is no change for
-          // one to animate.
-          'md:pl-[var(--sidebar-w)]',
+          'transition-[padding-left] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none',
+          pinned ? 'md:pl-[var(--sidebar-w)]' : 'md:pl-[var(--sidebar-rail-w)]',
         ].join(' ')}
       >
         <Topbar crumbs={crumbs} onMenuClick={() => setSidebarOpen(true)} />
