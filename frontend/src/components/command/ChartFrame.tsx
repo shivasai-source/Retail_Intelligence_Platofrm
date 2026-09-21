@@ -101,27 +101,3 @@ export function ChartFrame({
     </Card>
   )
 }
-
-/** Top-N selector. 5 / 10 / 15 per the approved plan. */
-export function TopNSelect({ value, onChange }: { value: number; onChange: (n: number) => void }) {
-  return (
-    <div className="inline-flex items-center gap-1 text-xs text-ink-muted">
-      <span>Top</span>
-      <div className="inline-flex overflow-hidden rounded-[var(--r-sm)] border border-border-subtle">
-        {[5, 10, 15].map((n) => (
-          <button
-            key={n}
-            type="button"
-            aria-pressed={value === n}
-            onClick={() => onChange(n)}
-            className={`cursor-pointer px-1.5 py-0.5 font-semibold transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
-              value === n ? 'bg-brand-violet text-white' : 'text-ink-muted hover:bg-surface-hover hover:text-ink-primary'
-            }`}
-          >
-            {n}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}

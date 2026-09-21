@@ -128,6 +128,7 @@ export function AlertPicker({ disabled }: { disabled?: boolean }) {
   }, [open])
 
   const total = alerts.data?.alerts.length ?? 0
+  const searching = query.trim().length > 0
 
   return (
     <>
@@ -149,55 +150,70 @@ export function AlertPicker({ disabled }: { disabled?: boolean }) {
             ref={menuRef}
             role="listbox"
             aria-label="Underperforming promotion events"
-            className="fade-in-up fixed z-[9999] flex w-[460px] max-w-[calc(100vw-16px)] flex-col rounded-[var(--r-md)] border border-border-default bg-surface-card shadow-[var(--shadow-lg)]"
+            className="fade-in-up fixed z-[9999] flex w-[560px] max-w-[calc(100vw-16px)] flex-col rounded-[var(--r-md)] border border-border-default bg-surface-card shadow-[var(--shadow-lg)]"
             style={{ left: coords.left, top: coords.top }}
           >
-            <div className="border-b border-border-subtle p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="text-sm font-bold text-ink-primary">Promotion events below ROI target</div>
-                {total > 0 && <span className="text-xs text-ink-muted">{total.toLocaleString()} in scope</span>}
+            <div className="flex flex-col gap-2.5 border-b border-border-subtle p-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <div className="text-sm font-bold text-ink-primary">Pick a promotion event to investigate</div>
+                {total > 0 && (
+                  <span className="text-xs text-ink-muted">
+                    {total.toLocaleString()} below ROI target
+                  </span>
+                )}
               </div>
-              <div className="mt-2 flex gap-1" role="tablist" aria-label="Severity">
-                {SEVERITIES.map((sev) => (
-                  <button
-                    key={sev}
-                    type="button"
-                    role="tab"
-                    aria-selected={severity === sev && !query.trim()}
-                    onClick={() => setSeverity(sev)}
-                    className={`inline-flex h-7 items-center gap-1.5 rounded-[var(--r-pill)] px-2.5 text-xs font-semibold transition-colors ${
-                      severity === sev && !query.trim()
-                        ? 'bg-ink-primary text-white'
-                        : 'bg-surface-muted text-ink-secondary hover:bg-surface-hover'
-                    }`}
-                  >
-                    {sev}
-                    <span className="tabular-nums opacity-70">{counts[sev].toLocaleString()}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="mt-2 flex items-center gap-2 rounded-[var(--r-sm)] border border-border-default bg-surface-muted px-2.5 py-1.5 focus-within:border-brand-violet">
-                <Icon name="search" className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
-                <input
-                  autoFocus
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Filter by promotion, product, channel or week"
-                  className="min-w-0 flex-1 border-0 bg-transparent text-sm text-ink-primary outline-none placeholder:text-ink-muted"
-                />
+              <div className="flex items-center gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2 rounded-[var(--r-sm)] border border-border-default bg-surface-muted px-2.5 py-1.5 focus-within:border-brand-violet">
+                  <Icon name="search" className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
+                  <input
+                    autoFocus
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search promotion, product, channel or week"
+                    className="min-w-0 flex-1 border-0 bg-transparent text-sm text-ink-primary outline-none placeholder:text-ink-muted"
+                  />
+                </div>
+                <div
+                  className={`inline-flex h-[30px] shrink-0 items-stretch overflow-hidden rounded-[var(--r-sm)] border border-border-subtle ${
+                    searching ? 'opacity-50' : ''
+                  }`}
+                  role="tablist"
+                  aria-label="Severity"
+                >
+                  {SEVERITIES.map((sev) => (
+                    <button
+                      key={sev}
+                      type="button"
+                      role="tab"
+                      aria-selected={severity === sev && !searching}
+                      onClick={() => {
+                        setQuery('')
+                        setSeverity(sev)
+                      }}
+                      className={`inline-flex cursor-pointer items-center gap-1.5 px-2.5 text-xs font-semibold transition-colors ${
+                        severity === sev && !searching
+                          ? 'bg-brand-violet text-white'
+                          : 'text-ink-muted hover:bg-surface-hover hover:text-ink-primary'
+                      }`}
+                    >
+                      {sev}
+                      <span className="tabular-nums opacity-70">{counts[sev].toLocaleString()}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div className="max-h-[360px] overflow-y-auto p-1.5">
+            <div className="max-h-[420px] overflow-y-auto">
               {alerts.isLoading || (!initialised && !alerts.data) ? (
-                <div className="flex items-center gap-2 px-3 py-6 text-sm text-ink-muted">
+                <div className="flex items-center gap-2 px-4 py-6 text-sm text-ink-muted">
                   <Spinner /> Loading alerts…
                 </div>
               ) : alerts.error ? (
-                <div className="px-3 py-6 text-sm text-ink-muted">Alerts could not be loaded.</div>
+                <div className="px-4 py-6 text-sm text-ink-muted">Alerts could not be loaded.</div>
               ) : shown.length === 0 ? (
-                <div className="px-3 py-6 text-sm text-ink-muted">
-                  {ranked.length ? (query.trim() ? 'Nothing matches that filter.' : `No ${severity} events in this scope.`) : 'No promotion event is below target in this scope.'}
+                <div className="px-4 py-6 text-sm text-ink-muted">
+                  {ranked.length ? (searching ? 'Nothing matches that search.' : `No ${severity} events in this scope.`) : 'No promotion event is below target in this scope.'}
                 </div>
               ) : (
                 shown.map((a) => {
@@ -213,40 +229,39 @@ export function AlertPicker({ disabled }: { disabled?: boolean }) {
                         setQuery('')
                         handoff(a)
                       }}
-                      className="flex w-full cursor-pointer items-center gap-3 rounded-[var(--r-sm)] px-2.5 py-2 text-left hover:bg-surface-hover"
+                      className="grid w-full cursor-pointer grid-cols-[1fr_auto] items-center gap-x-4 gap-y-0.5 border-b border-border-subtle px-4 py-2.5 text-left transition-colors last:border-b-0 hover:bg-surface-hover"
                     >
-                      <Pill tone={SEVERITY_TONE[a.severity]} className="w-[68px] shrink-0 justify-center">
-                        {a.severity}
-                      </Pill>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-bold text-ink-primary">{promotionOf(a)}</span>
-                        <span className="block truncate text-xs text-ink-muted">
-                          {a.product} · {a.channel} · {a.week}
+                      <span className="flex min-w-0 items-center gap-2">
+                        {searching && (
+                          <Pill tone={SEVERITY_TONE[a.severity]} className="h-[18px] shrink-0 px-1.5 text-[11px]">
+                            {a.severity}
+                          </Pill>
+                        )}
+                        <span className="truncate text-sm font-bold text-ink-primary">{promotionOf(a)}</span>
+                        <span className="shrink-0 text-xs text-ink-muted">
+                          {a.channel} · {a.week}
                         </span>
                       </span>
-                      <span className="shrink-0 text-right">
-                        <span
-                          className={`block text-sm font-bold tabular-nums ${
-                            roi !== null && roi < BREAKEVEN_ROI ? 'text-status-danger' : 'text-ink-primary'
-                          }`}
-                        >
-                          ROI {fmtRoi(roi)}
-                        </span>
-                        <span className="block text-xs text-ink-muted">{a.at_stake_display} at stake</span>
+                      <span
+                        className={`text-right text-sm font-bold tabular-nums ${
+                          roi !== null && roi < BREAKEVEN_ROI ? 'text-status-danger' : 'text-ink-primary'
+                        }`}
+                      >
+                        ROI {fmtRoi(roi)}
                       </span>
+                      <span className="truncate text-xs text-ink-secondary">{a.product}</span>
+                      <span className="text-right text-xs tabular-nums text-ink-muted">{a.at_stake_display} at stake</span>
                     </button>
                   )
                 })
               )}
             </div>
 
-            <div className="border-t border-border-subtle px-3 py-2 text-xs leading-[1.5] text-ink-muted">
-              {shown.length >= SHOWN
-                ? `Top ${SHOWN} of the ${query.trim() ? 'matches' : severity + ' band'} by priority — type above to narrow. `
-                : ''}
-              You can also close this and type or paste any question into the bar — an alert's own description from
-              the Insights Hub works as-is.
-            </div>
+            {shown.length >= SHOWN && (
+              <div className="border-t border-border-subtle px-4 py-2 text-xs text-ink-muted">
+                Top {SHOWN} of {searching ? 'the matches' : `${counts[severity].toLocaleString()} ${severity}`} by priority — search to narrow.
+              </div>
+            )}
           </div>,
           document.body,
         )}

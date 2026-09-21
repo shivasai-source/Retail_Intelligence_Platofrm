@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { SERIES } from './series'
+import { Segmented } from './Segmented'
 import { Card, CardHeader, CardBody, InfoBlock, InfoPopover } from '../ui'
 import { DonutBreakdown } from '../charts'
 import type { BreakdownResponse, PromotionMixResponse } from '../../types/commandCenter'
@@ -106,28 +107,7 @@ export function PromotionMixCard({
           started their content at different heights. Same strip the ChartFrame
           cards use. */}
       <div className="flex flex-wrap items-center gap-2 border-b border-border-subtle px-5 py-2.5">
-        <div
-          className="inline-flex h-[23px] items-stretch overflow-hidden rounded-[var(--r-sm)] border border-border-subtle"
-          role="radiogroup"
-          aria-label="Promotion Mix metric"
-        >
-              {METRICS.map((m) => (
-                <button
-                  key={m.key}
-                  type="button"
-                  role="radio"
-                  aria-checked={metric === m.key}
-                  onClick={() => setMetric(m.key)}
-                  className={`cursor-pointer px-2 text-xs font-semibold transition-colors duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
-                    metric === m.key
-                      ? 'bg-brand-violet text-white'
-                      : 'text-ink-muted hover:bg-surface-hover hover:text-ink-primary'
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
+        <Segmented ariaLabel="Promotion Mix metric" value={metric} onChange={setMetric} options={METRICS} />
       </div>
       <CardBody className="flex flex-1 items-center px-6">
         {segments.length > 0 ? (

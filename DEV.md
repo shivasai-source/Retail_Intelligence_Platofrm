@@ -5,12 +5,17 @@ Two processes, two terminals.
 ## 1. Backend (FastAPI)
 
 ```
+python -m venv venv                       # first time only, from the repo root
+./venv/Scripts/pip install -r backend/requirements.txt   # first time only
 cd backend
-python -m venv .venv                      # first time only
-./.venv/Scripts/pip install -r requirements.txt   # first time only
-./.venv/Scripts/python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8100
+../venv/Scripts/python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8100
 ```
 Health check: http://127.0.0.1:8100/api/health
+
+The virtualenv lives at the repo root (`venv/`), not inside `backend/`. If
+uvicorn says port 8100 is already in use, a backend is already running —
+`netstat -ano | findstr :8100` gives the PID; `Stop-Process -Id <pid> -Force`
+it (there are usually two python PIDs, kill both) before starting another.
 
 **`--reload` is unreliable on this machine.** WatchFiles logs "Reloading..." but
 the old server process is never replaced (seen repeatedly on 2026-09-15, on a
@@ -66,7 +71,7 @@ ever talks to one origin.
 
 ```
 cd frontend && npm run build
-cd ../backend && ./.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8100
+cd ../backend && ../venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8100
 ```
 Builds `frontend/dist/`, then runs the backend alone (no `--reload`, no Vite,
 no separate connector proxy) — `app/main.py` auto-mounts `dist/` once it

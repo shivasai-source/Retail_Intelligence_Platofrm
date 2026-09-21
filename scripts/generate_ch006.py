@@ -17,7 +17,6 @@ Ten stores, not all 48, because the fact table samples its channels -- CH002 has
 210 stores in the geo dimension and exactly 10 in the fact. Ten keeps CH006 at
 the same weight as CH001/CH002/CH003/CH005 rather than letting it become 47% of
 the dataset.
-
 NOTHING HERE IS INVENTED. Every structural input is lifted from the existing
 CH001 rows, which the project already treats as the reference weekly channel:
 

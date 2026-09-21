@@ -45,7 +45,7 @@ export function QueryBar({
           </>
         ) : (
           <>
-            <Icon name="zap" /> <span>New Investigation</span>
+            <Icon name="zap" /> <span>Investigate</span>
           </>
         )}
       </Button>

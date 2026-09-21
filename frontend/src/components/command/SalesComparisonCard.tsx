@@ -3,7 +3,8 @@ import { Icon } from '../../icons'
 import { useSalesComparison } from '../../hooks/useCommandCenter'
 import { useCommandFilters } from '../../store/commandFilters'
 import { ChartFrame } from './ChartFrame'
-import { COLUMN_DIVISIONS, TipRow, columnNiceStep, columnPath, useChartSize } from './ChartSections'
+import { COLUMN_DIVISIONS, TipRow, columnNiceStep, columnPath, tooltipLeft, useChartSize } from './ChartSections'
+import { Segmented } from './Segmented'
 import type {
   ComparisonMetricSpec,
   ComparisonPoint,
@@ -72,44 +73,6 @@ function pairKeys(key: ComparisonKey) {
   return key === 'ytd'
     ? ({ primary: 'ytd', against: 'ytd_yago' } as const)
     : ({ primary: 'current', against: key } as const)
-}
-
-function Segmented<T extends string>({
-  options,
-  value,
-  onChange,
-  ariaLabel,
-}: {
-  options: { key: T; label: string; title?: string }[]
-  value: T
-  onChange: (v: T) => void
-  ariaLabel: string
-}) {
-  return (
-    <div
-      className="inline-flex h-[23px] items-stretch overflow-hidden rounded-[var(--r-sm)] border border-border-subtle"
-      role="radiogroup"
-      aria-label={ariaLabel}
-    >
-      {options.map((o) => (
-        <button
-          key={o.key}
-          type="button"
-          role="radio"
-          aria-checked={value === o.key}
-          title={o.title}
-          onClick={() => onChange(o.key)}
-          className={`cursor-pointer px-2 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
-            value === o.key
-              ? 'bg-brand-violet text-white'
-              : 'text-ink-muted hover:bg-surface-hover hover:text-ink-primary'
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  )
 }
 
 /** A native <select> dressed as one of the card's own controls: the same
@@ -188,9 +151,9 @@ function PeriodPicker({
   )
 }
 
-/** Every measure for one month as plain text — the `<title>` a screen reader
- *  reads, and the tooltip a pointerless device gets. Labelled from the metric
- *  specs so it cannot drift from the selector above it. */
+/** Every measure for one month as plain text, for the list a screen reader
+ *  reads in place of the plot. Labelled from the metric specs so it cannot
+ *  drift from the selector above it. */
 function describePoint(point: ComparisonPoint, labels: Record<string, string>): string {
   const lines = Object.keys(point.values).map(
     (key) => `${labels[key] ?? key}: ${point.values[key].display}`,
@@ -382,19 +345,17 @@ function ComparisonColumns({
                   fill="transparent"
                   onMouseEnter={() => setHover(i)}
                   onMouseLeave={() => setHover(null)}
-                >
-                  {/* Reaches assistive tech and survives a missing pointer. */}
-                  <title>{describePoint(p, labels)}</title>
-                </rect>
+                />
               </g>
             )
           })}
         </svg>
 
+        {/* Beside the hovered slot, never over it — see tooltipLeft. */}
         {active !== null && (
           <div
             className="pointer-events-none absolute top-0 z-20 w-48 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
-            style={{ left: Math.min(Math.max(0, centreX(active) - 96), Math.max(0, width - 192)) }}
+            style={{ left: tooltipLeft(width, padL + slot * active, padL + slot * (active + 1), 192) }}
           >
             <div className="font-bold text-ink-primary">{series[active].label}</div>
             {/* Every measure, not just the one on the axis: the question a
@@ -423,6 +384,13 @@ function ComparisonColumns({
           </div>
         )}
       </div>
+
+      {/* The same figures as text, for readers the SVG cannot reach. */}
+      <ul className="sr-only">
+        {series.map((p) => (
+          <li key={p.key}>{describePoint(p, labels)}</li>
+        ))}
+      </ul>
     </div>
   )
 }
