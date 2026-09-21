@@ -118,6 +118,7 @@ def _no_dataset(request: Request, exc: DatasetNotLoaded) -> JSONResponse:
 # Domain routers
 # ---------------------------------------------------------------------------
 from app.routers import (  # noqa: E402
+    analyst,
     auth,
     briefing,
     command_center,
@@ -137,7 +138,7 @@ from app.routers import (  # noqa: E402
 
 for r in (nav, command_center, investigations, misc, connectors,
           promotion_calendar, simulation, decision, decision_brief, briefing, store, reports,
-          auth, datasets, intelligence):
+          auth, datasets, intelligence, analyst):
     app.include_router(r.router)
 
 
