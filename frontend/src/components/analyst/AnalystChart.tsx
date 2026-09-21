@@ -268,7 +268,7 @@ function Bars({
           >
             {/* A transparent hit band, so hovering anywhere on the row works. */}
             <rect x="0" y={y} width={BAR_W} height={BAR_ROW} fill="transparent" />
-            <text x="0" y={y + 9} fontSize="10" fill="var(--ink-secondary)">
+            <text x="0" y={y + 9} fontSize="10" fill="var(--text-secondary)">
               {p.label.length > 26 ? `${p.label.slice(0, 25)}…` : p.label}
             </text>
             {/* DIRECT LABELS on every row is right here and only here: the
@@ -279,7 +279,7 @@ function Bars({
               fontSize="10"
               fontWeight="600"
               textAnchor="end"
-              fill="var(--ink-primary)"
+              fill="var(--text-primary)"
             >
               {label(i)}
             </text>
@@ -342,7 +342,7 @@ function Columns({
                 y={COL_H + 11}
                 fontSize="8"
                 textAnchor="middle"
-                fill="var(--ink-muted)"
+                fill="var(--text-muted)"
               >
                 {p.label.length > 10 ? `${p.label.slice(0, 9)}…` : p.label}
               </text>
@@ -541,7 +541,7 @@ function MultiSeries({
                   y={H + 11}
                   fontSize="8"
                   textAnchor="middle"
-                  fill="var(--ink-muted)"
+                  fill="var(--text-muted)"
                 >
                   {name.length > 10 ? `${name.slice(0, 9)}…` : name}
                 </text>
@@ -625,7 +625,7 @@ function Scatter({
             onMouseLeave={() => setHover(null)}
           />
         ))}
-        <text x={W - pad.r} y={H - 4} fontSize="8" textAnchor="end" fill="var(--ink-muted)">
+        <text x={W - pad.r} y={H - 4} fontSize="8" textAnchor="end" fill="var(--text-muted)">
           {spec.x_label} →
         </text>
       </svg>

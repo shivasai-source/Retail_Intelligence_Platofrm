@@ -52,6 +52,8 @@ import { toSimulationFilters as toReportScope } from '../hooks/useSimulation'
 import { useAlertHandoff } from '../hooks/useAlertHandoff'
 import { fmtRoi } from '../lib/roi'
 import type { KpiCard } from '../types/commandCenter'
+import { AnalystButton } from '../components/analyst/AnalystButton'
+import { AnalystPanel } from '../components/analyst/AnalystPanel'
 
 const GRANULARITIES = [
   { label: 'Weekly', value: 'week' as const },
@@ -155,6 +157,9 @@ function KpiTile({
 
 export function CommandCenter() {
   const [granularity, setGranularity] = useState<'week' | 'month'>('week')
+  /** The Analyst drawer. Page state rather than global: it is opened from this
+   *  page's header and closes with it, so nothing else needs to know. */
+  const [analystOpen, setAnalystOpen] = useState(false)
   const { show } = useToast()
   const live = useLiveStatus()
   const queryClient = useQueryClient()
@@ -354,6 +359,11 @@ export function CommandCenter() {
               disabled={isEmpty}
               disabledReason="This filter selection matches no sales rows, so there is nothing to report."
             />
+            {/* THE BOT, last in the row — it is the one control here that opens
+                another surface rather than changing this one. Never disabled by
+                an empty filter selection the way Export is: "this selection has
+                no rows" is itself a reasonable thing to ask the Analyst about. */}
+            <AnalystButton open={analystOpen} onClick={() => setAnalystOpen(true)} />
           </div>
         </div>
       </div>
@@ -537,6 +547,11 @@ export function CommandCenter() {
       </Stale>
       </>
       )}
+
+      {/* OUTSIDE the isEmpty branch: a selection with no rows is a perfectly
+          good thing to ask the Analyst about, so the drawer has to survive
+          that state. It portals to <body> regardless of where it sits here. */}
+      <AnalystPanel open={analystOpen} onClose={() => setAnalystOpen(false)} />
     </AppShell>
   )
 }
