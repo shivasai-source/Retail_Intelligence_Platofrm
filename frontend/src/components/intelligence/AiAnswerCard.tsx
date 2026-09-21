@@ -14,12 +14,10 @@ import { useStreamedAnswer } from './useStreamedAnswer'
 // reports, which is a fact the payload actually carries, and nothing when it
 // carries none.
 export function AiAnswerCard({
-  question,
   answer,
   specialists = [],
   streamKey,
 }: {
-  question: string
   /** Only what the analysis produced. The old `IntelligenceAnswer` shape also
    *  required `sources` and `specialists` counts, which this card never
    *  rendered and the caller therefore filled with invented numbers. */
@@ -33,9 +31,10 @@ export function AiAnswerCard({
   return (
     <Card className="fade-in mb-5">
       <div className="flex items-start justify-between gap-3 border-b border-border-subtle p-[16px_20px]">
+        {/* The title alone. The question used to sit under it; the hero
+            block at the top of the page already carries it in full. */}
         <div className="min-w-0 flex-1">
           <h3 className="text-md font-bold">Investigation Synthesis</h3>
-          <div className="mt-0.5 text-sm text-ink-muted">{question}</div>
         </div>
         {/* B9 removed the "{confidence}% confidence" badge that stood here.
             It printed an authored 82-87%; nothing in this project computes a

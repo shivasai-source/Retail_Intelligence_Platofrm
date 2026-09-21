@@ -23,6 +23,7 @@ export type ReportModule =
   | 'simulation-general-optimization'
   | 'simulation-target-rescue'
   | 'decision-center'
+  | 'investigations'
 
 /** One KPI line as the report captured it — the card's own display string, not
  *  a re-rendering. */

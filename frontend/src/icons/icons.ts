@@ -36,6 +36,9 @@ export const ICON_PATHS = {
   sparkles: `<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/>`,
   cpu: `<rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9 1v4M15 1v4M9 19v4M15 19v4M1 9h4M1 15h4M19 9h4M19 15h4"/>`,
   zap: `<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>`,
+  // The Analyst's send control and its avatar glyph.
+  send: `<path d="M21.5 2.5 11 13"/><path d="M21.5 2.5 15 21l-4-8-8-4z"/>`,
+  analyst: `<rect x="3.5" y="7" width="17" height="12" rx="3"/><path d="M12 7V3.8"/><circle cx="12" cy="2.9" r="1.3"/><path d="M8.6 12.4v1.6M15.4 12.4v1.6"/><path d="M1.6 12.2v2.6M22.4 12.2v2.6"/>`,
   target: `<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/>`,
   trending: `<path d="m3 17 6-6 4 4 8-8"/><path d="M14 7h7v7"/>`,
   trendingDown: `<path d="m3 7 6 6 4-4 8 8"/><path d="M14 17h7v-7"/>`,

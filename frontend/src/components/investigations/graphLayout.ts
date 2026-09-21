@@ -40,7 +40,9 @@ export interface LaidOutNode {
  *  (those only exist so the first paint isn't empty before layout runs). */
 export function computeRadialLayout(nodes: OrchNode[], width: number, height: number): LaidOutNode[] {
   const N = nodes.length
-  const nodeR = 65
+  // Half the node's 156px diameter (InvestigationGraph draws it), so the
+  // ring keeps a node's full width inside the stage.
+  const nodeR = 78
   const pad = 18
   const hubRx = 104
   const hubRy = 50

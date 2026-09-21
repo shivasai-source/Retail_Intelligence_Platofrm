@@ -155,7 +155,7 @@ def test_an_empty_library_is_empty_and_says_so() -> None:
     assert body["total"] == 0
     # The module list still travels, so the page can explain where reports come
     # from rather than showing a bare empty table.
-    assert len(body["modules"]) == 5
+    assert len(body["modules"]) == 6
 
 
 def test_a_generated_report_appears_in_the_library() -> None:

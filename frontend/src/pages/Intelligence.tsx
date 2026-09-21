@@ -5,7 +5,6 @@ import {
   Button,
   Card,
   CardHeader,
-  Dropdown,
   Pill,
   Spinner,
   Tabs,
@@ -23,6 +22,7 @@ import {
   type IntelligenceScope,
 } from '../hooks/usePromotionIntelligence'
 import { AiAnswerCard } from '../components/intelligence/AiAnswerCard'
+import { BizQuestionCard } from '../components/investigations/BizQuestionCard'
 import {
   CEILING,
   PhaseRail,
@@ -45,13 +45,15 @@ import { fmtRoi } from '../lib/roi'
 import { useChannelNames } from '../hooks/useCommandCenter'
 import { proposedDiscountPct, useIntelligenceHandoffStore } from '../store/intelligenceHandoff'
 import { useGeneralOptimizationStore } from '../store/generalOptimization'
-import type { InvestigationContext, KeyInsight, Recommendation } from '../types/promotionIntelligence'
+import type { KeyInsight, Recommendation } from '../types/promotionIntelligence'
 
 const TABS = [
   { key: '0', label: 'Synthesis' },
   { key: '1', label: 'Mechanism' },
   { key: '2', label: 'Drivers' },
-  { key: '3', label: 'Where It Bites' },
+  // By channel, region and retailer. Was "Where It Bites", which named the
+  // question the tab answers but not what a reader would find in it.
+  { key: '3', label: 'Channels & Regions' },
   { key: '4', label: 'Portfolio' },
   { key: '5', label: 'Exposure' },
   { key: '6', label: 'Recommendations' },
@@ -147,7 +149,7 @@ function NoInvestigation() {
         <h2 className="text-lg font-extrabold">Start with an investigation</h2>
         <p className="max-w-[460px] text-base leading-[1.6] text-ink-muted">
           Promotion Intelligence goes deeper on a root cause an investigation has already found — the mechanism behind it,
-          where it bites hardest, and what it's worth. It needs an investigation to build on.
+          which channels and regions it hits hardest, and what it's worth. It needs an investigation to build on.
         </p>
         <Link
           to="/investigations"
@@ -160,84 +162,6 @@ function NoInvestigation() {
   )
 }
 
-/** The investigation being deepened — scope, root cause, what its agents found. */
-function InvestigationHeader({
-  ctx,
-  available,
-  onPick,
-}: {
-  ctx: InvestigationContext
-  available: { run_id: string; question: string; created_at: number }[]
-  onPick: (runId: string) => void
-}) {
-  const channelNames = useChannelNames()
-  const when = new Date(ctx.created_at).toLocaleString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-  const others = available.filter((a) => a.run_id !== ctx.run_id)
-  return (
-    <Card className="fade-in mt-4">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border-subtle p-[14px_18px]">
-        <div className="min-w-0 flex-1">
-          <div className="mb-1 flex flex-wrap items-center gap-2">
-            <Pill tone="violet">Deepening your investigation from {when}</Pill>
-            {ctx.investigation_type && <Pill tone="neutral">{ctx.investigation_type}</Pill>}
-            <Pill tone="neutral">{describeScope(ctx.scope, channelNames)}</Pill>
-            {ctx.confidence != null && <Pill tone="success">{ctx.confidence}% confidence</Pill>}
-          </div>
-          <div className="text-base font-bold leading-[1.4]">{ctx.question}</div>
-          {ctx.root_cause && (
-            <div className="mt-1.5 text-base leading-[1.55] text-ink-secondary">
-              <span className="font-semibold text-ink-primary">Root cause found: </span>
-              {ctx.root_cause}
-            </div>
-          )}
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
-          {others.length > 0 && (
-            <Dropdown
-              selected={ctx.run_id}
-              options={[
-                { label: `${ctx.question.slice(0, 60)} (current)`, value: ctx.run_id },
-                ...others.map((a) => ({ label: a.question.slice(0, 60), value: a.run_id })),
-              ]}
-              onSelect={(v) => onPick(v)}
-              trigger={
-                <Button variant="ghost" size="sm" className="cursor-pointer">
-                  Switch investigation <Icon name="chevronDown" />
-                </Button>
-              }
-            />
-          )}
-          <Link to="/investigations" className="whitespace-nowrap text-base font-semibold text-brand-violet">
-            ← Back to investigation
-          </Link>
-        </div>
-      </div>
-      {ctx.findings.length > 0 && (
-        <div className="flex flex-wrap gap-2 p-[12px_18px]">
-          {ctx.findings.map((f) => (
-            <span
-              key={f.key}
-              className="inline-flex items-center gap-1.5 rounded-[var(--r-pill)] bg-surface-muted px-2.5 py-1 text-sm text-ink-secondary"
-              title={f.headline}
-            >
-              <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${
-                  f.impact === 'negative' || f.impact === 'risk' ? 'bg-status-danger' : 'bg-status-success'
-                }`}
-              />
-              {f.name}
-            </span>
-          ))}
-        </div>
-      )}
-    </Card>
-  )
-}
 
 const DEEPEN_PHASES = [
   { key: 'compute', label: 'Compute' },
@@ -382,13 +306,12 @@ export function Intelligence() {
 
   const [tab, setTab] = useState(0)
   const [runId, setRunId] = useState<string | undefined>(undefined)
-  // Which investigation to deepen. Undefined = the most recent one, which the
-  // header states explicitly rather than leaving the user to guess.
-  const [pickedRunId, setPickedRunId] = useState<string | undefined>(undefined)
-
-  const { data: context, isLoading: ctxLoading } = useIntelligenceContext(pickedRunId)
+  // ALWAYS THE MOST RECENT COMPLETED INVESTIGATION. The header used to carry
+  // a "Switch investigation" menu over `context.available`; the scope strip
+  // now says which investigation this is, and the newest is the one a reader
+  // arriving from the Investigations page has just finished.
+  const { data: context, isLoading: ctxLoading } = useIntelligenceContext(undefined)
   const investigation = context?.investigation ?? null
-  const available = context?.available ?? []
 
   // Pick up an analysis already run against this investigation, so returning to
   // the page doesn't discard it (or pay for it twice).
@@ -505,10 +428,6 @@ export function Intelligence() {
               Promotion Intelligence <Icon name="sparkles" className="h-5 w-5 text-brand-violet" />
             </h1>
           </div>
-          <p className="mt-1.5 text-base text-ink-muted">
-            The mechanism behind the investigation's finding ·{' '}
-            <strong className="text-ink-secondary">{describeScope(investigation.scope, channelNames)}</strong>
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant={result ? 'secondary' : 'primary'} onClick={runAnalysis} disabled={analysing}>
@@ -521,15 +440,45 @@ export function Intelligence() {
         </div>
       </div>
 
-      <InvestigationHeader
-        ctx={investigation}
-        available={available}
-        onPick={(id) => {
-          setPickedRunId(id)
-          setRunId(undefined) // the previous analysis belongs to the other investigation
-          setTab(0)
-        }}
-      />
+      {/* THE INVESTIGATION BEING DEEPENED, as one block: its question across
+          the top with the way back, and beneath it the same scope strip the
+          Investigations page draws for this run — its standing against the
+          target, the subject the planner resolved the question to, and the
+          period, channel and region every specialist ran on. All the run's
+          own. The spend and ROI items are left to the KPI row directly
+          below, which carries them at headline size. The card carries its
+          own bottom margin for that page; cancelled here so the KPI row
+          keeps this page's rhythm. */}
+      {investigation.subject && investigation.context_chips ? (
+        <div className="mt-[14px] [&>*]:mb-0">
+          <BizQuestionCard
+            subject={investigation.subject}
+            contextChips={investigation.context_chips}
+            figures={false}
+            question={investigation.question}
+            questionCaption="Deepening your investigation"
+            trailing={
+              <Link to="/investigations" className="whitespace-nowrap text-sm font-semibold text-brand-violet">
+                ← Back to investigation
+              </Link>
+            }
+          />
+        </div>
+      ) : (
+        <Card className="fade-in mt-[14px]">
+          <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2 p-[14px_20px]">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.06em] text-brand-violet">
+                <Icon name="sparkles" className="h-3.5 w-3.5" /> Deepening your investigation
+              </div>
+              <div className="mt-1 text-md font-bold leading-[1.45] text-ink-primary">{investigation.question}</div>
+            </div>
+            <Link to="/investigations" className="shrink-0 self-center whitespace-nowrap text-sm font-semibold text-brand-violet">
+              ← Back to investigation
+            </Link>
+          </div>
+        </Card>
+      )}
 
       {/* Scope KPIs — the investigation's own numbers, not a portfolio dashboard */}
       {/* THREE CARDS, NOT FOUR. The fourth was Cannibalisation, and it is gone
@@ -540,21 +489,29 @@ export function Intelligence() {
           scope is worth — a portfolio effect measured by another agent sat
           here as a headline KPI of this one. */}
       {facts && k && (
-        <div className="mt-3.5 grid grid-cols-3 gap-3 @max-[900px]:grid-cols-2">
+        <div className="mt-[14px] grid grid-cols-3 gap-3 @max-[900px]:grid-cols-2">
           {[
-            { label: 'Trade Spend in scope', value: fmtCr(k.trade_spend), sub: describeScope(investigation.scope, channelNames) },
+            {
+              label: 'Trade Spend in scope',
+              value: fmtCr(k.trade_spend),
+              sub: describeScope(investigation.scope, channelNames),
+              icon: 'wallet' as const,
+              tint: { bg: '#ECE6FF', fg: '#7C5CFF' },
+            },
             {
               label: 'Incremental Sales',
               value: fmtCr(k.incremental_sales),
-              // DERIVED FROM THE TARGET THE RESPONSE CARRIES, not a literal
-              // "1.5× spend". ROI = incremental / spend, so the target
-              // incremental is simply spend × target, and the sentence moves
-              // with the configured hurdle instead of quietly contradicting it.
-              sub: `target is ${fmtRoi(facts.target_roi)} × trade spend`,
+              icon: 'barChart' as const,
+              tint: { bg: '#E1ECFF', fg: '#4F7CFF' },
+              // No sub-line: the "target is 1.50 × trade spend" it carried
+              // restated the ROI card beside it.
+              sub: null,
             },
             {
               label: 'Promotion ROI',
               value: fmtRoi(roi),
+              icon: 'target' as const,
+              tint: { bg: '#ECE6FF', fg: '#6B47FF' },
               sub:
                 gapToTarget != null && gapToTarget > 0
                   ? `${fmtRoi(gapToTarget)} below target`
@@ -562,14 +519,32 @@ export function Intelligence() {
               danger: belowTarget,
             },
           ].map((c) => (
-            <div key={c.label} className="rounded-[var(--r-lg)] border border-border-subtle bg-surface-card p-[12px_15px]">
-              <div className="text-xs font-semibold text-ink-muted">{c.label}</div>
+            <div
+              key={c.label}
+              className="flex items-center gap-3 rounded-[var(--r-lg)] border border-border-subtle bg-surface-card p-[14px_16px] shadow-[var(--shadow-card-soft)]"
+            >
+              {/* THE SAME GLYPH AND TINT the Insights Hub gives this KPI, so
+                  the figure is recognisable across the two pages. */}
               <div
-                className={`mt-1 text-xl font-extrabold [font-variant-numeric:tabular-nums] ${c.danger ? 'text-status-danger' : ''}`}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl [&_svg]:h-[18px] [&_svg]:w-[18px]"
+                style={{ background: c.tint.bg, color: c.tint.fg }}
               >
-                {c.value}
+                <Icon name={c.icon} />
               </div>
-              <div className="mt-0.5 text-xs leading-[1.4] text-ink-muted">{c.sub}</div>
+              <div className="min-w-0">
+                {/* THE LABEL LEADS, THE NUMBER FOLLOWS: the name in bold, the
+                    value in regular weight, so a reader sees what each card
+                    is before how big it is. */}
+                <div className="text-sm font-bold text-ink-primary">{c.label}</div>
+                <div
+                  className={`mt-0.5 text-xl font-normal tabular-nums ${c.danger ? 'text-status-danger' : 'text-ink-primary'}`}
+                >
+                  {c.value}
+                </div>
+                {c.sub && (
+                  <div className="mt-0.5 truncate text-sm font-medium leading-[1.4] text-ink-secondary" title={c.sub}>{c.sub}</div>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -585,7 +560,7 @@ export function Intelligence() {
         <DeepeningState specialists={run?.specialists ?? []} stage={run?.stage} startedAt={run?.created_at} />
       )}
 
-      <div className="mt-4">
+      <div className="mt-[14px]">
         <Tabs tabs={TABS} active={String(tab)} onChange={(key) => setTab(Number(key))} />
       </div>
 
@@ -597,7 +572,6 @@ export function Intelligence() {
             (analysis ? (
               <>
                 <AiAnswerCard
-                  question={investigation.question}
                   answer={{ summary: analysis.headline, text: analysis.narrative }}
                   // The agents that actually produced this answer, named by the
                   // run itself. The card used to list five enterprise systems
@@ -615,8 +589,8 @@ export function Intelligence() {
                   <div className="min-w-0">
                     <div className="text-base font-bold">Go deeper on this finding</div>
                     <div className="mt-0.5 max-w-[560px] text-base leading-[1.55] text-ink-muted">
-                      The investigation found the cause. This layer explains the mechanism behind it, where it bites hardest,
-                      and what it's worth — then recommends what to change.
+                      The investigation found the cause. This layer explains the mechanism behind it, which channels,
+                      regions and products it hits hardest, and what it's worth — then recommends what to change.
                     </div>
                   </div>
                   <Button variant="primary" onClick={runAnalysis} disabled={analysing}>

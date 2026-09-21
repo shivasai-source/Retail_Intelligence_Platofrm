@@ -22,10 +22,10 @@ import { SalesComparisonCard } from '../components/command/SalesComparisonCard'
 import { RiskAlertsPanel } from '../components/command/RiskAlertsPanel'
 import { ALERT_FETCH_LIMIT, topPriorityAlert } from '../components/command/riskRanking'
 import { EmptyState as CcEmptyState, ErrorState, KpiSkeleton, PanelSkeleton, Stale } from '../components/command/States'
-import { MoreKpis } from '../components/command/MoreKpis'
+import { AddKpiMenu } from '../components/command/AddKpiMenu'
 import { SERIES_CLASS } from '../components/command/series'
 import { PriorityAlert } from '../components/command/PriorityAlert'
-import { HERO_TILE_CLASS, readMoreKpisOpen } from '../components/command/moreKpisState'
+import { ADDABLE_KPI_ORDER, HERO_TILE_CLASS, readAddedKpis, writeAddedKpis } from '../components/command/kpiDeckState'
 import { TrendPanels } from '../components/command/TrendPanels'
 import {
   ChannelSection,
@@ -74,8 +74,9 @@ const KPI_STYLE: Record<string, { icon: IconName; tint: string; accent: string }
   margin_impact: { icon: 'coins', tint: 'amber', accent: 'var(--brand-blue)' },
   pei: { icon: 'gauge', tint: 'mint', accent: 'var(--tint-teal-icon)' },
   cannibalization_rate: { icon: 'cannib', tint: 'rose', accent: 'var(--tint-peach-icon)' },
-  // The second row (SecondaryKpis). Three tints and glyphs the first row
-  // does not use, so a reader can tell the nine apart without reading.
+  // The diagnostic three a reader can add (see kpiDeckState). Three tints
+  // and glyphs the others do not use, so a reader can tell the nine apart
+  // without reading.
   volume_uplift: { icon: 'uplift', tint: 'teal', accent: 'var(--tint-sky-icon)' },
   net_incremental_profit: { icon: 'trending', tint: 'peach', accent: 'var(--status-success)' },
   target_hit_rate: { icon: 'checkCircle', tint: 'lemon', accent: 'var(--tint-lemon-icon)' },
@@ -86,19 +87,6 @@ const KPI_STYLE: Record<string, { icon: IconName; tint: string; accent: string }
 const HERO_KPI_ORDER = ['trade_spend', 'incremental_sales', 'promotion_roi']
 
 const FALLBACK_KPI_STYLE = { icon: 'gauge' as IconName, tint: 'lavender', accent: 'var(--brand-violet)' }
-
-/** THE REST, behind the reveal (MoreKpis). The three remaining headline
- *  cards first, in their long-standing order, then the diagnostic three —
- *  volume (the demand response), the money it made after cost, and how many
- *  promotions cleared the bar. */
-const MORE_KPI_ORDER = [
-  'margin_impact',
-  'pei',
-  'cannibalization_rate',
-  'volume_uplift',
-  'net_incremental_profit',
-  'target_hit_rate',
-]
 
 const LOWER_IS_BETTER = new Set(['trade_spend', 'cannibalization_rate'])
 
@@ -148,9 +136,7 @@ function KpiTile({
       accent={style.accent}
       delayMs={index * 60}
       info={card.info}
-      unit={card.unit}
       lowerIsBetter={LOWER_IS_BETTER.has(card.key)}
-      evidence={card.evidence}
     />
   )
 }
@@ -182,6 +168,16 @@ export function CommandCenter() {
 
   const options = useFilterOptions()
   const kpis = useKpis()
+  // THE CARDS THE READER HAS ADDED beneath the headline three, in page order
+  // (see ADDABLE_KPI_ORDER) whatever order they were picked in. Page state
+  // seeded from the browser's memory of last time, written back on every
+  // change; nothing else on the page needs to know.
+  const [addedKpis, setAddedKpis] = useState<string[]>(readAddedKpis)
+  const setAdded = (keys: string[]) => {
+    const ordered = ADDABLE_KPI_ORDER.filter((k) => keys.includes(k))
+    writeAddedKpis(ordered)
+    setAddedKpis(ordered)
+  }
   const trend = useTrend(granularity)
   const alerts = useRiskAlerts(ALERT_FETCH_LIMIT)
   // Both metrics per SCHEME for the Promotion Mix toggle.
@@ -241,12 +237,12 @@ export function CommandCenter() {
                 <KpiSkeleton key={key} delayMs={i * 50} className={HERO_TILE_CLASS} />
               ))}
             </TpoKpiGrid>
-            {/* A reader who left the rest open gets its skeleton too, so the
-                page lands in the shape it will keep. */}
-            {readMoreKpisOpen() && (
-              <div className="mt-[46px]">
+            {/* A reader who added cards last time gets their skeletons too,
+                so the page lands in the shape it will keep. */}
+            {addedKpis.length > 0 && (
+              <div className="mt-4">
                 <TpoKpiGrid>
-                  {MORE_KPI_ORDER.map((key, i) => (
+                  {addedKpis.map((key, i) => (
                     <KpiSkeleton key={key} delayMs={150 + i * 50} />
                   ))}
                 </TpoKpiGrid>
@@ -343,6 +339,20 @@ export function CommandCenter() {
               // backend's, so nothing here hard-codes 1.5.
               target={{ current: targetRoi ?? meta.default_target_roi, defaultValue: meta.default_target_roi, range: meta.target_roi_range }}
               refreshInline={false}
+              // Adds KPI cards to the deck below. It sits with the filters
+              // because, like them, it changes what the page shows — but it
+              // never touches the scope: every card it adds is measured over
+              // the same selection as the headline three.
+              trailing={
+                <AddKpiMenu
+                  cards={allCards}
+                  selected={addedKpis}
+                  onToggle={(key) =>
+                    setAdded(addedKpis.includes(key) ? addedKpis.filter((k) => k !== key) : [...addedKpis, key])
+                  }
+                  onClear={() => setAdded([])}
+                />
+              }
             />
           </div>
           {/* EXPORTS WHAT THE SCREEN IS SHOWING. `scope` is read at click time
@@ -385,14 +395,22 @@ export function CommandCenter() {
           ))}
         </TpoKpiGrid>
 
-        {/* THE REST. Same tile, same backend card shape, same filter scope;
-            only the reveal is new. Every value, delta and formula still
-            comes from the backend — see MoreKpis for the fold. */}
-        <MoreKpis>
-          {MORE_KPI_ORDER.map((key, i) => (
-            <KpiTile key={key} card={allCards[key]} index={i} />
-          ))}
-        </MoreKpis>
+        {/* THE CARDS THE READER ADDED, beneath the headline three at the
+            grid's single-column width — six to a row at the widest, then
+            three, then two — so all six together cost the page one row, not
+            two. Same tile, same backend card shape, same filter scope: every
+            value, delta and formula comes from the backend. The grid is its
+            own element so nothing is left behind when the last card is
+            removed. */}
+        {addedKpis.length > 0 && (
+          <div className="mt-4">
+            <TpoKpiGrid>
+              {addedKpis.map((key, i) => (
+                <KpiTile key={key} card={allCards[key]} index={i} />
+              ))}
+            </TpoKpiGrid>
+          </div>
+        )}
       </div>
 
       <div className="mt-[14px] grid grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] gap-4 @max-[1000px]:grid-cols-1">

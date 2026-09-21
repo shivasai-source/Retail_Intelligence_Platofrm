@@ -81,6 +81,8 @@ MODULES: dict[str, Module] = {
         adapters.simulation_target_rescue, "TPO_Simulation_Target_Rescue"),
     "decision-center": Module(
         "decision-center", "Decision Center", adapters.decision_center, "TPO_Decision_Record"),
+    "investigations": Module(
+        "investigations", "Investigations", adapters.investigation, "TPO_Investigation"),
 }
 
 

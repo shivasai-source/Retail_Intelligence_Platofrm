@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Button, Dropdown, IconButton } from '../ui'
 import { Icon } from '../../icons'
 import { useCommandFilters, type ListFilterKey } from '../../store/commandFilters'
@@ -116,6 +116,7 @@ export function FilterBar({
   refreshing,
   target,
   refreshInline = true,
+  trailing,
 }: {
   options: FiltersResponse | undefined
   onRefresh: () => void
@@ -126,6 +127,10 @@ export function FilterBar({
   /** The target ROI control — current value, default and bounds, from the
    *  KPI payload's meta. Omitted where the page has no target to set. */
   target?: TargetRoiInfo
+  /** Controls a page adds to the end of the row — after the target — that
+   *  change what the page shows without changing its scope, so they wrap
+   *  with the filters rather than being stranded beside Export. */
+  trailing?: ReactNode
 }) {
   const filters = useCommandFilters((s) => s.filters)
   const currency = useCommandFilters((s) => s.currency)
@@ -283,6 +288,8 @@ export function FilterBar({
         <CurrencyToggle currency={currency} onChange={setCurrency} />
 
         {target && <TargetRoiControl target={target} onApply={setTargetRoi} />}
+
+        {trailing}
 
         {refreshInline && (
           <IconButton icon="refresh" className="!h-9 !w-9" title="Refresh data" spinning={refreshing} disabled={refreshing} onClick={onRefresh} />

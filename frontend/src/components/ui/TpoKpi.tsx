@@ -19,13 +19,17 @@ const TINTS: Record<string, { bg: string; fg: string }> = {
   lemon: { bg: '#FFF4CF', fg: '#CA8A04' },
 }
 
-// Six columns, not five: the Insights Hub carries six KPI cards (Cannibalization
-// Rate joined the original five). Only the column count changed — the tile itself
-// and its breakpoints are untouched. The grid carries no bottom margin: the page
-// owns the vertical rhythm between bands, so every gap is stated in one place.
+// Six columns: the Insights Hub carries six addable KPI cards, and a reader
+// who adds all six should get one row of them, not two. Six holds down to a
+// 1180px container — a 1366px screen with the rail open — where each tile is
+// still ~195px, room for its icon, value and movement; narrower than that the
+// grid drops to three, then to two. The grid carries no bottom margin: the
+// page owns the vertical rhythm between bands, so every gap is stated in one
+// place. Breakpoints resolve against <main> (container queries), not the
+// viewport.
 export function TpoKpiGrid({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-6 gap-4 @max-[1500px]:grid-cols-3 @max-[900px]:grid-cols-2">{children}</div>
+    <div className="grid grid-cols-6 gap-4 @max-[1180px]:grid-cols-3 @max-[900px]:grid-cols-2">{children}</div>
   )
 }
 
@@ -35,25 +39,16 @@ export interface KpiInfo {
   meaning: string
 }
 
-/** The KPI card's ⓘ. Formula only — the definition, not documentation.
- *  Rendered through the shared InfoPopover so it is identical in size,
- *  placement and styling to every other info button on the page. */
-function InfoDot({ info, unit, evidence }: { info: KpiInfo; unit?: string; evidence?: string | null }) {
-  const unitLabel =
-    unit === 'currency' ? 'Currency · base INR'
-    : unit === 'percent' ? 'Percent'
-    : unit === 'multiple' ? 'Incremental sales per rupee of trade spend · 1.00 is break-even'
-    : unit === 'score' ? 'Index 0-100'
-    : undefined
-
+/** The KPI card's ⓘ. THE FORMULA, AND ONLY THE FORMULA — the definition,
+ *  not documentation. It used to carry the selection's inputs and a unit
+ *  line too, and read as a small report; a reader who opens an ⓘ wants to
+ *  know what the number is. Rendered through the shared InfoPopover so it
+ *  is identical in size, placement and styling to every other info button
+ *  on the page. */
+function InfoDot({ info }: { info: KpiInfo }) {
   return (
-    <InfoPopover label={`About ${info.name}`} title={info.name} width={evidence ? 272 : 232}>
+    <InfoPopover label={`About ${info.name}`} title={info.name} width={232}>
       <InfoBlock label="Formula">{info.formula}</InfoBlock>
-      {/* The numbers this card's value was made from. Always in the popover,
-          so a card whose width has no room for the evidence line still has
-          it one click away. */}
-      {evidence && <InfoBlock label="This selection">{evidence}</InfoBlock>}
-      {unitLabel && <div className="mt-1.5 text-xs text-ink-muted">{unitLabel}</div>}
     </InfoPopover>
   )
 }
@@ -70,9 +65,7 @@ export function TpoKpiTile({
   accent,
   delayMs = 0,
   info,
-  unit,
   lowerIsBetter = false,
-  evidence,
   className = '',
   labelLines = 1,
 }: {
@@ -90,15 +83,9 @@ export function TpoKpiTile({
   accent?: string
   delayMs?: number
   info?: KpiInfo
-  /** currency | percent | score — drives the tooltip's Unit line. */
-  unit?: string
   /** Trade Spend and Cannibalization improve as they fall, so a rise is not
    *  good news. Direction and desirability are separate facts. */
   lowerIsBetter?: boolean
-  /** The inputs the value was made from — "1,414 of 3,240 events at or
-   *  above 1.50". Shown in the ⓘ, under the formula, so the tile itself
-   *  stays a label, a value and a movement. Omitted on every other surface. */
-  evidence?: string | null
   /** Grid placement only — a headline tile passes its column span. The
    *  tile itself never changes size: one card, one shape, everywhere. */
   className?: string
@@ -130,7 +117,7 @@ export function TpoKpiTile({
           full width before truncating. */}
       {info && (
         <span className="absolute right-2.5 top-2.5 z-10">
-          <InfoDot info={info} unit={unit} evidence={evidence} />
+          <InfoDot info={info} />
         </span>
       )}
       <div

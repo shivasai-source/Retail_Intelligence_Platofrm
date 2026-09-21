@@ -1,13 +1,21 @@
 import { Icon, type IconName } from '../../icons'
 import { useElementSize } from '../../hooks/useElementSize'
 import { computeRadialLayout } from './graphLayout'
-import type { LegendItem, OrchNode } from '../../types/orchestration'
+import type { OrchNode } from '../../types/orchestration'
+
+/** "Benchmarking Agent" -> "Benchmarking". Every node on the graph is an
+ *  agent, so the word said nothing six times over. Trimmed at render rather
+ *  than in the roster: the API's name is copied into every run when it is
+ *  recorded, so renaming there would leave stored investigations reading
+ *  differently from new ones. */
+function nodeTitle(label: string): string {
+  return label.replace(/\s+agent$/i, '')
+}
 
 // Ported from the `.ig-stage` block + `layoutGraph()` in js/pages/investigations.js.
 export function InvestigationGraph({
   center,
   nodes,
-  legend,
   revealedKeys,
   onNodeClick,
   zoom = 1,
@@ -15,7 +23,6 @@ export function InvestigationGraph({
 }: {
   center: { label: string; sub: string }
   nodes: OrchNode[]
-  legend: LegendItem[]
   /** Keys of nodes that have "arrived" — undefined means everything is revealed immediately. */
   revealedKeys?: Set<string>
   onNodeClick: (node: OrchNode, el: HTMLElement) => void
@@ -50,20 +57,23 @@ export function InvestigationGraph({
         >
         <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${size.width} ${size.height}`}>
           <defs>
-            {laidOut.map((l) => (
-              <marker
-                key={l.key}
-                id={`arr-${l.key}`}
-                markerWidth={8}
-                markerHeight={8}
-                refX={6}
-                refY={3}
-                orient="auto"
-                markerUnits="userSpaceOnUse"
-              >
-                <path d="M0,0 L7,3 L0,6 Z" fill={l.style.color} />
-              </marker>
-            ))}
+            {/* ONE ARROWHEAD, ONE COLOUR. The edges used to take a colour and
+                a dash from each node's impact — solid blue, dashed red,
+                dashed amber — which made the spokes a second, competing
+                encoding of what the node's own delta already says. Every
+                edge is now the same solid brand blue: the graph shows which
+                agents looked at the event, the nodes say what they found. */}
+            <marker
+              id="arr-edge"
+              markerWidth={8}
+              markerHeight={8}
+              refX={6}
+              refY={3}
+              orient="auto"
+              markerUnits="userSpaceOnUse"
+            >
+              <path d="M0,0 L7,3 L0,6 Z" fill="var(--brand-blue)" />
+            </marker>
           </defs>
           {laidOut.map((l) => (
             <line
@@ -72,11 +82,10 @@ export function InvestigationGraph({
               y1={l.py.toFixed(1)}
               x2={l.edgeX2.toFixed(1)}
               y2={l.edgeY2.toFixed(1)}
-              stroke={l.style.color}
+              stroke="var(--brand-blue)"
               strokeWidth={2}
               strokeLinecap="round"
-              strokeDasharray={l.style.dash === 'none' ? undefined : l.style.dash.split(' ').map((v) => Number(v) * 2).join(' ')}
-              markerEnd={`url(#arr-${l.key})`}
+              markerEnd="url(#arr-edge)"
               className="transition-opacity duration-[420ms] ease-[var(--ease-out)]"
               style={{ opacity: isRevealed(l.key) ? 1 : 0 }}
             />
@@ -93,7 +102,7 @@ export function InvestigationGraph({
               key={n.key}
               data-key={n.key}
               onClick={(e) => onNodeClick(n, e.currentTarget)}
-              className={`absolute z-[1] flex h-[140px] w-[140px] cursor-pointer flex-col items-center justify-center rounded-full border-[1.5px] border-border-default bg-surface-card p-2 text-center shadow-[var(--shadow-sm)] transition-[opacity,transform,box-shadow,border-color] duration-300 hover:z-[3] hover:shadow-[var(--shadow-md)] ${
+              className={`absolute z-[1] flex h-[156px] w-[156px] cursor-pointer flex-col items-center justify-center rounded-full border-[1.5px] border-border-default bg-surface-card p-2 text-center shadow-[var(--shadow-sm)] transition-[opacity,transform,box-shadow,border-color] duration-300 hover:z-[3] hover:shadow-[var(--shadow-md)] ${
                 revealed ? 'scale-100 opacity-100 hover:scale-105' : 'pointer-events-none scale-[0.82] opacity-0'
               }`}
               style={{
@@ -104,7 +113,7 @@ export function InvestigationGraph({
               }}
             >
               <div
-                className="mb-1 grid h-7 w-7 place-items-center rounded-lg [&_svg]:h-3.5 [&_svg]:w-3.5"
+                className="mb-1.5 grid h-10 w-10 place-items-center rounded-xl [&_svg]:h-5 [&_svg]:w-5"
                 style={{ background: st?.bg, color: st?.accent }}
               >
                 <Icon name={n.icon as IconName} />
@@ -115,10 +124,10 @@ export function InvestigationGraph({
                   invited comparison between numbers that are not comparable.
                   It leads the popover instead, where the bars it came from are
                   directly underneath it. */}
-              <div className="text-sm font-bold leading-tight text-ink-primary">{n.label}</div>
+              <div className="text-base font-extrabold leading-tight tracking-[-0.01em] text-ink-primary">{nodeTitle(n.label)}</div>
               {n.delta && (
-                <div className="mt-0.5 inline-flex items-center gap-0.5 text-sm font-bold" style={{ color: trendColor }}>
-                  <Icon name={n.trend === 'down' ? 'arrowDown' : 'arrowUp'} className="h-2.5 w-2.5" />
+                <div className="mt-1 inline-flex items-center gap-0.5 text-base font-bold" style={{ color: trendColor }}>
+                  <Icon name={n.trend === 'down' ? 'arrowDown' : 'arrowUp'} className="h-3 w-3" />
                   <span>{n.delta}</span>
                 </div>
               )}
@@ -140,18 +149,6 @@ export function InvestigationGraph({
           <div className="mt-0.5 text-base opacity-[0.78]">{center.sub}</div>
         </div>
         </div>
-      </div>
-
-      <div className="flex flex-wrap gap-[18px] border-t border-border-subtle p-[12px_22px] text-base text-ink-secondary">
-        {legend.map((l) => (
-          <span key={l.label} className="inline-flex items-center gap-1.5">
-            <span
-              className="inline-block w-[22px]"
-              style={{ borderTop: `2px ${l.style} ${l.color}` }}
-            />
-            {l.label}
-          </span>
-        ))}
       </div>
     </>
   )

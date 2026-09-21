@@ -136,6 +136,14 @@ def get_context(
             for f in (result.get("findings") or [])
         ],
         "created_at": investigation.get("created_at"),
+        # THE SCOPE STRIP the Investigations page draws — the subject the
+        # planner resolved the question to (the graph's centre) and the
+        # figures every specialist ran on — so Promotion Intelligence can
+        # show the same strip for the same run. Both are the run's own,
+        # assembled by the star pipeline; nothing is rephrased here. None
+        # for a refused run, which has no orchestration.
+        "subject": (result.get("orchestration") or {}).get("center"),
+        "context_chips": (result.get("orchestration") or {}).get("contextChips"),
     }
     # Only offer a previous analysis if it was run against this same investigation.
     prior = None

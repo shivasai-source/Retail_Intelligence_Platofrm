@@ -50,6 +50,11 @@ export interface AgentRunResult {
   answerable?: boolean
   refusal?: string
   investigation_type: InvestigationType
+  /** The scope the run was measured over, as the star pipeline stored it —
+   *  the caller's hand-off scope when there was one, else the planner's.
+   *  FilterState-shaped plus `week`, which is a label rather than a filter.
+   *  Absent on an upload run, which has no star-schema dimensions. */
+  global_filters?: Record<string, unknown>
   totals: Record<string, string | number | null>
   findings: AgentFinding[]
   synthesis: AgentSynthesis

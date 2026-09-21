@@ -156,6 +156,11 @@ export interface InvestigationContext {
   confidence: number | null
   findings: { key: string; name: string; headline: string; impact: string; confidence: number }[]
   created_at: number
+  /** The run's own scope strip — `orchestration.center` and
+   *  `orchestration.contextChips` as the Investigations page draws them.
+   *  Null for a refused run, which has no orchestration. */
+  subject: { label: string; sub: string } | null
+  context_chips: { period: string; channel: string; region: string; spend: string; roi?: string } | null
 }
 
 export interface IntelligenceContextResponse {

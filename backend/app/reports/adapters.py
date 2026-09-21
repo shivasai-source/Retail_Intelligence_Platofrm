@@ -1020,6 +1020,132 @@ def decision_center(state: FilterState, currency: str, options: dict[str, Any]) 
     return doc
 
 
+def investigation(state: FilterState, currency: str, options: dict[str, Any]) -> ReportDoc:
+    """A finished investigation: the question, the agents' answer, and the
+    findings that answer rests on.
+
+    THE RUN IS HANDED OVER WHOLE, in `options["run"]`, the way a decision
+    record is: it is what the screen is showing, it is the reader's own run
+    (the runs store is per user and the Report Center is not, so loading one
+    here by id would let any signed-in reader export any run), and nothing
+    is re-run. Every sentence and figure below is copied off the run's
+    stored synthesis and findings; this adapter computes nothing.
+
+    `options["source_label"]` names the data the agents analysed, exactly as
+    the page names it -- "TPO star schema (built-in)" or an upload's filename
+    and row count -- because the run record holds only a dataset id.
+    """
+    run = options.get("run")
+    if not isinstance(run, dict) or run.get("status") != "done" or not isinstance(run.get("result"), dict):
+        raise ValueError(
+            "An investigation report needs a finished run. Ask a question, let the "
+            "specialist agents complete, then export."
+        )
+    result = run["result"]
+    synthesis = result.get("synthesis")
+    if not isinstance(synthesis, dict):
+        raise ValueError(
+            "This run produced no answer to report: "
+            + str(result.get("refusal") or "the question was out of scope.")
+        )
+    findings = [f for f in (result.get("findings") or []) if isinstance(f, dict)]
+    totals = result.get("totals") or {}
+    global_filters = result.get("global_filters") or {}
+
+    def pct(value: Any) -> str:
+        return f"{int(value)}%" if isinstance(value, (int, float)) and not isinstance(value, bool) else "—"
+
+    about = [
+        ("Question", _text(run.get("question"))),
+        ("Investigation type", _text(result.get("investigation_type") or "diagnostic").replace("_", " ").title()),
+        ("Data analysed", _text(options.get("source_label") or "TPO star schema (built-in)")),
+    ]
+    # The week the event ran, when the run was pinned to one. It is a label
+    # on the run, not a report dimension (see FilterState), so it is named
+    # here rather than in the filter list.
+    if global_filters.get("week"):
+        about.append(("Week", _text(global_filters["week"])))
+    rows = totals.get("rows")
+    if isinstance(rows, (int, float)) and not isinstance(rows, bool):
+        about.append(("Rows analysed", f"{int(rows):,}"))
+    about += [
+        ("Specialists run", str(len(findings))),
+        ("Findings", str(synthesis.get("insight_count") if synthesis.get("insight_count") is not None else len(findings))),
+        ("Confidence", pct(synthesis.get("confidence"))),
+    ]
+
+    recommendations = [str(r) for r in (synthesis.get("recommendations") or []) if r]
+    actions = Table(
+        title="Recommended actions",
+        columns=(
+            Column("n", "#", "units", 4),
+            Column("action", "Action", "text", 90),
+        ),
+        rows=tuple({"n": i, "action": text} for i, text in enumerate(recommendations, 1)),
+        note="In the order the synthesis gave them." if recommendations else "The synthesis made no recommendation.",
+    )
+
+    finding_rows = tuple(
+        {
+            "specialist": _text(f.get("name")),
+            "headline": _text(f.get("headline")),
+            "body": _text(f.get("body")),
+            "evidence": _text(f.get("evidence")),
+            "metric": _text(f.get("metric")),
+            "delta": _text(f.get("delta")),
+            "impact": _text(f.get("impact")).title(),
+            "confidence": pct(f.get("confidence")),
+        }
+        for f in findings
+    )
+    specialists = Table(
+        title="Specialist findings",
+        columns=(
+            Column("specialist", "Specialist", "text", 18),
+            Column("headline", "Finding", "text", 30),
+            Column("body", "Detail", "text", 44),
+            Column("evidence", "Evidence", "text", 34),
+            Column("metric", "Metric", "text", 12),
+            Column("delta", "Change", "text", 10),
+            Column("impact", "Impact", "status", 8),
+            Column("confidence", "Confidence", "text", 10),
+        ),
+        rows=finding_rows,
+        note=(
+            "Each specialist analysed one lens of the scoped data and reported what it "
+            "found; confidence is the share of its claims the data could verify."
+        ),
+    )
+
+    doc = ReportDoc(
+        module="Investigations",
+        title="Promotion Investigation Report",
+        generated_at="", generated_display="",
+        scope_line=scope_line(state),
+        filters=filter_rows(state),
+        meta=base_meta(
+            state, currency,
+            "The stored result of the specialist-agent run shown on the Investigations "
+            "page. Nothing is re-run or recalculated when a report is generated.",
+        ),
+        headline=_text(synthesis.get("root_cause")),
+        headline_tone="warning",
+        disclaimers=(
+            "Generated from the selected TPO Intelligence view and its authoritative "
+            "calculation results.",
+            "Findings are the specialist agents' reading of the scoped data at the time "
+            "the investigation ran, and are not a substitute for the underlying figures.",
+        ),
+    )
+    return doc.with_sections(
+        Section("Investigation", "kv", tuple(about)),
+        Section("Summary", "text", tuple(p for p in (_text(synthesis.get("summary")),) if p)),
+        Section("Root cause", "text", tuple(p for p in (_text(synthesis.get("root_cause")),) if p)),
+        Section("Recommended actions", "table", table=actions),
+        Section("Specialist findings", "table", table=specialists, landscape=True, page_break=True),
+    )
+
+
 def _comparison_only_doc(state: FilterState, currency: str, board: dict[str, Any]) -> ReportDoc:
     """The candidate board on its own, when no governed record exists for it."""
     doc = ReportDoc(

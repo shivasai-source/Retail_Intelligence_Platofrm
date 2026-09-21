@@ -1,24 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
 import {
   Button,
-  IconButton,
   Card,
   CardHeader,
-  Pill,
   Spinner,
-  Dropdown,
   useToast,
-  useConfirm,
 } from '../components/ui'
+import { ExportReportButton } from '../components/reports/ExportReportButton'
 import { Icon } from '../icons'
 import {
   useInvestigationTypes,
-  useLegacyInvestigation,
 } from '../hooks/useInvestigations'
 import { useStartInvestigationRun, useInvestigationRun } from '../hooks/useInvestigationRun'
-import { useDatasets } from '../hooks/useDatasets'
 import { ApiError } from '../lib/api'
 import { ASK_WHY_STATE_KEY, type AskWhyIntent } from '../lib/askWhy'
 import { useActiveInvestigationStore } from '../store/activeInvestigation'
@@ -157,6 +152,8 @@ function FailedState({
 /** Where each phase hands over. The middle band is the widest because it is the
  *  only one carrying real milestones; the two ends are single model calls that
  *  can only ever be estimated. */
+const AGENTS_OPEN_KEY = 'investigations.agents-open'
+
 const PLAN_ENDS_AT = 0.22
 const INVESTIGATE_ENDS_AT = 0.82
 
@@ -368,8 +365,6 @@ export function Investigations() {
     setActive,
     runId,
     setRunId,
-    datasetId,
-    setDatasetId,
     hasAsked,
     beginRun,
     clearRun,
@@ -378,21 +373,18 @@ export function Investigations() {
     markIntent,
   } = useActiveInvestigationStore()
   const { data: types } = useInvestigationTypes()
-  const { data: legacy } = useLegacyInvestigation()
   const { show } = useToast()
-  const confirm = useConfirm()
 
-  // Real agent run against an uploaded dataset. When one is active its
-  // orchestration replaces the static per-archetype JSON below.
-  const { data: datasets } = useDatasets()
+  // A real agent run. When one is active its orchestration replaces the
+  // static per-archetype JSON below.
   const startRun = useStartInvestigationRun()
   const { data: run, error: runError } = useInvestigationRun(runId ?? undefined)
-  // `undefined` means the built-in TPO star schema — the same data the Command
-  // Center reports on, so both tabs agree. Uploads are the alternative source.
-  const selectedDataset = datasets?.find((d) => d.id === datasetId)
-  const sourceLabel = selectedDataset
-    ? `${selectedDataset.filename} · ${selectedDataset.rows.toLocaleString()} rows`
-    : 'TPO star schema (built-in)'
+  // EVERY RUN IS OVER THE BUILT-IN TPO STAR SCHEMA — the same data the
+  // Insights Hub reports on, so the two pages agree. The dataset picker that
+  // let a run analyse an uploaded file instead came off the header on
+  // 2026-09-21; the run endpoint still accepts a dataset id, this page just
+  // never sends one.
+  const sourceLabel = 'TPO star schema (built-in)'
   const liveOrch = run?.status === 'done' ? run.result?.orchestration : undefined
 
   // An "Ask why" handoff from the Insights Hub arrives as router state.
@@ -461,48 +453,27 @@ export function Investigations() {
     setQueryInput(activeQuestion)
   }, [activeQuestion])
 
-  // GRAPH TOOLBAR STATE. Zoom is read by <InvestigationGraph/>, so the
-  // control changes the picture rather than announcing that it did.
-  const [zoom, setZoom] = useState(1)
-  // The graph card can take over the window. Escape leaves, so the expanded
-  // view is never a state the user has to hunt for a button to get out of.
-  const [graphExpanded, setGraphExpanded] = useState(false)
-  useEffect(() => {
-    if (!graphExpanded) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setGraphExpanded(false)
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [graphExpanded])
-  const navigate = useNavigate()
-
-  // Share actually copies now. There is no per-investigation permalink to hand
-  // out — the page holds no shareable server-side state — so what goes on the
-  // clipboard is this page's URL, and the dialog says exactly that.
-  const copyShareLink = async () => {
-    const link = window.location.href
+  // THE AGENT DESCRIPTIONS PANEL beside the graph shows and hides from the
+  // graph card's own "Agents Info" control; hidden, the graph has the whole
+  // row. The choice is remembered per browser. Guarded reads: storage can
+  // be absent or throw, and the answer is then "open".
+  const [agentsOpen, setAgentsOpen] = useState<boolean>(() => {
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(link)
-      } else {
-        // Clipboard API needs a secure context; fall back for plain http.
-        const ta = document.createElement('textarea')
-        ta.value = link
-        ta.setAttribute('readonly', '')
-        ta.style.position = 'fixed'
-        ta.style.opacity = '0'
-        document.body.appendChild(ta)
-        ta.select()
-        const ok = document.execCommand('copy')
-        document.body.removeChild(ta)
-        if (!ok) throw new Error('copy rejected')
-      }
-      show('Link copied to clipboard')
+      return window.localStorage.getItem(AGENTS_OPEN_KEY) !== '0'
     } catch {
-      show('Could not copy the link — copy it from the address bar', { duration: 3000 })
+      return true
+    }
+  })
+  const toggleAgents = () => {
+    const next = !agentsOpen
+    setAgentsOpen(next)
+    try {
+      window.localStorage.setItem(AGENTS_OPEN_KEY, next ? '1' : '0')
+    } catch {
+      /* A remembered preference is a convenience, not a requirement. */
     }
   }
+  const navigate = useNavigate()
 
   // A LAUNCH THAT NEVER STARTED IS A TERMINAL STATE, NOT A SLOW ONE.
   // `hasAsked` flips the page into its running view the moment a question is
@@ -554,7 +525,6 @@ export function Investigations() {
   // the honest thing on screen is the prompt.
   const showWorkspace = hasAsked && (Boolean(runId) || submitting || Boolean(launchError))
 
-  const legend = legacy?.legend ?? []
 
   // Always a real agent run. Omitting dataset_id investigates the built-in
   // star schema; passing one investigates that uploaded file.
@@ -585,7 +555,7 @@ export function Investigations() {
     try {
       const started = await startRun.mutateAsync({
         question: q,
-        dataset_id: datasetId,
+        dataset_id: null,
         scope: scope ?? null,
       })
       setSubmitting(false)
@@ -737,31 +707,47 @@ export function Investigations() {
 
   return (
     <AppShell activeKey="investigations" crumbs={crumbs}>
-      <div className="fade-in flex items-end justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-[-0.02em]">
-              Promotion Investigation Workspace <Icon name="sparkles" className="h-5 w-5 text-brand-violet" />
-            </h1>
-          </div>
-          <p className="mt-1.5 text-base text-ink-muted">
-            Ask why a promotion behaved as it did — specialist agents pull the evidence and name the cause.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <IconButton
-            icon="arrowUpRight"
-            title="Share"
-            onClick={() =>
-              confirm({
-                title: 'Share Investigation',
-                body: 'Copies this page’s link to your clipboard.',
-                primaryText: 'Copy Link',
-                icon: 'arrowUpRight',
-                onConfirm: () => {
-                  void copyShareLink()
+      {/* THE TITLE ROW: the page's name on the left and the Export on the
+          right, in the corner every other page keeps it. The subtitle that
+          used to sit under the title said what the query bar's placeholder
+          already says. */}
+      <div className="fade-in flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-[-0.02em]">
+          Promotion Investigation Workspace <Icon name="sparkles" className="h-5 w-5 text-brand-violet" />
+        </h1>
+        <div className="ml-auto flex items-center gap-2">
+          {/* EXPORTS THE RUN ON SCREEN. The finished run travels whole, the
+              way a decision record does, so the report is the stored
+              synthesis and findings the page is showing — never a re-run.
+              The scope is the run's own (`global_filters`), minus `week`,
+              which is a label on the run rather than a report dimension; the
+              adapter prints it from the run instead. Disabled until there is
+              a finished run to report on. */}
+          <ExportReportButton
+            module="investigations"
+            label="Export"
+            scope={() => {
+              const { week: _week, ...scope } = (run?.result?.global_filters ?? {}) as Record<string, unknown>
+              return scope
+            }}
+            options={() => ({
+              run: run && {
+                ...run,
+                result: run.result && {
+                  ...run.result,
+                  // The graph and each specialist's raw tool output are not
+                  // in the report and would only bloat the stored record.
+                  orchestration: null,
+                  findings: run.result.findings.map(({ analysis_data: _a, ...f }) => f),
                 },
-              })
+              },
+              source_label: sourceLabel,
+            })}
+            disabled={run?.status !== 'done' || !run.result?.synthesis}
+            disabledReason={
+              running
+                ? 'The specialist agents are still running — export when they finish.'
+                : 'Ask a question and let the specialist agents finish, then export the answer.'
             }
           />
         </div>
@@ -777,36 +763,6 @@ export function Investigations() {
         />
       </div>
 
-      {/* Which uploaded dataset the agents analyse. Without one there's nothing
-          real to investigate, so the page falls back to the sample orchestration. */}
-      <div className="mt-2.5 flex flex-wrap items-center gap-2 text-base text-ink-muted">
-        <Icon name="database" className="h-3.5 w-3.5" />
-        <span>Analysing</span>
-        <Dropdown
-          selected={datasetId ?? 'star'}
-          options={[
-            { label: 'TPO star schema (built-in)', value: 'star' },
-            ...(datasets ?? []).map((d) => ({
-              label: `${d.filename} · ${d.rows.toLocaleString()} rows`,
-              value: d.id,
-            })),
-          ]}
-          onSelect={(val) => setDatasetId(val === 'star' ? null : val)}
-          trigger={
-            <Button variant="ghost" size="sm" className="cursor-pointer">
-              {sourceLabel} <Icon name="chevronDown" />
-            </Button>
-          }
-        />
-        {/* The hand-off chip and the "live analysis" pill used to sit here. The
-            scope strip below names the promotion, and every run is live, so
-            both said what the page already showed. */}
-        {!datasets?.length && (
-          <Link to="/home" className="font-semibold text-brand-violet">
-            Upload your own data →
-          </Link>
-        )}
-      </div>
 
       {run?.status === 'error' && (
         <div className="mt-3 rounded-[var(--r-md)] bg-status-danger-bg p-[10px_14px] text-base text-[#B91C1C]">
@@ -865,81 +821,57 @@ export function Investigations() {
           list on exactly the machine this is demonstrated on — they only sat
           side by side once the browser was zoomed out. Same threshold the
           Insights Hub's chart rows use. */}
-      <div className="grid grid-cols-[1.7fr_1fr] gap-4 @max-[1000px]:grid-cols-1">
-        <Card
-          className={
-            graphExpanded
-              ? 'fade-in fixed inset-4 z-[9990] m-0 flex flex-col overflow-hidden shadow-[var(--shadow-lg)]'
-              : 'fade-in'
-          }
-        >
+      <div className={`grid gap-4 @max-[1000px]:grid-cols-1 ${agentsOpen ? 'grid-cols-[1.7fr_1fr]' : 'grid-cols-1'}`}>
+        <Card className="fade-in">
           <CardHeader
-            title={
-              <span className="flex items-center gap-1.5">
-                Investigation Graph <Icon name="info" className="h-3.5 w-3.5 text-ink-muted" />
-              </span>
-            }
+            title="Investigation Graph"
             actions={
-              <div className="flex items-center gap-1.5">
-                {/* Names the arrangement on screen. Not a control: there is
-                    one layout, so a picker here would be a click target that
-                    could not change anything. */}
-                <span className="mr-1 text-sm font-semibold text-ink-muted">Radial</span>
-                {/* Zoom is clamped so the stage can never be scaled past the
-                    point where nodes leave it or become unreadable. */}
-                <IconButton
-                  icon="zoomOut"
-                  title="Zoom out"
-                  disabled={zoom <= 0.6}
-                  onClick={() => setZoom((z) => Math.max(0.6, Math.round((z - 0.1) * 10) / 10))}
-                />
-                <span className="min-w-[42px] text-center text-sm font-semibold tabular-nums text-ink-muted">
-                  {Math.round(zoom * 100)}%
-                </span>
-                <IconButton
-                  icon="zoomIn"
-                  title="Zoom in"
-                  disabled={zoom >= 1.6}
-                  onClick={() => setZoom((z) => Math.min(1.6, Math.round((z + 0.1) * 10) / 10))}
-                />
-                <IconButton
-                  icon={graphExpanded ? 'x' : 'expand'}
-                  title={graphExpanded ? 'Exit full screen (Esc)' : 'Expand to full screen'}
-                  onClick={() => setGraphExpanded((v) => !v)}
-                />
-              </div>
+              /* THE ONE CONTROL on the graph card. The zoom and full-screen
+                 controls that used to sit here are gone — the graph is drawn
+                 to fit its card — and what a reader wants beside the graph is
+                 the panel that explains its agents. Set in the card title's
+                 own type so the two headings read as a pair, with only the
+                 chevron and the hover saying which one is the control.
+                 Pressed, the panel opens alongside; released, the graph takes
+                 the whole row. */
+              <button
+                type="button"
+                aria-pressed={agentsOpen}
+                aria-controls="agents-info-panel"
+                onClick={toggleAgents}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--r-sm)] border-0 bg-transparent px-2 py-1 text-md font-bold text-ink-primary transition-colors hover:bg-surface-hover hover:text-brand-violet focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet/60 [&_svg]:h-4 [&_svg]:w-4"
+              >
+                <Icon name="cpu" className="text-brand-violet" /> <span>Agents Info</span>
+                <Icon name={agentsOpen ? 'chevronRight' : 'chevronLeft'} />
+              </button>
             }
           />
           <InvestigationGraph
             center={view.center}
             nodes={graphNodes}
-            legend={legend}
             revealedKeys={revealedKeys}
-            zoom={zoom}
-            expanded={graphExpanded}
             onNodeClick={(node, el) => setPopover({ node, el })}
           />
         </Card>
 
-        <Card className="fade-in flex h-full flex-col">
-          <CardHeader
-            title={
-              <span className="flex items-center gap-1.5">
-                Active Accelerators <Icon name="info" className="h-3.5 w-3.5 text-ink-muted" />
-              </span>
-            }
-            actions={<Pill tone="violet">{typeMeta.title}</Pill>}
-          />
-          {/* Same `fill` shape the ChartFrame cards use: the card is a flex
-              column and the body takes the remaining height, so the list can
-              spread into it instead of leaving the card's tail blank. */}
-          <div className="flex flex-1 flex-col px-4.5 py-1">
-            <AccelList
-              accelerators={runAccelerators ?? view.accelerators}
-              statusOverride={runAccelState}
-            />
-          </div>
-        </Card>
+        {/* WHAT EACH AGENT DOES, beside the graph it explains: the
+            specialists with their plain-words job and live status. Mounted
+            only while the graph card's "Agents Info" control is pressed, so
+            the entrance plays each time it opens. */}
+        {agentsOpen && (
+          <Card id="agents-info-panel" className="fade-in flex h-full flex-col">
+            <CardHeader title="Agent Descriptions" />
+            {/* Same `fill` shape the ChartFrame cards use: the card is a flex
+                column and the body takes the remaining height, so the list can
+                spread into it instead of leaving the card's tail blank. */}
+            <div className="flex flex-1 flex-col px-4.5 py-1">
+              <AccelList
+                accelerators={runAccelerators ?? view.accelerators}
+                statusOverride={runAccelState}
+              />
+            </div>
+          </Card>
+        )}
       </div>
 
       <ProgressStrip

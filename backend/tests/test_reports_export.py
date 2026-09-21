@@ -788,6 +788,73 @@ def test_decision_center_without_a_record_is_a_422() -> None:
     assert "context" in detail
 
 
+# --- investigations ----------------------------------------------------------
+
+FINISHED_RUN = {
+    "id": "abc123def456",
+    "question": "Why did Diwali Special 25 underperform in General Trade?",
+    "dataset_id": None,
+    "status": "done",
+    "stage": "complete",
+    "result": {
+        "investigation_type": "diagnostic",
+        "global_filters": {"year": 2025, "channel": ["CH002"], "week": "2025-W44"},
+        "totals": {"rows": 1234},
+        "findings": [
+            {
+                "key": "offer", "name": "Offer Mechanics", "headline": "Buy3Get1 returned 0.98",
+                "body": "The mechanic trailed the business average of 1.11.",
+                "evidence": "ROI 0.98 vs 1.11 across 12 events", "metric": "0.98",
+                "delta": "-0.13", "trend": "down", "impact": "high", "confidence": 84,
+            },
+        ],
+        "synthesis": {
+            "summary": "The promotion underperformed because its mechanic returned less than the business average.",
+            "root_cause": "The ineffective Buy3Get1 offer type in General Trade.",
+            "confidence": 81,
+            "insight_count": 1,
+            "recommendations": ["Reassess the Buy3Get1 mechanic.", "Trial a straight discount."],
+        },
+    },
+}
+
+
+def test_investigation_without_a_finished_run_is_a_422() -> None:
+    response = export("investigations", "pdf", CC_SCOPE, {})
+    assert response.status_code == 422
+    assert "finished run" in response.json()["detail"].lower()
+
+    running = {**FINISHED_RUN, "status": "running", "result": None}
+    assert export("investigations", "pdf", CC_SCOPE, {"run": running}).status_code == 422
+
+
+def test_investigation_report_carries_the_run_as_the_screen_showed_it() -> None:
+    """The question, the answer and the findings — copied off the stored run,
+    with the run's own scope on the cover."""
+    scope = {"year": 2025, "channel": ["CH002"]}
+    options = {"run": FINISHED_RUN, "source_label": "TPO star schema (built-in)"}
+    pdf, name = ok("investigations", "pdf", scope, options)
+    assert name.startswith("TPO_Investigation_2025")
+    text = pdf_text(pdf)
+    for expected in (
+        "Why did Diwali Special 25 underperform",
+        "Buy3Get1 offer type",
+        "Reassess the Buy3Get1 mechanic",
+        "Offer Mechanics",
+        "2025-W44",
+        "81%",
+    ):
+        assert expected in text, expected
+
+    xlsx, _ = ok("investigations", "xlsx", scope, options)
+    wb = load_workbook(io.BytesIO(xlsx), read_only=True)
+    cells = " ".join(
+        str(c.value) for ws in wb.worksheets for row in ws.iter_rows() for c in row if c.value is not None
+    )
+    assert "Trial a straight discount." in cells
+    assert "Offer Mechanics" in cells
+
+
 def test_an_unknown_filter_dimension_is_rejected() -> None:
     """`FilterState.build` owns this, so a client cannot smuggle a filter the
     project has no meaning for into a report."""
@@ -819,15 +886,16 @@ def test_no_debug_or_internal_fields_reach_a_report() -> None:
 
 def test_the_registry_only_carries_modules_with_a_computed_source() -> None:
     """Administrative screens are deliberately absent: the brief rules out export
-    controls with no reportable dataset behind them."""
+    controls with no reportable dataset behind them. Investigations joined the
+    registry once a finished run — its stored synthesis and findings — was a
+    computed source of its own."""
     keys = set(report_service.module_keys())
     assert keys == {
         "command-center", "simulation-investigation",
         "simulation-general-optimization", "simulation-target-rescue",
-        "decision-center",
+        "decision-center", "investigations",
     }
-    for absent in ("settings", "connections", "reports", "investigations",
-                   "promotion-intelligence"):
+    for absent in ("settings", "connections", "reports", "promotion-intelligence"):
         assert absent not in keys
 
 

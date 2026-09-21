@@ -79,10 +79,13 @@ export function DimensionTable({ title, rows, nameHeader }: { title: string; row
                 <Td>{fmtCr(r.trade_spend)}</Td>
                 <Td>{fmtPct(r.spend_share_pct)}</Td>
                 <Td>{fmtCr(r.incremental_sales)}</Td>
-                <Td className="font-extrabold">{fmtRoi(r.roi_multiple)}</Td>
-                <Td className={r.vs_target != null && r.vs_target < 0 ? 'text-status-danger' : 'text-status-success'}>
-                  {fmtRoiDelta(r.vs_target)}
-                </Td>
+                {/* PLAIN INK, REGULAR WEIGHT. The ROI used to be the one bold
+                    cell in the row and both columns were coloured red or
+                    green by standing, which on a table where every row is
+                    below target painted two solid red columns. The Status
+                    pill at the end of the row already says the standing. */}
+                <Td>{fmtRoi(r.roi_multiple)}</Td>
+                <Td>{fmtRoiDelta(r.vs_target)}</Td>
                 <Td>
                   <Pill tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</Pill>
                 </Td>
@@ -185,7 +188,7 @@ export function KeyInsightsGrid({ insights }: { insights: KeyInsight[] }) {
             <Pill tone={SEVERITY_TONE[k.severity]}>{k.severity}</Pill>
           </div>
           <p className="text-base leading-[1.55] text-ink-secondary">{k.detail}</p>
-          <div className="mt-2 inline-flex items-center gap-1.5 text-sm font-bold text-ink-primary">
+          <div className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-ink-primary">
             <Icon name={k.trend === 'down' ? 'arrowDown' : k.trend === 'up' ? 'arrowUp' : 'variance'} className="h-3 w-3" />
             {k.impact}
           </div>
@@ -207,7 +210,7 @@ export function DriversPanel({ drivers }: { drivers: AnalysisDriver[] }) {
               {d.is_primary && <Pill tone="violet">Primary</Pill>}
               {d.driver}
             </span>
-            <span className="shrink-0 text-base font-extrabold [font-variant-numeric:tabular-nums]">{d.weight_pct}%</span>
+            <span className="shrink-0 text-base font-normal tabular-nums text-ink-primary">{d.weight_pct}%</span>
           </div>
           <div className="h-2 overflow-hidden rounded-[3px] bg-surface-muted">
             <div
@@ -330,8 +333,8 @@ export function RiskPanel({ risk }: { risk: RiskFacts }) {
         <div className="mb-4 grid grid-cols-4 gap-2.5 @max-[760px]:grid-cols-2">
           {order.map(([k, label]) => (
             <div key={k} className="rounded-[var(--r-md)] bg-surface-muted p-[10px_12px]">
-              <div className="text-xs font-semibold text-ink-muted">{label}</div>
-              <div className="mt-0.5 text-lg font-extrabold [font-variant-numeric:tabular-nums]">
+              <div className="text-sm font-bold text-ink-primary">{label}</div>
+              <div className="mt-0.5 text-lg font-normal tabular-nums text-ink-primary">
                 {(counts[k] ?? 0).toLocaleString()}
               </div>
             </div>
@@ -355,7 +358,7 @@ export function RiskPanel({ risk }: { risk: RiskFacts }) {
                   <Td>
                     <Pill tone={a.severity?.toLowerCase() === 'critical' ? 'danger' : 'warning'}>{a.severity}</Pill>
                   </Td>
-                  <Td className="font-extrabold text-status-danger">{fmtRoi(a.roi_multiple)}</Td>
+                  <Td className="text-status-danger">{fmtRoi(a.roi_multiple)}</Td>
                   <Td>{fmtCr(a.trade_spend)}</Td>
                   <Td>{fmtCr(a.at_stake)}</Td>
                 </tr>
