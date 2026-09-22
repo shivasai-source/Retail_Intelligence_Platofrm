@@ -69,22 +69,15 @@ PDF_MAGIC = b"%PDF-"
 
 CC_SCOPE = {"year": 2025, "month": 10, "channel": ["CH002"]}
 SIM_SCOPE = {"year": 2025, "month": 10, "channel": ["CH002"]}
-GO_SCOPE = {"month": 6, "category": ["Baby Care"], "channel": ["CH002"]}
-TR_SCOPE = {"year": 2025, "month": 10, "channel": ["CH002"], "category": ["Baby Care"]}
 
-SIM_OPTIONS = {"discount_pct": 15.0, "scenario_id": "optimized-plan",
-               "scenario_name": "Optimized Plan", "filename_hint": "Optimized Plan"}
-GO_OPTIONS = {"min_discount_pct": 0.0, "max_discount_pct": 25.0}
-TR_OPTIONS = {"target_units": 50000.0, "current_discount_pct": 10.0, "checkpoint": 3}
+SIM_OPTIONS = {"discount_pct": 15.0, "trade_spend": 30_000_000.0, "days": 14}
 
 #: Every module that can be exported, with a scope and the control values its
 #: authoritative service needs. Decision Center is exercised separately -- it is
 #: assembled from posted Simulation Studio results rather than from a scope.
 CASES: tuple[tuple[str, dict, dict], ...] = (
     ("command-center", CC_SCOPE, {}),
-    ("simulation-investigation", SIM_SCOPE, SIM_OPTIONS),
-    ("simulation-general-optimization", GO_SCOPE, GO_OPTIONS),
-    ("simulation-target-rescue", TR_SCOPE, TR_OPTIONS),
+    ("simulation-studio", SIM_SCOPE, SIM_OPTIONS),
 )
 
 
@@ -184,7 +177,7 @@ def test_wide_tables_get_landscape_pages() -> None:
     and the optimizer's product plan both ask for landscape, so those documents
     genuinely carry landscape pages beside their portrait ones."""
     for module, scope, options in (("command-center", CC_SCOPE, {}),
-                                   ("simulation-general-optimization", GO_SCOPE, GO_OPTIONS)):
+                                   ("simulation-studio", SIM_SCOPE, SIM_OPTIONS)):
         payload, _ = ok(module, "pdf", scope, options)
         sizes = {
             (round(float(p.mediabox.width)), round(float(p.mediabox.height)))
@@ -464,7 +457,7 @@ def test_no_pdf_prints_an_undrawable_character() -> None:
         text = pdf_text(ok(module, "pdf", scope, options)[0])
         assert "₹" not in text, f"{module} printed a rupee sign the font cannot draw"
 
-    money = pdf_text(ok("simulation-target-rescue", "pdf", TR_SCOPE, TR_OPTIONS)[0])
+    money = pdf_text(ok("simulation-studio", "pdf", SIM_SCOPE, SIM_OPTIONS)[0])
     assert "Rs." in money, "no INR figure reached the PDF at all"
 
 
@@ -549,133 +542,64 @@ def _numeric(payload: bytes) -> set[float]:
     return values
 
 
-@pytest.mark.parametrize("changed", [
-    {"category": ["Health Care"]},
-    {"checkpoint_change": True},
-])
-def test_target_rescue_export_follows_its_own_controls(changed: dict) -> None:
-    """Category, product and checkpoint all reach the file."""
-    scope = dict(TR_SCOPE)
-    options = dict(TR_OPTIONS)
-    if changed.get("checkpoint_change"):
-        options["checkpoint"] = 1
-    else:
-        scope.update(changed)
-
-    base, _ = ok("simulation-target-rescue", "xlsx", TR_SCOPE, TR_OPTIONS)
-    other, _ = ok("simulation-target-rescue", "xlsx", scope, options)
-    assert _numeric(base) != _numeric(other)
 
 
-def test_target_rescue_product_filter_reaches_the_file() -> None:
-    from app.tpo.loader import get_store
-
-    store = get_store()
-    product = next(p for p, m in sorted(store.dims.products.items()) if m.category == "Baby Care")
-    payload, _ = ok("simulation-target-rescue", "pdf",
-                    {**TR_SCOPE, "product": [product]}, TR_OPTIONS)
-    text = pdf_text(payload)
-    assert store.dims.products[product].name.strip()[:18] in text
 
 
 # --- the three simulation modes are isolated --------------------------------
 
 
-def test_each_simulation_mode_exports_only_its_own_content() -> None:
-    """Brief section 21. Switching mode and exporting again must not carry the
-    previous mode's data across."""
-    rescue_text = pdf_text(ok("simulation-target-rescue", "pdf", TR_SCOPE, TR_OPTIONS)[0])
-    optimize_text = pdf_text(
-        ok("simulation-general-optimization", "pdf", GO_SCOPE, GO_OPTIONS)[0])
-    investigate_text = pdf_text(
-        ok("simulation-investigation", "pdf", SIM_SCOPE, SIM_OPTIONS)[0])
-
-    assert "Target Rescue" in rescue_text
-    assert "Intervention comparison" in rescue_text
-    assert "Optimized product plan" not in rescue_text
-    assert "Trade Spend Optimization Report" not in rescue_text
-
-    assert "General Optimization" in optimize_text
-    assert "Optimized product plan" in optimize_text
-    assert "Intervention comparison" not in optimize_text
-    assert "Run-rate" not in optimize_text
-
-    assert "Investigation Simulation" in investigate_text
-    assert "Current Plan vs simulated scenario" in investigate_text
-    assert "Optimized product plan" not in investigate_text
-    assert "Intervention comparison" not in investigate_text
 
 
-def test_each_mode_gets_its_own_worksheets() -> None:
-    sheets = {}
-    for module, scope, options in (
-        ("simulation-investigation", SIM_SCOPE, SIM_OPTIONS),
-        ("simulation-general-optimization", GO_SCOPE, GO_OPTIONS),
-        ("simulation-target-rescue", TR_SCOPE, TR_OPTIONS),
-    ):
-        payload, _ = ok(module, "xlsx", scope, options)
-        sheets[module] = set(load_workbook(io.BytesIO(payload)).sheetnames)
-
-    assert "Current vs Simulated" in sheets["simulation-investigation"]
-    assert "Optimized Plan" in sheets["simulation-general-optimization"]
-    assert "Interventions" in sheets["simulation-target-rescue"]
-    assert "Optimized Plan" not in sheets["simulation-target-rescue"]
-    assert "Interventions" not in sheets["simulation-general-optimization"]
 
 
 # --- module-specific content --------------------------------------------------
 
 
-def test_target_rescue_separates_the_two_clocks() -> None:
-    """Brief section 12C. The business-week coverage and the calendar month are
-    reported separately and each is labelled, so a 28-day analytical month can
-    never be read as a calendar day count."""
-    text = pdf_text(ok("simulation-target-rescue", "pdf", TR_SCOPE, TR_OPTIONS)[0])
-    assert "Analytical checkpoint" in text
-    assert "completed business weeks" in text
-    assert "Business-week coverage" in text
-    assert "not calendar days" in text
-    assert "Calendar month length" in text
-    assert "calendar days" in text
 
 
-def test_target_rescue_labels_the_run_rate_honestly() -> None:
-    text = pdf_text(ok("simulation-target-rescue", "pdf", TR_SCOPE, TR_OPTIONS)[0])
-    assert "Run-rate projection is a planning indicator, not a forecast." in text
 
 
 def test_simulation_never_labels_a_scenario_as_actuals() -> None:
-    for module, scope, options in (
-        ("simulation-investigation", SIM_SCOPE, SIM_OPTIONS),
-        ("simulation-general-optimization", GO_SCOPE, GO_OPTIONS),
-        ("simulation-target-rescue", TR_SCOPE, TR_OPTIONS),
-    ):
-        text = pdf_text(ok(module, "pdf", scope, options)[0])
-        assert "are not historical actuals" in text, module
+    text = pdf_text(ok("simulation-studio", "pdf", SIM_SCOPE, SIM_OPTIONS)[0])
+    assert "are not historical actuals" in text
 
 
-def test_investigation_simulation_separates_measured_from_simulated() -> None:
-    payload, _ = ok("simulation-investigation", "xlsx", SIM_SCOPE, SIM_OPTIONS)
-    sheet = load_workbook(io.BytesIO(payload))["Current vs Simulated"]
-    headers = [c.value for c in next(sheet.iter_rows(min_row=1, max_row=6)) if c.value]
-    joined = " ".join(
-        str(c.value) for row in sheet.iter_rows() for c in row if isinstance(c.value, str)
-    )
-    assert "Measured (Current Plan)" in joined
-    assert "Simulated — low" in joined
-    assert "Simulated — high" in joined
-    assert headers is not None
+def test_the_studio_export_carries_its_levers_and_the_window() -> None:
+    """The three lever values the page was holding, the coverage the budget
+    bought, and the window's plans side by side -- the studio's own payload,
+    not a re-derivation."""
+    text = pdf_text(ok("simulation-studio", "pdf", SIM_SCOPE, SIM_OPTIONS)[0])
+    assert "15.00%" in text
+    assert "14 days" in text
+    assert "Coverage funded" in text
+    assert "Current plan" in text and "Scenario" in text and "No promotion" in text
+    assert "Week by week" in text
+    assert "Lift model" in text
+
+    payload, _ = ok("simulation-studio", "xlsx", SIM_SCOPE, SIM_OPTIONS)
+    sheets = set(load_workbook(io.BytesIO(payload)).sheetnames)
+    assert "Window result" in sheets
+    assert "Week by week" in sheets
 
 
-def test_a_scenario_that_could_not_be_applied_says_so() -> None:
-    """A column of 0.00 must not read as "the treatment earns nothing" when the
-    truth is "the treatment could not be applied here". `execution.simulate`
-    reports how many promoted rows it had to exclude, and the report carries that
-    count and its reason next to the figures it explains."""
-    text = pdf_text(ok("simulation-investigation", "pdf", SIM_SCOPE, SIM_OPTIONS)[0])
-    assert "Scenario coverage" in text
-    assert "Rows the treatment could not be" in text
-    assert "cannot be re-based" in text
+def test_the_studio_export_follows_its_levers() -> None:
+    base, _ = ok("simulation-studio", "xlsx", SIM_SCOPE, SIM_OPTIONS)
+    longer, _ = ok("simulation-studio", "xlsx", SIM_SCOPE, {**SIM_OPTIONS, "days": 28})
+    deeper, _ = ok("simulation-studio", "xlsx", SIM_SCOPE, {**SIM_OPTIONS, "discount_pct": 25.0})
+    assert _numeric(base) != _numeric(longer)
+    assert _numeric(base) != _numeric(deeper)
+
+
+def test_the_studio_export_without_its_levers_is_a_422_with_the_reason() -> None:
+    """Never a blank-looking report. The reader is told what to do."""
+    response = export("simulation-studio", "xlsx", SIM_SCOPE, {"discount_pct": 10})
+    assert response.status_code == 422
+    assert "trade_spend" in response.json()["detail"]
+
+
+
+
 
 
 def test_the_pdf_kpi_table_shows_the_previous_period() -> None:
@@ -717,13 +641,10 @@ def test_filenames_are_predictable_and_sanitised() -> None:
     _, cc = ok("command-center", "xlsx", CC_SCOPE)
     assert cc == "TPO_Insights_Hub_2025_Oct_Modern_Trade.xlsx"
 
-    _, tr = ok("simulation-target-rescue", "pdf", TR_SCOPE, TR_OPTIONS)
-    assert tr == "TPO_Simulation_Target_Rescue_2025_Oct_Modern_Trade.pdf"
+    _, studio_name = ok("simulation-studio", "pdf", SIM_SCOPE, SIM_OPTIONS)
+    assert studio_name == "TPO_Simulation_Studio_2025_Oct_Modern_Trade.pdf"
 
-    _, go = ok("simulation-general-optimization", "xlsx", GO_SCOPE, GO_OPTIONS)
-    assert go == "TPO_Simulation_General_Optimization_Jun_Modern_Trade.xlsx"
-
-    for name in (cc, tr, go):
+    for name in (cc, studio_name):
         assert not set(name) & set('<>:"/\\|?*')
 
 
@@ -738,7 +659,7 @@ def test_two_channels_do_not_collide_on_one_filename() -> None:
 
 
 def test_a_filename_hint_is_sanitised_and_carries_no_identifier() -> None:
-    _, name = ok("simulation-investigation", "pdf", SIM_SCOPE, {
+    _, name = ok("simulation-studio", "pdf", SIM_SCOPE, {
         **SIM_OPTIONS,
         "filename_hint": 'Diwali/Deal "25" *risky* 3f2504e0-4f89-11d3-9a0c-0305e82c3301',
     })
@@ -773,11 +694,6 @@ def test_an_unsupported_format_is_rejected() -> None:
         ).status_code == 422, bad
 
 
-def test_target_rescue_without_a_target_is_a_422_with_the_reason() -> None:
-    """Never a blank-looking report. The reader is told what to do."""
-    response = export("simulation-target-rescue", "xlsx", TR_SCOPE, {"current_discount_pct": 10})
-    assert response.status_code == 422
-    assert "target" in response.json()["detail"].lower()
 
 
 def test_decision_center_without_a_record_is_a_422() -> None:
@@ -861,14 +777,6 @@ def test_an_unknown_filter_dimension_is_rejected() -> None:
     assert export("command-center", "xlsx", {"not_a_dimension": ["x"]}).status_code == 422
 
 
-def test_a_scope_with_no_rows_reports_the_reason_rather_than_an_empty_grid() -> None:
-    payload, _ = ok("simulation-general-optimization", "pdf",
-                    {"month": 2, "category": ["Baby Care"], "channel": ["CH002"]},
-                    {"min_discount_pct": 24.0, "max_discount_pct": 24.0})
-    text = pdf_text(payload)
-    # A window with no approved treatment in it is a real answer, and the report
-    # states it instead of printing a plan of zeros.
-    assert "No plan" in text or "no approved" in text.lower()
 
 
 # --- nothing internal leaks ---------------------------------------------------
@@ -890,11 +798,7 @@ def test_the_registry_only_carries_modules_with_a_computed_source() -> None:
     registry once a finished run — its stored synthesis and findings — was a
     computed source of its own."""
     keys = set(report_service.module_keys())
-    assert keys == {
-        "command-center", "simulation-investigation",
-        "simulation-general-optimization", "simulation-target-rescue",
-        "decision-center", "investigations",
-    }
+    assert keys == {"command-center", "simulation-studio", "decision-center", "investigations"}
     for absent in ("settings", "connections", "reports", "promotion-intelligence"):
         assert absent not in keys
 
@@ -918,7 +822,7 @@ def test_export_does_not_disturb_the_endpoints_it_reads() -> None:
 
     ok("command-center", "xlsx", CC_SCOPE)
     ok("command-center", "pdf", CC_SCOPE)
-    ok("simulation-target-rescue", "pdf", TR_SCOPE, TR_OPTIONS)
+    ok("simulation-studio", "pdf", SIM_SCOPE, SIM_OPTIONS)
 
     assert client.get("/api/command-center/kpis", params=params).json() == before_kpis
     assert client.get("/api/command-center/risk-alerts", params=params).json() == before_alerts
@@ -946,4 +850,4 @@ def test_the_report_layer_computes_no_business_figure() -> None:
     # `aggregate.calculate_roi` could produce a second ROI.
     assert "aggregate" not in imported
     # What it does import are the module services the screens themselves call.
-    assert {"service", "optimization", "rescue", "execution", "simulation"} <= imported
+    assert {"service", "studio"} <= imported

@@ -52,38 +52,13 @@ All eight share the same 14-dimension filter contract.
 | Intelligence | `/api/intelligence-answers/{type}` | GET | **Static** narrative with `[g]/[r]/[n]` markup | `useIntelligenceAnswer` → `AiAnswerCard` |
 | Intelligence | `/api/intelligence-default` | GET | **Static** shared base block | `useIntelligencePage` — **merged as the base**, then overridden per type |
 
-## Simulation — Mode A, Investigation Simulation (7)
+## Simulation Studio (3)
 
 | Module | Endpoint | Method | Purpose | Frontend consumer |
 |---|---|---|---|---|
-| Simulation | `/api/simulation/context` | POST | Validate an RCA hand-off; stamp provenance | `useInvestigationContext` → `ContextBar` |
-| Simulation | `/api/simulation/run` | POST | Measured baseline + 3 scenarios | `useSimulationRun` → `CurrentPlanPanel` |
-| Simulation | `/api/simulation/simulate` | POST | Execute one scenario → a low/high range | `useSimulateScenario` → `ScenarioResultPanel` |
-| Simulation | `/api/simulation/compare` | POST | Side by side; **never ranks** | `useScenarioComparison` → `ComparisonTable` |
-| Simulation | `/api/simulation/recommend` | POST | Apply the decision policy | `useScenarioRecommendation` → `RecommendationPanel` |
-| Simulation | `/api/simulation/weekly` | POST | Decompose across observed business weeks | `useWeeklyImpact` → `WeeklyImpactPanel` |
-| Simulation | `/api/simulation/risk` | POST | Governance assessment | `useRiskAssessment` → `RiskPanel` |
-
-## Simulation — Mode B, General Optimization (2)
-
-| Module | Endpoint | Method | Purpose | Frontend consumer |
-|---|---|---|---|---|
-| Simulation | `/api/simulation/general-optimization/scope` | POST | Measure the scope; bound the ceiling | `useOptimizationScope` |
-| Simulation | `/api/simulation/general-optimization` | POST | Allocate the budget (exact knapsack) | `useGeneralOptimization` → `GeneralOptimization` |
-
-## Simulation — Mode C, Target Rescue (2)
-
-| Module | Endpoint | Method | Purpose | Frontend consumer |
-|---|---|---|---|---|
-| Simulation | `/api/simulation/target-rescue/scope` | POST | Cascade, weeks, prior-year actual, measured depth | `useTargetRescueScope` |
-| Simulation | `/api/simulation/target-rescue` | POST | Assess the target; recommend the least aggressive recovery | `useTargetRescue` → `TargetRescue` |
-
-## Simulation — legacy static readers (2)
-
-| Module | Endpoint | Method | Purpose | Frontend consumer |
-|---|---|---|---|---|
-| Simulation | `/api/simulation/{type}` | GET | **Static** page block | none found |
-| Simulation | `/api/simulation-default` | GET | **Static** legacy block | none found |
+| Simulation | `/api/simulation/scope` | POST | Measured plan, lever ranges and defaults, fitted lift model | `useStudioScope` → `Simulation.tsx` |
+| Simulation | `/api/simulation/simulate` | POST | Three levers → the window's Revenue and ROI beside the current plan | `useStudioSimulate` → `ResultStrip`, `WindowChart` |
+| Simulation | `/api/simulation/curve` | POST | Revenue and ROI at every discount depth for the budget and days | `useStudioCurve` → `CurveChart` |
 
 ## Decision Center (4)
 
@@ -111,6 +86,10 @@ All eight share the same 14-dimension filter contract.
 | Module | Endpoint | Method | Purpose | Frontend consumer |
 |---|---|---|---|---|
 | Store | `/api/store/scenarios` | **POST** | Store a simulation result (append a version) | `useSaveScenario` |
+| Store | `/api/store/board-decisions` | **POST** | Store a Decision Center board (scenarios, chosen slot, rationale) | `useSaveBoardDecision` |
+| Store | `/api/store/board-decisions` | GET | Saved board decisions, newest first, with a summary | `useBoardDecisions` |
+| Store | `/api/store/board-decisions/{id}` | GET | One saved board, whole | `useLoadBoardDecision` |
+| Store | `/api/store/board-decisions` | **DELETE** | Clear the board decision history | `useClearBoardDecisions` |
 | Store | `/api/store/scenarios/{scenario_id}` | GET | Read one back, with `stale` | `useStoredScenario` |
 | Store | `/api/store/decisions` | **POST** | Store a decision record (append a version) | `useSaveDecision` |
 | Store | `/api/store/decisions` | GET | List stored decisions, newest first | `useStoredDecisions` |
@@ -164,6 +143,5 @@ All eight share the same 14-dimension filter contract.
 | `/api/command` | Legacy static block; the real Command Center reads `/api/command-center/*` |
 | `/api/ai-watch` | Static |
 | `/api/recommendations` | Static |
-| `/api/simulation/{type}`, `/api/simulation-default` | Superseded by the real simulation contract |
 | `/api/decision/{type}`, `/api/decision-default` | Superseded by `/api/decision/record` |
 | `/api/reports/modules` | Available; the Reports page reads the `modules` list off the library response instead |

@@ -78,10 +78,10 @@ export function InvestigationGraph({
           {laidOut.map((l) => (
             <line
               key={l.key}
-              x1={l.px.toFixed(1)}
-              y1={l.py.toFixed(1)}
-              x2={l.edgeX2.toFixed(1)}
-              y2={l.edgeY2.toFixed(1)}
+              x1={l.px.toFixed(2)}
+              y1={l.py.toFixed(2)}
+              x2={l.edgeX2.toFixed(2)}
+              y2={l.edgeY2.toFixed(2)}
               stroke="var(--brand-blue)"
               strokeWidth={2}
               strokeLinecap="round"

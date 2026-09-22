@@ -662,13 +662,13 @@ export function PromotionContributionSection() {
 function tickMoney(v: number, rate: number, symbol: string): string {
   const a = v * rate
   if (symbol === '₹') {
-    if (Math.abs(a) >= 1e7) return `${symbol}${(a / 1e7).toFixed(1)} Cr`
-    if (Math.abs(a) >= 1e5) return `${symbol}${(a / 1e5).toFixed(1)} L`
-    return `${symbol}${a.toFixed(0)}`
+    if (Math.abs(a) >= 1e7) return `${symbol}${(a / 1e7).toFixed(2)} Cr`
+    if (Math.abs(a) >= 1e5) return `${symbol}${(a / 1e5).toFixed(2)} L`
+    return `${symbol}${a.toFixed(2)}`
   }
-  if (Math.abs(a) >= 1e6) return `${symbol}${(a / 1e6).toFixed(1)} M`
-  if (Math.abs(a) >= 1e3) return `${symbol}${(a / 1e3).toFixed(1)} K`
-  return `${symbol}${a.toFixed(0)}`
+  if (Math.abs(a) >= 1e6) return `${symbol}${(a / 1e6).toFixed(2)} M`
+  if (Math.abs(a) >= 1e3) return `${symbol}${(a / 1e3).toFixed(2)} K`
+  return `${symbol}${a.toFixed(2)}`
 }
 
 /** One row per group: a dot at Trade Spend, a dot at Incremental Sales, and
@@ -798,7 +798,7 @@ function Dumbbell({
                     <text x={xi} y={cy - 10} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--text-primary)">
                       {g.incremental_sales_display}
                       {share !== null && (
-                        <tspan fontWeight={400} fill="var(--text-muted)">{` · ${share.toFixed(1)}%`}</tspan>
+                        <tspan fontWeight={400} fill="var(--text-muted)">{` · ${share.toFixed(2)}%`}</tspan>
                       )}
                     </text>
                   </>
@@ -1173,13 +1173,13 @@ function MetricColumns({
     if (isRoi) return fmtRoi(v)
     const a = v * rate
     if (symbol === '₹') {
-      if (Math.abs(a) >= 1e7) return `${symbol}${(a / 1e7).toFixed(1)} Cr`
-      if (Math.abs(a) >= 1e5) return `${symbol}${(a / 1e5).toFixed(1)} L`
-      return `${symbol}${a.toFixed(0)}`
+      if (Math.abs(a) >= 1e7) return `${symbol}${(a / 1e7).toFixed(2)} Cr`
+      if (Math.abs(a) >= 1e5) return `${symbol}${(a / 1e5).toFixed(2)} L`
+      return `${symbol}${a.toFixed(2)}`
     }
-    if (Math.abs(a) >= 1e6) return `${symbol}${(a / 1e6).toFixed(1)} M`
-    if (Math.abs(a) >= 1e3) return `${symbol}${(a / 1e3).toFixed(1)} K`
-    return `${symbol}${a.toFixed(0)}`
+    if (Math.abs(a) >= 1e6) return `${symbol}${(a / 1e6).toFixed(2)} M`
+    if (Math.abs(a) >= 1e3) return `${symbol}${(a / 1e3).toFixed(2)} K`
+    return `${symbol}${a.toFixed(2)}`
   }
 
   // A null value is left out of the extent entirely rather than counted as
@@ -1272,7 +1272,7 @@ function MetricColumns({
               v === null
                 ? '—'
                 : share !== null
-                  ? `${perfDisplay(g, metric)} · ${share.toFixed(1)}%`
+                  ? `${perfDisplay(g, metric)} · ${share.toFixed(2)}%`
                   : perfDisplay(g, metric)
 
             /** A column from the baseline to `v`. Null draws nothing at all —

@@ -504,3 +504,103 @@ def _dataset_envelope(stored_fingerprint: str) -> dict[str, Any]:
 
 def dataset_version_detail() -> dict[str, Any]:
     return dataset_version().as_dict()
+
+
+# --- board decisions (Decision Center, 2026-09-22) ---------------------------
+
+def save_board_decision(board: dict[str, Any]) -> dict[str, Any]:
+    """Store one Decision Center board: the compared scenarios exactly as the
+    Simulation Studio snapshotted them, the chosen one and the rationale.
+
+    STORED WHOLE. Every figure in `scenarios[*].kpis` is a display string the
+    studio produced; nothing here reads, recomputes or re-keys it. The
+    envelope carries the dataset fingerprint so a later reader knows which
+    data the numbers came from.
+    """
+    _require(isinstance(board, dict), "A board object is required.")
+    scenarios = board.get("scenarios")
+    _require(isinstance(scenarios, list) and len(scenarios) > 0,
+             "A decision needs at least one scenario on the board.")
+    _require(len(scenarios) <= 3, "The board holds at most three scenarios.")
+    for s in scenarios:
+        _require(isinstance(s, dict) and isinstance(s.get("kpis"), list) and s.get("slot") is not None,
+                 "Each scenario needs a slot and its KPI rows.")
+    chosen = board.get("chosen_slot")
+    _require(chosen is None or any(s.get("slot") == chosen for s in scenarios),
+             "The chosen scenario is not on the board.")
+    rationale = board.get("rationale")
+    _require(rationale is None or isinstance(rationale, str), "The rationale must be text.")
+
+    chosen_scenario = next((s for s in scenarios if s.get("slot") == chosen), None)
+    decision_id = _mint("dec")
+    now = _now()
+    fingerprint = current_fingerprint()
+    payload = {
+        "scenarios": scenarios,
+        "chosen_slot": chosen,
+        "rationale": (rationale or "").strip(),
+    }
+    conn = db.connect()
+    with conn:
+        conn.execute(
+            "INSERT INTO board_decisions (id, chosen_slot, chosen_label, scenario_count,"
+            " payload_json, dataset_version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (decision_id, chosen, (chosen_scenario or {}).get("scope", {}).get("label"),
+             len(scenarios), json.dumps(payload, ensure_ascii=False), fingerprint, now),
+        )
+    return _board_row(conn, decision_id)
+
+
+def _board_row(conn, decision_id: str) -> dict[str, Any]:
+    r = conn.execute("SELECT * FROM board_decisions WHERE id = ?", (decision_id,)).fetchone()
+    if r is None:
+        raise NotFound(f"No board decision {decision_id!r}.")
+    return {
+        "decision_id": r["id"],
+        "created_at": r["created_at"],
+        "chosen_slot": r["chosen_slot"],
+        "chosen_label": r["chosen_label"],
+        "scenario_count": int(r["scenario_count"]),
+        **_dataset_envelope(r["dataset_version"]),
+        **json.loads(r["payload_json"]),
+    }
+
+
+def load_board_decision(decision_id: str) -> dict[str, Any]:
+    return _board_row(db.connect(), decision_id)
+
+
+def list_board_decisions(limit: int = 50) -> dict[str, Any]:
+    """Newest first. Headers plus a one-line summary of the chosen scenario
+    (its revenue and ROI rows), so a history list can describe each decision
+    without loading the whole board."""
+    conn = db.connect()
+    rows = conn.execute(
+        "SELECT * FROM board_decisions ORDER BY created_at DESC, rowid DESC LIMIT ?",
+        (max(1, min(limit, 200)),),
+    ).fetchall()
+    out = []
+    for r in rows:
+        payload = json.loads(r["payload_json"])
+        chosen = next((s for s in payload.get("scenarios", []) if s.get("slot") == r["chosen_slot"]), None)
+        summary = {}
+        for k in (chosen or {}).get("kpis", []):
+            if k.get("key") in ("revenue", "roi", "discount", "days", "budget"):
+                summary[k["key"]] = k.get("value")
+        out.append({
+            "decision_id": r["id"],
+            "created_at": r["created_at"],
+            "chosen_slot": r["chosen_slot"],
+            "chosen_label": r["chosen_label"],
+            "scenario_count": int(r["scenario_count"]),
+            "rationale": payload.get("rationale", ""),
+            "summary": summary,
+            **_dataset_envelope(r["dataset_version"]),
+        })
+    return {"decisions": out, "current_dataset_version": current_fingerprint()}
+
+
+def clear_board_decisions() -> int:
+    conn = db.connect()
+    with conn:
+        return conn.execute("DELETE FROM board_decisions").rowcount

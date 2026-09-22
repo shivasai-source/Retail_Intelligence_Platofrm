@@ -81,14 +81,14 @@ def test_target_hit_rate_is_the_alerts_panels_own_count():
     state = FilterState.build(year=2025)
     counts = service.risk_alerts(state)["counts"]
     card = service.kpis(state)["secondary"]["target_hit_rate"]
-    assert card["value"] == round(counts["target_achieved"] / counts["total_events"] * 100, 1)
+    assert card["value"] == round(counts["target_achieved"] / counts["total_events"] * 100, 2)
     assert card["evidence"].startswith(f"{counts['target_achieved']:,} of {counts['total_events']:,} events")
 
 
 def test_rates_move_in_points_and_money_in_money(payload):
     uplift = payload["secondary"]["volume_uplift"]
     assert uplift["delta_display"].endswith(" pp")
-    assert uplift["delta_display"] == f"{uplift['value'] - uplift['previous_value']:+,.1f} pp"
+    assert uplift["delta_display"] == f"{uplift['value'] - uplift['previous_value']:+,.2f} pp"
     profit = payload["secondary"]["net_incremental_profit"]
     assert "%" not in profit["delta_display"]
     assert profit["delta_display"].lstrip("+-").startswith("₹")
@@ -155,7 +155,7 @@ def test_hit_rate_and_alert_counts_agree_at_any_target():
     for target in (1.2, 1.5, 1.9):
         counts = service.risk_alerts(state, target=target)["counts"]
         card = service.kpis(state, "INR", target)["secondary"]["target_hit_rate"]
-        assert card["value"] == round(counts["target_achieved"] / counts["total_events"] * 100, 1)
+        assert card["value"] == round(counts["target_achieved"] / counts["total_events"] * 100, 2)
         assert counts["critical"] + counts["high"] + counts["medium"] + counts["target_achieved"] <= counts["total_events"]
 
 

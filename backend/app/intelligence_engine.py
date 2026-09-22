@@ -38,7 +38,7 @@ def mechanic_depth(label: str) -> float | None:
     if m:
         buy, get = int(m.group(1)), int(m.group(2))
         total = buy + get
-        return round(get / total * 100, 1) if total else None
+        return round(get / total * 100, 2) if total else None
     p = _PERCENT.search(label)
     return float(p.group(1)) if p else None
 
@@ -135,7 +135,7 @@ def inc_sales_trend(filters: dict[str, Any] | None = None) -> dict[str, Any]:
     actual = series.get("incremental_sales") or []
     target = [config.target_incremental_sales(s) if s else None for s in spend]
     gap = [
-        round(a - g, 1) if (a is not None and g is not None) else None
+        round(a - g, 2) if (a is not None and g is not None) else None
         for a, g in zip(actual, target)
     ]
     return {
@@ -300,19 +300,19 @@ def roi_gap_decomposition(
             "weight_pct": weight,
             "direction": "negative" if contribution < 0 else "positive",
             "contribution": round(contribution, 2),
-            "trade_spend": round(spend, 1),
+            "trade_spend": round(spend, 2),
             # Named for its denominator. It is NOT the row's own
             # `spend_share_pct`: groups with an undefined ROI cannot be
             # decomposed and are out of both sides of this ratio, so the two
             # figures differ whenever any group was excluded.
-            "share_of_decomposed_spend_pct": round(spend / total_spend * 100, 1),
+            "share_of_decomposed_spend_pct": round(spend / total_spend * 100, 2),
             "roi_multiple": roi,
             "vs_target": round(roi - target, 2),
             "incremental_sales": row.get("incremental_sales"),
             # The row a note can be written from without inventing anything.
             "measured_note": (
-                f"₹{spend / 1e7:,.1f} Cr of trade spend "
-                f"({round(spend / total_spend * 100, 1)}% of the scope) at {roi} ROI, "
+                f"₹{spend / 1e7:,.2f} Cr of trade spend "
+                f"({round(spend / total_spend * 100, 2)}% of the scope) at {roi} ROI, "
                 f"{round(roi - target, 2):+} against the {target} target."
             ),
             "is_primary": False,
@@ -359,7 +359,7 @@ def roi_gap_decomposition(
         "target_roi": target,
         "weighted_roi": round(weighted_roi, 2),
         "gap": round(weighted_roi - target, 2),
-        "trade_spend_decomposed": round(total_spend, 1),
+        "trade_spend_decomposed": round(total_spend, 2),
         "groups_decomposed": len(usable),
         "formula": (
             "contribution = trade_spend x (roi_multiple - target_roi) / total_trade_spend, in "
@@ -413,7 +413,7 @@ def _top_share(rows: list[dict[str, Any]] | None, lever: str, noun: str) -> dict
         return _unavailable(lever, f"No {noun} in this scope carries trade spend.")
     total = sum(r["trade_spend"] for r in usable)
     top = max(usable, key=lambda r: r["trade_spend"])
-    share = round(top["trade_spend"] / total * 100, 1)
+    share = round(top["trade_spend"] / total * 100, 2)
     return {
         "lever": lever,
         "available": True,
@@ -421,7 +421,7 @@ def _top_share(rows: list[dict[str, Any]] | None, lever: str, noun: str) -> dict
         "display": f"{top.get('name')} at {share}% of trade spend",
         "basis": (
             f"Largest {noun} by Trade Spend across {len(usable)} in scope: "
-            f"₹{top['trade_spend'] / 1e7:,.1f} Cr of ₹{total / 1e7:,.1f} Cr."
+            f"₹{top['trade_spend'] / 1e7:,.2f} Cr of ₹{total / 1e7:,.2f} Cr."
         ),
     }
 
@@ -456,7 +456,7 @@ def lever_positions(facts: dict[str, Any]) -> dict[str, dict[str, Any]]:
                 "discount_depth", "No mechanic in this scope states a discount depth."
             )
         else:
-            depth = round(sum(d * s for d, s in priced) / spend, 1)
+            depth = round(sum(d * s for d, s in priced) / spend, 2)
             out["discount_depth"] = {
                 "lever": "discount_depth",
                 "available": True,
@@ -464,7 +464,7 @@ def lever_positions(facts: dict[str, Any]) -> dict[str, dict[str, Any]]:
                 "display": f"{depth}% average depth",
                 "basis": (
                     f"Trade-spend-weighted mean of the depth {len(priced)} mechanics carry "
-                    f"in their names, over ₹{spend / 1e7:,.1f} Cr."
+                    f"in their names, over ₹{spend / 1e7:,.2f} Cr."
                 ),
             }
 
@@ -491,8 +491,8 @@ def lever_positions(facts: dict[str, Any]) -> dict[str, dict[str, Any]]:
         {
             "lever": "spend_allocation",
             "available": True,
-            "value": round(float(spend_total), 1),
-            "display": f"₹{float(spend_total) / 1e7:,.1f} Cr of trade spend in scope",
+            "value": round(float(spend_total), 2),
+            "display": f"₹{float(spend_total) / 1e7:,.2f} Cr of trade spend in scope",
             "basis": "Trade Spend KPI for this scope, from app/tpo/aggregate.py.",
         }
         if isinstance(spend_total, (int, float))
@@ -527,7 +527,7 @@ def risk_summary(filters: dict[str, Any] | None = None) -> dict[str, Any]:
     alerts = service.risk_alerts(build_filter_state(filters), limit=8)
     return {
         "counts": alerts.get("counts"),
-        "at_stake_total": round(sum(a.get("at_stake") or 0 for a in (alerts.get("alerts") or [])), 1),
+        "at_stake_total": round(sum(a.get("at_stake") or 0 for a in (alerts.get("alerts") or [])), 2),
         "top": [
             {
                 "title": a.get("title"),

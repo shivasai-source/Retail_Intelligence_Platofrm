@@ -50,11 +50,10 @@ client = TestClient(app)
 URL = "/api/reports"
 
 CC_SCOPE = {"year": 2025, "month": 10, "channel": ["CH002"]}
-GO_SCOPE = {"month": 6, "category": ["Baby Care"], "channel": ["CH002"]}
+#: The Simulation Studio's scope and its three lever values, as the page posts
+#: them (app/tpo/studio.py).
 TR_SCOPE = {"year": 2025, "month": 10, "channel": ["CH002"], "category": ["Baby Care"]}
-SIM_OPTIONS = {"discount_pct": 15.0, "scenario_id": "optimized-plan",
-               "scenario_name": "Optimized Plan"}
-TR_OPTIONS = {"target_units": 50000.0, "current_discount_pct": 10.0, "checkpoint": 3}
+TR_OPTIONS = {"discount_pct": 15.0, "trade_spend": 30_000_000.0, "days": 14}
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -155,7 +154,7 @@ def test_an_empty_library_is_empty_and_says_so() -> None:
     assert body["total"] == 0
     # The module list still travels, so the page can explain where reports come
     # from rather than showing a bare empty table.
-    assert len(body["modules"]) == 6
+    assert len(body["modules"]) == 4
 
 
 def test_a_generated_report_appears_in_the_library() -> None:
@@ -174,7 +173,7 @@ def test_a_generated_report_appears_in_the_library() -> None:
 def test_a_report_survives_a_fresh_connection() -> None:
     """Persistence, not a frontend list pretending to be saved. The connection is
     closed and reopened, so the row is read back off disk."""
-    report = created("simulation-target-rescue", TR_SCOPE, TR_OPTIONS)
+    report = created("simulation-studio", TR_SCOPE, TR_OPTIONS)
     db.close()
     row = report_store.get(report["report_id"])
     assert row.status == report_store.READY
@@ -185,7 +184,7 @@ def test_a_report_survives_a_fresh_connection() -> None:
 def test_the_library_stores_the_full_scope_and_filters() -> None:
     """Section 4's metadata: every selected dimension is recorded with the report,
     including the ones left unconstrained."""
-    report = created("simulation-target-rescue", TR_SCOPE, TR_OPTIONS)
+    report = created("simulation-studio", TR_SCOPE, TR_OPTIONS)
     row = client.get(f"{URL}/{report['report_id']}").json()
     assert row["scope"] == TR_SCOPE
     labels = {label for label, _ in row["filters"]}
@@ -203,11 +202,11 @@ def test_the_library_stores_the_full_scope_and_filters() -> None:
 def test_no_credential_shaped_option_is_ever_stored() -> None:
     """Section 4 and 30: a report is stored and read back later, so what goes into
     it is a data-safety decision."""
-    report = created("simulation-target-rescue", TR_SCOPE, {
+    report = created("simulation-studio", TR_SCOPE, {
         **TR_OPTIONS, "auth_token": "sekrit", "password": "hunter2", "api_key": "abc",
     })
     row = report_store.get(report["report_id"])
-    assert "target_units" in row.options
+    assert "days" in row.options
     for leaked in ("auth_token", "password", "api_key"):
         assert leaked not in row.options
     assert "sekrit" not in str(row.options)
@@ -230,11 +229,12 @@ def test_a_single_format_report_offers_only_that_format() -> None:
 
 
 def test_a_request_that_cannot_be_reported_on_leaves_no_ready_row() -> None:
-    """Target Rescue without a target is a rejected REQUEST, not a failed report:
-    the library must not fill with rows for calls that never should have run."""
-    response = generate("simulation-target-rescue", TR_SCOPE, {"current_discount_pct": 10})
+    """A Simulation Studio export without its lever values is a rejected REQUEST,
+    not a failed report: the library must not fill with rows for calls that
+    never should have run."""
+    response = generate("simulation-studio", TR_SCOPE, {"discount_pct": 10})
     assert response.status_code == 422
-    assert "target" in response.json()["detail"].lower()
+    assert "trade_spend" in response.json()["detail"].lower()
     assert client.get(URL).json()["total"] == 0
 
 
@@ -297,7 +297,7 @@ def test_delete_removes_the_report_and_its_artifacts_together() -> None:
 def test_clear_empties_the_whole_library_and_its_artifacts() -> None:
     """The Clear action. Every report goes, and every artifact with it."""
     first = created("command-center", CC_SCOPE)
-    second = created("simulation-target-rescue", TR_SCOPE, TR_OPTIONS)
+    second = created("simulation-studio", TR_SCOPE, TR_OPTIONS)
     assert client.get(URL).json()["total"] == 2
 
     response = client.delete(URL)
@@ -326,7 +326,7 @@ def test_clear_is_not_limited_to_the_filtered_view() -> None:
     """A clear that spared what a filter was hiding would leave reports behind in
     a library the user believes is empty."""
     created("command-center", CC_SCOPE)
-    created("simulation-target-rescue", TR_SCOPE, TR_OPTIONS)
+    created("simulation-studio", TR_SCOPE, TR_OPTIONS)
     # The page may well be filtered to one module when Clear is pressed.
     filtered = client.get(URL, params={"module": "command-center"}).json()
     assert filtered["returned"] == 1
@@ -471,31 +471,23 @@ def test_two_scopes_produce_two_different_reports() -> None:
     assert client.get(URL).json()["total"] == 2
 
 
-def test_the_three_simulation_modes_store_three_separate_reports() -> None:
-    """Section 29 and 16: switch mode, generate, and carry nothing across."""
-    investigation = created("simulation-investigation", CC_SCOPE, SIM_OPTIONS)
-    optimization = created("simulation-general-optimization", GO_SCOPE, {})
-    rescue = created("simulation-target-rescue", TR_SCOPE, TR_OPTIONS)
+def test_two_studio_windows_store_two_separate_reports() -> None:
+    """Section 29 and 16: change the levers, generate, and carry nothing across."""
+    short = created("simulation-studio", TR_SCOPE, TR_OPTIONS)
+    long = created("simulation-studio", TR_SCOPE, {**TR_OPTIONS, "days": 28, "discount_pct": 5.0})
 
     library = client.get(URL).json()
-    assert library["total"] == 3
-    assert {r["module"] for r in library["reports"]} == {
-        "simulation-investigation",
-        "simulation-general-optimization",
-        "simulation-target-rescue",
-    }
+    assert library["total"] == 2
+    assert {r["module"] for r in library["reports"]} == {"simulation-studio"}
 
     texts = {
-        r["module"]: pdf_text(artifact(r["report_id"], "pdf")[0])
-        for r in (investigation, optimization, rescue)
+        r["report_id"]: pdf_text(artifact(r["report_id"], "pdf")[0])
+        for r in (short, long)
     }
-    assert "Current Plan vs simulated scenario" in texts["simulation-investigation"]
-    assert "Optimized product plan" in texts["simulation-general-optimization"]
-    assert "Intervention comparison" in texts["simulation-target-rescue"]
-
-    assert "Optimized product plan" not in texts["simulation-target-rescue"]
-    assert "Intervention comparison" not in texts["simulation-general-optimization"]
-    assert "Intervention comparison" not in texts["simulation-investigation"]
+    assert "14-day window" in texts[short["report_id"]]
+    assert "28-day window" in texts[long["report_id"]]
+    assert "28-day window" not in texts[short["report_id"]]
+    assert "14-day window" not in texts[long["report_id"]]
 
 
 # --- listing, filtering, preview ---------------------------------------------
@@ -503,7 +495,7 @@ def test_the_three_simulation_modes_store_three_separate_reports() -> None:
 
 def test_the_library_filters_by_module_format_and_search() -> None:
     created("command-center", CC_SCOPE)
-    created("simulation-target-rescue", TR_SCOPE, TR_OPTIONS, formats=["pdf"])
+    created("simulation-studio", TR_SCOPE, TR_OPTIONS, formats=["pdf"])
 
     by_module = client.get(URL, params={"module": "command-center"}).json()
     assert by_module["returned"] == 1
@@ -513,9 +505,9 @@ def test_the_library_filters_by_module_format_and_search() -> None:
     assert by_format["returned"] == 1, "the PDF-only report should not match an xlsx filter"
     assert by_format["reports"][0]["module"] == "command-center"
 
-    by_search = client.get(URL, params={"search": "target rescue"}).json()
+    by_search = client.get(URL, params={"search": "simulation studio"}).json()
     assert by_search["returned"] == 1
-    assert by_search["reports"][0]["module"] == "simulation-target-rescue"
+    assert by_search["reports"][0]["module"] == "simulation-studio"
 
     assert client.get(URL, params={"search": "nothing matches this"}).json()["returned"] == 0
 
@@ -531,16 +523,16 @@ def test_the_library_is_newest_first() -> None:
 def test_the_preview_is_the_one_the_report_was_generated_with() -> None:
     """Section 9. Enough to confirm the report is the right one, and stored — not
     a fresh evaluation that could disagree with the artifacts beside it."""
-    report = created("simulation-target-rescue", TR_SCOPE, TR_OPTIONS)
+    report = created("simulation-studio", TR_SCOPE, TR_OPTIONS)
     preview = client.get(f"{URL}/{report['report_id']}").json()["preview"]
 
-    assert preview["module"].endswith("Target Rescue")
-    assert preview["title"] == "Monthly Target Recovery Report"
+    assert preview["module"] == "Simulation Studio"
+    assert preview["title"] == "Promotion Scenario Report"
     assert preview["scope_line"] == report["scope_label"]
     assert preview["generated_display"]
     assert preview["headline"]
     assert preview["highlights"], "no summary lines captured"
-    assert any("not a forecast" in d for d in preview["disclaimers"])
+    assert any("not historical actuals" in d for d in preview["disclaimers"])
 
     # It is stored, so it does not move when the module would be re-run.
     again = client.get(f"{URL}/{report['report_id']}").json()["preview"]

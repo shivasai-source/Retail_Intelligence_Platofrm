@@ -704,7 +704,7 @@ async def run_star_pipeline(
     chips["region"] = _named("region", global_filters.get("region")) or "All Regions"
 
     if scoped_totals.get("trade_spend") is not None:
-        chips["spend"] = f"₹{scoped_totals['trade_spend'] / 1e7:,.1f} Cr"
+        chips["spend"] = f"₹{scoped_totals['trade_spend'] / 1e7:,.2f} Cr"
     if scoped_totals.get("promotion_roi") is not None:
         chips["roi"] = f"{scoped_totals['promotion_roi']:.2f}"  # the multiple's own two decimals
     chips["source"] = "TPO star schema"

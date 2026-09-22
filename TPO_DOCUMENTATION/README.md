@@ -90,7 +90,7 @@ that Command Center, Simulation Studio and Decision Center generate into.
 | Command Center | `#/command` | Implemented, real data | [modules/01](modules/01_COMMAND_CENTER.md) |
 | Investigations / RCA | `#/investigations` | **Static content + real hand-off** | [modules/02](modules/02_RCA.md) |
 | Promotion Intelligence | `#/intelligence` | **Static** (authored JSON) | [modules/03](modules/03_PROMOTION_INTELLIGENCE.md) |
-| Simulation Studio | `#/simulation` | Implemented, 3 modes | [modules/04](modules/04_SIMULATION_STUDIO.md) |
+| Simulation Studio | `#/simulation` | Implemented — three levers (discount, trade spend, days) | [modules/04](modules/04_SIMULATION_STUDIO.md) |
 | Decision Center | `#/decision` | Implemented, no approval workflow | [modules/05](modules/05_DECISION_CENTER.md) |
 | Promotion Calendar | `#/calendar` | Implemented, real data | [modules/06](modules/06_PROMOTION_CALENDAR.md) |
 | Report Center | `#/reports` | Implemented, persisted artifacts | [modules/07](modules/07_REPORTS.md) |
@@ -160,7 +160,6 @@ Full detail, including data-directory resolution and environment variables:
 - Authentication, authorization, sessions, route guards, ownership (B11)
 - Approval workflow in Decision Center (no approval criteria exist)
 - Frontend test suite
-- Duration and spend as simulation levers (no approved rule maps them)
 
 ## 8. Major known limitations
 
@@ -210,10 +209,6 @@ Full list: [appendices/KNOWN_LIMITATIONS.md](appendices/KNOWN_LIMITATIONS.md).
 [Reports](modules/07_REPORTS.md) ·
 [Data Connections](modules/08_DATA_CONNECTIONS.md) ·
 [Settings](modules/09_SETTINGS.md)
-
-**Simulation modes:** [Investigation Simulation](simulation/01_INVESTIGATION_SIMULATION.md) ·
-[General Optimization](simulation/02_GENERAL_OPTIMIZATION.md) ·
-[Target Rescue](simulation/03_TARGET_RESCUE.md)
 
 **Appendices:** [File Map](appendices/FILE_MAP.md) ·
 [API Endpoint Map](appendices/API_ENDPOINT_MAP.md) ·

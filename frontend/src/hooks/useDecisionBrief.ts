@@ -36,7 +36,7 @@ export function briefFailure(error: Error): { title: string; detail: string } {
     return {
       title: 'AI explanation not configured',
       detail:
-        'This server has no OpenAI key configured, so the explanation layer is switched ' +
+        'This server has no LLM API key configured, so the explanation layer is switched ' +
         'off. Everything else on this page is unaffected — the decision record, its ' +
         'figures and its risk assessment are computed here and do not use it.',
     }

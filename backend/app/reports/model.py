@@ -183,14 +183,14 @@ def excel_number_format(kind: ColumnKind, currency: str) -> str:
     """
     symbol = "$" if currency.upper() == "USD" else "₹"
     return {
-        "currency": f'{symbol}#,##0.0;[Red]-{symbol}#,##0.0',
-        "number": "#,##0.0",
+        "currency": f'{symbol}#,##0.00;[Red]-{symbol}#,##0.00',
+        "number": "#,##0.00",
         "units": "#,##0",
-        "percent": '0.0"%";[Red]-0.0"%"',
-        # The Promotion ROI: a bare multiple at two decimals (1.40). Red below
-        # 1.00 would be the useful cue, but a number format can only colour on
-        # sign, so it stays plain.
-        "multiple": "0.00",
+        "percent": '0.00"%";[Red]-0.00"%"',
+        # The Promotion ROI: a multiple at two decimals carrying its unit
+        # (1.40x). Red below 1.00 would be the useful cue, but a number format
+        # can only colour on sign, so it stays plain.
+        "multiple": '0.00"x"',
         "date": "dd mmm yyyy",
         "text": "@",
         "status": "@",

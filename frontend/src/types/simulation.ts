@@ -1,3 +1,7 @@
+/** RETIRED PAYLOAD. The studio that produced this shape was replaced on
+ *  2026-09-22 by the three-lever studio (types/studio.ts); the backend
+ *  module named below no longer exists. Kept because Decision Center and
+ *  its stored records still carry payloads in this shape. */
 /** The Simulation Studio contract — Phase A.
  *
  *  Mirrors backend/app/tpo/simulation.py. Every figure is computed by the

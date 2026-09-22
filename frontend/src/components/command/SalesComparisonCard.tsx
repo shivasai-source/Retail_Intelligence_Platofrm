@@ -219,15 +219,15 @@ function ComparisonColumns({
     const symbol = currency === 'USD' ? '$' : '₹'
     const a = Math.abs(v)
     if (currency === 'USD') {
-      if (a >= 1e6) return `${symbol}${(v / 1e6).toFixed(1)} M`
-      if (a >= 1e3) return `${symbol}${(v / 1e3).toFixed(1)} K`
-      return `${symbol}${v.toFixed(0)}`
+      if (a >= 1e6) return `${symbol}${(v / 1e6).toFixed(2)} M`
+      if (a >= 1e3) return `${symbol}${(v / 1e3).toFixed(2)} K`
+      return `${symbol}${v.toFixed(2)}`
     }
     // "₹30.0 Cr", with the space -- the same tick the region and type
     // column charts print, so the three axes on the page read alike.
-    if (a >= 1e7) return `${symbol}${(v / 1e7).toFixed(1)} Cr`
-    if (a >= 1e5) return `${symbol}${(v / 1e5).toFixed(1)} L`
-    return `${symbol}${v.toFixed(0)}`
+    if (a >= 1e7) return `${symbol}${(v / 1e7).toFixed(2)} Cr`
+    if (a >= 1e5) return `${symbol}${(v / 1e5).toFixed(2)} L`
+    return `${symbol}${v.toFixed(2)}`
   }
 
   return (

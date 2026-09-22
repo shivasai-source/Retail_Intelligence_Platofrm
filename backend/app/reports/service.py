@@ -70,15 +70,9 @@ class Module:
 MODULES: dict[str, Module] = {
     "command-center": Module(
         "command-center", "Insights Hub", adapters.command_center, "TPO_Insights_Hub"),
-    "simulation-investigation": Module(
-        "simulation-investigation", "Simulation Studio — Investigation Simulation",
-        adapters.simulation_investigation, "TPO_Simulation_Investigation"),
-    "simulation-general-optimization": Module(
-        "simulation-general-optimization", "Simulation Studio — General Optimization",
-        adapters.simulation_general_optimization, "TPO_Simulation_General_Optimization"),
-    "simulation-target-rescue": Module(
-        "simulation-target-rescue", "Simulation Studio — Target Rescue",
-        adapters.simulation_target_rescue, "TPO_Simulation_Target_Rescue"),
+    "simulation-studio": Module(
+        "simulation-studio", "Simulation Studio",
+        adapters.simulation_studio, "TPO_Simulation_Studio"),
     "decision-center": Module(
         "decision-center", "Decision Center", adapters.decision_center, "TPO_Decision_Record"),
     "investigations": Module(

@@ -62,7 +62,7 @@ def _num(value: Any) -> float | None:
         f = float(value)
     except (TypeError, ValueError):
         return None
-    return round(f, 1) if np.isfinite(f) else None
+    return round(f, 2) if np.isfinite(f) else None
 
 
 def _metric_frame(df: pd.DataFrame, roles: ColumnRoles, group: pd.Series | str) -> pd.DataFrame:

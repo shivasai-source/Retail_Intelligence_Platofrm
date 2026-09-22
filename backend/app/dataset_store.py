@@ -62,7 +62,7 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, (str, int, bool)) or value is None:
         return value
     if isinstance(value, float):
-        return round(value, 1)
+        return round(value, 2)
     if pd.isna(value):
         return None
     return str(value)

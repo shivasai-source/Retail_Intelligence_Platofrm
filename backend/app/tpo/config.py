@@ -107,7 +107,7 @@ def target_incremental_sales(trade_spend: float, target: float = PROMOTION_TARGE
     formula. Written as the inversion rather than as a literal 1.5 so the two
     cannot disagree when the target moves.
     """
-    return round(trade_spend * target, 1)
+    return round(trade_spend * target, 2)
 
 
 # --- approved promotion treatment rules ------------------------------------
@@ -158,7 +158,7 @@ def breakeven_uplift(d: float, c: float = PROMOTION_COST_RATE) -> float:
     48.5% discount at the standard cost rate. No guard is added here, because
     adding one would change the behaviour of a function this move is only
     supposed to relocate. The approved treatments top out at d = 0.25, well
-    inside the domain, and app/tpo/response.py admits nothing else.
+    inside the domain; app/tpo/studio.py bounds its discount slider by the data instead.
     """
     return (d + c) / (1 - c - 2 * d)
 

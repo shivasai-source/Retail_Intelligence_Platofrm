@@ -220,7 +220,7 @@ def computed_delta(
             return "", ""
         # Divided by the MAGNITUDE of the benchmark, so a negative benchmark
         # cannot invert the sign of the comparison.
-        change = round((value - against) / abs(against) * 100, 1)
+        change = round((value - against) / abs(against) * 100, 2)
         text = f"{change:+.1f}%"
     else:
         # An ROI is a multiple of spend, so two of them differ by a multiple,
@@ -230,7 +230,7 @@ def computed_delta(
             change = round(value - against, 2)
             text = f"{change:+.2f}"
         else:
-            change = round(value - against, 1)
+            change = round(value - against, 2)
             text = f"{change:+.1f} pp"
     # NO DIFFERENCE IS NOT A DELTA. "+0.0 pp" would still be drawn, and the
     # graph node picks its arrow on `trend === 'down'`, so an empty trend

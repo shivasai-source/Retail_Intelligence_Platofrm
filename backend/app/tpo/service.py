@@ -515,9 +515,9 @@ def _card(
         # from `growth`, which is undefined when the prior value is zero -- a
         # hit rate that rose from 0.0% to 12.5% moved by 12.5 pp, and saying
         # so is not a fabricated figure the way a percent change would be.
-        difference = round(metric.value - metric.previous_year, 1)
+        difference = round(metric.value - metric.previous_year, 2)
         delta_display = (
-            f"{difference:+,.1f} pp" if spec.delta_as == "points"
+            f"{difference:+,.2f} pp" if spec.delta_as == "points"
             else _signed_money(difference, currency)
         )
         trend = None if difference == 0 else ("up" if difference > 0 else "down")
@@ -571,7 +571,7 @@ def _target_hits(events: Sequence[PromotionEvent], target: float = config.PROMOT
 def _hit_rate(events: Sequence[PromotionEvent], target: float) -> float | None:
     hits, total = _target_hits(events, target)
     ratio = A.safe_divide(hits, total)
-    return None if ratio is None else round(ratio * 100, 1)
+    return None if ratio is None else round(ratio * 100, 2)
 
 
 def _target_hit_rate_metric(state: FilterState, target: float) -> A.KpiMetric:
@@ -770,7 +770,7 @@ def promotion_events(
             # At Stake: the additional incremental revenue this event needs to
             # reach the ROI target. Never negative — an event already at target
             # has nothing at stake.
-            at_stake=round(max(config.target_incremental_sales(spend, target) - sales, 0.0), 1),
+            at_stake=round(max(config.target_incremental_sales(spend, target) - sales, 0.0), 2),
         ))
     return tuple(events)
 
@@ -1028,15 +1028,15 @@ def promotion_mix(state: FilterState, currency: str = "INR") -> dict[str, Any]:
             "code": promotion_id,
             "label": offer_label(promotion) or promotion_id,
             "type": promotion.type if promotion else "",
-            "spend": round(value, 1),
+            "spend": round(value, 2),
             "spend_display": F.money(value, currency),
-            "pct": round(value / total * 100, 1) if total else 0.0,
+            "pct": round(value / total * 100, 2) if total else 0.0,
             "color": _MIX_COLORS[index % len(_MIX_COLORS)],
         })
 
     return {
         "slices": slices,
-        "total_spend": round(total, 1),
+        "total_spend": round(total, 2),
         "total_spend_display": F.money(total, currency),
         "meta": _meta(state, rows, currency, None),
     }
@@ -1072,8 +1072,8 @@ def trend(
     for point in points:
         labels.append(_period_label(point.period_key, monthly))
         roi.append(A.roi_multiple(point.incremental_sales, point.trade_spend))
-        incremental.append(round(point.incremental_sales, 1))
-        spend.append(round(point.trade_spend, 1))
+        incremental.append(round(point.incremental_sales, 2))
+        spend.append(round(point.trade_spend, 2))
 
     return {
         "granularity": "month" if monthly else "week",
@@ -1761,6 +1761,6 @@ def _breakdown_groups(state: FilterState, by: str) -> tuple[dict[str, Any], ...]
     total_spend = sum(g["trade_spend"] or 0.0 for g in groups)
     for group in groups:
         group["share_pct"] = (
-            round((group["trade_spend"] or 0.0) / total_spend * 100, 1) if total_spend else 0.0
+            round((group["trade_spend"] or 0.0) / total_spend * 100, 2) if total_spend else 0.0
         )
     return tuple(groups)

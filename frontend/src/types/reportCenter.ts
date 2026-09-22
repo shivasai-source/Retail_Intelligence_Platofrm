@@ -19,9 +19,7 @@ export type ReportStatus = 'generating' | 'ready' | 'failed'
 
 export type ReportModule =
   | 'command-center'
-  | 'simulation-investigation'
-  | 'simulation-general-optimization'
-  | 'simulation-target-rescue'
+  | 'simulation-studio'
   | 'decision-center'
   | 'investigations'
 

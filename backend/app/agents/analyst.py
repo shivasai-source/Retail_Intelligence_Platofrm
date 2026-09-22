@@ -31,7 +31,7 @@ from app.agents import analyst_knowledge as knowledge
 from app.agents import analyst_memory as memory_store
 from app.agents import star_tools as T
 from app.agents.analyst_charts import CHART_TYPES, build_chart
-from app.agents.client import DEFAULT_MODEL, get_client
+from app.agents.client import chat_completion, get_client
 from app.tpo import formatting as F
 
 log = logging.getLogger(__name__)
@@ -715,7 +715,7 @@ async def answer(
         raise AnalystError("Ask me something about the promotion data.")
 
     currency = F.normalise_currency(currency)
-    client = get_client()
+    get_client()  # fail fast when no key is configured
 
     store = memory_store.normalise(memory)
     remembered = memory_store.render(store)
@@ -734,8 +734,7 @@ async def answer(
     charts: list[dict[str, Any]] = []
 
     for _ in range(MAX_STEPS):
-        response = await client.chat.completions.create(
-            model=DEFAULT_MODEL,
+        response = await chat_completion(
             messages=messages,
             tools=TOOLS,
             # Low, not zero: the same question twice should stand on the same
@@ -804,9 +803,7 @@ async def answer(
             "content": "Answer now, using only the figures you already have. Do not call anything else.",
         }
     )
-    final = await client.chat.completions.create(
-        model=DEFAULT_MODEL, messages=messages, temperature=0.1
-    )
+    final = await chat_completion(messages=messages, temperature=0.1)
     text = (final.choices[0].message.content or "").strip()
     if not text:
         raise AnalystError("That question needed more digging than I can do in one go. Try narrowing it.")

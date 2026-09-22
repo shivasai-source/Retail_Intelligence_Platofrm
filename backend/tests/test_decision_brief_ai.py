@@ -34,6 +34,7 @@ from fastapi.testclient import TestClient
 from app.agents.client import AgentConfigError
 from app.main import app
 from app.tpo import decision_brief
+from tests import legacy_journey
 
 YEAR = 2025
 SCOPE = {"year": YEAR, "channel": ["CH002"]}
@@ -62,34 +63,14 @@ def _post(client, path, body, expect=200):
 
 
 @pytest.fixture(scope="session")
-def assembly(client):
-    """The six payloads a record is assembled from, kept so a test can rebuild
-    the record without re-walking the workflow."""
-    context = _post(
-        client, "/api/simulation/context",
-        {"filters": SCOPE, "question": QUESTION, "investigation_started": True,
-         "investigation_type": "diagnostic"},
-    )
-    run = _post(client, "/api/simulation/run", {"filters": SCOPE})
-    scenario_a = _post(client, "/api/simulation/simulate",
-                       {"filters": SCOPE, "scenario_id": "scenario-a", "discount_pct": 10})
-    scenario_b = _post(client, "/api/simulation/simulate",
-                       {"filters": SCOPE, "scenario_id": "scenario-b", "discount_pct": 15})
-    entries = [
-        {"scenario_id": "current-plan", "name": "Current Plan",
-         "measured": run["kpis"], "scope": run["scope"]["filters_applied"]},
-        {"scenario_id": "scenario-a", "name": "Scenario A", "simulated": scenario_a},
-        {"scenario_id": "scenario-b", "name": "Scenario B", "simulated": scenario_b},
-    ]
-    compare_request = {"filters": SCOPE, "entries": entries}
-    comparison = _post(client, "/api/simulation/compare", compare_request)
-    recommendation = _post(client, "/api/simulation/recommend", compare_request)
-    risk = _post(client, "/api/simulation/risk",
-                 {"scenario": scenario_b, "recommendation": recommendation,
-                  "weekly_included": False})
+def assembly():
+    """The six payloads a record is assembled from -- the retired studio's,
+    loaded from the snapshot (see tests/legacy_journey.py)."""
+    snap = legacy_journey.load()
     return {
-        "context": context, "simulation": scenario_b, "recommendation": recommendation,
-        "risk": risk, "comparison": comparison, "baseline": run,
+        "context": snap["context"], "simulation": snap["scenario_b"],
+        "recommendation": snap["recommendation"], "risk": snap["risk_no_weekly"],
+        "comparison": snap["comparison"], "baseline": snap["run"],
     }
 
 

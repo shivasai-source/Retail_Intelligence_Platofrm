@@ -37,6 +37,7 @@ from app.main import app
 from app.store import db, repository
 from app.store.fingerprint import dataset_version
 from app.tpo import config
+from tests import legacy_journey
 
 SCOPE = {"year": 2025, "channel": ["CH002"]}
 QUESTION = "Which approved treatment recovers the most incremental sales in Modern Trade?"
@@ -64,34 +65,31 @@ def _post(client, path, body, expect=200):
 
 @pytest.fixture(scope="module")
 def journey(client):
-    """One real pass through the frozen contracts, reused by every test here."""
-    context = _post(client, "/api/simulation/context",
-                    {"filters": SCOPE, "question": QUESTION,
-                     "investigation_started": True, "investigation_type": "diagnostic"})
-    run = _post(client, "/api/simulation/run", {"filters": SCOPE})
-    ten = _post(client, "/api/simulation/simulate",
-                {"filters": SCOPE, "scenario_id": "scenario-a", "discount_pct": 10})
-    fifteen = _post(client, "/api/simulation/simulate",
-                    {"filters": SCOPE, "scenario_id": "scenario-b", "discount_pct": 15})
-    entries = [
-        {"scenario_id": "current-plan", "name": "Current Plan",
-         "measured": run["kpis"], "scope": run["scope"]["filters_applied"]},
-        {"scenario_id": "scenario-a", "name": "Scenario A", "simulated": ten},
-        {"scenario_id": "scenario-b", "name": "Scenario B", "simulated": fifteen},
-    ]
-    recommendation = _post(client, "/api/simulation/recommend",
-                           {"filters": SCOPE, "entries": entries})
-    risk = _post(client, "/api/simulation/risk",
-                 {"scenario": fifteen, "recommendation": recommendation,
-                  "weekly_included": True})
-    weekly = _post(client, "/api/simulation/weekly",
-                   {"filters": SCOPE, "scenario_id": "scenario-b", "discount_pct": 15})
-    record = _post(client, "/api/decision/record",
-                   {"context": context, "simulation": fifteen,
-                    "recommendation": recommendation, "risk": risk, "weekly": weekly})
-    return {"context": context, "ten": ten, "fifteen": fifteen,
-            "recommendation": recommendation, "risk": risk, "weekly": weekly,
-            "record": record}
+    """The retired studio's payloads, from the snapshot (tests/legacy_journey.py),
+    and the record assembled from them."""
+    snap = legacy_journey.load()
+    record = _post(client, "/api/decision/record", legacy_journey.record_request(snap))
+    return {"context": snap["context"], "ten": snap["scenario_a"], "fifteen": snap["scenario_b"],
+            "recommendation": snap["recommendation"], "risk": snap["risk"],
+            "weekly": snap["weekly"], "record": record}
+
+
+def _context_variant(context, **changes):
+    """A context payload describing something else -- another scope, another
+    question, a traced investigation id. Built by editing a copy of the
+    snapshot's, since the endpoint that produced it no longer exists."""
+    out = copy.deepcopy(context)
+    if "scope" in changes:
+        out["filter_state"]["value"] = changes["scope"]
+    if "question" in changes:
+        out["question"] = {"value": changes["question"], "source": "rca", "reason": None}
+    if "investigation_type" in changes:
+        out["investigation_type"] = {"value": changes["investigation_type"], "source": "rca",
+                                     "reason": None}
+    if "investigation_id" in changes:
+        out["investigation_id"] = {"value": changes["investigation_id"], "source": "rca",
+                                   "reason": None}
+    return out
 
 
 # --- the dataset fingerprint --------------------------------------------------
@@ -190,7 +188,7 @@ def test_an_unrun_scenario_cannot_be_stored(client, journey):
 
 
 def test_a_scenario_from_another_scope_is_refused(client, journey):
-    other = _post(client, "/api/simulation/context", {"filters": {"year": 2024}})
+    other = _context_variant(journey["context"], scope={"year": 2024})
     response = client.post("/api/store/scenarios",
                            json={"context": other, "simulation": journey["fifteen"]})
     assert response.status_code == 422
@@ -217,9 +215,8 @@ def test_investigation_id_is_server_minted_and_reused(client, journey):
 
 
 def test_a_different_investigation_gets_a_different_id(client, journey):
-    other = _post(client, "/api/simulation/context",
-                  {"filters": SCOPE, "question": "A different question entirely?",
-                   "investigation_started": True, "investigation_type": "optimization"})
+    other = _context_variant(journey["context"], question="A different question entirely?",
+                             investigation_type="optimization")
     mine = _post(client, "/api/store/scenarios",
                  {"context": journey["context"], "simulation": journey["ten"]})
     theirs = _post(client, "/api/store/scenarios",
@@ -242,11 +239,7 @@ def test_investigation_id_propagates_into_the_decision_record(client, journey):
     assert journey["record"]["investigation"]["investigation_id"] is None
     assert journey["record"]["investigation"]["investigation_id_unavailable_reason"]
 
-    traced_context = _post(client, "/api/simulation/context",
-                           {"filters": SCOPE, "question": QUESTION,
-                            "investigation_started": True,
-                            "investigation_type": "diagnostic",
-                            "investigation_id": investigation_id})
+    traced_context = _context_variant(journey["context"], investigation_id=investigation_id)
     assert traced_context["investigation_id"]["value"] == investigation_id
 
     traced_record = _post(client, "/api/decision/record",
@@ -318,12 +311,13 @@ def test_every_section_of_the_record_survives(client, journey):
 def test_resaving_a_decision_appends_an_immutable_version(client, journey):
     first = _post(client, "/api/store/decisions", {"record": journey["record"]})
 
+    risk_for_ten = copy.deepcopy(journey["risk"])
+    risk_for_ten["scenario_id"] = journey["ten"]["scenario_id"]
+    risk_for_ten["discount_pct"] = journey["ten"]["discount_pct"]
+    risk_for_ten["provenance"]["scenario_provenance"] = journey["ten"]["provenance"]
     other = _post(client, "/api/decision/record",
                   {"context": journey["context"], "simulation": journey["ten"],
-                   "recommendation": journey["recommendation"],
-                   "risk": _post(client, "/api/simulation/risk",
-                                 {"scenario": journey["ten"],
-                                  "recommendation": journey["recommendation"]})})
+                   "recommendation": journey["recommendation"], "risk": risk_for_ten})
     second = _post(client, "/api/store/decisions",
                    {"record": other, "decision_id": first["decision_id"],
                     "expected_version": 1})
@@ -419,9 +413,9 @@ def test_staleness_never_triggers_a_recomputation(client, journey, monkeypatch):
                    {"context": journey["context"], "simulation": journey["fifteen"]})
     monkeypatch.setattr(repository, "current_fingerprint", lambda: "moved-on")
 
-    from app.tpo import aggregate, execution
+    from app.tpo import aggregate, studio
 
-    monkeypatch.setattr(execution, "simulate",
+    monkeypatch.setattr(studio, "simulate",
                         lambda *a, **k: pytest.fail("re-ran the scenario"))
     monkeypatch.setattr(aggregate, "calculate_kpis",
                         lambda *a, **k: pytest.fail("called the KPI engine"))
@@ -544,11 +538,7 @@ def test_the_store_makes_no_approval_or_governance_claim(client, journey):
 
 
 def test_b1_to_b9_contracts_are_unchanged(client, journey):
-    """Storing changes nothing about what the engines return."""
-    again = _post(client, "/api/simulation/simulate",
-                  {"filters": SCOPE, "scenario_id": "scenario-b", "discount_pct": 15})
-    assert again == journey["fifteen"]
-
+    """Storing changes nothing about what the assembler returns."""
     record_again = _post(client, "/api/decision/record",
                          {"context": journey["context"], "simulation": journey["fifteen"],
                           "recommendation": journey["recommendation"],
@@ -602,9 +592,10 @@ def test_the_only_delete_in_the_store_is_the_decision_history_clear():
     """Append-only, with ONE stated exception.
 
     The store was append-only by construction and this test asserted no DELETE
-    appeared in the repository at all. Decision Center now offers an explicit,
-    confirmed "Clear history" action, so exactly two deletes exist: the decision
-    rows and their versions.
+    appeared in the repository at all. Decision Center offers an explicit,
+    confirmed "Clear history" action, so the deletes that exist are the decision
+    rows, their versions, and -- since the 2026-09-22 rebuild -- the board
+    decisions the new Decision Center stores.
 
     THE TEETH ARE IN WHAT IS STILL FORBIDDEN. Investigations, scenarios and
     scenario results are the evidence a decision was taken from and remain
@@ -613,4 +604,4 @@ def test_the_only_delete_in_the_store_is_the_decision_history_clear():
     """
     source = Path("app/store/repository.py").read_text(encoding="utf-8")
     deleted_tables = set(re.findall(r"DELETE FROM (\w+)", source))
-    assert deleted_tables == {"decisions", "decision_versions"}, deleted_tables
+    assert deleted_tables == {"decisions", "decision_versions", "board_decisions"}, deleted_tables

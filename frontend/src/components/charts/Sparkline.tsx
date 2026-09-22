@@ -28,7 +28,7 @@ export function Sparkline({
     return [x, y] as const
   })
 
-  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ')
+  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0].toFixed(2)} ${p[1].toFixed(2)}`).join(' ')
   const fillPath = `${linePath} L ${width} ${height} L 0 ${height} Z`
   const last = pts[pts.length - 1]
 

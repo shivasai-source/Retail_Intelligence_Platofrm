@@ -27,7 +27,12 @@ from fastapi.testclient import TestClient
 
 from app.data_loader import INVESTIGATION_TYPES
 from app.main import app
-from app.tpo.risk import RISK_POLICY, UNDEFINED_THRESHOLDS
+from tests import legacy_journey
+
+#: The retired risk assessment's seven undefined-threshold statements, read off
+#: the snapshot of its last payload (tests/legacy_journey.py). The module that
+#: produced them is gone; the statements must still not be restated upstream.
+UNDEFINED_THRESHOLDS = legacy_journey.load()["risk"]["governance_gaps"]
 
 #: The exact claims B9 removed. None may return, in any archetype.
 REMOVED_CLAIMS = (
@@ -225,14 +230,12 @@ def test_settings_carries_no_fabricated_identity(client):
 
 
 def test_b6_thresholds_are_untouched():
-    """B9 reads B6. It does not edit it, extend it or restate its values."""
+    """The seven statements, as the retired assessment last produced them."""
     assert len(UNDEFINED_THRESHOLDS) == 7
-    assert {gap.key for gap in UNDEFINED_THRESHOLDS} == {
+    assert {gap["key"] for gap in UNDEFINED_THRESHOLDS} == {
         "budget_ceiling", "margin_floor", "cannibalization_limit", "pei_floor",
         "max_discount", "max_duration", "weekly_concentration",
     }
-    assert RISK_POLICY.version == "B6-initial"
-    assert RISK_POLICY.narrow_headroom_pp == 2.0
 
 
 def test_b9_did_not_copy_the_b6_list(client):
@@ -244,7 +247,7 @@ def test_b9_did_not_copy_the_b6_list(client):
     """
     payloads = json.dumps(_payloads(client), ensure_ascii=False)
     for gap in UNDEFINED_THRESHOLDS:
-        assert gap.statement not in payloads, gap.key
+        assert gap["statement"] not in payloads, gap["key"]
 
 
 def test_b9_introduced_no_threshold(client):

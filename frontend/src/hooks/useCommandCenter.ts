@@ -131,6 +131,12 @@ export function useKpis() {
  *  dropdowns cascade — but never on the currency. */
 export function useFilterOptions() {
   const filters = useCommandFilters((s) => s.filters)
+  return useFilterOptionsFor(filters)
+}
+
+/** The same cascading option lists for a filter state held elsewhere — the
+ *  Simulation Studio's own store. Same endpoint, same cache key shape. */
+export function useFilterOptionsFor(filters: CommandFilters) {
   return useQuery({
     queryKey: fullKey('filters', filters),
     queryFn: () => apiFetch<FiltersResponse>(`/command-center/filters?${toQuery(filters)}`),

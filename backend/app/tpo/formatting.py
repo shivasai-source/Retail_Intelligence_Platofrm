@@ -69,11 +69,11 @@ _USD_STEPS = ((1e9, "B"), (1e6, "M"), (1e3, "K"))
 _SYMBOL = {"INR": "₹", "USD": "$"}
 
 
-def money(value: float | None, currency: str = "INR", *, dp: int = 1) -> str:
+def money(value: float | None, currency: str = "INR", *, dp: int = 2) -> str:
     """A canonical base-currency amount as a compact display string.
 
-    money(1624000000, "INR") -> "Rs 162.4 Cr"   (with the rupee sign)
-    money(1624000000, "USD") -> "$18.7 M"
+    money(1624000000, "INR") -> "Rs 162.40 Cr"   (with the rupee sign)
+    money(1624000000, "USD") -> "$18.70 M"
     """
     if value is None:
         return "—"
@@ -91,7 +91,7 @@ def money(value: float | None, currency: str = "INR", *, dp: int = 1) -> str:
 # --- non-monetary units ----------------------------------------------------
 
 
-def percent(value: float | None, *, dp: int = 1, signed: bool = False) -> str:
+def percent(value: float | None, *, dp: int = 2, signed: bool = False) -> str:
     """A percentage. Never touched by the currency toggle."""
     if value is None:
         return "—"
@@ -100,15 +100,20 @@ def percent(value: float | None, *, dp: int = 1, signed: bool = False) -> str:
 
 
 def multiple(value: float | None, *, dp: int = 2, signed: bool = False) -> str:
-    """A multiple of trade spend — the Promotion ROI's unit: 1.40. Two
-    decimals, the project's one exception to its one-decimal rule (see
-    `aggregate.roi_multiple`). Never touched by the currency toggle, since a
-    ratio of two rupee amounts has no currency of its own."""
+    """A multiple of trade spend — the Promotion ROI's unit: "1.40x".
+
+    THE "x" IS THE UNIT, and it is on the VALUE only. A signed call is a
+    DIFFERENCE between two multiples ("+0.20"), which sits under a label that
+    already says what it is; suffixing that too read as an extra quantity
+    rather than a change. `signed=True` therefore returns the bare number.
+    Never touched by the currency toggle, since a ratio of two rupee amounts
+    has no currency of its own."""
     if value is None:
         return "—"
     rounded = round(value, dp) + 0.0  # -0.004 -> 0.00, never "-0.00"
-    sign = "+" if signed and rounded > 0 else ""
-    return f"{sign}{rounded:,.{dp}f}"
+    if signed:
+        return f"{'+' if rounded > 0 else ''}{rounded:,.{dp}f}"
+    return f"{rounded:,.{dp}f}x"
 
 
 def score(value: float | None, *, dp: int = 0) -> str:
@@ -129,4 +134,4 @@ def delta_label(growth: float | None, comparison: str | None) -> tuple[str, str]
     """
     if growth is None:
         return "—", (f"vs {comparison}" if comparison else "no comparison period")
-    return f"{growth:+,.1f}%", f"vs {comparison}"
+    return f"{growth:+,.2f}%", f"vs {comparison}"

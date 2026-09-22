@@ -43,9 +43,8 @@ import {
 } from '../components/promotionIntelligence/panels'
 import { fmtRoi } from '../lib/roi'
 import { useChannelNames } from '../hooks/useCommandCenter'
-import { proposedDiscountPct, useIntelligenceHandoffStore } from '../store/intelligenceHandoff'
-import { useGeneralOptimizationStore } from '../store/generalOptimization'
-import type { KeyInsight, Recommendation } from '../types/promotionIntelligence'
+import type { KeyInsight } from '../types/promotionIntelligence'
+import { carryProductToStudio } from '../store/studioHandoff'
 
 const TABS = [
   { key: '0', label: 'Synthesis' },
@@ -300,7 +299,6 @@ function DeepeningState({
 // explains the mechanism behind the root cause — which is why there is no
 // independent filter bar here: re-scoping is what the Insights Hub is for.
 export function Intelligence() {
-  const navigate = useNavigate()
   const { show } = useToast()
   const channelNames = useChannelNames()
 
@@ -327,9 +325,6 @@ export function Intelligence() {
   const extraSection = EXTRA_SECTION[tab] ?? null
   const { data: extra, isLoading: extraLoading } = useFactSection(scope, extraSection)
 
-  const carryHandoff = useIntelligenceHandoffStore((s) => s.carry)
-  const setSimulationMode = useGeneralOptimizationStore((s) => s.setMode)
-
   const startAnalysis = useStartIntelligenceAnalysis()
   const { data: run } = useIntelligenceRun(runId)
   const analysis = run?.status === 'done' ? run.result?.analysis : undefined
@@ -353,42 +348,16 @@ export function Intelligence() {
     )
   }
 
-  /** Open the Simulation Studio on THIS investigation, carrying whatever the
-   *  page actually knows.
-   *
-   *  Both entry points come through here — a recommendation's "Go Deeper" and
-   *  the header's plain "Proceed to Simulation" — because both mean the same
-   *  thing: simulate the population this investigation is about. The only
-   *  difference is whether a recommendation travels with it.
-   *
-   *  THE MODE IS SET, NOT ASSUMED. Simulation Studio's three modes share one
-   *  route and one page, and the studio remembers the last one selected for
-   *  the sitting. Arriving from here must land on Investigation Simulation —
-   *  General Optimization and Target Rescue scope themselves from their own
-   *  controls and would silently ignore everything carried across. */
-  const openInSimulation = (r: Recommendation | null) => {
+  /** Open the Simulation Studio on this investigation's product. The studio's
+   *  filters take the product (and the channel, category and brand the scope
+   *  names) so its dropdowns show only what belongs to that product's data;
+   *  clearing the product there brings everything back. A scope with no
+   *  single product opens the studio as it is. */
+  const navigate = useNavigate()
+  const goToSimulation = () => {
     if (!investigation) return
-    carryHandoff({
-      investigationRunId: investigation.run_id,
-      intelligenceRunId: run?.id ?? null,
-      question: investigation.question,
-      scope: investigation.scope,
-      scopeLabel: describeScope(investigation.scope, channelNames),
-      rootCause: investigation.root_cause,
-      recommendation: r,
-      // Null unless the recommendation names exactly one depth on the lever
-      // the studio models — see proposedDiscountPct. The studio says which of
-      // the two happened rather than leaving a pre-set value unexplained.
-      proposedDiscountPct: r ? proposedDiscountPct(r.simulation) : null,
-      at: Date.now(),
-    })
-    setSimulationMode('investigation')
-    show(
-      r
-        ? `Opening Simulation Studio on this recommendation · ${describeScope(investigation.scope, channelNames)}`
-        : `Opening Simulation Studio on this investigation · ${describeScope(investigation.scope, channelNames)}`,
-      { duration: 3000 },
-    )
+    const carried = carryProductToStudio(investigation.scope, investigation.question)
+    show(carried ? 'Opening Simulation Studio on this product' : 'This investigation names no single product — opening Simulation Studio as it is', { duration: 3000 })
     navigate('/simulation')
   }
 
@@ -434,8 +403,8 @@ export function Intelligence() {
             <Icon name={analysing ? 'clock' : 'sparkles'} />{' '}
             {analysing ? 'Analysing…' : result ? 'Re-run analysis' : 'Go deeper'}
           </Button>
-          <Button variant="primary" onClick={() => openInSimulation(null)}>
-            <Icon name="flow" /> Proceed to Simulation
+          <Button variant="secondary" onClick={goToSimulation} disabled={!investigation}>
+            <Icon name="flow" /> Go to Simulation
           </Button>
         </div>
       </div>
@@ -709,7 +678,6 @@ export function Intelligence() {
                 recommendations={result.recommendations}
                 doNotDo={result.do_not_do}
                 combined={result.expected_combined_impact}
-                onSimulate={openInSimulation}
               />
             ) : (
               <Card className="fade-in">

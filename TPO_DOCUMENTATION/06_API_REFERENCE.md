@@ -311,234 +311,62 @@ Sorted by `(date, channel_id, name)`. **The feed never crosses years.**
 
 ---
 
-## 3. Simulation Studio — `/api/simulation` (12 routes)
+## 3. Simulation Studio — `/api/simulation` (3 routes)
 
 All POST with a JSON body. Every body sets `extra="forbid"`, so an unknown
-field is a **422** rather than a silent ignore.
+field is a **422** rather than a silent ignore. The shared `filters` object
+mirrors `FilterState` exactly (`tests/test_studio.py` asserts the field names
+equal `filters.DIMENSIONS`). Service: `app/tpo/studio.py`; full description in
+[modules/04](modules/04_SIMULATION_STUDIO.md).
 
-The shared `filters` object mirrors `FilterState` exactly
-(`tests/test_simulation.py` asserts the field names equal `filters.DIMENSIONS`).
+### `POST /api/simulation/scope`
+Body `{ filters?, currency? }`.
 
-### Mode A — Investigation Simulation
+Returns, for the scope: `measured` (its history — revenue, trade spend,
+incremental sales, ROI), `observed_plan` (spend-weighted average depth,
+typical run length in weeks and days), `levers` — each of `discount_pct`,
+`days`, `trade_spend` as `{min, max, step, default, unit}` — the `model`
+(provenance, coefficients, residual band, evidence counts, observed and
+allowed depth range, fade and post-promotion-dip findings, notes) and
+`exchange_rate` for the budget slider's live readout.
 
-#### `POST /api/simulation/context`
-Validates an RCA hand-off into a Simulation context. **Contract plumbing only** —
-runs no scenario and computes no KPI.
+**422** — `Nothing to simulate` when no product-channel in scope has a
+non-promoted week to base a scenario on.
 
-Body: `filters`, `question?`, `investigation_started` (default `false`),
-`investigation_id?`, `investigation_type?`, `problem_statement?`.
+### `POST /api/simulation/simulate`
+Body `{ filters?, currency?, discount_pct, trade_spend, days }`.
 
-Every returned field is stamped with a **provenance**: `rca`, `command_center`,
-`filter_state`, `seed_example`, or `unavailable`. A question matching a seeded
-example from `investigation-types.json` is reported as `seed_example` and does
-**not** count as the investigation's question.
+Returns `baseline` (no promotion), `current_plan` (the scope's observed depth
+at full coverage over the same window) and `scenario`, each carrying
+`revenue`, `units`, `trade_spend`, `incremental_sales`, `incremental_units`,
+`roi`, `margin_pct` and a `band` (revenue, ROI and incremental sales at the
+low and high end of the lift band); `deltas.revenue` (`absolute`, `percent`,
+`direction`) and `deltas.roi` (`absolute`, `direction`, `status` ∈
+`profitable | break_even | loss_making | not_applicable`); `vs_baseline`;
+`levers.trade_spend` (`requested`, `consumed`, `full_coverage_cost`,
+`coverage`, `binding`, `unspent`); `window` (`days`, `weeks`,
+`partial_week_fraction`); `lift` (low / mid / high); `weekly` (one entry per
+business week with baseline, current and scenario revenue, the scenario's
+low/high, and each plan's weekly ROI); `after_window` (only when a
+post-promotion dip was detected); `model`; `method`.
 
-**No KPI value, trade spend or ROI crosses this boundary.** RCA's figures are
-authored display copy — one context chip reports ₹98.6 Cr where the engine
-measures ₹7.7 Cr.
+Every monetary figure is `{value, display}` — `value` in base currency INR,
+`display` in the requested currency. ROI is a bare two-decimal multiple.
 
-#### `POST /api/simulation/run`
-The **measured** baseline for the submitted scope.
+**422** with a reason — a depth outside the model's domain (the deepest
+observed depth plus 5 points), a window outside 1–35 days, a negative budget,
+an unknown lever, or nothing to simulate. Never a zeroed result.
 
-Body: `filters`, `levers?` (`discount_pct`, `duration_weeks`, `spend_amount`),
-`scenario_name?`, `currency`.
+### `POST /api/simulation/curve`
+Body `{ filters?, currency?, trade_spend, days }`.
 
-Returns the seven Phase-A figures — `trade_spend`, `incremental_units`,
-`incremental_sales`, `roi_percent`, `margin_percent`, `cannibalization`, `pei` —
-plus the three default scenarios (`current-plan`, `optimized-plan`,
-`aggressive-growth`).
-
-**`levers.applied` is `false` in every response.** The levers are recorded and
-echoed; they move nothing. `simulation.LEVERS_NOT_MODELLED` says so in words.
-
-#### `POST /api/simulation/simulate`
-Execute one hypothetical scenario and return its **result range**.
-
-Body: `filters`, `scenario_id`, `discount_pct`, `duration_weeks?`, `currency`.
-
-`discount_pct` must be one of **5, 10, 15, 20, 25**. Anything else → **422**
-listing the approved depths: *"This model does not interpolate between them."*
-
-Sending `spend_amount`, `incentive_pct` or `inventory_allocation` → **422**
-naming that lever and why it cannot be one.
-
-```json
-{ "scenario_id": "…", "status": "simulated", "kind": "hypothetical",
-  "treatment": "PR003", "discount_pct": 15.0,
-  "uplift": { "low": 0.40, "high": 0.50 },
-  "breakeven_uplift": 0.2687,
-  "headroom": { "low": 0.1313, "high": 0.2313 },
-  "range_label": "Approved uplift range",
-  "result": { "low": { "uplift": 0.40, "kpis": {…7 keys…} },
-              "high": { "uplift": 0.50, "kpis": {…} } },
-  "levers": { "discount_pct": { "value": 15.0, "modelled": true },
-              "duration_weeks": { "value": null, "modelled": false, "note": … },
-              "spend_amount": { "value": null, "derived": true, "note": … } },
-  "scope": { "period": …, "filters_applied": …, "row_count": …,
-             "promoted_row_count": …, "excluded_rows": 0, "excluded_reason": null },
-  "provenance": { "response_rule": "Approved TPO promotion treatment rule",
-                  "kpi_engine": "app/tpo/aggregate.calculate_kpis",
-                  "method": "Counterfactual WeekRows synthesized at each end of
-                             the approved uplift band and passed through the
-                             existing validated KPI engine…", … },
-  "meta": { "currency": …, "target_roi_pct": 50.0, "phase": "B2.2" } }
-```
-
-> **`low`/`high` are the two ends of the approved uplift band. They are NOT a
-> confidence interval, not statistical uncertainty and not model confidence.**
-
-**422 also when** the scope selects no rows, or nothing in it was promoted:
-*"there is no promotion for a treatment to replace"* — a zeroed result would be
-the wrong answer.
-
-#### `POST /api/simulation/compare`
-Body: `filters`, `entries[1..12]`, `currency`. Each entry:
-`scenario_id`, `name`, and **exactly one** of `measured` (a `/run` KPI block,
-with its `scope`) or `simulated` (a whole `/simulate` payload).
-
-Lines up already-computed results side by side with a delta per metric at
-**both** band ends. Excludes an entry whose scope differs, whose economic basis
-differs, or which nobody ran — **excluded, never zeroed**.
-
-**`recommendation` is `null` in every response**, with
-`recommendation_status` explaining that this contract does not rank.
-
-Delta types: `absolute`, `percentage_point` (for ratios), `percent_change`
-(extensive quantities only). An ROI moving 34% → 68% is **+34 points**, never
-"+100%".
-
-#### `POST /api/simulation/recommend`
-Same body as `/compare`. Applies `RECOMMENDATION_POLICY`.
-
-```
-Objective         stronger incremental commercial impact while maintaining
-                  economically viable promotion performance
-Hard constraint   roi_percent strictly positive at BOTH band ends
-Primary           incremental_sales at the LOW end, higher preferred
-Tie-breakers      roi_percent → incremental_units → margin_percent → pei
-                  → trade_spend (lower preferred, FINAL tie-breaker only)
-Required metrics  incremental_sales, roi_percent (never defaulted to zero)
-Range policy      read the LOW end; the high end decides nothing; no midpoint
-Tolerance         derived from the engine's own rounding, not chosen
-```
-
-Statuses: `recommended`, `maintain_current_plan`, `no_clear_winner`,
-`insufficient_data`. The policy travels back with the answer, so a
-recommendation is never a black box.
-
-No ML, no LLM, no probability, no learned weights.
-
-#### `POST /api/simulation/weekly`
-Body: `filters`, `scenario_id`, `discount_pct`, `currency`.
-
-Decomposes one simulated scenario across the business weeks the scope
-contains. **A decomposition, not a forecast** — every week returned is a week
-the data has rows for.
-
-Additive (`incremental_sales`, `incremental_units`, `trade_spend`) and
-non-additive (`roi`, `margin`, `cannibalization`) metrics are kept apart, and
-`reconciliation` states which is which. **422** on an unapproved discount or
-when the scope has no weekly rows (`NoWeeklyData`).
-
-#### `POST /api/simulation/risk`
-Body: `scenario` (a whole `/simulate` payload), `recommendation?`,
-`weekly_included` (bool).
-
-An **assessment**, not a recommendation. Recomputes nothing and cannot change
-which scenario `/recommend` chose.
-
-Findings carry `category` ∈ `ECONOMIC`, `ASSUMPTION`, `DATA_AVAILABILITY`,
-`SCOPE`, `CANNIBALIZATION`, `EXECUTION`, `GOVERNANCE`; `status` ∈ `clear`,
-`attention`, `unknown`; `severity` ∈ `low`, `medium`, `high`, `unknown`.
-
-Where the project has approved **no** boundary — a budget ceiling, a margin
-floor, a cannibalization limit, a PEI floor, a maximum discount or duration —
-the metric is reported as a **measurement plus a named governance gap**
-(`UNDEFINED_THRESHOLDS`), never judged against an invented threshold. There is
-no risk score.
-
-**422** when `scenario.scenario_id` is missing.
-
-### Mode B — General Optimization
-
-#### `POST /api/simulation/general-optimization/scope`
-Body: `category?`, `channel?`, `month?`, `currency`. **Deliberately not a full
-`SimulationFilters`** — this mode offers exactly three dimensions.
-
-`year` is deliberately absent: the historical reference is **both 2024 and 2025
-by contract**, and letting a caller pin one would silently halve it.
-
-Returns `scope`, `reference` (the mean Trade Spend across the reference years —
-the ceiling the slider is bounded by), `historical`, `discount` (min/max plus
-the five `approved_points`), `ready`, `provenance`, `meta`. **Optimises nothing.**
-
-#### `POST /api/simulation/general-optimization`
-Adds `max_trade_spend` (required, ≥0), `min_discount_pct` (default 0),
-`max_discount_pct` (default 25).
-
-Statuses: `optimized`, `no_feasible_solution`, `insufficient_data`,
-`constraint_conflict`. Only `optimized` carries numbers; the other three carry a
-`message` and **nulls** — a zeroed plan would be a fabricated result.
-
-`max_trade_spend` above the historical average is **clamped**, and
-`constraints.clamped` reports it — a stale slider should not lose the user
-their request. Contradictory constraints raise `InvalidConstraints` → **422**.
-
-Returns `optimized` (units / revenue / trade_spend as bands, weighted average
-depth, promoted vs untouched counts, `budget_used_pct`), `comparison` against
-the historical reference, and `rows[]` — one per candidate `(product, channel)`
-with its chosen treatment.
-
-#### Objective and constraint
-- **Objective:** maximise revenue at `uplift_low` (the conservative floor).
-- **Constraint:** total trade spend at `uplift_high` ≤ ceiling (the worst case).
-
-Maximising a floor while funding a ceiling. Stated on every response in
-`provenance.basis`.
-
-### Mode C — Target Rescue
-
-#### `POST /api/simulation/target-rescue/scope`
-Body: `month` **(required, 1–12)**, `year?`, `channel?`, `category?`,
-`product?`, `checkpoint?`, `currency`.
-
-`category` and `product` are a **hierarchy**: a product outside the selected
-category is a **422**, not an empty scope. `year` is optional and resolved
-server-side to the most recent year the data holds.
-
-`checkpoint` is a **completed business week**, not a day:
-`"auto"` (the cadence rule), `"latest"`, or an integer week ordinal. A week the
-month does not contain → **422** naming the month's real week count; it is
-**never clamped**. The int arm is `strict=True`, so a bool or a numeric string
-is a 422 rather than a silent week 1.
-
-Returns `cadence`, `checkpoint`, **`options`** (the channel → category →
-product cascade), `reference_target` (the prior-year actual, so the target
-input starts from a measured figure), `measured` (month units, MTD units,
-elapsed depth), `discount`, `budget`, `ready`.
-
-#### `POST /api/simulation/target-rescue`
-Adds `target_units` (**required, > 0** — a target of zero is rejected at the
-contract boundary rather than divided by), `current_discount_pct` (0–25),
-`max_additional_trade_spend?` (a **hard** limit when present).
-
-Statuses: `evaluated`, `no_data`. A scope with no rows returns the reason and
-**no numbers** — a zeroed assessment would read as a missed target rather than
-an unmeasured one, and every block of the evaluated shape is present and `null`.
-
-Returns `progress` (weeks completed / remaining, days elapsed / in month,
-units MTD, attainment %, phase), `target_status`, `pace` (the **run-rate
-projection**, explicitly labelled *not a forecast*), `gap`,
-`current_treatment`, `interventions[]` (the approved ladder), `recommendation`,
-`evidence[]`, `remaining_scope`, `budget`, `population`, `discount`,
-`provenance`, `meta`.
-
-Target status bands (raw attainment, `TARGET_STATUS`): `on_track` ≥ 80%,
-`watch` ≥ 70%, `at_risk` below, plus `achieved` and `missed`. Deliberately
-**not** `config.SEVERITY_BANDS`, which are ROI bands for a different question.
-
-**It recommends only.** No promotion is created, no calendar or fact row is
-touched, no discount is activated.
+Returns `points` — one per discount depth from 0 to the model's domain in
+2.5-point steps (plus the current plan's depth, flagged `is_current_plan`),
+each with `coverage`, `revenue` / `revenue_low` / `revenue_high`,
+`trade_spend`, `roi` / `roi_low` / `roi_high` and `roi_status` — with
+`current_plan_discount_pct`, `break_even_roi` (1.0) and `method`. Each point
+is the same arithmetic `/simulate` runs at that depth. Same 422s as
+`/simulate`.
 
 ---
 

@@ -73,7 +73,7 @@ export function ComboBarLine({
               strokeDasharray="3 4"
             />
             <text x={padL - 6} y={yL(v) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
-              {v.toFixed(1)}
+              {v.toFixed(2)}
             </text>
           </g>
         ))}
@@ -97,9 +97,9 @@ export function ComboBarLine({
           return (
             <rect
               key={i}
-              x={x.toFixed(1)}
+              x={x.toFixed(2)}
               y={mounted ? yTop : padT + innerH}
-              width={barW.toFixed(1)}
+              width={barW.toFixed(2)}
               height={mounted ? hgt : 0}
               rx={2}
               fill={bars.color}
@@ -131,7 +131,7 @@ export function ComboBarLine({
                   <circle
                     key={i}
                     cx={padL + i * step}
-                    cy={fn(v).toFixed(1)}
+                    cy={fn(v).toFixed(2)}
                     r={3}
                     fill={l.color}
                     stroke="white"

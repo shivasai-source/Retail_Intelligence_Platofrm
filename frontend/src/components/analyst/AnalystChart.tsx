@@ -37,9 +37,9 @@ export interface AnalystChartSpec {
 }
 
 const fmtNumber = (n: number) =>
-  Math.abs(n) >= 1e7 ? `${(n / 1e7).toFixed(1)} Cr`
-  : Math.abs(n) >= 1e5 ? `${(n / 1e5).toFixed(1)} L`
-  : Math.abs(n) >= 1e3 ? `${(n / 1e3).toFixed(1)}k`
+  Math.abs(n) >= 1e7 ? `${(n / 1e7).toFixed(2)} Cr`
+  : Math.abs(n) >= 1e5 ? `${(n / 1e5).toFixed(2)} L`
+  : Math.abs(n) >= 1e3 ? `${(n / 1e3).toFixed(2)}k`
   : `${Math.round(n * 100) / 100}`
 
 /** The CSV behind whatever is on screen.
@@ -711,7 +711,7 @@ function Pie({
                 ask "of what?", and the figure is what they came for. */}
             <span className="shrink-0 tabular-nums text-ink-muted">{label(i)}</span>
             <span className="shrink-0 font-semibold tabular-nums text-ink-primary">
-              {((Math.max(0, p.value) / total) * 100).toFixed(1)}%
+              {((Math.max(0, p.value) / total) * 100).toFixed(2)}%
             </span>
           </div>
         ))}

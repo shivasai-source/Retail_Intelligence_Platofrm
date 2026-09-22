@@ -27,9 +27,10 @@ export function DonutBreakdown({
    *  carries the proportion visually and fills the row's width rather than
    *  leaving it to the ring alone. Opt-in; existing callers are unchanged. */
   bars?: boolean
-  /** Fixed decimals for the share label -- 1 keeps a 10.0% share from
-   *  printing as "10%" beside its 44.7% neighbours. Unset prints the number
-   *  as given, which is what integer-share callers rely on. */
+  /** Fixed decimals for the share label -- 2 keeps a 10.00% share from
+   *  printing as "10%" beside its 44.70% neighbours, and matches the
+   *  project's two-decimal rule. Unset prints the number as given, which is
+   *  what integer-share callers rely on. */
   decimals?: number
   className?: string
   /** Rendered in the ring's hole, e.g. a total-spend figure (ported from the DOM-appended

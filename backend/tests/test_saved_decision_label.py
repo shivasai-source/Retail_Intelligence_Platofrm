@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.store import db
+from tests import legacy_journey
 
 SCOPE = {"year": 2025, "channel": ["CH002"]}
 FRIENDLY = "Festive Push @ 15%"
@@ -42,25 +43,10 @@ def _post(client, path, body):
 
 @pytest.fixture(scope="module")
 def journey(client):
-    context = _post(client, "/api/simulation/context",
-                    {"filters": SCOPE, "question": "Does the deal recover its giveaway?",
-                     "investigation_started": True, "investigation_type": "diagnostic"})
-    run = _post(client, "/api/simulation/run", {"filters": SCOPE})
-    fifteen = _post(client, "/api/simulation/simulate",
-                    {"filters": SCOPE, "scenario_id": "scenario-b", "discount_pct": 15})
-    entries = [
-        {"scenario_id": "current-plan", "name": "Current Plan",
-         "measured": run["kpis"], "scope": run["scope"]["filters_applied"]},
-        {"scenario_id": "scenario-b", "name": "Scenario B", "simulated": fifteen},
-    ]
-    recommendation = _post(client, "/api/simulation/recommend",
-                           {"filters": SCOPE, "entries": entries})
-    risk = _post(client, "/api/simulation/risk",
-                 {"scenario": fifteen, "recommendation": recommendation})
-    record = _post(client, "/api/decision/record",
-                   {"context": context, "simulation": fifteen,
-                    "recommendation": recommendation, "risk": risk})
-    return {"context": context, "simulation": fifteen, "record": record}
+    """The retired studio's payloads, from the snapshot (tests/legacy_journey.py)."""
+    snap = legacy_journey.load()
+    record = _post(client, "/api/decision/record", legacy_journey.record_request(snap, weekly=False))
+    return {"context": snap["context"], "simulation": snap["scenario_b"], "record": record}
 
 
 def test_the_stored_scenario_name_wins(client, journey):

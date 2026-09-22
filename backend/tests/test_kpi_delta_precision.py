@@ -4,8 +4,8 @@ WHAT WAS WRONG. The delta was computed from the two ALREADY-ROUNDED KPI
 values. PEI is reported as a whole number, so `(62 - 68) / 68` answered a
 question about the rounded scores rather than about the promotions: the delta
 moved by up to 2.4 percentage points against the same delta taken from the
-underlying values. ROI and Margin Impact, reported to one decimal, moved by up
-to 0.1.
+underlying values. ROI and Margin Impact, reported to two decimals, moved by up
+to 0.01.
 
 Cannibalization never had the defect -- `_cannibalization_metric` has always
 taken its delta from `overall_exact` -- and the fix is that pattern applied to
@@ -69,7 +69,7 @@ SEASONAL_OFFER = {"year": YEAR, "promotion": ["PBDU25"]}
 #: KPI card -> (engine call, the precision that card reports at).
 EXACT_CALLS = {
     "promotion_roi": (lambda rows, vol, p: A.calculate_roi(rows, vol, precision=p), 2),  # the ROI multiple is 2dp
-    "margin_impact": (lambda rows, vol, p: A.calculate_margin(rows, precision=p), 1),
+    "margin_impact": (lambda rows, vol, p: A.calculate_margin(rows, precision=p), 2),
     "pei": (lambda rows, vol, p: A.calculate_pei(rows, vol, precision=p), 0),
 }
 
@@ -95,7 +95,7 @@ def test_the_default_precision_is_unchanged(name, scope):
     """
     _, rows, vol = _sets(scope)
     assert A.calculate_roi(rows, vol) == A._round(A.calculate_roi(rows, vol, precision=None), 2)
-    assert A.calculate_margin(rows) == A._round(A.calculate_margin(rows, precision=None), 1)
+    assert A.calculate_margin(rows) == A._round(A.calculate_margin(rows, precision=None), 2)
     assert A.calculate_pei(rows, vol) == A._round(A.calculate_pei(rows, vol, precision=None), 0)
 
 
@@ -144,7 +144,7 @@ def test_the_delta_is_taken_from_full_precision_values(name, scope):
         if current_exact is None or not previous_exact:
             assert cards[key]["delta"] is None, key
             continue
-        expected = round((current_exact - previous_exact) / abs(previous_exact) * 100, 1)
+        expected = round((current_exact - previous_exact) / abs(previous_exact) * 100, 2)
         assert cards[key]["delta"] == expected, f"{name}/{key}"
 
 
@@ -165,8 +165,8 @@ def test_the_matrix_contains_deltas_the_old_rounding_got_wrong():
             round_now, round_prev = call(rows, vol, digits), call(prev_rows, prev_vol, digits)
             if None in (exact_now, exact_prev) or not exact_prev or not round_prev:
                 continue
-            old = round((round_now - round_prev) / abs(round_prev) * 100, 1)
-            new = round((exact_now - exact_prev) / abs(exact_prev) * 100, 1)
+            old = round((round_now - round_prev) / abs(round_prev) * 100, 2)
+            new = round((exact_now - exact_prev) / abs(exact_prev) * 100, 2)
             if old != new:
                 disagreements.append((name, key, old, new))
     assert disagreements, "no scope in the matrix exercises the fix"

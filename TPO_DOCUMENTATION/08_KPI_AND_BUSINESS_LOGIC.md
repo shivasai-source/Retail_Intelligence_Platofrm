@@ -141,7 +141,7 @@ Incremental Quantity ÷ baseline_quantity × 100
 where `baseline_quantity = Σ (baseline × promoted transaction count)` — the
 volume those same promoted rows would have moved at ordinary levels. A PEI
 component; not a card of its own. `aggregate.calculate_incremental_quantity_percent`,
-1 dp.
+2 dp.
 
 ---
 
@@ -187,7 +187,7 @@ into a single pooled price.
 | **Target** | `config.PROMOTION_TARGET_ROI_PCT = 50.0` |
 | **Row sets** | Spend from `rows_for`; uplift from `baseline_rows_for` |
 | **Null handling** | `None` — **never zero, never infinite** — when nothing was spent: there is no return to express against no investment |
-| **YoY** | `_precise` — the delta is taken from the **unrounded** pair, then the reported values are rounded to 1 dp |
+| **YoY** | `_precise` — the delta is taken from the **unrounded** pair, then the reported values are rounded to 2 dp |
 | **Implemented in** | `aggregate.roi_percent` (the one expression) and `aggregate.calculate_roi` (the card) |
 | **Endpoints** | `/kpis`, `/trend` (per point), `/risk-alerts`, `/underperforming-promotions`, `/top-promotions`, `/breakdown`, `/simulation/*` |
 | **UI** | Card 3, trend teal line + dashed target, alert severity, "vs Target" columns |
@@ -216,7 +216,7 @@ not be taken from two already-rounded numbers.
 | **Row set** | `rows_for(state)` |
 | **Aggregation** | **One ratio of summed revenue and cost** — deliberately *not* an average of per-row margins, which is the classic error across rows of very different sizes |
 | **Null handling** | `None` on an empty selection or zero revenue |
-| **YoY** | `_precise`, 1 dp |
+| **YoY** | `_precise`, 2 dp |
 | **Implemented in** | `aggregate.calculate_margin` |
 | **Endpoints** | `/kpis`, `/breakdown`, `/simulation/*` |
 | **UI** | Card 4, chart sections, simulation tables |
@@ -232,7 +232,7 @@ the fact table without a second query.
 Incremental Sales ÷ Trade Spend × 100
 ```
 
-Returned per rupee invested. `aggregate.calculate_trade_spend_efficiency`, 1 dp.
+Returned per rupee invested. `aggregate.calculate_trade_spend_efficiency`, 2 dp.
 
 **Computed and returned, but deliberately not a PEI component:**
 `TSE = ROI + 100` by definition, so carrying both would put 45% of PEI's weight
@@ -576,7 +576,7 @@ that as `—` with `"no comparison period"`.
 **Two rounded numbers make a wrong ratio.** PEI is reported as a whole number,
 so a delta computed from the reported pair moved by up to **0.4 percentage
 points** against the same delta from the underlying values; ROI and Margin
-Impact, at 1 dp, moved by up to 0.1.
+Impact, at 2 dp, moved by up to 0.01.
 
 So ROI, Margin Impact, PEI and Cannibalization take their delta from the
 **unrounded** pair and only the reported values are rounded afterwards. The

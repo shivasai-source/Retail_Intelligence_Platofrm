@@ -369,7 +369,7 @@ def calculate_incremental_quantity_percent(rows: Sequence[WeekRow]) -> float | N
         return None
     volume = _volume(rows)
     ratio = safe_divide(volume.incremental_quantity, volume.baseline_quantity)
-    return None if ratio is None else _round(ratio * 100, 1)
+    return None if ratio is None else _round(ratio * 100, 2)
 
 
 def calculate_incremental_sales(rows: Sequence[WeekRow]) -> float | None:
@@ -381,7 +381,7 @@ def calculate_incremental_sales(rows: Sequence[WeekRow]) -> float | None:
     """
     if not rows:
         return None
-    return _round(_volume(rows).incremental_sales, 1)
+    return _round(_volume(rows).incremental_sales, 2)
 
 
 def average_promotion_price(rows: Sequence[WeekRow]) -> float | None:
@@ -413,7 +413,7 @@ def calculate_incremental_profit(
     if not volume.has_promotion:
         return None
     spend = calculate_trade_spend(rows) or 0.0
-    return _round(volume.incremental_sales - volume.incremental_cost - spend, 1)
+    return _round(volume.incremental_sales - volume.incremental_cost - spend, 2)
 
 
 def calculate_net_incremental_profit(
@@ -440,7 +440,7 @@ def calculate_net_incremental_profit(
     spend = calculate_trade_spend(rows)
     if sales is None or spend is None:
         return None
-    return _round(sales - spend, 1)
+    return _round(sales - spend, 2)
 
 
 # --- ROI, margin, efficiency -----------------------------------------------
@@ -512,7 +512,7 @@ def calculate_roi(
     )
 
 
-def calculate_margin(rows: Sequence[WeekRow], precision: int | None = 1) -> float | None:
+def calculate_margin(rows: Sequence[WeekRow], precision: int | None = 2) -> float | None:
     """Gross margin retained across the filtered period.
 
         Sum(Actual_Revenue - Total_Cost) / Sum(Actual_Revenue) x 100
@@ -542,7 +542,7 @@ def calculate_trade_spend_efficiency(
     if spend is None or sales is None:
         return None
     ratio = safe_divide(sales, spend)
-    return None if ratio is None else _round(ratio * 100, 1)
+    return None if ratio is None else _round(ratio * 100, 2)
 
 
 # --- trend series ----------------------------------------------------------
@@ -593,12 +593,12 @@ def period_series(rows: Sequence[WeekRow], key: Callable[[WeekRow], str]) -> lis
     return [
         PeriodPoint(
             period_key=period,
-            trade_spend=round(spend[period], 1),
+            trade_spend=round(spend[period], 2),
             # A period with no promoted row has no incremental sales — 0, not a
             # gap: it traded, it simply ran no promotion.
-            incremental_sales=round(sales.get(period, 0.0), 1),
-            incremental_quantity=round(quantity.get(period, 0.0), 1),
-            promoted_quantity=round(gross.get(period, 0.0), 1),
+            incremental_sales=round(sales.get(period, 0.0), 2),
+            incremental_quantity=round(quantity.get(period, 0.0), 2),
+            promoted_quantity=round(gross.get(period, 0.0), 2),
         )
         for period in sorted(spend)
     ]
@@ -767,9 +767,9 @@ def cannibalization_detail(
                 cannibalized += loss
                 neighbours.append({
                     "product_id": nb_id, "rank": rank,
-                    "baseline": round(nb_baseline, 1), "transactions": nb_txns,
-                    "expected": round(nb_expected, 1), "actual": round(nb_actual, 1),
-                    "loss": round(loss, 1),
+                    "baseline": round(nb_baseline, 2), "transactions": nb_txns,
+                    "expected": round(nb_expected, 2), "actual": round(nb_actual, 2),
+                    "loss": round(loss, 2),
                 })
 
             if not neighbours:
@@ -805,27 +805,27 @@ def cannibalization_detail(
         mine = [e for e in events if e.brand_form == brand_form]
         ratio = safe_divide(sum(e.cannibalized for e in mine), sum(e.increment for e in mine))
         if ratio is not None:
-            by_brand[brand_form] = round(ratio * 100, 1)
+            by_brand[brand_form] = round(ratio * 100, 2)
 
     return {
-        "overall": _round(overall, 1),
+        "overall": _round(overall, 2),
         # Full precision, for the year-over-year delta. Dividing two values
         # already rounded to 1 dp moves the delta materially when the rates are
         # small. The card still SHOWS `overall`; only the delta reads this.
         "overall_exact": overall,
         "score": cannibalization_score(overall),
-        "cannibalized_quantity": _round(total_loss, 1),
-        "incremental_quantity": _round(total_increment, 1),
+        "cannibalized_quantity": _round(total_loss, 2),
+        "incremental_quantity": _round(total_increment, 2),
         "by_brand_form": dict(sorted(by_brand.items(), key=lambda kv: -kv[1])),
         "events": [
             {
                 "brand_form": e.brand_form, "week": e.week_key, "channel_id": e.channel_id,
                 "promoted_product_id": e.promoted_product_id, "promoted_rank": e.promoted_rank,
-                "promoted_baseline": round(e.promoted_baseline, 1),
-                "promoted_expected": round(e.promoted_expected, 1),
-                "promoted_actual": round(e.promoted_actual, 1),
-                "increment": round(e.increment, 1),
-                "cannibalized": round(e.cannibalized, 1),
+                "promoted_baseline": round(e.promoted_baseline, 2),
+                "promoted_expected": round(e.promoted_expected, 2),
+                "promoted_actual": round(e.promoted_actual, 2),
+                "increment": round(e.increment, 2),
+                "cannibalized": round(e.cannibalized, 2),
                 "neighbours": list(e.neighbours),
             }
             for e in sorted(events, key=lambda e: -e.cannibalized)
@@ -941,8 +941,8 @@ def calculate_growth(value: float | None, previous: float | None) -> KpiMetric:
     return KpiMetric(
         value=value,
         previous_year=previous,
-        difference=round(difference, 1),
-        growth=round(difference / abs(previous) * 100, 1),
+        difference=round(difference, 2),
+        growth=round(difference / abs(previous) * 100, 2),
     )
 
 
@@ -989,9 +989,9 @@ def _cannibalization_metric(
 
     metric = calculate_growth(exact(rows), exact(previous_rows))
     return KpiMetric(
-        value=_round(metric.value, 1),
-        previous_year=_round(metric.previous_year, 1),
-        difference=_round(metric.difference, 1),
+        value=_round(metric.value, 2),
+        previous_year=_round(metric.previous_year, 2),
+        difference=_round(metric.difference, 2),
         growth=metric.growth,
     )
 
@@ -1012,21 +1012,21 @@ def build_debug(
         "volume_rows_in_scope": len(vrows),
         "promoted_rows": len(promotion_rows(vrows)),
         "promoted_product_channels": len(volume.products),
-        "average_promotion_price": _round(average_promotion_price(vrows), 1),
+        "average_promotion_price": _round(average_promotion_price(vrows), 2),
         # Margin Impact's own inputs, so the card reconciles against the fact
         # table without a second query.
-        "actual_revenue": _round(_sum(rows, lambda r: r.actual_revenue), 1),
-        "total_cost": _round(_sum(rows, lambda r: r.total_cost), 1),
-        "baseline_quantity": _round(volume.baseline_quantity, 1),
-        "incremental_product_cost": _round(volume.incremental_cost, 1),
+        "actual_revenue": _round(_sum(rows, lambda r: r.actual_revenue), 2),
+        "total_cost": _round(_sum(rows, lambda r: r.total_cost), 2),
+        "baseline_quantity": _round(volume.baseline_quantity, 2),
+        "incremental_product_cost": _round(volume.incremental_cost, 2),
         "incremental_profit": calculate_incremental_profit(rows, vrows),
         "products_without_baseline": list(volume.skipped),
         # --- KPIs ---
-        "trade_spend": _round(calculate_trade_spend(rows), 1),
+        "trade_spend": _round(calculate_trade_spend(rows), 2),
         # The two halves of Trade Spend, so the card reconciles: discount +
         # promotion cost == trade spend.
-        "trade_spend_discount": _round(_sum(rows, lambda r: r.discount_value), 1),
-        "trade_spend_promotion_cost": _round(_sum(rows, lambda r: r.promotion_cost), 1),
+        "trade_spend_discount": _round(_sum(rows, lambda r: r.discount_value), 2),
+        "trade_spend_promotion_cost": _round(_sum(rows, lambda r: r.promotion_cost), 2),
         "incremental_quantity": calculate_incremental_quantity(vrows),
         "incremental_quantity_percent": calculate_incremental_quantity_percent(vrows),
         "incremental_sales": calculate_incremental_sales(vrows),
@@ -1065,16 +1065,16 @@ def _per_product_rollup(volume: Volume) -> list[dict[str, Any]]:
             {
                 "product_id": p.product_id,
                 "channel_id": p.channel_id,
-                "baseline_avg": round(p.baseline_average, 1),
+                "baseline_avg": round(p.baseline_average, 2),
                 "non_promo_rows": p.non_promoted_rows,
                 "promo_rows": p.promoted_rows,
-                "promoted_quantity": round(p.promoted_quantity, 1),
-                "baseline_quantity": round(p.baseline_quantity, 1),
-                "incremental": round(p.incremental_quantity, 1),
-                "promotion_price": _round(p.promotion_price, 1),
-                "unit_cost": _round(p.unit_cost, 1),
-                "incremental_sales": round(p.incremental_sales, 1),
-                "incremental_cost": round(p.incremental_cost, 1),
+                "promoted_quantity": round(p.promoted_quantity, 2),
+                "baseline_quantity": round(p.baseline_quantity, 2),
+                "incremental": round(p.incremental_quantity, 2),
+                "promotion_price": _round(p.promotion_price, 2),
+                "unit_cost": _round(p.unit_cost, 2),
+                "incremental_sales": round(p.incremental_sales, 2),
+                "incremental_cost": round(p.incremental_cost, 2),
             }
             for p in volume.products
         ),
@@ -1144,7 +1144,7 @@ def calculate_kpis(
         margin_impact=_precise(
             calculate_margin(rows, precision=None),
             calculate_margin(previous_rows, precision=None),
-            1,
+            2,
         ),
         trade_spend_efficiency=paired(calculate_trade_spend_efficiency),
         incremental_profit=paired(calculate_incremental_profit),

@@ -228,3 +228,60 @@ def read_decision(decision_id: str, version: int | None = None) -> dict[str, Any
         return repository.load_decision(decision_id, version=version)
     except repository.StoreError as exc:
         raise _handle(exc) from exc
+
+
+# --- Decision Center board decisions -----------------------------------------
+
+
+class SaveBoardDecisionRequest(BaseModel):
+    """The Decision Center board, stored whole: the scenarios as the Simulation
+    Studio snapshotted them, the chosen slot and the rationale."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scenarios: list[dict[str, Any]]
+    chosen_slot: int | None = None
+    rationale: str | None = Field(default=None, max_length=4000)
+
+
+@router.post(
+    "/board-decisions",
+    summary="Store a Decision Center board decision (unauthenticated write)",
+    description=UNAUTHENTICATED,
+)
+def store_board_decision(body: SaveBoardDecisionRequest) -> dict[str, Any]:
+    try:
+        return repository.save_board_decision(body.model_dump())
+    except repository.StoreError as exc:
+        raise _handle(exc) from exc
+
+
+@router.get(
+    "/board-decisions",
+    summary="List stored board decisions (unauthenticated read)",
+    description=UNAUTHENTICATED,
+)
+def list_board_decisions(limit: int = Query(default=50, ge=1, le=200)) -> dict[str, Any]:
+    return repository.list_board_decisions(limit=limit)
+
+
+@router.get(
+    "/board-decisions/{decision_id}",
+    summary="Read one board decision back (unauthenticated read)",
+    description=UNAUTHENTICATED,
+)
+def load_board_decision(decision_id: str) -> dict[str, Any]:
+    try:
+        return repository.load_board_decision(decision_id)
+    except repository.StoreError as exc:
+        raise _handle(exc) from exc
+
+
+@router.delete(
+    "/board-decisions",
+    summary="Clear the board decision history (unauthenticated write)",
+    description=UNAUTHENTICATED,
+    status_code=200,
+)
+def clear_board_decisions() -> dict[str, Any]:
+    return {"removed": repository.clear_board_decisions()}

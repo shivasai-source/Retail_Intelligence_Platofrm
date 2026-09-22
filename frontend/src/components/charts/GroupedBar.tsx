@@ -54,7 +54,7 @@ export function GroupedBar({
               strokeDasharray="3 4"
             />
             <text x={padL - 8} y={y(v) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
-              {v.toFixed(1)}
+              {v.toFixed(2)}
             </text>
           </g>
         ))}
@@ -109,7 +109,7 @@ export function GroupedBar({
                 fill={aBelow ? '#B91C1C' : '#047857'}
                 fontWeight={700}
               >
-                {actual[i].toFixed(1)}
+                {actual[i].toFixed(2)}
               </text>
             </g>
           )

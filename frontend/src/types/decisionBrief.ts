@@ -33,7 +33,7 @@ export interface DecisionBriefResponse {
   brief: DecisionBriefText
   /** Order and headings, supplied by the server so the two cannot drift. */
   sections: DecisionBriefSection[]
-  /** The OpenAI model that produced it. Shown for traceability. */
+  /** The LLM model that produced it. Shown for traceability. */
   model: string
   disclaimer: string
   /** Numbers the model wrote that do NOT appear in the record it was given.

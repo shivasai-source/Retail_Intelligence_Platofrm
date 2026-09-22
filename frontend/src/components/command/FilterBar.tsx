@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { Button, Dropdown, IconButton } from '../ui'
 import { Icon } from '../../icons'
-import { useCommandFilters, type ListFilterKey } from '../../store/commandFilters'
+import { useCommandFilters, type FilterStoreHook, type ListFilterKey } from '../../store/commandFilters'
 import { MultiSelect, SelectionChips, type MultiOption } from './MultiSelect'
 import { TargetRoiControl, type TargetRoiInfo } from './TargetRoiControl'
 import type { Currency, FiltersResponse, Option } from '../../types/commandCenter'
@@ -59,16 +59,18 @@ function FilterMulti({
   dimension,
   options,
   size = 'md',
+  store = useCommandFilters,
 }: {
   label: string
   allLabel?: string
   dimension: ListFilterKey
   options: MultiOption[]
   size?: 'sm' | 'md'
+  store?: FilterStoreHook
 }) {
-  const selected = useCommandFilters((s) => s.filters[dimension])
-  const toggle = useCommandFilters((s) => s.toggle)
-  const set = useCommandFilters((s) => s.set)
+  const selected = store((s) => s.filters[dimension])
+  const toggle = store((s) => s.toggle)
+  const set = store((s) => s.set)
   const allLabel = allLabelProp ?? `All ${label}s`
 
   return (
@@ -110,6 +112,15 @@ const one = (list: string[]): string | null => list[0] ?? null
  *  future extract carries more than one distributor. */
 const MIN_USEFUL_OPTIONS = 2
 
+/** Which controls sit on the bar and which fold into "More Filters".
+ *
+ *  `insights` is the Insights Hub's layout, unchanged. `studio` is the
+ *  Simulation Studio's: Year, Channel, Category, Brand and Product on the bar;
+ *  geography and distributor behind the button; no Month, Offer or Promotion
+ *  Type at all — a forward window has no month, and the studio decides the
+ *  promotion itself. */
+export type FilterBarLayout = 'insights' | 'studio'
+
 export function FilterBar({
   options,
   onRefresh,
@@ -117,10 +128,18 @@ export function FilterBar({
   target,
   refreshInline = true,
   trailing,
+  store = useCommandFilters,
+  layout = 'insights',
+  groupLabel = 'Insights Hub filters',
 }: {
   options: FiltersResponse | undefined
   onRefresh: () => void
   refreshing: boolean
+  /** The filter store this bar edits. The Insights Hub's by default; the
+   *  Simulation Studio passes its own instance of the same shape. */
+  store?: FilterStoreHook
+  layout?: FilterBarLayout
+  groupLabel?: string
   /** False when the page draws the refresh button itself (the Insights Hub
    *  keeps it beside Export, so a wrapping filter row never strands it). */
   refreshInline?: boolean
@@ -132,15 +151,16 @@ export function FilterBar({
    *  with the filters rather than being stranded beside Export. */
   trailing?: ReactNode
 }) {
-  const filters = useCommandFilters((s) => s.filters)
-  const currency = useCommandFilters((s) => s.currency)
-  const expanded = useCommandFilters((s) => s.expanded)
-  const set = useCommandFilters((s) => s.set)
-  const setCurrency = useCommandFilters((s) => s.setCurrency)
-  const setTargetRoi = useCommandFilters((s) => s.setTargetRoi)
-  const toggleExpanded = useCommandFilters((s) => s.toggleExpanded)
-  const reset = useCommandFilters((s) => s.reset)
-  const reconcile = useCommandFilters((s) => s.reconcile)
+  const filters = store((s) => s.filters)
+  const currency = store((s) => s.currency)
+  const expanded = store((s) => s.expanded)
+  const set = store((s) => s.set)
+  const setCurrency = store((s) => s.setCurrency)
+  const setTargetRoi = store((s) => s.setTargetRoi)
+  const toggleExpanded = store((s) => s.toggleExpanded)
+  const reset = store((s) => s.reset)
+  const reconcile = store((s) => s.reconcile)
+  const studio = layout === 'studio'
 
   // THE PANEL IS AN OVERLAY NOW, so it needs a way out other than the button.
   // ESCAPE ONLY, DELIBERATELY. Every control inside the panel is a `Dropdown`,
@@ -174,9 +194,15 @@ export function FilterBar({
 
   const setList = (key: ListFilterKey, value: string | null) => set(key, value ? [value] : [])
 
+  // What "More Filters (n)" counts. The Insights Hub counts every active
+  // dimension but the year, as it always has. In the studio layout Category,
+  // Brand and Product sit on the bar, so they are not counted twice.
+  const onBar: string[] = studio
+    ? ['year', 'channel', 'category', 'brand', 'product', 'month', 'promotion', 'promotion_type']
+    : ['year']
   const activeCount = Object.entries(filters).filter(
     ([key, value]) =>
-      key !== 'year' && (Array.isArray(value) ? value.length > 0 : value !== null),
+      !onBar.includes(key) && (Array.isArray(value) ? value.length > 0 : value !== null),
   ).length
 
   const yearLabel = filters.year ? String(filters.year) : 'All Years'
@@ -186,7 +212,7 @@ export function FilterBar({
       {/* Primary controls — same row, same order, same controls as before.
           `flex-wrap` lets the bar reflow on tablet/mobile instead of forcing a
           horizontal scrollbar; nothing is hidden or reordered. */}
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Insights Hub filters">
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={groupLabel}>
         <Dropdown
           selected={yearLabel}
           options={[{ label: 'All Years' }, ...years.map((y) => ({ label: y.name }))]}
@@ -204,13 +230,23 @@ export function FilterBar({
           }
         />
 
-        <FilterMulti label="Channel" dimension="channel" options={options.channels} />
+        <FilterMulti label="Channel" dimension="channel" options={options.channels} store={store} />
 
         {/* Hidden entirely when the selected channel has no retailer values —
             B2B stores carry a blank Retailer, and an empty dropdown would be
             worse than no dropdown. */}
-        {options.retailer_available && (
-          <FilterMulti label="Retailer" dimension="retailer" options={options.retailers} />
+        {!studio && options.retailer_available && (
+          <FilterMulti label="Retailer" dimension="retailer" options={options.retailers} store={store} />
+        )}
+
+        {studio && (
+          <>
+            <FilterMulti label="Category" allLabel="All Categories" dimension="category"
+              options={toOptions(options.categories)} store={store} />
+            <FilterMulti label="Brand" dimension="brand" options={toOptions(options.brands)} store={store} />
+            <FilterSelect label="Product" value={one(filters.product)} options={options.products}
+              onChange={(v) => setList('product', v)} />
+          </>
         )}
 
         {/* THE ANCHOR. `relative` gives the panel below a containing block,
@@ -255,19 +291,26 @@ export function FilterBar({
               </Button>
             </div>
             <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2 @max-[640px]:grid-cols-1">
-              <FilterSelect label="Month" allLabel="All Months" value={filters.month ? String(filters.month) : null}
-                options={options.months} onChange={(v) => set('month', v ? Number(v) : null)} size="sm" />
-              <FilterMulti label="Category" allLabel="All Categories" dimension="category"
-                options={toOptions(options.categories)} size="sm" />
-              <FilterMulti label="Brand" dimension="brand" options={toOptions(options.brands)} size="sm" />
-              <FilterSelect label="Product" value={one(filters.product)} options={options.products}
-                onChange={(v) => setList('product', v)} size="sm" />
-              <FilterSelect label="Offer" value={one(filters.promotion)} options={options.offers}
-                onChange={(v) => setList('promotion', v)} size="sm" />
-              {/* dim_promotion.Promotion_Type — its own dimension, cascading through
-                  the same option engine as everything else. */}
-              <FilterSelect label="Promotion Type" allLabel="All Promotion Types" value={one(filters.promotion_type)}
-                options={toOptions(options.promotion_types)} onChange={(v) => setList('promotion_type', v)} size="sm" />
+              {!studio && (
+                <>
+                  <FilterSelect label="Month" allLabel="All Months" value={filters.month ? String(filters.month) : null}
+                    options={options.months} onChange={(v) => set('month', v ? Number(v) : null)} size="sm" />
+                  <FilterMulti label="Category" allLabel="All Categories" dimension="category"
+                    options={toOptions(options.categories)} size="sm" store={store} />
+                  <FilterMulti label="Brand" dimension="brand" options={toOptions(options.brands)} size="sm" store={store} />
+                  <FilterSelect label="Product" value={one(filters.product)} options={options.products}
+                    onChange={(v) => setList('product', v)} size="sm" />
+                  <FilterSelect label="Offer" value={one(filters.promotion)} options={options.offers}
+                    onChange={(v) => setList('promotion', v)} size="sm" />
+                  {/* dim_promotion.Promotion_Type — its own dimension, cascading through
+                      the same option engine as everything else. */}
+                  <FilterSelect label="Promotion Type" allLabel="All Promotion Types" value={one(filters.promotion_type)}
+                    options={toOptions(options.promotion_types)} onChange={(v) => setList('promotion_type', v)} size="sm" />
+                </>
+              )}
+              {studio && options.retailer_available && (
+                <FilterMulti label="Retailer" dimension="retailer" options={options.retailers} size="sm" store={store} />
+              )}
               <FilterSelect label="Region" value={one(filters.region)} options={toOptions(options.regions)}
                 onChange={(v) => setList('region', v)} size="sm" />
               <FilterSelect label="State" value={one(filters.state)} options={toOptions(options.states)}

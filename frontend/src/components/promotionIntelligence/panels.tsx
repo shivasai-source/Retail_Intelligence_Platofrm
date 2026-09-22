@@ -31,13 +31,13 @@ const L_FLOOR = 1e6 // 10 lakh
 export function fmtCr(v: number | null | undefined): string {
   if (v == null) return '—'
   const abs = Math.abs(v)
-  if (abs >= CR) return `₹${(v / CR).toFixed(1)} Cr`
-  if (abs >= L_FLOOR) return `₹${(v / 1e5).toFixed(1)} L`
-  return `₹${Math.round(v).toLocaleString('en-IN')}`
+  if (abs >= CR) return `₹${(v / CR).toFixed(2)} Cr`
+  if (abs >= L_FLOOR) return `₹${(v / 1e5).toFixed(2)} L`
+  return `₹${v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 export function fmtPct(v: number | null | undefined): string {
-  return v == null ? '—' : `${v}%`
+  return v == null ? '—' : `${v.toFixed(2)}%`
 }
 
 const STATUS_TONE = {
@@ -230,17 +230,15 @@ export function DriversPanel({ drivers }: { drivers: AnalysisDriver[] }) {
 
 const PRIORITY_TONE = { high: 'danger', medium: 'warning', low: 'neutral' } as const
 
-/** The payoff panel: what to actually do, with parameters Simulation can take. */
+/** The payoff panel: what to actually do, with the lever each action names. */
 export function RecommendationsPanel({
   recommendations,
   doNotDo,
   combined,
-  onSimulate,
 }: {
   recommendations: Recommendation[]
   doNotDo: string[]
   combined: string | null
-  onSimulate: (r: Recommendation) => void
 }) {
   return (
     <div className="flex flex-col gap-3.5">
@@ -270,18 +268,12 @@ export function RecommendationsPanel({
                 </div>
               </div>
 
-              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-[var(--r-md)] border border-[rgba(124,92,255,0.2)] bg-[linear-gradient(135deg,rgba(124,92,255,0.06),rgba(79,124,255,0.04))] p-[9px_12px]">
+              <div className="mt-2.5 rounded-[var(--r-md)] border border-[rgba(124,92,255,0.2)] bg-[linear-gradient(135deg,rgba(124,92,255,0.06),rgba(79,124,255,0.04))] p-[9px_12px]">
                 <div className="min-w-0 text-sm leading-[1.5] text-ink-secondary">
-                  <span className="font-bold text-ink-primary">Simulate:</span> {r.simulation.lever} ·{' '}
+                  <span className="font-bold text-ink-primary">Lever:</span> {r.simulation.lever} ·{' '}
                   <span className="text-ink-muted">{r.simulation.current_value}</span> → {r.simulation.proposed_value}
                   <span className="text-ink-muted"> · watch {r.simulation.metric_to_watch}</span>
                 </div>
-                <button
-                  onClick={() => onSimulate(r)}
-                  className="shrink-0 whitespace-nowrap text-base font-semibold text-brand-violet"
-                >
-                  Open in Simulation →
-                </button>
               </div>
             </div>
           </div>

@@ -52,8 +52,8 @@ export function ScatterQuadrant({
 
   const money = (v: number) => {
     const a = v * rate
-    if (symbol === '₹') return Math.abs(a) >= 1e7 ? `${symbol}${(a / 1e7).toFixed(1)}Cr` : `${symbol}${(a / 1e5).toFixed(1)}L`
-    return Math.abs(a) >= 1e6 ? `${symbol}${(a / 1e6).toFixed(1)}M` : `${symbol}${(a / 1e3).toFixed(1)}K`
+    if (symbol === '₹') return Math.abs(a) >= 1e7 ? `${symbol}${(a / 1e7).toFixed(2)}Cr` : `${symbol}${(a / 1e5).toFixed(2)}L`
+    return Math.abs(a) >= 1e6 ? `${symbol}${(a / 1e6).toFixed(2)}M` : `${symbol}${(a / 1e3).toFixed(2)}K`
   }
 
   const roiTicks = 4

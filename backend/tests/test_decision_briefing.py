@@ -32,6 +32,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.tpo import briefing
+from tests import legacy_journey
 
 YEAR = 2025
 SCOPE = {"year": YEAR, "channel": ["CH002"]}
@@ -61,33 +62,9 @@ def _post(client, path, body, expect=200):
 
 @pytest.fixture(scope="session")
 def record(client):
-    """One real B7 decision record, built the way the UI builds it."""
-    context = _post(
-        client, "/api/simulation/context",
-        {"filters": SCOPE, "question": QUESTION, "investigation_started": True,
-         "investigation_type": "diagnostic"},
-    )
-    run = _post(client, "/api/simulation/run", {"filters": SCOPE})
-    scenario_a = _post(client, "/api/simulation/simulate",
-                       {"filters": SCOPE, "scenario_id": "scenario-a", "discount_pct": 10})
-    scenario_b = _post(client, "/api/simulation/simulate",
-                       {"filters": SCOPE, "scenario_id": "scenario-b", "discount_pct": 15})
-    entries = [
-        {"scenario_id": "current-plan", "name": "Current Plan",
-         "measured": run["kpis"], "scope": run["scope"]["filters_applied"]},
-        {"scenario_id": "scenario-a", "name": "Scenario A", "simulated": scenario_a},
-        {"scenario_id": "scenario-b", "name": "Scenario B", "simulated": scenario_b},
-    ]
-    recommendation = _post(client, "/api/simulation/recommend",
-                           {"filters": SCOPE, "entries": entries})
-    risk = _post(client, "/api/simulation/risk",
-                 {"scenario": scenario_b, "recommendation": recommendation,
-                  "weekly_included": True})
-    weekly = _post(client, "/api/simulation/weekly",
-                   {"filters": SCOPE, "scenario_id": "scenario-b", "discount_pct": 15})
-    return _post(client, "/api/decision/record",
-                 {"context": context, "simulation": scenario_b,
-                  "recommendation": recommendation, "risk": risk, "weekly": weekly})
+    """One real B7 decision record, assembled from the retired studio's
+    payloads (see tests/legacy_journey.py)."""
+    return _post(client, "/api/decision/record", legacy_journey.record_request())
 
 
 @pytest.fixture(scope="session")
@@ -463,12 +440,12 @@ def test_no_engine_is_imported_or_called(monkeypatch, record):
                        "from typing import Any"], imports
 
     # If anything reached for the dataset or the KPI engine, this would explode.
-    from app.tpo import aggregate, execution, loader
+    from app.tpo import aggregate, loader, studio
 
     monkeypatch.setattr(loader, "get_store", lambda: pytest.fail("read the dataset"))
     monkeypatch.setattr(aggregate, "calculate_kpis",
                         lambda *a, **k: pytest.fail("called the KPI engine"))
-    monkeypatch.setattr(execution, "simulate",
+    monkeypatch.setattr(studio, "simulate",
                         lambda *a, **k: pytest.fail("re-ran the scenario"))
     assert briefing.build(record, exported_at=STAMP)["html"]
 

@@ -1,4 +1,5 @@
-import { create } from 'zustand'
+import { create, type StateCreator } from 'zustand'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import type { Currency, FiltersResponse } from '../types/commandCenter'
 
 /** ONE filter state for the whole Insights Hub.
@@ -122,10 +123,20 @@ interface CommandFilterStore {
   toggleExpanded: () => void
   reset: () => void
   initialise: (year: number) => void
+  /** Replace the selection wholesale — a scope carried in from another page.
+   *  Marks the store initialised so the default-year seeding cannot then
+   *  overwrite the carried year. */
+  applyScope: (scope: Partial<CommandFilters>) => void
   reconcile: (options: FiltersResponse) => void
 }
 
-export const useCommandFilters = create<CommandFilterStore>((set, get) => ({
+/** ONE STORE SHAPE, TWO INSTANCES. The Insights Hub's store is the one every
+ *  Insights Hub panel reads; the Simulation Studio holds its own instance of
+ *  the same shape (`store/studioFilters.ts`) so a scope chosen in the studio
+ *  never re-scopes the Insights Hub, and vice versa. The behaviour — toggle,
+ *  reconcile, reset — is written once here and shared. */
+export function createFilterStore(persistKey?: string) {
+  const initializer: StateCreator<CommandFilterStore> = (set, get) => ({
   filters: EMPTY_FILTERS,
   currency: 'INR',
   targetRoi: null,
@@ -161,6 +172,14 @@ export const useCommandFilters = create<CommandFilterStore>((set, get) => ({
   /** Reset restores the default period and clears everything else to "All".
    *  The primary controls keep a valid selection — never a blank one. */
   reset: () => set({ filters: { ...EMPTY_FILTERS, year: get().defaultYear }, lastTouched: null }),
+
+  applyScope: (scope) =>
+    set((s) => ({
+      filters: { ...EMPTY_FILTERS, ...scope },
+      initialised: true,
+      defaultYear: s.defaultYear ?? scope.year ?? null,
+      lastTouched: null,
+    })),
 
   initialise: (year) =>
     set((s) =>
@@ -233,7 +252,23 @@ export const useCommandFilters = create<CommandFilterStore>((set, get) => ({
 
       return changed ? { filters: next } : s
     }),
-}))
+  })
+  // The Insights Hub's store is session-only by design. A page that carries a
+  // scope in from elsewhere (the Simulation Studio) keeps it in sessionStorage
+  // — per tab, gone when the tab closes — so a reload does not drop it.
+  if (!persistKey) return create<CommandFilterStore>()(initializer)
+  return create<CommandFilterStore>()(
+    persist(initializer, {
+      name: persistKey,
+      storage: createJSONStorage(() => sessionStorage),
+      partialize: (s) => ({ filters: s.filters, currency: s.currency, initialised: s.initialised, defaultYear: s.defaultYear }) as CommandFilterStore,
+    }),
+  )
+}
+
+export const useCommandFilters = createFilterStore()
+
+export type FilterStoreHook = ReturnType<typeof createFilterStore>
 
 /** Query-string form of the filter state, for the API layer. Empty lists are
  *  omitted entirely so "no constraint" and "constrained to nothing" stay

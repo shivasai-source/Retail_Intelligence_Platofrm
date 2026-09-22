@@ -50,7 +50,7 @@ export function bindCannibalizationNode(nodes: OrchNode[], findings: AgentFindin
     const rounded = Math.round(pct * 10) / 10
     return {
       ...n,
-      metric: `${rounded > 0 ? '+' : ''}${rounded.toFixed(1)}%`,
+      metric: `${rounded > 0 ? '+' : ''}${rounded.toFixed(2)}%`,
       delta: '',
       trend: '' as const,
     }

@@ -118,7 +118,7 @@ export function useAnalyst() {
       const message =
         e instanceof ApiError
           ? e.status === 503
-            ? "The Analyst isn't configured on this server yet — it needs an OpenAI key in backend/.env."
+            ? "The Analyst isn't configured on this server yet — it needs an LLM API key in backend/.env."
             : e.message
           : 'Something went wrong reaching the Analyst.'
       setMessages((current) =>

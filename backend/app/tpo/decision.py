@@ -42,7 +42,22 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.tpo import response, simulation
+#: The KPI keys and lever keys of the RETIRED Simulation Studio payloads this
+#: record is assembled from. The studio that produced them no longer exists
+#: (it was replaced by app/tpo/studio.py, which carries nothing here); stored
+#: decision records and their exports still hold payloads in that shape, and
+#: this assembler keeps reading them. Formerly `simulation.SIMULATION_KPIS`
+#: and `simulation._LEVER_META`, inlined verbatim when that module was removed.
+LEGACY_KPI_KEYS: tuple[str, ...] = (
+    "trade_spend", "incremental_units", "incremental_sales", "roi_multiple",
+    "margin_percent", "cannibalization", "pei",
+)
+#: key -> (label, unit, decimals, step)
+LEGACY_LEVER_META: dict[str, tuple[str, str, int, float]] = {
+    "discount_pct": ("Discount Depth", "percent", 1, 0.5),
+    "duration_weeks": ("Promotion Duration", "weeks", 0, 1),
+    "spend_amount": ("Trade Spend", "currency", 1, 1),
+}
 
 #: Every source this record is assembled from, in the order it reads them.
 ASSEMBLED_FROM = (
@@ -201,14 +216,14 @@ def _expected_impact(scenario: dict[str, Any]) -> list[dict[str, Any]]:
     high = (scenario.get("result", {}).get("high", {}) or {}).get("kpis", {}) or {}
 
     impact = []
-    for kpi in simulation.SIMULATION_KPIS:
-        low_cell, high_cell = low.get(kpi.key, {}), high.get(kpi.key, {})
+    for kpi_key in LEGACY_KPI_KEYS:
+        low_cell, high_cell = low.get(kpi_key, {}), high.get(kpi_key, {})
         if not low_cell:
             continue
         available = bool(low_cell.get("available")) and bool(high_cell.get("available"))
         impact.append(
             {
-                "metric": kpi.key,
+                "metric": kpi_key,
                 "label": low_cell.get("label"),
                 "unit": low_cell.get("unit"),
                 "low": low_cell.get("value"),
@@ -261,7 +276,7 @@ def _strategy(
     ONLY LEVERS THE SCENARIO CARRIES. The row set is the scenario's own `levers`
     block, which the simulation engine wrote; nothing is added to it here.
     Retailer Incentive, Inventory Allocation and Budget Allocation are absent for
-    the reason `simulation._LEVER_META` gives -- no field in any dataset splits
+    the reason the retired studio's lever metadata gave -- no field in any dataset splits
     retailer support out of Promotion_Cost and the project holds no inventory
     data -- and a lever with nothing behind it is not offered.
 
@@ -299,11 +314,11 @@ def _strategy(
         )
 
     rows: list[dict[str, Any]] = []
-    for key in simulation.LEVER_KEYS:
+    for key in LEGACY_LEVER_META:
         lever = levers.get(key)
         if lever is None:
             continue
-        label, unit, _decimals, _step = simulation._LEVER_META[key]
+        label, unit, _decimals, _step = LEGACY_LEVER_META[key]
         observed = measured.get(key) or {}
         selected_value = lever.get("value")
 

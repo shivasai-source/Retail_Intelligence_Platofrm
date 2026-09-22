@@ -553,16 +553,16 @@ def _neighbour_sales_decline(filters: dict[str, Any] | None = None) -> dict[str,
                 "computable": True,
                 "baseline_weeks": len(base_weeks),
                 "promotion_weeks_measured": len(during_weeks),
-                "expected_units": round(expected_units, 1),
-                "actual_units": round(actual_units, 1),
+                "expected_units": round(expected_units, 2),
+                "actual_units": round(actual_units, 2),
                 "units_change_pct": (
-                    round((actual_units - expected_units) / expected_units * 100, 1)
+                    round((actual_units - expected_units) / expected_units * 100, 2)
                     if expected_units else None
                 ),
-                "expected_sales": round(expected, 1),
-                "actual_sales": round(actual, 1),
+                "expected_sales": round(expected, 2),
+                "actual_sales": round(actual, 2),
                 # (during - baseline) / baseline: POSITIVE means it sold MORE.
-                "sales_change_pct": round((actual - expected) / expected * 100, 1) if expected else None,
+                "sales_change_pct": round((actual - expected) / expected * 100, 2) if expected else None,
             })
 
         total_expected += form_expected
@@ -579,25 +579,25 @@ def _neighbour_sales_decline(filters: dict[str, Any] | None = None) -> dict[str,
             "reason": None if form_expected_units > 0 else (
                 "Baseline neighbour volume is zero, so a percentage change cannot be expressed."
             ),
-            "expected_neighbour_units": round(form_expected_units, 1),
-            "actual_neighbour_units": round(form_actual_units, 1),
+            "expected_neighbour_units": round(form_expected_units, 2),
+            "actual_neighbour_units": round(form_actual_units, 2),
             "neighbour_units_change_pct": (
-                round((form_actual_units - form_expected_units) / form_expected_units * 100, 1)
+                round((form_actual_units - form_expected_units) / form_expected_units * 100, 2)
                 if form_expected_units else None
             ),
-            "expected_neighbour_sales": round(form_expected, 1),
-            "actual_neighbour_sales": round(form_actual, 1),
+            "expected_neighbour_sales": round(form_expected, 2),
+            "actual_neighbour_sales": round(form_actual, 2),
             "neighbour_sales_change_pct": (
-                round((form_actual - form_expected) / form_expected * 100, 1) if form_expected else None
+                round((form_actual - form_expected) / form_expected * 100, 2) if form_expected else None
             ),
             "neighbours": detail,
         })
 
     overall_units = (
-        round((total_actual_units - total_expected_units) / total_expected_units * 100, 1)
+        round((total_actual_units - total_expected_units) / total_expected_units * 100, 2)
         if total_expected_units else None
     )
-    overall = round((total_actual - total_expected) / total_expected * 100, 1) if total_expected else None
+    overall = round((total_actual - total_expected) / total_expected * 100, 2) if total_expected else None
     return {
         "available": True,
         "metric": "neighbour_units_change_pct",
@@ -623,11 +623,11 @@ def _neighbour_sales_decline(filters: dict[str, Any] | None = None) -> dict[str,
         # THE HEADLINE IS VOLUME. Revenue travels beside it, unchanged, as the
         # corroborating figure and for the evidence line -- a decline in units
         # that is not matched in money (or the reverse) is itself worth saying.
-        "expected_neighbour_units": round(total_expected_units, 1),
-        "actual_neighbour_units": round(total_actual_units, 1),
+        "expected_neighbour_units": round(total_expected_units, 2),
+        "actual_neighbour_units": round(total_actual_units, 2),
         "neighbour_units_change_pct": overall_units,
-        "expected_neighbour_sales": round(total_expected, 1),
-        "actual_neighbour_sales": round(total_actual, 1),
+        "expected_neighbour_sales": round(total_expected, 2),
+        "actual_neighbour_sales": round(total_actual, 2),
         "promotions": promo_names,
         "neighbour_sales_change_pct": overall,
         "by_brand_form": per_form,

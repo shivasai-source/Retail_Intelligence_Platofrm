@@ -396,7 +396,7 @@ def reset_caches() -> None:
     """
     from app.intelligence_engine import _SECTION_CACHE
     from app.store import fingerprint
-    from app.tpo import filters, promo_calendar, service
+    from app.tpo import filters, promo_calendar, service, studio
     from app.tpo.loader import get_store
 
     _SECTION_CACHE.clear()
@@ -413,6 +413,8 @@ def reset_caches() -> None:
         service._period_totals,
         service._cannibalization_detail,
         service._breakdown_groups,
+        # The Simulation Studio's fitted lift model (app/tpo/studio.py).
+        studio.lift_model,
     ):
         cached.cache_clear()
     get_store.cache_clear()

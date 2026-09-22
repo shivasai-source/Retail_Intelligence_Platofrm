@@ -30,8 +30,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.tpo import decision
-from app.tpo.recommendation import RECOMMENDATION_POLICY
-from app.tpo.risk import RISK_POLICY, UNDEFINED_THRESHOLDS
+from tests import legacy_journey
 
 YEAR = 2025
 SCOPE = {"year": YEAR, "channel": ["CH002"]}
@@ -58,40 +57,12 @@ def _post(client, path, body, expect=200):
 
 @pytest.fixture(scope="session")
 def journey(client):
-    """One full pass through B3 -> B6, reused by every test here."""
-    context = _post(
-        client, "/api/simulation/context",
-        {"filters": SCOPE, "question": QUESTION, "investigation_started": True,
-         "investigation_type": "diagnostic"},
-    )
-    run = _post(client, "/api/simulation/run", {"filters": SCOPE})
-    scenario_a = _post(
-        client, "/api/simulation/simulate",
-        {"filters": SCOPE, "scenario_id": "scenario-a", "discount_pct": 10},
-    )
-    scenario_b = _post(
-        client, "/api/simulation/simulate",
-        {"filters": SCOPE, "scenario_id": "scenario-b", "discount_pct": 15},
-    )
-    entries = [
-        {"scenario_id": "current-plan", "name": "Current Plan",
-         "measured": run["kpis"], "scope": run["scope"]["filters_applied"]},
-        {"scenario_id": "scenario-a", "name": "Scenario A", "simulated": scenario_a},
-        {"scenario_id": "scenario-b", "name": "Scenario B", "simulated": scenario_b},
-    ]
-    recommendation = _post(
-        client, "/api/simulation/recommend", {"filters": SCOPE, "entries": entries}
-    )
-    risk = _post(
-        client, "/api/simulation/risk",
-        {"scenario": scenario_b, "recommendation": recommendation, "weekly_included": True},
-    )
-    weekly = _post(
-        client, "/api/simulation/weekly",
-        {"filters": SCOPE, "scenario_id": "scenario-b", "discount_pct": 15},
-    )
+    """The retired studio's payloads, from the snapshot (tests/legacy_journey.py)."""
+    snap = legacy_journey.load()
+    context, scenario_a, scenario_b = snap["context"], snap["scenario_a"], snap["scenario_b"]
+    recommendation, risk, weekly = snap["recommendation"], snap["risk"], snap["weekly"]
     return {
-        "context": context, "run": run,
+        "context": context, "run": snap["run"],
         "scenario_a": scenario_a, "scenario_b": scenario_b,
         "recommendation": recommendation, "risk": risk, "weekly": weekly,
         "request": {
@@ -140,29 +111,13 @@ def test_the_investigation_section_keeps_b31_honesty(record, journey):
     assert investigation["investigation_id_unavailable_reason"]
 
 
-def test_a_seeded_question_is_not_presented_as_the_investigations(client, journey):
-    """B3.1's seed guard survives into the record."""
-    seeded = _post(
-        client, "/api/simulation/context",
-        {"filters": SCOPE,
-         "question": "Why did South Modern Trade Push underperform despite increased trade spend?",
-         "investigation_started": False},
-    )
-    request = {**journey["request"], "context": seeded}
-    record = _post(client, "/api/decision/record", request)
-    assert record["investigation"]["question"] is None
-    assert record["investigation"]["question_source"] == "seed_example"
-
-
 # --- 2-3: mismatches refused ------------------------------------------------
 
 
 def test_a_scenario_id_mismatch_is_rejected(client, journey):
     """2. Scenario A's risk beside scenario B's simulation."""
-    risk_for_a = _post(
-        client, "/api/simulation/risk",
-        {"scenario": journey["scenario_a"], "recommendation": journey["recommendation"]},
-    )
+    risk_for_a = copy.deepcopy(journey["risk"])
+    risk_for_a["scenario_id"] = "scenario-a"
     request = {**journey["request"], "risk": risk_for_a}
     detail = _post(client, "/api/decision/record", request, expect=422)["detail"]
     assert "scenario-a" in detail and "scenario-b" in detail
@@ -170,10 +125,8 @@ def test_a_scenario_id_mismatch_is_rejected(client, journey):
 
 def test_a_scope_mismatch_is_rejected(client, journey):
     """3. An investigation context describing other rows."""
-    elsewhere = _post(
-        client, "/api/simulation/context",
-        {"filters": OTHER_SCOPE, "question": QUESTION, "investigation_started": True},
-    )
+    elsewhere = copy.deepcopy(journey["context"])
+    elsewhere["filter_state"]["value"] = OTHER_SCOPE
     request = {**journey["request"], "context": elsewhere}
     detail = _post(client, "/api/decision/record", request, expect=422)["detail"]
     assert "different scope" in detail
@@ -228,7 +181,7 @@ def test_the_recommendation_is_carried_verbatim(record, journey):
     assert section["recommended_scenario_id"] == source["recommended_scenario_id"]
     assert section["status"] == source["status"]
     assert section["reason"] == source["reason"]
-    assert section["policy_version"] == source["policy"]["version"] == RECOMMENDATION_POLICY.version
+    assert section["policy_version"] == source["policy"]["version"]
     assert section["objective"] == source["policy"]["objective"]
     assert section["primary_metric"] == source["policy"]["primary_metric"]
     assert section["is_this_scenario"] is True
@@ -242,7 +195,7 @@ def test_the_risk_assessment_is_carried_verbatim(record, journey):
     assert section["findings"] == source["findings"]
     assert section["governance_gaps"] == source["governance_gaps"]
     assert section["limitations"] == source["limitations"]
-    assert section["policy_version"] == RISK_POLICY.version
+    assert section["policy_version"] == source["policy"]["version"]
 
 
 @pytest.mark.parametrize("end", ["low", "high"])
@@ -266,55 +219,12 @@ def test_no_midpoint_is_produced(record):
         assert metric["low"] != midpoint and metric["high"] != midpoint
 
 
-def test_unavailable_metrics_stay_unavailable(client, journey):
-    """9. Never zero-filled, and the engine's reason survives.
-
-    The scope is one where the cannibalization evidence is genuinely absent --
-    a single SKU in a single channel with no Brand Form neighbour trading
-    there that week. An Offer filter no longer produces an unavailable metric:
-    it only did so while the row set handed to the metric held no non-promoted
-    row, which is the defect the widening fixed.
-    """
-    offer_scope = {
-        "year": YEAR, "channel": ["CH003"], "promotion": ["PBDU25"],
-        "product": ["P13-240ct"],
-    }
-    context = _post(
-        client, "/api/simulation/context",
-        {"filters": offer_scope, "question": QUESTION, "investigation_started": True},
-    )
-    run = _post(client, "/api/simulation/run", {"filters": offer_scope})
-    scenario = _post(
-        client, "/api/simulation/simulate",
-        {"filters": offer_scope, "scenario_id": "s", "discount_pct": 10},
-    )
-    recommendation = _post(
-        client, "/api/simulation/recommend",
-        {"filters": offer_scope, "entries": [
-            {"scenario_id": "current-plan", "name": "Current Plan",
-             "measured": run["kpis"], "scope": run["scope"]["filters_applied"]},
-            {"scenario_id": "s", "name": "S", "simulated": scenario},
-        ]},
-    )
-    risk = _post(client, "/api/simulation/risk",
-                 {"scenario": scenario, "recommendation": recommendation})
-    record = _post(client, "/api/decision/record", {
-        "context": context, "simulation": scenario,
-        "recommendation": recommendation, "risk": risk,
-    })
-
-    cannibalization = next(
-        m for m in record["expected_impact"] if m["metric"] == "cannibalization"
-    )
-    assert cannibalization["available"] is False
-    assert cannibalization["low"] is None and cannibalization["high"] is None
-    assert cannibalization["unavailable_reason"]
 
 
-def test_governance_gaps_are_preserved(record):
+def test_governance_gaps_are_preserved(record, journey):
     """10. Every undefined boundary still reported as undefined."""
     gaps = {g["key"] for g in record["governance"]["governance_gaps"]}
-    assert gaps == {g.key for g in UNDEFINED_THRESHOLDS}
+    assert gaps == {g["key"] for g in journey["risk"]["governance_gaps"]}
     for gap in record["governance"]["governance_gaps"]:
         assert "No approved" in gap["statement"]
 
@@ -412,8 +322,8 @@ def test_provenance_is_complete(record, journey):
     assert provenance["assembled_from"] == list(decision.ASSEMBLED_FROM)
     assert provenance["kpi_engine"] == "app/tpo/aggregate.calculate_kpis"
     assert provenance["response_rule"] == journey["scenario_b"]["provenance"]["response_rule"]
-    assert provenance["recommendation_policy_version"] == RECOMMENDATION_POLICY.version
-    assert provenance["risk_policy_version"] == RISK_POLICY.version
+    assert provenance["recommendation_policy_version"] == journey["recommendation"]["policy"]["version"]
+    assert provenance["risk_policy_version"] == journey["risk"]["policy"]["version"]
     assert provenance["scenario_provenance"] == journey["scenario_b"]["provenance"]
     assert "recalculated" in provenance["method"]
 
@@ -424,17 +334,6 @@ def test_the_response_is_deterministic(client, journey):
     assert all(r == records[0] for r in records)
 
 
-def test_the_source_payloads_are_unchanged(client, journey):
-    """22. Assembling a record perturbs nothing upstream."""
-    body = {"filters": SCOPE, "scenario_id": "scenario-b", "discount_pct": 15}
-    before = _post(client, "/api/simulation/simulate", body)
-    _post(client, "/api/decision/record", journey["request"])
-    assert _post(client, "/api/simulation/simulate", body) == before
-
-    risk = _post(client, "/api/simulation/risk",
-                 {"scenario": journey["scenario_b"], "recommendation": journey["recommendation"],
-                  "weekly_included": True})
-    assert risk == journey["risk"]
 
 
 def test_the_module_recomputes_nothing():
@@ -454,10 +353,13 @@ def test_the_module_recomputes_nothing():
 def test_a_non_recommended_scenario_is_carried_honestly(client, journey):
     """Selecting a scenario the policy did not choose does not change what the
     policy chose -- the record states the difference instead."""
-    risk_for_a = _post(
-        client, "/api/simulation/risk",
-        {"scenario": journey["scenario_a"], "recommendation": journey["recommendation"]},
-    )
+    # Scenario A's own risk assessment, derived from the snapshot's assessment
+    # of B: the assembler checks the risk's scenario id and simulation
+    # provenance against the scenario it is filed beside, and both are A's.
+    risk_for_a = copy.deepcopy(journey["risk"])
+    risk_for_a["scenario_id"] = "scenario-a"
+    risk_for_a["discount_pct"] = journey["scenario_a"]["discount_pct"]
+    risk_for_a["provenance"]["scenario_provenance"] = journey["scenario_a"]["provenance"]
     record = _post(client, "/api/decision/record", {
         "context": journey["context"], "simulation": journey["scenario_a"],
         "recommendation": journey["recommendation"], "risk": risk_for_a,

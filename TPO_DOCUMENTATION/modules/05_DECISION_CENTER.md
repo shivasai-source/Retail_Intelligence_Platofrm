@@ -1,7 +1,50 @@
 # Module 05 — Decision Center
 
 **Route:** `#/decision` · **Page:** `frontend/src/pages/Decision.tsx`
-**Status:** Implemented — **no approval workflow and no execution, by design**
+**Store:** `frontend/src/store/decisionScenarios.ts` (board, localStorage) · `POST/GET/DELETE /api/store/board-decisions` (saved decisions)
+**Status:** Rebuilt 2026-09-22 — the open module; the first four are frozen
+
+## What the page does
+
+1. **Scenario cards** — up to three, one per slot ("Scenario 1/2/3", a slot
+   is reused after removal), each sent from the Simulation Studio's **Add to
+   Decision Center**. A card shows the scope, the three lever values as chips,
+   and the deciding figures up front: **Revenue** and **ROI** with their
+   movement against the current plan and the ROI status (Profitable /
+   Break-even / Loss-making). **Choose this scenario** marks it as the
+   decision. The studio refuses the same scenario twice (same scope, currency
+   and levers) and a fourth.
+2. The better **Revenue** and **ROI** across the cards get a check. Revenue
+   is a total over the window, so it is ranked only when every scenario runs
+   the same number of days; ROI is a rate and ranks regardless. (A separate
+   "Side by side" table was tried and removed the same day at the user's
+   request — the cards carry the comparison; the export keeps a full table.)
+3. **Decision** — the chosen scenario, a rationale, and **Save decision**,
+   which stores the whole board (`board_decisions`: the scenarios exactly as
+   snapshotted, the chosen slot, the rationale, the dataset fingerprint).
+4. **Saved decisions** — the history, newest first, each with the chosen
+   scenario's depth, days, revenue and ROI and its rationale. **Review**
+   reloads that board (banner: "Reviewing a saved decision"); **Clear
+   history** removes all of them after confirmation.
+5. **Export Report** — the `decision-center` report module rendered from the
+   board (`options.board`): the decision, the rationale and the comparison
+   table, PDF and Excel.
+
+**Nothing on the page is calculated.** Every figure is the display string the
+studio produced when the scenario was added; "best" compares the numbers
+behind those strings and produces no new number. Dropped from the page as
+noise: the per-metric comparison table, revenue and ROI ranges, "revenue vs
+no promotion"; the levers are chips on the card.
+
+The earlier candidate board, governed record, briefing, AI brief and history
+UI described below were removed with the studio that fed them. Their backend
+routes (`/api/decision/*`, `/api/store/decisions`) remain and still serve
+records stored before 2026-09-22; `tests/legacy_journey.py` keeps their tests
+running. `tests/test_board_decisions.py` covers the new store and export.
+
+---
+
+## Historical description (the page before 2026-09-22)
 
 ## 1. Purpose
 

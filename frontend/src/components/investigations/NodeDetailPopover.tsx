@@ -86,16 +86,21 @@ export function NodeDetailPopover({
                         it read "32717886.4". Most large ones are rupees (Trade
                         Spend, At Stake, Neighbour Sales) but some are counts
                         (Critical Events), so a currency symbol here would
-                        mislabel the counts. Separators and one decimal, which
-                        is how the evidence line below already writes them. */}
-                    {it.value.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        mislabel the counts. Separators and TWO decimals, the
+                        project-wide rule, and how the evidence line below
+                        already writes them — at one decimal a 0.96 ROI bar
+                        printed as "1" beside an evidence line saying 0.96. */}
+                    {it.value.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </span>
                 </div>
                 <span className="mt-1 block h-[9px] overflow-hidden rounded-full bg-black/[0.06]">
                   <span
                     className="block h-full rounded-full [animation:npGrow_700ms_var(--ease-out)_forwards]"
                     style={{
-                      width: `${((it.value / max) * 100).toFixed(1)}%`,
+                      width: `${((it.value / max) * 100).toFixed(2)}%`,
                       background: it.tone === 'muted' ? 'var(--border-strong)' : st.accent,
                       opacity: it.tone === 'accent2' ? 0.55 : 1,
                       animationDelay: `${120 + i * 120}ms`,

@@ -491,8 +491,8 @@ def assemble_orchestration(
         # Start at the top (-90°) and go clockwise; radius in the same 0-100
         # coordinate space the original layout uses.
         angle = -math.pi / 2 + (2 * math.pi * i / count)
-        x = round(50 + 34 * math.cos(angle), 1)
-        y = round(50 + 36 * math.sin(angle), 1)
+        x = round(50 + 34 * math.cos(angle), 2)
+        y = round(50 + 36 * math.sin(angle), 2)
 
         nodes.append(
             {

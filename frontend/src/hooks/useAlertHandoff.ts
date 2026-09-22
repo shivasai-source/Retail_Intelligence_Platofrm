@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useCommandFilters } from '../store/commandFilters'
 import { useActiveInvestigationStore } from '../store/activeInvestigation'
 import { ASK_WHY_STATE_KEY, buildAskWhyIntent } from '../lib/askWhy'
-import { toSimulationFilters } from './useSimulation'
+import { toApiFilters as toSimulationFilters } from '../lib/scope'
 import type { RiskAlert } from '../types/commandCenter'
 
 /** THE COMMAND CENTER -> RCA HAND-OFF for a risk alert (B3.2).

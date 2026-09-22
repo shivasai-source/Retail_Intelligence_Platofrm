@@ -116,6 +116,19 @@ CREATE TABLE IF NOT EXISTS decision_versions (
     PRIMARY KEY (decision_id, version)
 );
 
+-- Decision Center's board decisions: the scenarios that were compared, as the
+-- Simulation Studio snapshotted them (display strings), which one was chosen
+-- and why. One row per save; nothing is edited afterwards.
+CREATE TABLE IF NOT EXISTS board_decisions (
+    id              TEXT PRIMARY KEY,
+    chosen_slot     INTEGER,
+    chosen_label    TEXT,
+    scenario_count  INTEGER NOT NULL,
+    payload_json    TEXT NOT NULL,
+    dataset_version TEXT NOT NULL,
+    created_at      TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_scenarios_investigation
     ON scenarios(investigation_id);
 CREATE INDEX IF NOT EXISTS idx_decisions_investigation

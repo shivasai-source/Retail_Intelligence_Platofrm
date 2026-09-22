@@ -118,7 +118,7 @@ export function PromotionMixCard({
             centerValue={centerValue}
             centerLabel={centerLabel}
             bars
-            decimals={1}
+            decimals={2}
             className="w-full gap-8"
           />
         ) : (

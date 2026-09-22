@@ -76,7 +76,7 @@ export function SaturationChart({ curve, height = 240 }: { curve: SaturationCurv
               </text>
               {p.spend_share_pct != null && (
                 <text x={x(p.depth_pct)} y={padT + innerH + 29} textAnchor="middle" fontSize={9} fill="var(--text-secondary)" fontWeight={600}>
-                  {p.spend_share_pct}% spend
+                  {p.spend_share_pct.toFixed(2)}% spend
                 </text>
               )}
             </g>

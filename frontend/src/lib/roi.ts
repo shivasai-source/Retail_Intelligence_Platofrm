@@ -53,10 +53,14 @@ export const ROI_TONE_VAR: Record<RoiTone, string> = {
 }
 
 export function fmtRoi(v: number | null | undefined, dp = 2): string {
-  return v == null || !Number.isFinite(v) ? '—' : `${v.toFixed(dp)}`
+  return v == null || !Number.isFinite(v) ? '—' : `${v.toFixed(dp)}x`
 }
 
-/** A difference between two multiples, signed: "+0.20", "-0.30", "0.00". */
+/** A difference between two multiples, signed: "+0.20", "-0.30", "0.00".
+ *
+ *  NO "x" HERE. The unit is on the VALUE (`fmtRoi`); a delta sits under a
+ *  label that already says what it is, and suffixing it too read as a second
+ *  quantity rather than a change. */
 export function fmtRoiDelta(v: number | null | undefined, dp = 2): string {
   if (v == null || !Number.isFinite(v)) return '—'
   return `${v > 0 ? '+' : ''}${v.toFixed(dp)}`

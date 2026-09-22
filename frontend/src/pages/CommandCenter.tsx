@@ -48,7 +48,7 @@ import { ExportReportButton } from '../components/reports/ExportReportButton'
 // The SAME CommandFilters -> API filter-dict converter the Simulation Studio
 // posts with. Reused rather than rewritten: a second implementation is how an
 // export starts describing a different selection from the screen.
-import { toSimulationFilters as toReportScope } from '../hooks/useSimulation'
+import { toApiFilters as toReportScope } from '../lib/scope'
 import { useAlertHandoff } from '../hooks/useAlertHandoff'
 import { fmtRoi } from '../lib/roi'
 import type { KpiCard } from '../types/commandCenter'

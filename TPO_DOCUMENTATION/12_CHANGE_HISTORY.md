@@ -146,6 +146,22 @@ the Upcoming panel, which is why the new routes are mounted at
 | `d150c06` | **General Optimization** added as a second, separate mode |
 | *(uncommitted)* | **Target Rescue** — the third mode |
 
+#### 2026-09-22 — the studio rebuilt around three levers
+
+The three-mode studio (Investigation Simulation, General Optimization, Target
+Rescue) was removed whole — services, eleven routes, components, hooks,
+stores, types, report adapters and tests — and replaced by `app/tpo/studio.py`
+and a single-panel page: a discount slider, a trade-spend budget slider and a
+days slider, with Revenue and ROI over the window shown beside the scope's
+current plan run over the same window. The lift curve is fitted to the
+dataset's promoted rows (with dataset-wide and approved-rule fallbacks) rather
+than read from five hardcoded treatments; the budget buys coverage of the
+scope; days are pro-rated business weeks. No KPI formula changed — the window
+rows are read by `aggregate.py` exactly as measured rows are. Decision Center
+still reads the earlier payloads from stored records; its tests load a
+snapshot (`tests/fixtures/legacy_journey.json`) in place of the removed
+endpoints. See [modules/04](modules/04_SIMULATION_STUDIO.md).
+
 ### 2.9 Decision Center
 
 `fb00177` replaced authored content with the assembled record. What was removed,

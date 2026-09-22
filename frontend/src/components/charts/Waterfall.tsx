@@ -82,7 +82,7 @@ export function Waterfall({
           const yTop = y(b.top)
           const hgt = Math.max(2, y(b.bot) - y(b.top))
           const color = PALETTE[b.type] || '#94A3B8'
-          const valLabel = b.value.toFixed(1)
+          const valLabel = b.value.toFixed(2)
           const next = bars[i + 1]
 
           const words = b.label.split(' ')

@@ -78,13 +78,13 @@ export function TrendPanels({
   const money = (v: number) => {
     const a = v * rate
     if (symbol === '₹') {
-      if (Math.abs(a) >= 1e7) return `${symbol}${(a / 1e7).toFixed(1)} Cr`
-      if (Math.abs(a) >= 1e5) return `${symbol}${(a / 1e5).toFixed(1)} L`
-      return `${symbol}${a.toFixed(0)}`
+      if (Math.abs(a) >= 1e7) return `${symbol}${(a / 1e7).toFixed(2)} Cr`
+      if (Math.abs(a) >= 1e5) return `${symbol}${(a / 1e5).toFixed(2)} L`
+      return `${symbol}${a.toFixed(2)}`
     }
-    if (Math.abs(a) >= 1e6) return `${symbol}${(a / 1e6).toFixed(1)} M`
-    if (Math.abs(a) >= 1e3) return `${symbol}${(a / 1e3).toFixed(1)} K`
-    return `${symbol}${a.toFixed(0)}`
+    if (Math.abs(a) >= 1e6) return `${symbol}${(a / 1e6).toFixed(2)} M`
+    if (Math.abs(a) >= 1e3) return `${symbol}${(a / 1e3).toFixed(2)} K`
+    return `${symbol}${a.toFixed(2)}`
   }
 
   // --- left axis: currency, 0 to a rounded maximum -------------------------
