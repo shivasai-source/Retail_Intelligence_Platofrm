@@ -226,7 +226,7 @@ dataset and immediately refetch the real year, doubling first-load traffic.
 - `year` absent (never an empty string) means All Years.
 
 For POST bodies, `SimulationFilters` mirrors `FilterState` exactly;
-`tests/test_simulation.py` asserts the model's field names **equal**
+`tests/test_studio.py` asserts the model's field names **equal**
 `filters.DIMENSIONS`, so the two cannot drift.
 
 ## 10. ⚠ Which panels actually receive the filters
@@ -307,8 +307,7 @@ The three modes deliberately do **not** share a scope:
 | Mode | Scope source | Dimensions offered |
 |---|---|---|
 | Investigation Simulation | `commandFilters` (or the RCA hand-off) | all 14 |
-| General Optimization | `store/generalOptimization` | `category`, `channel`, `month` |
-| Target Rescue | `store/targetRescue` | `year`, `month`, `channel`, `category`, `product` |
+| Simulation Studio | `store/studioFilters` | `year`, `channel`, `category`, `brand`, `product` (+ geography behind More Filters) |
 
 A shared month or channel would mean changing a control in one mode silently
 re-scoped another. The narrower modes reject the other dimensions at the

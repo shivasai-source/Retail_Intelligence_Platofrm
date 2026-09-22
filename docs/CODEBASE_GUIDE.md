@@ -533,22 +533,24 @@ dimension tables. Sections are **memoised per (section, scope)** because
 31 retailers is 31 passes, and computing every section eagerly took ~40 s.
 
 ### 4 · Simulation Studio — `#/simulation`
-**The "what if".** Three genuinely separate modes:
+**The "what if".** Three sliders over one window (rebuilt 2026-09-22; the
+earlier Investigation / General Optimization / Target Rescue modes are gone):
 
-**(a) Investigation Simulation** — scenario execution against approved treatments.
-**(b) General Optimization** — allocate a trade-spend budget across a scope:
-*"Given a category, channel and month, which products should carry a promotion, at
-which approved depth, so revenue is maximised without spend exceeding a ceiling?"*
-**(c) Target Rescue** — *"Is this month's unit target on track, and if not, what is
-the LEAST AGGRESSIVE approved intervention that recovers it?"*
+**Discount** sets the promoted price and, through a fitted lift curve, the
+volume uplift. **Trade spend** is a budget — it buys coverage of the scope.
+**Days** is the window, in pro-rated business weeks. The answer is what
+Revenue and ROI do over those days, beside the scope's current plan run over
+the same window.
 
-The three share only what must not be written twice: the one `FilterState`, the
-approved economics, and the validated KPI definitions.
+It shares with the rest of the app only what must not be written twice: the
+one `FilterState` and the validated KPI definitions. See
+`TPO_DOCUMENTATION/modules/04_SIMULATION_STUDIO.md`.
 
-#### The approved promotion response model — `app/tpo/response.py` + `config.py`
+#### The lift curve — `app/tpo/studio.py`
 
-Five **approved treatment rules**, each mapping a discount depth to the uplift
-**band** it is approved to produce:
+Fitted to the dataset's own promoted weeks and calibrated to the scope, with
+`config.TREATMENT_RULES` as a last-resort fallback. Those five rules each map
+a discount depth to the uplift **band** it is approved to produce:
 
 | Treatment | Discount `d` | Uplift band |
 | --- | --- | --- |
@@ -966,7 +968,7 @@ a palette, not a redesign.*
 | `commandFilters.ts` | 244 | no | THE one filter state for the Insights Hub |
 | `activeInvestigation.ts` | 175 | ✅ v2 | Active investigation + workspace pointer + CC scope hand-off |
 | `simulationScenarios.ts` | 219 | no | Scenario cards, levers, results |
-| `targetRescue.ts` | 114 | no | Target Rescue controls |
+| `studioFilters.ts` | 8 | per tab | The Simulation Studio's own scope |
 | `intelligenceHandoff.ts` | 102 | no | Promotion Intelligence → Simulation |
 | `generalOptimization.ts` | 95 | no | Simulation mode enum + optimizer controls |
 | `decisionDraft.ts` | 82 | no | Simulation → Decision Center draft |
@@ -1248,9 +1250,9 @@ data-derived right axis.
 
 ### 10.16 Remaining component groups
 
-- **`optimization/Slider.tsx`** (74) — a **native `<input type="range">`** wearing the platform accent rather than a hand-built track: keyboard-operable, screen-reader-labelled and touch-correct for free. Endpoints are always rendered, because a slider whose range is off-screen invites reading the handle position as a value.
-- **`optimization/GeneralOptimization.tsx`** (573) — **computes nothing**; every optimized figure is a band. A plan that couldn't be produced renders its reason, not a grid of zeros. Re-measures scope whenever category/channel/month move, because the ceiling slider can't be bounded until the historical average for *this* scope is known.
-- **`rescue/TargetRescue.tsx`** (1150, the largest frontend file) — **two projections kept visually apart** in different cards, never blended into one headline: the run-rate projection (division, labelled as such) and the intervention ladder (a counterfactual under an approved treatment). Progress is counted in completed business weeks, and the checkpoint follows the channel's promotion cadence. No day figure is offered as a sales read.
+- **`studio/LeverSlider.tsx`** (74) — a **native `<input type="range">`** wearing the platform accent rather than a hand-built track: keyboard-operable, screen-reader-labelled and touch-correct for free. Endpoints are always rendered, because a slider whose range is off-screen invites reading the handle position as a value.
+- **`studio/LeverSlider.tsx`** (573) — **computes nothing**; every optimized figure is a band. A plan that couldn't be produced renders its reason, not a grid of zeros. Re-measures scope whenever category/channel/month move, because the ceiling slider can't be bounded until the historical average for *this* scope is known.
+- **`studio/LeverSlider.tsx`** (1150, the largest frontend file) — **two projections kept visually apart** in different cards, never blended into one headline: the run-rate projection (division, labelled as such) and the intervention ladder (a counterfactual under an approved treatment). Progress is counted in completed business weeks, and the checkpoint follows the channel's promotion cadence. No day figure is offered as a sales read.
 - **`promotionIntelligence/SaturationChart.tsx`** (93) — **every point is a real mechanic**, so the x-axis is the actual set of depths the business runs (5/10/15/25%) rather than a smooth synthetic sweep, and the visible gap between 15% and 25% is information.
 - **`promotionIntelligence/panels.tsx`** (347) — shared panels + `fmtCr` (a crore is the unit Indian trade finance reports in).
 - **`reports/ExportReportButton.tsx`** (112) — the one generate control. **It does not download anything.** A single button rather than a format menu, because both artifacts are produced and the format choice belongs at the point of download. **Scope is resolved at click time** via callbacks, which is what makes "change a filter, generate again" produce a different report with no cache to invalidate.
@@ -1405,9 +1407,9 @@ quietly disappears, **or the reverse**), `test_upstream_truthfulness.py` (scans 
 
 **Removed 2026-09-15** (nothing called them): `command.json`, `pages-by-type.json`,
 `intelligence.json`, `simulation.json`, `decision.json`, together with their readers
-`routers/command.py` and `routers/pages.py` and the frontend's legacy
+`routers/command_center.py` and the removed `routers/pages.py` and the frontend's legacy
 `components/intelligence/{tabs,RegionVarianceBars,SalesTrendChart,KeyInsightsList,SaturationChart}`,
-`hooks/useIntelligence.ts` and `types/intelligence.ts`.
+`hooks/usePromotionIntelligence.ts` and `types/promotionIntelligence.ts`.
 
 **Dead:** `reports.json` — no `load("reports")` call exists anywhere. Superseded by the
 real Report Center, whose contract is that every row corresponds to a stored artifact.
@@ -1453,7 +1455,7 @@ via the Vite plugin means there is no `tailwind.config.js` or PostCSS chain.
 ### 11.7 `TPO_DOCUMENTATION/` — 31 markdown files
 
 14 at root (`00_PROJECT_OVERVIEW` … `12_CHANGE_HISTORY`, plus `README`), `appendices/` (5:
-API_ENDPOINT_MAP, DATASET_MAP, FILE_MAP, KNOWN_LIMITATIONS, VALIDATION_MATRIX),
+API_ENDPOINT_MAP, DATASET_MAP, KNOWN_LIMITATIONS),
 `modules/` (9, one per module) and `simulation/` (3, one per simulation mode).
 
 Two worth knowing: **`06_API_REFERENCE.md`** (35 KB, every route by module) and
@@ -1539,12 +1541,12 @@ actionable in a way a fabricated verdict is not.
 **6. Business policy is data, not code.**
 `RECOMMENDATION_POLICY` is a structure `recommend()` walks; it hardcodes no metric name
 and no direction. A test proves it by swapping the primary metric at runtime and watching
-the outcome follow. Target Rescue's `RANKING_BASIS` implements tie-breakers that in
+the outcome follow. The retired Target Rescue's `RANKING_BASIS` implemented tie-breakers that in
 practice never fire, *"because a policy that exists only in a comment is a policy nobody
 can test."*
 
 **7. Snap to what is measurable; never interpolate between measurable points.**
-The discount control snaps to the five approved depths. The Target Rescue checkpoint snaps
+The discount control moves in half-point steps inside the fitted curve's evidence domain. The retired Target Rescue's checkpoint snapped
 to a complete business week — *"a value between two measurable points is not a shallower
 version of either, it is a number nobody can measure."* Ties in both resolve **downward**,
 to the more conservative reading.

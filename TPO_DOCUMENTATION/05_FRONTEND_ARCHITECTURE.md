@@ -24,7 +24,7 @@
 | `*` | → `/login` | — | Catch-all |
 
 **There is no route guard.** `/command` is reachable without ever visiting
-`/login`. `pages/PlaceholderPage.tsx` exists but is used by no route.
+`/login`. `pages/Home.tsx` exists but is used by no route.
 
 ## 2. Layout
 
@@ -33,7 +33,7 @@ components/layout/
   AppShell.tsx   page frame: Sidebar + Topbar + breadcrumbs + content slot
   Sidebar.tsx    navMain (5) + navSecondary (4) from /api/nav; collapsible,
                  collapsed state persisted in store/sidebar.ts
-  Topbar.tsx     breadcrumbs, user chip (from store/portalUser.ts)
+  Topbar.tsx     breadcrumbs, user chip (from hooks/useAuth.ts)
 ```
 
 Sidebar groups, straight from `nav.json`:
@@ -149,10 +149,9 @@ documentation/behaviour discrepancy, **not silently reconciled**.
 | Store | Persisted | Holds |
 |---|---|---|
 | `commandFilters.ts` | no | THE Command Center filter state, currency, expanded flag, `lastTouched`, `reconcile()` |
-| `simulationScenarios.ts` | no | Investigation-Simulation scenarios, active id, lever dirty-tracking, per-scope invalidation |
-| `generalOptimization.ts` | no | `SimulationMode` (`investigation` \| `general` \| `rescue`) + General Optimization's own 3 scope dimensions and 3 constraints |
-| `targetRescue.ts` | no | Target Rescue's own controls (year, month, channel, category, product, target units, discount, checkpoint, budget) |
-| `decisionDraft.ts` | no | The scenario carried from Simulation Studio to Decision Center, with a `signature` |
+| `studioFilters.ts` | **sessionStorage** (`tiq.studioFilters`) | The Simulation Studio's OWN scope — a second instance of the same store shape, so the studio and the Insights Hub cannot re-scope each other |
+| `studioHandoff.ts` | **sessionStorage** (`tiq.studioHandoff`) | The product Promotion Intelligence carried into the studio |
+| `decisionScenarios.ts` | **localStorage** (`tiq.decisionScenarios`) | The scenarios on the Decision Center board, as the studio snapshotted them |
 | `activeInvestigation.ts` | **localStorage** (`tiq.activeInvestigation`) | Active investigation type, question, recent list, and the Command Center **scope hand-off** |
 | `savedRefs.ts` | **localStorage** | Last stored investigation / scenario / decision ids — pointers only |
 | `portalUser.ts` | **localStorage** | The email typed at sign-in and derived initials |
@@ -160,7 +159,7 @@ documentation/behaviour discrepancy, **not silently reconciled**.
 
 **Mode isolation is deliberate.** The three Simulation Studio modes each own
 their controls, so switching modes cannot carry one mode's scope into another,
-and General Optimization's month/channel cannot silently re-scope the
+and the Simulation Studio's own scope cannot silently re-scope the
 investigation path.
 
 ## 7. Type definitions

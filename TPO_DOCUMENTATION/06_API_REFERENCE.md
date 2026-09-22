@@ -74,7 +74,7 @@ false for a B2B-only scope), `regions[]`, `states[]`, `cities[]`, `tiers[]`,
 An option appears **iff** picking it returns at least one row.
 
 **Frontend consumer:** `useFilterOptions` → `FilterBar`, and the scope pickers
-in General Optimization and Target Rescue.
+in the Simulation Studio.
 
 ---
 
@@ -408,28 +408,15 @@ print footer, that it is a **draft, not approved and not saved**, and that it
 **names no author and no approver** because this application cannot establish
 who produced or reviewed it. Nothing is persisted.
 
-### Static page readers (6 routes, all in `routers/pages.py`)
+### Static page readers — **removed**
 
-`{type}` ∈ `diagnostic` | `optimization` | `launch` | `strategic`
-(`data_loader.InvestigationType`, a `Literal` — an unknown value is a 422).
-All serve authored JSON from `app/data/`.
+Six routes once served authored JSON from `app/data/` through
+`routers/pages.py`: `/api/intelligence/{type}`, `/api/intelligence-default`,
+`/api/simulation/{type}`, `/api/simulation-default`, `/api/decision/{type}`
+and `/api/decision-default`. The router and its seed blocks are gone —
+Promotion Intelligence is computed by `intelligence_engine.py`, and the
+Simulation and Decision blocks had no consumer.
 
-| Route | Serves | Consumed? |
-|---|---|---|
-| `GET /api/intelligence/{type}` | `pages-by-type.json[type].intelligence` | **Yes** — Promotion Intelligence |
-| `GET /api/intelligence-default` | `intelligence.json`, the shared base block | **Yes** — `useIntelligencePage` merges `{...base, ...override}` |
-| `GET /api/simulation/{type}` | `pages-by-type.json[type].simulation` | No consumer found |
-| `GET /api/simulation-default` | `simulation.json` | No consumer found |
-| `GET /api/decision/{type}` | `pages-by-type.json[type].decision` | No consumer found |
-| `GET /api/decision-default` | `decision.json` | No consumer found |
-
-> `routers/pages.py` describes all three `*-default` routes as *"kept for
-> fidelity, not used by the per-type pages above"*. That is **accurate for
-> `/simulation-default` and `/decision-default`, and inaccurate for
-> `/intelligence-default`**, which Promotion Intelligence genuinely reads as its
-> base layer. See [modules/03](modules/03_PROMOTION_INTELLIGENCE.md).
-
----
 
 ## 5. Report Center — `/api/reports` (7 routes)
 

@@ -406,7 +406,6 @@ exist and each is explicitly labelled as something else:
 |---|---|
 | `/simulation/simulate` `low`/`high` | The two ends of an **approved uplift band** — *"not a confidence interval, not statistical uncertainty and not model confidence"* |
 | `/simulation/weekly` | A **decomposition across observed business weeks** — *"every week returned is a week the data has rows for"* |
-| Target Rescue `pace` | A **run-rate projection** — division, labelled `RUN_RATE_LABEL = "Run-rate projection"`, *"not a forecast, and no model stands behind it"* |
 
 `components/charts/Forecast.tsx` exists as a design-system component ported from
 the predecessor app.
@@ -415,7 +414,7 @@ the predecessor app.
 
 ## 12. Promotion uplift — the approved response model
 
-`backend/app/tpo/response.py` + `config.TREATMENT_RULES`.
+`backend/app/tpo/studio.py`'s fitted lift curve, with `config.TREATMENT_RULES` as its last-resort fallback.
 
 | Treatment | Discount `d` | Uplift band | Break-even `u*` | Headroom low → high |
 |---|---|---|---|---|
@@ -539,7 +538,7 @@ percentage above a large one quietly losing far more money.
 
 Every predicate reads only numbers the engine already produced.
 
-### Simulation risk assessment (`app/tpo/risk.py`)
+### Simulation risk assessment *(removed 2026-09-22 with the old studio)*
 
 A different thing entirely — a **governance assessment**, not a score:
 

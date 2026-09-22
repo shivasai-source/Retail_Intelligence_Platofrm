@@ -129,7 +129,7 @@ Plus `convert-data.mjs`, the one-off migration that produced
 
 ## 5. Validation matrix
 
-Full matrix: [appendices/VALIDATION_MATRIX.md](appendices/VALIDATION_MATRIX.md).
+Run the suite for the current matrix: `../venv/Scripts/python.exe -m pytest tests/ -q`.
 
 ## 6. Reproducing these results
 

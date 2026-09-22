@@ -297,3 +297,34 @@ def test_trade_spend_is_additive_across_months():
         for m in range(1, 13)
     )
     assert annual == pytest.approx(monthly)
+
+
+def test_the_declared_cadence_agrees_with_the_fact_files_schedule():
+    """`promo_calendar.CADENCE` is a DECLARATION, not an inference from the
+    transaction pattern — but it must still match what the data records.
+
+    Read straight from the CSV, because `FactStore` does not carry `Schedule`:
+    the column is not part of any KPI, only of the planning cadence.
+
+    This assertion lived in `test_target_rescue.py` until the three-mode
+    Simulation Studio was removed on 2026-09-22. The module it guards
+    (`promo_calendar`) is still live, so the check moved here rather than
+    going with it.
+    """
+    import csv
+
+    from app.tpo import config
+    from app.tpo.promo_calendar import CADENCE, DEFAULT_CADENCE
+
+    seen: dict[str, set[str]] = {}
+    with open(config.DATA_DIR / "fact_sales_2024_2025_all_channels.csv", newline="", encoding="utf-8") as fh:
+        for row in csv.DictReader(fh):
+            seen.setdefault(row["Channel_Id"].strip(), set()).add(row["Schedule"].strip())
+
+    assert seen, "no fact rows were read"
+    for channel, schedules in sorted(seen.items()):
+        assert len(schedules) == 1, f"{channel} carries mixed schedules: {schedules}"
+        declared = CADENCE.get(channel, DEFAULT_CADENCE)
+        assert declared == next(iter(schedules)), (
+            f"{channel}: CADENCE declares {declared}, fact_sales records {schedules}"
+        )

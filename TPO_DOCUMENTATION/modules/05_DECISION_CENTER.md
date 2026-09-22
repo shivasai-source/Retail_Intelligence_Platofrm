@@ -46,6 +46,10 @@ running. `tests/test_board_decisions.py` covers the new store and export.
 
 ## Historical description (the page before 2026-09-22)
 
+> Every file path below was removed on 2026-09-22 along with the studio that
+> fed this page. The section is kept as a record of what the page used to do,
+> not as a map of the code.
+
 ## 1. Purpose
 
 Decision Center is the **final stage** of the TPO workflow:

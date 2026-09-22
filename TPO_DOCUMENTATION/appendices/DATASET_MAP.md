@@ -179,7 +179,7 @@ control. `Distributor_Name` is blank outside General Trade.
 | **Rows** | **22** — the original 18 plus the four 2026 seasonal events inside January–August (`PBNY26`, `PBHO26`, `PBSU26`, `PBIN26`, all Buy3Get1) |
 | **Grain** | `Promotion_Id` |
 | **Columns** | `Promotion_Id`, `Promotion_Name`, `Promotion_Type`, `Promotion_Description` |
-| **Used by** | `promotion` / `promotion_type` filters, `promotion_mechanic` breakdown, promotion mix, Calendar labels, Target Rescue's clearance-mechanic lookup |
+| **Used by** | `promotion` / `promotion_type` filters, `promotion_mechanic` breakdown, promotion mix, Calendar labels |
 
 | Field | Role | Unique? |
 |---|---|---|
@@ -207,7 +207,7 @@ The original 18-row table: [03_DATA_ARCHITECTURE.md](../03_DATA_ARCHITECTURE.md)
 | **Grain** | `Date` |
 | **Columns** | `Date`, `Year`, `Month`, `Quarter`, `Week`, `Day` |
 | **Relationship** | `(fact.Year, fact.Week)` → the days of that business week |
-| **Used by** | **The analytical month for every row**, the Calendar's week starts, Target Rescue's month calendar and day counts |
+| **Used by** | **The analytical month for every row**, the Calendar's week starts, the studio's business weeks and day counts |
 
 | Year | Days |
 |---|---:|

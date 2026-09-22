@@ -73,9 +73,9 @@ accident.
 | CH004 | Travel & Hospitality | **WEEKLY** |
 | CH005 | B2B | MONTHLY |
 
-It agrees with `fact_sales.Schedule`, and `tests/test_target_rescue.py` asserts
+It agrees with `fact_sales.Schedule`, and `tests/test_month_semantics.py` asserts
 that agreement so the declared structure and the recorded one cannot drift.
-`app/tpo/rescue.py` imports this table rather than restating it.
+Callers import this table rather than restating it.
 
 ### Weekly vs monthly behaviour
 
@@ -329,7 +329,7 @@ unchanged.
 | What | Where |
 |---|---|
 | The `(Year, Week) → dim_date` month | `tests/test_month_semantics.py` (14 tests) |
-| `CADENCE` agrees with `fact_sales.Schedule` | `tests/test_target_rescue.py` |
+| `CADENCE` agrees with `fact_sales.Schedule` | `tests/test_month_semantics.py` |
 | Promotion sits in its assigned business month | `scripts/validate_promotion_schedule.py` (read-only) |
 | Matrix / cell / upcoming payloads | **No dedicated test module** |
 

@@ -105,7 +105,7 @@ in this repo depends on it.
 `HashRouter` (routes are `#/command`, `#/investigations`, ... — matches `nav.json`'s
 route strings verbatim, ported straight from the vanilla app's hand-rolled hash
 router). `frontend/src/App.tsx` is the route table; `pages/CommandCenter.tsx` is the
-first real page, the rest are `pages/PlaceholderPage.tsx` until Phase 4.
+first real page, the rest are `pages/Home.tsx` until Phase 4.
 
 Floating menus (`components/ui/Dropdown.tsx`) portal to `document.body` with
 `position: fixed`, deliberately matching the vanilla app's `UI.openDropdown` — an
@@ -118,7 +118,7 @@ rather than trying to out-z-index the animation.
 ## Portal (Phase 5)
 
 `/login` and `/home` — ported from login.html/home.html + js/portal.js. Client-side
-auth stand-in (Zustand + localStorage, `store/portalUser.ts`) same as the vanilla app —
+auth is a real server session (`hooks/useAuth.ts` → `POST /api/auth/login`) —
 no real identity provider yet. `/` redirects to `/login`; the live "Trade Promotion
 Optimization" module card on Home links straight to `/command` via React Router
 (a same-app navigation now, vs. the vanilla app's full page load to `index.html`).
@@ -154,7 +154,7 @@ it added `httpx`.
 ## Pages (Phase 4)
 
 All 9 routes are real pages now — `pages/{CommandCenter,Investigations,Intelligence,
-Simulation,Decision,Calendar,Reports,Connections,Settings}.tsx`. `pages/PlaceholderPage.tsx`
+Simulation,Decision,Calendar,Reports,Connections,Settings}.tsx`. `pages/Home.tsx`
 is no longer used by any route but is left in place as a template if a 10th page is
 ever needed.
 

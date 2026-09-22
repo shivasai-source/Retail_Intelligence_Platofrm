@@ -48,7 +48,7 @@ Supported by the application's actual content and workflows:
 | Role | Primary surface |
 |---|---|
 | Trade Marketing | Command Center, Promotion Calendar, Simulation Studio |
-| Revenue Growth Management | KPI cards, ROI/PEI, General Optimization |
+| Revenue Growth Management | KPI cards, ROI/PEI, scenario simulation |
 | Category Management | Category / Brand-form breakdowns, cannibalization |
 | Sales / Commercial | Channel Performance, Risk Alerts |
 | Key Account Management | Retailer & Distributor Performance |
@@ -85,12 +85,12 @@ attributed. See [appendices/KNOWN_LIMITATIONS.md](appendices/KNOWN_LIMITATIONS.m
                    │ POST /api/simulation/context validates the hand-off
                    ▼
    ┌──────────────────────────────────────────────────────────────┐
-   │  Simulation Studio — three separate modes                    │
-   │  A. Investigation Simulation   B. General Optimization       │
-   │  C. Target Rescue                                            │
+   │  Simulation Studio — three levers over one window            │
+   │  discount · trade-spend budget · days                        │
+   │                                                              │
    └───────────────┬──────────────────────────────────────────────┘
-                   │ carry the chosen scenario (context + simulate +
-                   │ recommend + risk [+ weekly])
+                   │ "Add to Decision Center" carries the scenario
+                   │ (scope + levers + its KPIs, as displayed)
                    ▼
    ┌──────────────────────────────────────────────────────────────┐
    │  Decision Center                                             │
@@ -167,7 +167,7 @@ Full detail: [01_SYSTEM_ARCHITECTURE.md](01_SYSTEM_ARCHITECTURE.md).
 |---|---|---|---|
 | Command Center | `pages/CommandCenter.tsx` | `routers/command_center.py` | `tpo/service.py` |
 | Investigations | `pages/Investigations.tsx` | `routers/investigations.py` | `data_loader.py` (JSON) |
-| Promotion Intelligence | `pages/Intelligence.tsx` | `routers/pages.py` | `data_loader.py` (JSON) |
+| Promotion Intelligence | `pages/Intelligence.tsx` | `routers/intelligence.py` | `intelligence_engine.py` |
 | Simulation Studio | `pages/Simulation.tsx` | `routers/simulation.py` | `tpo/{simulation,execution,comparison,recommendation,risk,weekly,optimization,rescue}.py` |
 | Decision Center | `pages/Decision.tsx` | `routers/{decision,briefing}.py` | `tpo/{decision,briefing}.py` |
 | Calendar | `pages/Calendar.tsx` | `routers/promotion_calendar.py` | `tpo/promo_calendar.py` |

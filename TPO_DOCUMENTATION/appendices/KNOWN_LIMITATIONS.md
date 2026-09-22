@@ -108,7 +108,7 @@ engine measures at ₹7.7 Cr** — more than an order of magnitude apart. The sa
 figure appears in `investigations.json`'s `contextChips`.
 
 The application handles this correctly at the boundary:
-`app/tpo/investigation.py` refuses to let any RCA figure enter a calculation,
+`app/tpo/studio.py` refuses to let any RCA figure enter a calculation,
 and stamps every context field with its provenance. But **on screen, the numbers
 are presented without that qualification.**
 
@@ -149,7 +149,7 @@ same type render identically.
 | # | Defect | Scale | Handling |
 |---|---|---|---|
 | 1 | `fact_sales.Month` disagrees with the business week | **46,440 of 205,920 rows (22.6%)** | The column is never read; the month comes from `(Year, Week) → dim_date` |
-| 2 | `fact_sales.Date` scrambled on CH002/CH004/CH005 | **51.9% of those rows** | Only the year is read. **Day-grain analysis is impossible** — Target Rescue counts completed business weeks for this reason |
+| 2 | `fact_sales.Date` scrambled on CH002/CH004/CH005 | **51.9% of those rows** | Only the year is read. **Day-grain analysis is impossible** — the Simulation Studio's window is measured in complete business weeks for this reason |
 | 3 | `PS001` / `PB001` absent from the fact table | — | Expected; the dated seasonal ids carry their economics |
 | 4 | `Promotion_Name` not unique (7× "20% Discount", 7× "Buy3Get1") | 14 of 18 rows | `Promotion.label` uses the description |
 | 5 | Blank `Retailer` on every B2B store | 64 stores | `retailer_available: false`; the control hides |
@@ -199,7 +199,7 @@ accurate, not a bug, but it limits how actionable the panel can be.
 
 | Not modelled | Stated reason |
 |---|---|
-| **Forecasting** | None exists. Three near-neighbours are labelled as what they are: the uplift band is *"not a confidence interval"*, the weekly view is *"a decomposition, not a forecast"*, and Target Rescue's pace is *"a run-rate projection… no model stands behind it"* |
+| **Forecasting** | None exists. Three near-neighbours are labelled as what they are: the uplift band is *"not a confidence interval"*, the weekly view is *"a decomposition, not a forecast"*, and the studio's lift curve carries the evidence it was fitted from |
 | **Elasticity** | The treatment rules are the dataset's **design parameters**, verified to hold — not a fitted curve |
 | **Discount interpolation** | *"12% is not a shallower PR003 — it is a treatment nobody approved… inventing one would be a coefficient, not a rule."* Only 5/10/15/20/25 can be priced |
 | **Band midpoint** | *"The approved rule for PR003 is 40-50%, not 45%… Collapsing it would manufacture a precision the rule does not grant, and would throw away the only honest uncertainty this model has"* |
@@ -352,8 +352,6 @@ Summary:
 
 The working tree carries **uncommitted changes** at the time of writing:
 
-- **New, untracked:** Target Rescue (`app/tpo/rescue.py`, the frontend
-  component, store, hook, types, and `tests/test_target_rescue.py`), and the
   entire Report Center (`app/reports/`, `app/routers/reports.py`,
   `app/store/reports.py`, the frontend page hook and export button, and two test
   modules).

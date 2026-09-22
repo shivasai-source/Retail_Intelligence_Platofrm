@@ -185,8 +185,8 @@ Retailer control rather than showing an empty dropdown.
 **Cadence is not in this file.** `Channel_Type` is Retail/B2B. The planning
 cadence is declared once in `backend/app/tpo/promo_calendar.CADENCE` — as the
 project's stated channel structure, deliberately *not* inferred from the
-transaction pattern. `app/tpo/rescue.py` imports it rather than restating it,
-and `tests/test_target_rescue.py` asserts it agrees with `fact_sales.Schedule`.
+transaction pattern. Callers import it rather than restating it,
+and `tests/test_month_semantics.py` asserts it agrees with `fact_sales.Schedule`.
 
 ## 7. `dim_promotion_final.csv` — 18 rows
 

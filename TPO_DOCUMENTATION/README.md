@@ -50,7 +50,7 @@ Roles the application's own content and workflows support:
 | Role | What they use |
 |---|---|
 | Trade Marketing | Command Center, Promotion Calendar, Simulation Studio |
-| Revenue Growth Management | KPI cards, ROI/PEI, General Optimization |
+| Revenue Growth Management | KPI cards, ROI/PEI, scenario simulation |
 | Category Management | Category/Brand breakdowns, cannibalization |
 | Key Account Management | Retailer & Distributor performance, Channel performance |
 | Commercial Finance | Trade Spend, Margin Impact, Decision Center records |
@@ -71,8 +71,7 @@ permission is checked, and Settings deliberately shows no job title — see
               ▼
       Simulation Studio                (test — what would an approved treatment do?)
         ├── Investigation Simulation
-        ├── General Optimization
-        └── Target Rescue
+        └── three levers: discount · trade spend · days
               │  carry the chosen scenario
               ▼
        Decision Center                 (record — what are we deciding?)
@@ -210,8 +209,6 @@ Full list: [appendices/KNOWN_LIMITATIONS.md](appendices/KNOWN_LIMITATIONS.md).
 [Data Connections](modules/08_DATA_CONNECTIONS.md) ·
 [Settings](modules/09_SETTINGS.md)
 
-**Appendices:** [File Map](appendices/FILE_MAP.md) ·
-[API Endpoint Map](appendices/API_ENDPOINT_MAP.md) ·
+**Appendices:** [API Endpoint Map](appendices/API_ENDPOINT_MAP.md) ·
 [Dataset Map](appendices/DATASET_MAP.md) ·
-[Validation Matrix](appendices/VALIDATION_MATRIX.md) ·
 [Known Limitations](appendices/KNOWN_LIMITATIONS.md)

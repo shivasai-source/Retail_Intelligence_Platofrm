@@ -66,7 +66,7 @@ dropped** — silently ignoring `regionn` would hand back a report over a *wider
 scope than the caller asked for, and it would look successful.
 
 `options` carries the module's own control values — a scenario's discount, the
-optimizer's ceiling, Target Rescue's target and checkpoint. **Inputs, never
+the studio's three lever values, the Decision Center board. **Inputs, never
 results.** Credential-shaped keys (`password`, `token`, `secret`,
 `authorization`, `auth`, `api_key`, `apikey`, `cookie`, `session`) are stripped
 before storage.
@@ -79,8 +79,6 @@ before storage.
 |---|---|---|---|
 | `command-center` | Command Center | `TPO_Command_Center` | `adapters.command_center` |
 | `simulation-investigation` | Simulation Studio — Investigation Simulation | `TPO_Simulation_Investigation` | `adapters.simulation_investigation` |
-| `simulation-general-optimization` | Simulation Studio — General Optimization | `TPO_Simulation_General_Optimization` | `adapters.simulation_general_optimization` |
-| `simulation-target-rescue` | Simulation Studio — Target Rescue | `TPO_Simulation_Target_Rescue` | `adapters.simulation_target_rescue` |
 | `decision-center` | Decision Center | `TPO_Decision_Record` | `adapters.decision_center` |
 
 `GET /api/reports/modules` serves this list, so the UI offers the control only
@@ -113,8 +111,7 @@ call. **No adapter divides, multiplies or compares two KPIs to derive a third.**
 |---|---|
 | Command Center | `service.kpis`, `service.risk_alerts`, `service.promotion_mix`, `service.top_promotions` |
 | Investigation Simulation | `simulation.run` (+ `execution.simulate` when a discount was set) |
-| General Optimization | `optimization.optimize` (or `historical_reference` for the ceiling) |
-| Target Rescue | `rescue.rescue` |
+| Simulation Studio | `studio.simulate` |
 | Decision Center | `decision.build_record` over the posted payloads |
 
 ### What each report contains
@@ -123,8 +120,7 @@ call. **No adapter divides, multiplies or compares two KPIs to derive a third.**
 |---|---|
 | **Command Center** | The 6 KPI cards (value, previous, delta, trend, availability, evidence basis, `measured_at`), the risk counts and alert rows, the promotion mix, the top promotions, the filters block, meta and disclaimers |
 | **Investigation Simulation** | The measured Current Plan and the simulated scenario **side by side as two labelled columns** — never merged — with the simulated one reported as the approved uplift **band** (low and high) |
-| **General Optimization** | Scope, constraints (including whether the ceiling was clamped), the historical reference, the optimized plan as bands, the comparison, and one row per candidate `(product, channel)` with its chosen treatment |
-| **Target Rescue** | Scope and checkpoint, progress, target status, the run-rate projection, the gap, the intervention ladder and the recommendation |
+| **Simulation Studio** | The three levers, the window's plans side by side, the week-by-week table, the lift model's notes |
 | **Decision Center** | The whole record, flattened into sections **without reinterpreting any of it**. Approval and persistence language is copied verbatim |
 
 **A missing value is a blank cell, never `0`.** A figure the engine could not

@@ -88,7 +88,7 @@ Analyst" / "SK"` persona at `GET /api/user`, consumed by the `Topbar`.
 
 ### What `#/login` does
 
-`pages/Login.tsx` + `store/portalUser.ts`:
+`pages/Login.tsx` + `hooks/useAuth.ts`:
 
 1. Requires a **non-empty** email and a **non-empty** password.
 2. Validates neither. Any value is accepted.

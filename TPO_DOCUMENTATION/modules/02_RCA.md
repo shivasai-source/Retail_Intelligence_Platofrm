@@ -5,7 +5,7 @@
 
 > **Read this first.** The causal graph, node details, accelerators, progress
 > percentage, confidence figures and context chips on this page are **authored
-> JSON**, not analysis. `backend/app/tpo/investigation.py`'s docstring states it
+> JSON**, not analysis. the investigation payload states it
 > plainly: *"the RCA layer is entirely static… One of those chips reports a
 > trade spend of ₹98.6 Cr for a scope the validated engine measures at ₹7.7 Cr."*
 >
@@ -145,7 +145,7 @@ handled — see §7.
 
 ## 6. RCA → Simulation hand-off — **implemented, with honest gaps**
 
-`POST /api/simulation/context` (`app/tpo/investigation.py`) is **contract
+`POST /api/simulation/context` (removed 2026-09-22 with the old Simulation Studio) was **contract
 plumbing only**. It runs no scenario, computes no KPI, and does not touch
 `/run` or `/simulate`.
 
@@ -189,9 +189,9 @@ Every field comes back stamped with a **provenance**:
    A conversion that guessed at codes from labels would be a second filter model
    wearing a disguise.
 
-Tested by `tests/test_investigation_context.py` (24 tests), which the module
+Tested, until its removal, by `tests/test_investigation_context.py`, which the module
 describes as being *"about what it REFUSES to do"*, and
-`tests/test_investigation_handoff.py` (18 tests) covering the half a server can
+and `tests/test_investigation_handoff.py` covered the half a server can
 prove.
 
 ## 7. Navigation
@@ -230,6 +230,6 @@ prove.
 | Types | `frontend/src/types/{investigation,orchestration,investigationContext}.ts` |
 | Router (content) | `backend/app/routers/investigations.py` |
 | Router (hand-off) | `backend/app/routers/simulation.py` → `POST /context` |
-| Contract | `backend/app/tpo/investigation.py` |
+| Contract | *removed 2026-09-22 — the studio takes its own scope* |
 | Data | `backend/app/data/{investigations,investigation-types,focus}.json` |
-| Tests | `backend/tests/test_investigation_context.py`, `test_investigation_handoff.py`, `test_end_to_end_journey.py` |
+| Tests | `backend/tests/test_studio.py` |

@@ -101,7 +101,7 @@ The one frozen, hashable filter contract over 14 dimensions
 (`app/tpo/filters.py`). Every Command Center endpoint and every simulation mode
 resolves the same object.
 
-**General Optimization**
+**General Optimization** *(removed 2026-09-22)*
 Simulation Studio mode B. Allocates a trade-spend budget across a category,
 channel and month by choosing one approved treatment per candidate product.
 Maximises revenue at `uplift_low` subject to spend at `uplift_high` staying
@@ -140,7 +140,7 @@ revenue and cost, never an average of per-row margins.
 The other two types are Regular and Seasonal.
 
 **Optimization**
-In this project, specifically the **General Optimization** budget allocation —
+In this project, historically the **General Optimization** budget allocation —
 an exact multiple-choice knapsack over discrete approved depths. Note that the
 Investigation Simulation's "Optimized Plan" scenario is a **label, not a claim**:
 nothing makes it better than the Current Plan, because nothing evaluates either
@@ -221,7 +221,7 @@ treatment, counterfactual `WeekRow`s are synthesized at each end of its uplift
 band, and the **existing validated KPI engine** reads them. No KPI is computed in
 the simulation service.
 
-**Target Rescue**
+**Target Rescue** *(removed 2026-09-22)*
 Simulation Studio mode C. Assesses a month's unit target at a completed-week
 checkpoint and recommends the **least aggressive** approved intervention that
 recovers it. Recommends only — it creates nothing and activates nothing.

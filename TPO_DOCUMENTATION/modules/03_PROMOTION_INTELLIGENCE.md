@@ -177,8 +177,8 @@ while every 2025 one is Buy3Get1.
 | Tabs | `frontend/src/components/intelligence/tabs.tsx` |
 | AI answer | `frontend/src/components/intelligence/{AiAnswerCard,useStreamedAnswer,answerFormat}.ts(x)` |
 | Charts | `frontend/src/components/intelligence/{SalesTrendChart,SaturationChart,RegionVarianceBars,KeyInsightsList}.tsx` |
-| Hook | `frontend/src/hooks/useIntelligence.ts` |
-| Types | `frontend/src/types/intelligence.ts` |
-| Router | `backend/app/routers/pages.py`, `investigations.py` |
+| Hook | `frontend/src/hooks/usePromotionIntelligence.ts` |
+| Types | `frontend/src/types/promotionIntelligence.ts` |
+| Router | `backend/app/routers/intelligence.py`, `investigations.py` |
 | Data | `backend/app/data/{pages-by-type,intelligence,intelligence-answers,focus}.json` |
 | Tests | **none** — there is nothing computed to test |

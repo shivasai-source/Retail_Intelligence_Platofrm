@@ -55,14 +55,9 @@ DEV                                   PROD
 │   service.py          Command Center payloads, breakdown, KPI specs    │
 │   simulation.py       measured scenario baseline (Phase A)             │
 │   execution.py        counterfactual row synthesis (B2.2)              │
-│   comparison.py       side-by-side, no ranking (B4.1)                  │
-│   recommendation.py   the decision POLICY, as data (B4.3)              │
-│   risk.py             governance assessment, no invented thresholds    │
-│   weekly.py           decomposition across business weeks (B5)         │
-│   investigation.py    RCA → Simulation context contract (B3.1)         │
-│   optimization.py     General Optimization (knapsack)                  │
-│   rescue.py           Target Rescue (intervention ladder)              │
-│   decision.py         record assembly (B7)                             │
+│   studio.py           Simulation Studio — fitted lift curve, the       │
+│                       three levers, the window, the depth curve        │
+│   decision.py         record assembly for stored legacy records        │
 │   briefing.py         portable JSON + HTML artifact (B8)               │
 │   promo_calendar.py   Calendar read model                              │
 │   scenarios.py        scenario model & fabrication guard (B1)          │
@@ -96,10 +91,8 @@ DEV                                   PROD
 | Command Center | `/api/command-center/*` (8) | `tpo/service.py` | CSVs |
 | Investigations | `/api/investigation-types`, `/api/investigations/{type}`, `/api/investigations/legacy`, `/api/focus` | `data_loader.py` | **JSON** |
 | Promotion Intelligence | `/api/intelligence/{type}`, `/api/intelligence-answers/{type}`, `/api/intelligence-default` | `data_loader.py` | **JSON** |
-| Simulation Studio (Investigation) | `/api/simulation/{context,run,simulate,compare,recommend,weekly,risk}` | `tpo/{investigation,simulation,execution,comparison,recommendation,weekly,risk}.py` | CSVs |
-| Simulation Studio (General Opt.) | `/api/simulation/general-optimization[/scope]` | `tpo/optimization.py` | CSVs |
-| Simulation Studio (Target Rescue) | `/api/simulation/target-rescue[/scope]` | `tpo/rescue.py` | CSVs |
-| Decision Center | `/api/decision/record`, `/api/decision/briefing`, `/api/store/decisions*` | `tpo/{decision,briefing}.py`, `store/repository.py` | posted payloads + SQLite |
+| Simulation Studio | `/api/simulation/{scope,simulate,curve}` | `tpo/studio.py` | CSVs |
+| Decision Center | `/api/store/board-decisions*` | `store/repository.py` | posted payloads + SQLite |
 | Calendar | `/api/promotion-calendar/{matrix,cell,upcoming}` | `tpo/promo_calendar.py` | CSVs + `calendar.json` |
 | Reports | `/api/reports*` | `reports/service.py` → `tpo/*` | CSVs → SQLite BLOBs |
 | Data Connections | `/api/connections`, `/api/proxy/*` | `data_loader.py`, `routers/connectors.py` | **JSON** + live third-party APIs |
@@ -158,7 +151,7 @@ These are enforced by code and by tests, not by convention:
 
 | Rule | Enforced by |
 |---|---|
-| One KPI implementation, server-side | `aggregate.py` is the only module with the formulas; `tests/test_simulation.py` asserts parity between Simulation Studio and Command Center figures |
+| One KPI implementation, server-side | `aggregate.py` is the only module with the formulas; `tests/test_studio.py` asserts parity between Simulation Studio and Command Center figures |
 | One filter model | `SimulationFilters` field names asserted equal to `filters.DIMENSIONS`; report `to_state()` rejects unknown keys |
 | Currency is presentation | No KPI function takes a currency argument; `formatting._rate` is the single conversion point |
 | Every write lives in `app/store/` | `tests/test_store_persistence.test_the_store_is_the_only_thing_that_writes` — no module outside the package may contain `sqlite3` or an `INSERT` |
@@ -173,9 +166,11 @@ These are enforced by code and by tests, not by convention:
 - **No ORM.** SQLite is used through stdlib `sqlite3` with hand-written SQL.
 - **No charting library.** Every chart is hand-rolled SVG under
   `frontend/src/components/charts/`.
-- **No optimisation dependency.** General Optimization is an exact dynamic
-  program in plain Python; `optimization.solve()` documents why SciPy was
-  rejected (discrete approved depths, no fractional answers admissible).
-- **No ML, no forecasting, no elasticity.** `response.py`'s docstring states
-  this explicitly and `PROVENANCE` travels on every simulation response.
+- **No modelling dependency.** The studio's lift curve is a weighted
+  least-squares fit solved in plain Python (`tpo/studio.py`); no SciPy, no
+  scikit-learn.
+- **No forecasting and no black box.** The curve is fitted to the dataset's
+  own promoted weeks and calibrated to the scope, and `model.provenance` —
+  `fitted`, `fitted_dataset_wide` or `approved_rules` — travels on every
+  response, with the evidence it was fitted from.
 - **No authentication layer.** See [appendices/KNOWN_LIMITATIONS.md](appendices/KNOWN_LIMITATIONS.md).

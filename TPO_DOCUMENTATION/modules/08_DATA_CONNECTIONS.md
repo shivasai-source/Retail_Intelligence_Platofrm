@@ -154,7 +154,7 @@ the reason.
 | Page | `frontend/src/pages/Connections.tsx` |
 | Portal rail | `frontend/src/components/portal/ConnectorRail.tsx`, `connectors.ts` |
 | Modals | `frontend/src/components/portal/modals/*` (7 files) |
-| Advisor | `frontend/src/components/portal/AdvisorCard.tsx` |
+| Advisor | `frontend/src/components/portal/ConnectorRail.tsx` |
 | Client | `frontend/src/lib/portalConnectors.ts` |
 | Hook | `frontend/src/hooks/useMisc.ts` |
 | Types | `frontend/src/types/connections.ts`, `portal.ts` |

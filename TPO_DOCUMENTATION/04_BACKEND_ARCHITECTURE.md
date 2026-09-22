@@ -169,8 +169,7 @@ contract.
 | `risk.py` | 624 | Governance assessment (B6). No score, no invented threshold |
 | `weekly.py` | 415 | Decomposition across observed business weeks (B5) |
 | `investigation.py` | 274 | RCA → Simulation context contract (B3.1) |
-| `optimization.py` | 966 | General Optimization — exact multiple-choice knapsack |
-| `rescue.py` | 2,604 | Target Rescue — cadence, checkpoint, ladder, recommendation |
+| `studio.py` | ~1,150 | Simulation Studio — fitted lift curve, the three levers, the window, the depth curve |
 
 ### 4.9 Decision services
 
