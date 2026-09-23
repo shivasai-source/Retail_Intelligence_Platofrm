@@ -124,7 +124,7 @@ export type FilterBarLayout = 'insights' | 'studio'
 export function FilterBar({
   options,
   onRefresh,
-  refreshing,
+  refreshing = false,
   target,
   refreshInline = true,
   trailing,
@@ -133,15 +133,19 @@ export function FilterBar({
   groupLabel = 'Insights Hub filters',
 }: {
   options: FiltersResponse | undefined
-  onRefresh: () => void
-  refreshing: boolean
+  /** Omitted by a page with nothing to refresh by hand. The Simulation
+   *  Studio re-runs on every lever move, so a Refresh button there offered
+   *  to fetch again what it had just fetched. */
+  onRefresh?: () => void
+  refreshing?: boolean
   /** The filter store this bar edits. The Insights Hub's by default; the
    *  Simulation Studio passes its own instance of the same shape. */
   store?: FilterStoreHook
   layout?: FilterBarLayout
   groupLabel?: string
   /** False when the page draws the refresh button itself (the Insights Hub
-   *  keeps it beside Export, so a wrapping filter row never strands it). */
+   *  keeps it beside Export, so a wrapping filter row never strands it).
+   *  Ignored when there is no `onRefresh` to call. */
   refreshInline?: boolean
   /** The target ROI control — current value, default and bounds, from the
    *  KPI payload's meta. Omitted where the page has no target to set. */
@@ -334,7 +338,7 @@ export function FilterBar({
 
         {trailing}
 
-        {refreshInline && (
+        {refreshInline && onRefresh && (
           <IconButton icon="refresh" className="!h-9 !w-9" title="Refresh data" spinning={refreshing} disabled={refreshing} onClick={onRefresh} />
         )}
       </div>

@@ -18,6 +18,7 @@ export function LeverSlider({
   disabled,
   marks,
   children,
+  vary,
 }: {
   label: string
   lever: Lever
@@ -30,14 +31,31 @@ export function LeverSlider({
   marks: [string, string]
   /** One line beneath the track. */
   children?: React.ReactNode
+  /** Optimize's tick for this lever: whether it is free to vary, the range
+   *  it would search (in words), and the toggle. The tick renders only when
+   *  this is given — a page without Optimize never shows it. */
+  vary?: { on: boolean; range: string; onToggle: () => void }
 }) {
   const id = useId()
   return (
     <div className="rounded-[var(--r-lg)] border border-border-subtle bg-surface-card px-5 py-4">
       <div className="flex items-center justify-between gap-3">
-        <label htmlFor={id} className="text-md font-bold text-ink-primary">
-          {label}
-        </label>
+        <div className="flex min-w-0 items-center gap-3">
+          <label htmlFor={id} className="text-md font-bold text-ink-primary">
+            {label}
+          </label>
+          {vary && (
+            <label className="inline-flex cursor-pointer select-none items-center gap-1.5 text-sm font-medium text-ink-muted">
+              <input
+                type="checkbox"
+                checked={vary.on}
+                onChange={vary.onToggle}
+                className="h-3.5 w-3.5 cursor-pointer accent-brand-violet"
+              />
+              Optimize
+            </label>
+          )}
+        </div>
         <output
           htmlFor={id}
           className="rounded-[var(--r-pill)] bg-brand-violet-50 px-3 py-1 text-md font-extrabold text-brand-violet [font-variant-numeric:tabular-nums]"
@@ -61,6 +79,11 @@ export function LeverSlider({
         <span>{marks[0]}</span>
         <span>{marks[1]}</span>
       </div>
+      {vary?.on && (
+        <div className="mt-2 text-sm font-semibold text-brand-violet [font-variant-numeric:tabular-nums]">
+          Optimize searches {vary.range}
+        </div>
+      )}
       {children && <div className="mt-3 text-base text-ink-secondary">{children}</div>}
     </div>
   )

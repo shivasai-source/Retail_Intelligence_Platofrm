@@ -64,7 +64,7 @@ import statistics
 from collections import defaultdict
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Sequence
+from typing import Mapping, Any, Sequence
 
 from app.tpo import aggregate as A
 from app.tpo import config
@@ -74,9 +74,13 @@ from app.tpo.filters import FilterState, baseline_rows_for, rows_for
 #: The window's grain. Days below a week are a fraction of one.
 DAYS_PER_WEEK = 7
 MIN_DAYS = 1
-#: Five business weeks -- the longest run any promotion in the data holds is
-#: five weeks, and the model has no evidence past it.
-MAX_DAYS = 35
+#: The longest window the studio will plan. A PLANNING CAP, not a fact about
+#: the data -- said plainly here because the number it replaced claimed to be
+#: the evidence bound and was not the same thing. The evidence bound is
+#: computed: see `evidence_max_days`, which measures the longest run any
+#: promotion actually holds and which the days lever is clamped to, so a
+#: dataset of short promotions narrows the slider on its own.
+MAX_DAYS = 30
 
 #: Promoted observations a fit needs before it is trusted. Below this the fit
 #: falls back (scope -> whole dataset -> approved rules).
@@ -108,6 +112,11 @@ _WINDOW_WEEK_PREFIX = "SIM0-W"
 class NothingToSimulate(ValueError):
     """The scope holds no (product, channel) with a non-promoted week to base
     a scenario on. Not a zeroed result: nothing here could be measured."""
+
+
+class NotOptimizable(ValueError):
+    """Optimize was asked for something it does not do: a scope wider than
+    one product, or a request that names no lever to vary."""
 
 
 class LeverOutOfRange(ValueError):
@@ -695,6 +704,42 @@ def measure(rows: Sequence[A.WeekRow], scope_ordinary: Sequence[A.WeekRow]) -> F
 # --- the scope response ----------------------------------------------------
 
 
+@lru_cache(maxsize=8)
+def evidence_max_days(state: FilterState) -> int:
+    """The longest promotion run the data actually holds, in days.
+
+    Measured, not assumed: consecutive weeks under one offer for a single
+    product-channel, the same run definition `_observed_plan` uses for its
+    median. The days lever stops at the smaller of this and `MAX_DAYS`, so a
+    window is never offered that no promotion in the data has ever reached.
+
+    Taken over the WHOLE year the scope names rather than the scope itself: a
+    forward plan may run longer than this particular product's own history,
+    and clamping a one-week product to a one-week slider would make the
+    studio unable to ask its main question.
+    """
+    rows = rows_for(FilterState.build(year=state.year))
+    by_key: dict[tuple[str, str], dict[str, A.WeekRow]] = defaultdict(dict)
+    for r in rows:
+        by_key[r.baseline_key][r.week_key] = r
+    order = {w: i for i, w in enumerate(sorted({r.week_key for r in rows}))}
+    longest = 0
+    for by_week in by_key.values():
+        weeks = sorted(by_week, key=lambda w: order[w])
+        length = 0
+        previous: A.WeekRow | None = None
+        for w in weeks:
+            r = by_week[w]
+            if r.is_promoted and previous is not None and previous.is_promoted \
+                    and previous.promotion_id == r.promotion_id and order[w] == order[previous.week_key] + 1:
+                length += 1
+            else:
+                length = 1 if r.is_promoted else 0
+            longest = max(longest, length)
+            previous = r
+    return max(MIN_DAYS, longest * DAYS_PER_WEEK)
+
+
 def _observed_plan(state: FilterState) -> dict[str, Any]:
     """What this scope actually ran: its average depth (spend-weighted, the
     same identity the observations use) and its typical run length."""
@@ -763,8 +808,12 @@ def scope(state: FilterState, currency: str = "INR") -> dict[str, Any]:
         )
     model = lift_model(state)
     observed = _observed_plan(state)
-    default_discount = min(model.domain_max_pct, _snap(observed["discount_pct"]))
-    default_days = observed["days"] if observed["promoted_rows"] else 2 * DAYS_PER_WEEK
+    default_discount = _current_depth(model, observed)
+    # The window the slider allows: the planning cap, or the longest run the
+    # data holds, whichever is shorter.
+    evidence_days = evidence_max_days(state)
+    days_max = min(MAX_DAYS, evidence_days)
+    default_days = min(days_max, observed["days"] if observed["promoted_rows"] else 2 * DAYS_PER_WEEK)
 
     scope_ordinary = [r for r in baseline_rows_for(state) if not r.is_promoted]
     # The budget slider's ceiling: what promoting everything at the deepest
@@ -773,15 +822,27 @@ def scope(state: FilterState, currency: str = "INR") -> dict[str, Any]:
         window_rows(temps, Window(MAX_DAYS), model, model.domain_max_pct, 1.0, "high"),
         scope_ordinary,
     ).trade_spend or 0.0
+    # THE STARTING BUDGET: exactly what the current plan costs over its own
+    # window -- the same number `simulate` will price full coverage at, so the
+    # page opens funding the whole scope with nothing left over. It used to be
+    # rounded UP to the slider's step, which opened a General Trade scope whose
+    # plan costs Rs 81.35 L on a budget of Rs 85.00 L and a line of small print
+    # about Rs 3.65 L unspent -- an amount the plan never had.
     default_spend = 0.0
     if default_discount > 0:
-        default_spend = measure(
+        default_spend = round(measure(
             window_rows(temps, Window(default_days), model, default_discount, 1.0, "mid"),
             scope_ordinary,
-        ).trade_spend or 0.0
+        ).trade_spend or 0.0, 2)
 
-    step = _spend_step(ceiling)
-    default_spend = min(ceiling, math.ceil(default_spend / step) * step) if default_spend > 0 else 0.0
+    step = _spend_step(ceiling, default_spend)
+    if default_spend > 0:
+        # Onto the grid the range input will snap the thumb to. The step was
+        # chosen as a near-divisor of this budget, so the move is a fraction
+        # of a rupee -- far inside BINDING_TOLERANCE, and invisible once the
+        # amount is written as money.
+        default_spend = round(round(default_spend / step) * step, 2)
+    default_spend = min(round(ceiling, 2), default_spend)
 
     # The scope as history measured it, for the reader's bearings.
     history = rows_for(state)
@@ -807,8 +868,8 @@ def scope(state: FilterState, currency: str = "INR") -> dict[str, Any]:
         "levers": {
             "discount_pct": {"min": 0.0, "max": model.domain_max_pct, "step": DISCOUNT_STEP_PCT,
                              "default": default_discount, "unit": "percent"},
-            "days": {"min": MIN_DAYS, "max": MAX_DAYS, "step": 1, "default": default_days,
-                     "unit": "days"},
+            "days": {"min": MIN_DAYS, "max": days_max, "step": 1, "default": default_days,
+                     "unit": "days", "evidence_max": evidence_days},
             "trade_spend": {"min": 0.0, "max": round(ceiling, 2), "step": step,
                             # Rounded UP to the slider's step, so the starting
                             # position funds the whole current plan rather than
@@ -821,23 +882,64 @@ def scope(state: FilterState, currency: str = "INR") -> dict[str, Any]:
     }
 
 
-def _snap(discount_pct: float) -> float:
-    return round(round(discount_pct / DISCOUNT_STEP_PCT) * DISCOUNT_STEP_PCT, 2)
+def _current_depth(model: LiftModel, observed: dict[str, Any]) -> float:
+    """The depth the current plan ran at, as the page reports it.
+
+    THE ONE DEFINITION. `scope` seeds the discount lever with it, `simulate`
+    prices the current plan at it and `curve` marks it on the curve, so the
+    three cannot disagree: whatever the header says the current plan was, the
+    lever opens on and the comparison is against.
+
+    NOT snapped to the slider's step. Snapping used to move a scope whose
+    measured depth was 14.44% onto the lever's 14.50% grid, so the page's own
+    header and its discount lever contradicted each other by a fifth of a
+    point. The slider's step governs dragging; it has no business rewriting
+    what history did. The only clamp is the model's evidence domain, since
+    nothing outside it can be priced.
+    """
+    return min(model.domain_max_pct, round(observed["discount_pct"], 2))
 
 
-def _spend_step(ceiling: float) -> float:
-    """A slider step that gives roughly 200 positions, on a round number."""
+def _spend_step(ceiling: float, on_grid: float = 0.0) -> float:
+    """A slider step that gives roughly 200 positions, on a round number.
+
+    `on_grid` is a value the grid must contain exactly -- the budget that
+    funds the current plan. The round step is nudged to the nearest divisor
+    of it, because a native range input snaps its thumb to `min + k * step`:
+    left off the grid, the starting budget would render its readout and its
+    thumb at two different amounts. The nudge is at most half a step, so the
+    slider still has roughly 200 positions.
+    """
     if ceiling <= 0:
         return 1.0
     raw = ceiling / 200
     magnitude = 10 ** math.floor(math.log10(raw))
+    step = float(10 * magnitude)
     for m in (1, 2, 5, 10):
         if m * magnitude >= raw:
-            return float(m * magnitude)
-    return float(10 * magnitude)
+            step = float(m * magnitude)
+            break
+    if on_grid > 0:
+        positions = max(1, round(on_grid / step))
+        step = round(on_grid / positions, 2) or step
+    return step
 
 
 # --- the simulation --------------------------------------------------------
+
+
+def _coverage(discount_pct: float, full_cost: float, trade_spend: float) -> float:
+    """The share of the scope a budget funds: `min(1, S / full_cost)`.
+
+    A budget within half a percent of full coverage IS full coverage: the
+    slider's step and the payload's rounding can land a "fund everything"
+    request a rupee short, and reporting 99.6% of the scope for it would be
+    precision the request never had. Nothing to fund is full coverage of
+    nothing."""
+    if discount_pct <= 0 or full_cost <= 0:
+        return 1.0
+    coverage = min(1.0, trade_spend / full_cost)
+    return 1.0 if coverage >= 1 - BINDING_TOLERANCE else coverage
 
 
 def _figures_block(fig: Figures, currency: str) -> dict[str, Any]:
@@ -886,6 +988,56 @@ def _roi_status(roi: float | None) -> str:
     return "break_even"
 
 
+def _money_delta(current: float | None, scenario: float | None, currency: str) -> dict[str, Any]:
+    """One money figure's move, in the same shape `revenue` has used all along.
+
+    Every figure the page compares now carries one of these. Trade Spend and
+    Incremental Sales did not, so the Optimize card had a Change column with
+    a dash in two of its four rows -- not because nothing changed, but
+    because nobody had worked it out."""
+    if current is None or scenario is None:
+        return {"absolute": _money(None, currency), "percent": None,
+                "percent_display": F.percent(None), "direction": "not_applicable"}
+    delta = scenario - current
+    pct = (delta / current * 100) if current else None
+    return {
+        "absolute": _money(delta, currency),
+        "percent": None if pct is None else round(pct, 2),
+        "percent_display": F.percent(pct, signed=True),
+        "direction": _direction(delta, 0.05),
+    }
+
+
+def _units_delta(current: float | None, scenario: float | None) -> dict[str, Any]:
+    """A count's move, in the same shape the money deltas use."""
+    if current is None or scenario is None:
+        return {"absolute": None, "absolute_display": F.quantity(None), "percent": None,
+                "percent_display": F.percent(None), "direction": "not_applicable"}
+    delta = scenario - current
+    pct = (delta / current * 100) if current else None
+    return {
+        "absolute": round(delta, 0),
+        "absolute_display": F.quantity(delta, signed=True),
+        "percent": None if pct is None else round(pct, 2),
+        "percent_display": F.percent(pct, signed=True),
+        "direction": _direction(delta, 0.5),
+    }
+
+
+def _points_delta(current: float | None, scenario: float | None) -> dict[str, Any]:
+    """A percentage's move, in percentage POINTS."""
+    if current is None or scenario is None:
+        return {"absolute": None, "absolute_display": "—", "direction": "not_applicable"}
+    delta = round(scenario - current, 2)
+    return {
+        "absolute": delta,
+        # "+6.67 pts", not "+6.67% pts" -- the unit is points, and printing
+        # both reads as a percentage of a percentage.
+        "absolute_display": f"{'+' if delta > 0 else ''}{delta:,.2f} pts",
+        "direction": _direction(delta, 0.005),
+    }
+
+
 def _deltas(current: Figures, scenario: Figures, currency: str) -> dict[str, Any]:
     rev_delta = scenario.revenue - current.revenue
     rev_pct = (rev_delta / current.revenue * 100) if current.revenue else None
@@ -897,6 +1049,13 @@ def _deltas(current: Figures, scenario: Figures, currency: str) -> dict[str, Any
             "percent_display": F.percent(rev_pct, signed=True),
             "direction": _direction(rev_delta, 0.05),
         },
+        "trade_spend": _money_delta(current.trade_spend, scenario.trade_spend, currency),
+        "incremental_sales": _money_delta(current.incremental_sales, scenario.incremental_sales, currency),
+        "incremental_units": _units_delta(current.incremental_units, scenario.incremental_units),
+        # Percentage POINTS, not a percent of a percent: a margin moving from
+        # 53.33% to 60.00% has risen 6.67 points, and calling that "+12.5%"
+        # would be a different and wronger claim.
+        "margin_pct": _points_delta(current.margin_pct, scenario.margin_pct),
         "roi": {
             "absolute": roi_delta,
             "absolute_display": F.multiple(roi_delta, signed=True),
@@ -929,11 +1088,17 @@ def _weekly(temps: Sequence[Template], window: Window, model: LiftModel, scope_o
         key = _week_key(k)
         c = measure(cur.get(key, ()), scope_ordinary)
         s = measure(mid.get(key, ()), scope_ordinary)
+        base_revenue = _revenue(base.get(key, ()))
         out.append({
             "week": k,
             "label": f"Week {k}",
             "days": round(window.fraction(k) * DAYS_PER_WEEK, 2),
-            "baseline_revenue": _money(_revenue(base.get(key, ())), currency),
+            "baseline_revenue": _money(base_revenue, currency),
+            # What promoting this week adds over not promoting it at all --
+            # the window-level `vs_baseline`, one week at a time, so the chart
+            # can annotate the gap it draws instead of the page subtracting
+            # two figures itself.
+            "incremental_vs_baseline": _money((s.revenue or 0.0) - (base_revenue or 0.0), currency),
             "current_revenue": _money(c.revenue, currency),
             "scenario_revenue": _money(s.revenue, currency),
             "scenario_revenue_low": _money(_revenue(low.get(key, ())), currency),
@@ -971,22 +1136,13 @@ def simulate(state: FilterState, *, discount_pct: float, trade_spend: float, day
     window = Window(days)
     scope_ordinary = [r for r in baseline_rows_for(state) if not r.is_promoted]
     observed = _observed_plan(state)
-    current_pct = min(model.domain_max_pct, _snap(observed["discount_pct"]))
+    current_pct = _current_depth(model, observed)
 
     # The budget -> coverage. Full coverage is priced by the engine at the
     # band's midpoint; the budget buys a share of it.
     full = measure(window_rows(temps, window, model, discount_pct, 1.0, "mid"), scope_ordinary)
     full_cost = full.trade_spend or 0.0
-    if discount_pct <= 0 or full_cost <= 0:
-        coverage = 1.0
-    else:
-        coverage = min(1.0, trade_spend / full_cost)
-        # A budget within half a percent of full coverage IS full coverage:
-        # the slider's step and the payload's one-decimal rounding can land a
-        # "fund everything" request a rupee short, and reporting 99.6% of the
-        # scope for it would be precision the request never had.
-        if coverage >= 1 - BINDING_TOLERANCE:
-            coverage = 1.0
+    coverage = _coverage(discount_pct, full_cost, trade_spend)
     consumed = full_cost * coverage
 
     baseline = measure(window_rows(temps, window, model, 0.0, 1.0, "mid"), scope_ordinary)
@@ -1035,7 +1191,11 @@ def simulate(state: FilterState, *, discount_pct: float, trade_spend: float, day
             "weeks": window.weeks,
             "partial_week_fraction": window.partial_week_fraction,
         },
+        # `mid_display` so the page can print the headline lift without
+        # multiplying by 100 and rounding itself -- the studio renders the
+        # engine's strings, it does not do arithmetic.
         "lift": {"low": round(lo, 4), "mid": round(mid, 4), "high": round(hi, 4),
+                 "mid_display": F.percent(mid * 100),
                  "display": f"{lo * 100:.2f}%–{hi * 100:.2f}%"},
         "baseline": {
             "label": "No promotion",
@@ -1109,7 +1269,7 @@ def curve(state: FilterState, *, trade_spend: float, days: int, currency: str = 
     window = Window(days)
     scope_ordinary = [r for r in baseline_rows_for(state) if not r.is_promoted]
     observed = _observed_plan(state)
-    current_pct = min(model.domain_max_pct, _snap(observed["discount_pct"]))
+    current_pct = _current_depth(model, observed)
 
     depths: list[float] = []
     d = 0.0
@@ -1125,9 +1285,7 @@ def curve(state: FilterState, *, trade_spend: float, days: int, currency: str = 
     for depth in depths:
         full = measure(window_rows(temps, window, model, depth, 1.0, "mid"), scope_ordinary)
         full_cost = full.trade_spend or 0.0
-        coverage = 1.0 if depth <= 0 or full_cost <= 0 else min(1.0, trade_spend / full_cost)
-        if coverage >= 1 - BINDING_TOLERANCE:
-            coverage = 1.0
+        coverage = _coverage(depth, full_cost, trade_spend)
         low, mid, high = (
             measure(window_rows(temps, window, model, depth, coverage, end), scope_ordinary)
             for end in ("low", "mid", "high")
@@ -1159,3 +1317,227 @@ def curve(state: FilterState, *, trade_spend: float, days: int, currency: str = 
             "points is interpolated."
         ),
     }
+
+
+# --- the optimizer ---------------------------------------------------------
+
+#: The levers Optimize may vary, in the order the page lists them.
+OPTIMIZABLE = ("discount_pct", "trade_spend", "days")
+
+
+def optimize(state: FilterState, *, discount_pct: float, trade_spend: float, days: int,
+             vary: Mapping[str, float], currency: str = "INR") -> dict[str, Any]:
+    """The best lever values for ROI inside the ranges the reader marked.
+
+    `vary` names the levers to search and, for each, the top of its range;
+    every range starts at the lever's minimum. A lever not named is held at
+    the value given. One product at a time: this is the Promotion
+    Intelligence hand-off's tool, and a search over a category is a
+    different question (which product?) that this does not answer.
+
+    THE OBJECTIVE IS LEXICOGRAPHIC, and has to be. The budget only scales a
+    promotion -- coverage moves Trade Spend and Incremental Sales together,
+    so ROI is the same at every budget -- and days only scale it too unless
+    the data shows a fade or a dip. "Maximise ROI" alone would therefore
+    answer "any budget, any length". So: the highest ROI as the engine
+    reports it; among ties the highest revenue; among those the lowest spend.
+    That turns "any budget" into "fund the whole scope and no more", and
+    "any length" into "the longest window that still earns this ROI".
+
+    THE SEARCH IS EXHAUSTIVE, not a heuristic. Depth at the slider's own
+    step (and the range's top itself, which may sit off the grid), every
+    whole day, and the budget analytically: for a given depth and window
+    the only budget that can win is the smaller of the range's top and the
+    full-coverage cost -- below it revenue is lower at the same ROI, above
+    it the difference is unspent. Every point is the same engine `simulate`
+    runs; nothing is interpolated or fitted.
+    """
+    currency = F.normalise_currency(currency)
+    if not vary:
+        raise NotOptimizable("Optimize needs at least one lever to vary.")
+    unknown = sorted(set(vary) - set(OPTIMIZABLE))
+    if unknown:
+        raise NotOptimizable(
+            f"Optimize cannot vary {', '.join(unknown)}; the levers are {', '.join(OPTIMIZABLE)}."
+        )
+    if not state.product or len(state.product) != 1:
+        raise NotOptimizable(
+            "Optimize works on one product at a time -- the product carried in from Promotion Intelligence."
+        )
+    temps, _excluded = templates(state)
+    if not temps:
+        raise NothingToSimulate(
+            "Nothing to simulate: no product-channel in this scope has a non-promoted week "
+            "to base a scenario on."
+        )
+    model = lift_model(state)
+
+    # The held values and the range tops are checked exactly as `simulate`
+    # checks a lever: a range outside the evidence is refused, not clipped.
+    depth_top = float(vary.get("discount_pct", discount_pct))
+    days_top = int(vary.get("days", days))
+    spend_top = float(vary.get("trade_spend", trade_spend))
+    for label, value in (("discount_pct", discount_pct), ("the discount range's top", depth_top)):
+        if not (0 <= value <= model.domain_max_pct):
+            raise LeverOutOfRange(
+                f"{label} must be between 0 and {model.domain_max_pct:.2f} -- the deepest depth "
+                f"the data shows ({model.depth_max_pct:.2f}%) plus {DOMAIN_MARGIN_PCT:.0f} points; got {value}."
+            )
+    for label, value in (("days", days), ("the days range's top", days_top)):
+        if not (MIN_DAYS <= value <= MAX_DAYS):
+            raise LeverOutOfRange(f"{label} must be between {MIN_DAYS} and {MAX_DAYS}; got {value}.")
+    if trade_spend < 0 or spend_top < 0:
+        raise LeverOutOfRange("trade_spend cannot be negative.")
+
+    scope_ordinary = [r for r in baseline_rows_for(state) if not r.is_promoted]
+    spend_free = "trade_spend" in vary
+
+    def evaluate(depth: float, n_days: int, spend: float) -> tuple[Figures, float]:
+        """The window at these levers, and the budget it was priced at. With
+        the budget free, `spend` is the range's top and the point is priced
+        at the smaller of that and full coverage."""
+        window = Window(n_days)
+        full = measure(window_rows(temps, window, model, depth, 1.0, "mid"), scope_ordinary)
+        full_cost = full.trade_spend or 0.0
+        if spend_free:
+            spend = min(spend, full_cost) if full_cost > 0 else 0.0
+        coverage = _coverage(depth, full_cost, spend)
+        fig = full if coverage >= 1.0 else measure(
+            window_rows(temps, window, model, depth, coverage, "mid"), scope_ordinary,
+        )
+        return fig, spend
+
+    def rank(fig: Figures, spend: float) -> tuple[float, float, float]:
+        """Ranked at the precision the page shows -- ROI at two decimals,
+        money at two -- so two windows the reader would see as "1.38x" are a
+        tie decided by revenue, not by whichever sits a hair higher in the
+        ninth decimal. ROI declines slowly with days once a fade is fitted,
+        and this is what makes the answer "the longest window still earning
+        1.38x" rather than "the shortest window, by a rounding hair"."""
+        roi = float("-inf") if fig.roi is None else round(fig.roi, 2)
+        return (roi, round(fig.revenue, 2), -round(spend, 2))
+
+    depths = _depth_grid(depth_top) if "discount_pct" in vary else [discount_pct]
+    day_lengths = list(range(MIN_DAYS, days_top + 1)) if "days" in vary else [days]
+
+    best: tuple[tuple[float, float, float], dict[str, float], Figures] | None = None
+    evaluations = 0
+    for depth in depths:
+        for n_days in day_lengths:
+            fig, spend = evaluate(depth, n_days, spend_top if spend_free else trade_spend)
+            evaluations += 1
+            key = rank(fig, spend)
+            if best is None or key > best[0]:
+                best = (key, {"discount_pct": depth, "trade_spend": round(spend, 2), "days": n_days}, fig)
+    assert best is not None  # the grids are never empty
+
+    # THE BASELINE IS THE CURRENT PLAN, on all three levers.
+    #
+    # Not the sliders. A SEARCHED lever's slider is the top of its range, so
+    # its position says how far to look, not where the plan stands -- drag
+    # Discount to 19.50% to search 0-19.50% and the card claimed the plan ran
+    # at 19.50%. A HELD lever's slider is a choice the reader is imposing on
+    # the search, which is equally not the plan -- hold Days at 15 and the
+    # card claimed the plan ran for 15 days when the header above it said 7.
+    # Either way the column is headed "Current plan", and the only thing that
+    # can honestly sit under that heading is the plan: the depth the scope
+    # actually ran at, over the window it actually ran for, funded by the
+    # budget that covers it.
+    #
+    # The search still HOLDS what it was told to hold -- the held value is
+    # reported in `held`, and the best column shows it. So a held lever that
+    # differs from the plan shows up as a difference, which it is: the reader
+    # chose it.
+    observed = _observed_plan(state)
+    from_depth = _current_depth(model, observed)
+    from_days = observed["days"] if observed["promoted_rows"] else 2 * DAYS_PER_WEEK
+    from_days = max(MIN_DAYS, min(MAX_DAYS, int(from_days)))
+    # The budget that funds that plan exactly -- the scope's own default.
+    from_spend = round(measure(
+        window_rows(temps, Window(from_days), model, from_depth, 1.0, "mid"), scope_ordinary,
+    ).trade_spend or 0.0, 2)
+
+    # When the plan is already as good as anything found, the answer is
+    # "leave it" rather than a move that changes nothing.
+    from_levers = {"discount_pct": from_depth, "trade_spend": from_spend, "days": from_days}
+    from_fig = evaluate_held(temps, model, scope_ordinary, from_depth, from_days, from_spend)
+    from_key = rank(from_fig, from_spend)
+    already_optimal = from_key >= best[0]
+    best_levers, best_fig = (from_levers, from_fig) if already_optimal else (best[1], best[2])
+
+    def lever_block(levers: dict[str, float]) -> dict[str, Any]:
+        return {
+            "discount_pct": levers["discount_pct"],
+            "trade_spend": levers["trade_spend"],
+            "trade_spend_display": F.money(levers["trade_spend"], currency),
+            "days": int(levers["days"]),
+        }
+
+    return {
+        "mode": "studio",
+        "currency": currency,
+        "objective": {
+            "maximise": "roi",
+            "then": ["revenue", "lower trade spend"],
+            "note": (
+                "ROI at the two decimals shown; among equal ROIs the higher revenue, then the lower "
+                "spend. The budget only scales a promotion, and days only scale it unless a fade or "
+                "dip is detected, so without the tie-breaks either would have no best value."
+            ),
+        },
+        "searched": {
+            "discount_pct": None if "discount_pct" not in vary else {
+                "min": 0.0, "max": round(depth_top, 2), "step": DISCOUNT_STEP_PCT, "count": len(depths),
+            },
+            "days": None if "days" not in vary else {
+                "min": MIN_DAYS, "max": days_top, "step": 1, "count": len(day_lengths),
+            },
+            "trade_spend": None if not spend_free else {
+                "min": 0.0, "max": round(spend_top, 2), "max_display": F.money(spend_top, currency),
+                "rule": "the smaller of the range's top and the full-coverage cost at each depth and window",
+            },
+            "evaluations": evaluations,
+        },
+        "held": {k: v for k, v in
+                 {"discount_pct": discount_pct, "trade_spend": trade_spend, "days": days}.items()
+                 if k not in vary},
+        "from": {"levers": lever_block(from_levers), "figures": _figures_block(from_fig, currency)},
+        "best": {
+            "levers": lever_block(best_levers),
+            "figures": _figures_block(best_fig, currency),
+            "roi_status": _roi_status(best_fig.roi),
+            "changed": {k: best_levers[k] != from_levers[k] for k in OPTIMIZABLE},
+        },
+        "gain": _deltas(from_fig, best_fig, currency),
+        "already_optimal": already_optimal,
+        "method": (
+            "Every point in the marked ranges is the window at those levers, priced by the same "
+            "engine the sliders use, and the best is the highest ROI, then revenue, then the lower "
+            "spend. Nothing is interpolated, fitted or forecast."
+        ),
+    }
+
+
+def evaluate_held(temps: Sequence[Template], model: LiftModel, scope_ordinary: Sequence[A.WeekRow],
+                  depth: float, n_days: int, spend: float) -> Figures:
+    """The window at fixed levers, at the band's midpoint -- `simulate`'s
+    scenario without the low/high ends."""
+    window = Window(n_days)
+    full = measure(window_rows(temps, window, model, depth, 1.0, "mid"), scope_ordinary)
+    coverage = _coverage(depth, full.trade_spend or 0.0, spend)
+    if coverage >= 1.0:
+        return full
+    return measure(window_rows(temps, window, model, depth, coverage, "mid"), scope_ordinary)
+
+
+def _depth_grid(top: float) -> list[float]:
+    """Every slider position from 0 up to `top`, and `top` itself -- the
+    current plan's depth is measured, not snapped, so it can sit between two
+    positions and must still be reachable."""
+    out: list[float] = []
+    d = 0.0
+    while d < top - 1e-9:
+        out.append(round(d, 2))
+        d += DISCOUNT_STEP_PCT
+    out.append(round(top, 2))
+    return out

@@ -10,6 +10,9 @@ Mounted at `/api/simulation`. Three endpoints:
   POST /curve     the budget and days -> Revenue and ROI at every discount
                   depth the slider allows; the shape the discount slider moves
                   along.
+  POST /optimize  the levers to vary, each with the top of its range -> the
+                  best values in those ranges for ROI, beside the starting
+                  point. One product at a time.
 
 No business logic here. The route parses a body into the ONE `FilterState`
 every other module already uses, delegates to app/tpo/studio.py, and
@@ -20,7 +23,7 @@ Insights Hub's South Modern Trade" are the same rows by construction.
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -137,3 +140,40 @@ def curve(body: CurveRequest) -> dict[str, Any]:
         )
     except (studio.NothingToSimulate, studio.LeverOutOfRange) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+Optimizable = Literal["discount_pct", "trade_spend", "days"]
+
+
+class OptimizeRequest(BaseModel):
+    """The three levers as they stand, and which of them to search.
+
+    `vary` maps a lever to the TOP of its range; every range starts at the
+    lever's minimum. A lever not in `vary` is held at the value given. An
+    empty `vary` is a 422, not a no-op: the button that sends this is
+    disabled until something is ticked, and the API says the same."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    filters: SimulationFilters = Field(default_factory=SimulationFilters)
+    currency: Currency = "INR"
+    discount_pct: Annotated[float, Field(ge=0, le=100)]
+    trade_spend: Annotated[float, Field(ge=0)]
+    days: Annotated[int, Field(ge=studio.MIN_DAYS, le=studio.MAX_DAYS)]
+    vary: Annotated[dict[Optimizable, Annotated[float, Field(ge=0)]], Field(min_length=1)]
+
+
+@router.post("/optimize")
+def optimize(body: OptimizeRequest) -> dict[str, Any]:
+    try:
+        return studio.optimize(
+            _state(body.filters),
+            discount_pct=body.discount_pct,
+            trade_spend=body.trade_spend,
+            days=body.days,
+            vary=body.vary,
+            currency=body.currency,
+        )
+    except (studio.NothingToSimulate, studio.LeverOutOfRange, studio.NotOptimizable) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+

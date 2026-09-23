@@ -12,6 +12,13 @@ export interface Money {
   display: string
 }
 
+export interface MoneyDelta {
+  absolute: Money
+  percent: number | null
+  percent_display: string
+  direction: Direction
+}
+
 export interface Figure {
   value: number | null
   display: string
@@ -22,6 +29,9 @@ export interface Lever {
   max: number
   step: number
   default: number
+  /** Days only: the longest run the data actually holds, before the planning
+   *  cap is applied. `max` is the smaller of the two. */
+  evidence_max?: number
   unit: 'percent' | 'days' | 'currency'
   max_display?: string
   default_display?: string
@@ -106,6 +116,8 @@ export interface WeekPoint {
   label: string
   days: number
   baseline_revenue: Money
+  /** Scenario revenue less the no-promotion baseline, for this week. */
+  incremental_vs_baseline: Money
   current_revenue: Money
   scenario_revenue: Money
   scenario_revenue_low: Money
@@ -141,12 +153,19 @@ export interface SimulateResponse {
     }
   }
   window: { days: number; weeks: number; partial_week_fraction: number | null }
-  lift: { low: number; mid: number; high: number; display: string }
+  /** `mid_display` is the headline lift; `display` is the low–high band. */
+  lift: { low: number; mid: number; high: number; mid_display: string; display: string }
   baseline: { label: string; revenue: Money; units: Figure }
   current_plan: PlanFigures
   scenario: PlanFigures
   deltas: {
-    revenue: { absolute: Money; percent: number | null; percent_display: string; direction: Direction }
+    revenue: MoneyDelta
+    /** Every compared money figure carries one, so no Change column is blank. */
+    trade_spend: MoneyDelta
+    incremental_sales: MoneyDelta
+    incremental_units: { absolute: number | null; absolute_display: string; percent: number | null; percent_display: string; direction: Direction }
+    /** Percentage POINTS, not a percent of a percent. */
+    margin_pct: { absolute: number | null; absolute_display: string; direction: Direction }
     roi: {
       absolute: number | null
       absolute_display: string
@@ -185,3 +204,61 @@ export interface CurveResponse {
   points: CurvePoint[]
   method: string
 }
+
+// --- Optimize -------------------------------------------------------------
+
+export type OptimizableLever = 'discount_pct' | 'trade_spend' | 'days'
+
+/** `POST /api/simulation/optimize`: the levers as they stand, and which of
+ *  them to search. `vary` maps a lever to the TOP of its range; every range
+ *  starts at the lever's minimum, and a lever not named is held. */
+export interface OptimizeRequest {
+  filters: ApiFilters
+  currency: string
+  discount_pct: number
+  trade_spend: number
+  days: number
+  vary: Partial<Record<OptimizableLever, number>>
+}
+
+export interface OptimizeFigures {
+  revenue: Money
+  units: Figure
+  trade_spend: Money
+  incremental_sales: Money
+  incremental_units: Figure
+  roi: Figure
+  margin_pct: Figure
+}
+
+export interface OptimizeLevers {
+  discount_pct: number
+  trade_spend: number
+  trade_spend_display: string
+  days: number
+}
+
+export interface OptimizeResponse {
+  mode: 'studio'
+  currency: string
+  objective: { maximise: 'roi'; then: string[]; note: string }
+  searched: {
+    discount_pct: { min: number; max: number; step: number; count: number } | null
+    days: { min: number; max: number; step: number; count: number } | null
+    trade_spend: { min: number; max: number; max_display: string; rule: string } | null
+    evaluations: number
+  }
+  held: Partial<Record<OptimizableLever, number>>
+  from: { levers: OptimizeLevers; figures: OptimizeFigures }
+  best: {
+    levers: OptimizeLevers
+    figures: OptimizeFigures
+    roi_status: RoiStatus
+    changed: Record<OptimizableLever, boolean>
+  }
+  gain: SimulateResponse['deltas']
+  /** The starting levers are already as good as anything in the ranges. */
+  already_optimal: boolean
+  method: string
+}
+

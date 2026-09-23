@@ -121,8 +121,13 @@ def score(value: float | None, *, dp: int = 0) -> str:
     return "—" if value is None else f"{value:,.{dp}f}"
 
 
-def quantity(value: float | None) -> str:
-    return "—" if value is None else f"{value:,.0f}"
+def quantity(value: float | None, *, signed: bool = False) -> str:
+    """A whole count. `signed` puts a + on a rise, for a delta -- counts stay
+    whole even when the thing they are a delta of is not."""
+    if value is None:
+        return "—"
+    sign = "+" if signed and value > 0 else ""
+    return f"{sign}{value:,.0f}"
 
 
 def delta_label(growth: float | None, comparison: str | None) -> tuple[str, str]:

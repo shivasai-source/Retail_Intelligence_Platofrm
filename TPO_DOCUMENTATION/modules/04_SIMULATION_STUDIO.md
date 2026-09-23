@@ -35,8 +35,39 @@ result tiles, a week-by-week chart and a discount-depth curve.
 | Lever | Effect in the engine |
 |---|---|
 | **Discount** | Sets the promoted price `P(1 − d)` and, through the fitted lift curve, the volume uplift. Continuous in steps of 0.5 pt, bounded by the deepest depth the data shows plus 5 points. |
-| **Days** | The window. `N/7` business weeks; a partial last week is pro-rated by its fraction, because the dataset is only knowable at week grain. A week-in-promotion fade and a post-promotion dip are both estimated from the data and applied **only when detected**. |
+| **Days** | The window, 1 to `min(MAX_DAYS, evidence_max)` — a 30-day planning cap and, under it, the longest run any promotion in the data actually holds (`evidence_max_days`, measured the same way the observed plan's median run is). `N/7` business weeks; a partial last week is pro-rated by its fraction, because the dataset is only knowable at week grain. A week-in-promotion fade and a post-promotion dip are both estimated from the data and applied **only when detected**. |
 | **Trade spend** | The budget. Discount and days set what promoting the whole scope for the window would cost (the engine's Trade Spend on those rows); the budget sets how much of the scope can be funded: `coverage = min(1, S / full_cost)`. The uncovered share trades at its ordinary level. Spend is therefore still an *output* of the promotion arithmetic — the slider decides how much of the scope that arithmetic applies to, never the arithmetic itself. |
+
+**The budget slider's track is derived, not the scope's ceiling.** `/scope`
+reports the absolute worst case — the deepest depth over the longest window,
+priced at the top of the band — which at a 7-day plan costing ₹81.35 L left
+seven eighths of the travel beyond full coverage, where dragging changed
+nothing but the unspent figure. The page runs the track to a quarter past the
+*live* full-coverage cost instead, so the binding range is most of the travel.
+It never ends below the budget already settled: the budget is the one lever
+that is a constraint the reader brings, so shortening the window makes it
+generous rather than confiscating it.
+
+**Optimize** appears only while a product carried in from Promotion
+Intelligence is the selection. Each lever card carries a tick: a ticked lever
+is free to vary from its minimum up to where its slider sits — the slider is
+the ceiling, so moving it widens or narrows the range — and an unticked lever
+is held. The button is off, with the reason in its tooltip, until at least
+one lever is ticked with a range above zero. The answer comes back as a card
+beside the sliders (searched ranges, now vs best for each lever, ROI, revenue
+and spend at both, with the engine's own delta); **Apply** moves the sliders
+there, and until then they are untouched. The page searches nothing itself.
+
+While that card is up **the exploration deck stands down** — the two result
+tiles, the week chart and the depth curve are hidden. The reader arrived with
+a question rather than an exploration, and the card already carries the
+figures on both sides of the move; four more panels underneath, all still
+showing the position Optimize has just superseded, would leave them working
+out which numbers are the answer. The deck returns the moment it is useful
+again: on **Dismiss**, on **Apply**, and as soon as any slider moves (the card
+says it has gone stale, and hiding the charts would stop the reader seeing the
+move they just made). A scope with no product carried in never hides it,
+because Optimize does not appear there at all.
 
 A consequence worth stating: **the budget scales a promotion; it does not
 change its economics.** Halving the budget halves Trade Spend and Incremental
@@ -134,8 +165,13 @@ trade spend, incremental sales, ROI), the observed plan (spend-weighted average
 depth, typical run length), each lever's `{min, max, step, default}` and the
 lift model. The defaults are the current plan — its depth, its typical days,
 and what that costs at full coverage — so the page opens with every delta at
-zero. **422** with `Nothing to simulate` when no product-channel in scope has
-a non-promoted week to base a scenario on.
+zero. They are **exact**, not rounded to the sliders' steps: the discount
+default is the observed depth itself, so the header and the lever cannot
+disagree, and the budget default is the plan's own cost, so the studio opens
+funding the whole scope with nothing unspent. The budget slider's step is
+nudged to divide that default, because a native range input snaps its thumb to
+`min + k · step`. **422** with `Nothing to simulate` when no product-channel in
+scope has a non-promoted week to base a scenario on.
 
 ### `POST /api/simulation/simulate`
 Body `{ filters, currency, discount_pct, trade_spend, days }`; `extra="forbid"`.
@@ -147,9 +183,45 @@ direction; the scenario's ROI status `profitable | break_even | loss_making |
 not_applicable`); `levers.trade_spend` (requested, consumed, full-coverage
 cost, coverage, binding, unspent); `window`; `weekly`; `model`; `method`.
 
+Each `weekly` entry carries that week's baseline, current-plan and scenario
+revenue, the scenario's low/high band and its trade spend, both ROIs, and
+`incremental_vs_baseline` — the scenario's revenue less the no-promotion
+baseline, so the chart can annotate the gap it draws rather than the page
+subtracting two figures of its own.
+
 **422** with a reason for a depth outside the model's domain, a window outside
-1–35 days, a negative budget, an unknown lever, or nothing to simulate. Never
+1–`MAX_DAYS` days, a negative budget, an unknown lever, or nothing to simulate. Never
 a zeroed result.
+
+### `POST /api/simulation/optimize`
+Body `{ filters, currency, discount_pct, trade_spend, days, vary }`, where
+`vary` maps a lever to the **top** of its range (every range starts at the
+lever's minimum) and a lever not named is held at the value given. One
+product at a time — it is the Promotion Intelligence hand-off's tool — and a
+wider scope, an empty `vary` or an unknown lever is a **422**.
+
+Returns `best` (the levers, their figures, the ROI status and which levers
+`changed`), `from` (the baseline levers and their figures), `gain` (the same
+delta block `simulate` reports), `searched` (each range and how many
+positions were priced) and `already_optimal`.
+
+**`from` is the current plan for any lever being searched.** That lever's
+slider is the top of its range, so its position says how far to look, not
+where the plan stands; taking the baseline from it compared the answer
+against wherever the handle happened to be left while the range was set up.
+A *held* lever's baseline is the value it was held at, because that is what
+the search actually kept it at.
+
+The objective is lexicographic, and has to be: the budget only scales a
+promotion, so ROI is identical at every budget, and days only scale it unless
+a fade or dip is fitted. It maximises ROI **at the two decimals the page
+shows**; among ties the higher revenue; among those the lower spend. That
+turns "any budget" into *fund the whole scope and no more*, and "any length"
+into *the longest window still earning this ROI*. The search is exhaustive —
+every slider step of discount, every whole day, and the budget analytically
+(the smaller of the ceiling and the full-coverage cost, since nothing above
+it changes the figures and nothing below it can win) — and every point is
+priced by the same engine `simulate` uses.
 
 ### `POST /api/simulation/curve`
 Body `{ filters, currency, trade_spend, days }`. Revenue and ROI (each with

@@ -135,18 +135,31 @@ export function Home() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1920px] p-[20px_16px_40px] sm:p-[34px_40px_64px]">
-        <div className="fade-in-up mb-7 flex items-center justify-between gap-6">
+      {/* `@container` so this page's `@max-[...]` breakpoints have something to
+          resolve against. AppShell's main carries it and this one never did, so
+          every container query on the portal — the module/rail split and the
+          module grid's own columns — silently never fired at any width.
+
+          The bottom padding was 64px of nothing below the fold. On a 1366x768
+          laptop at 100% zoom the viewport is ~625px tall and this page wanted
+          828px, so the second row of modules was cut through its titles. */}
+      <main className="@container mx-auto max-w-[1920px] p-[20px_16px_28px] sm:p-[28px_40px_30px]">
+        <div className="fade-in-up mb-5 flex items-center justify-between gap-6">
           <div className="min-w-0 flex-1">
             {/* The person's name as they gave it -- capitals shout, and mangle
                 names that are not meant to be uppercased. */}
-            <h2 className="mb-2 text-xl font-extrabold tracking-[-0.02em] sm:text-2xl">Good to see you, {user.name}.</h2>
-            <p className="max-w-[60ch] text-base leading-[1.6] text-ink-secondary">
+            <h2 className="mb-1.5 text-xl font-extrabold tracking-[-0.02em] sm:text-2xl">Good to see you, {user.name}.</h2>
+            <p className="max-w-[78ch] text-base leading-[1.6] text-ink-secondary">
               Trade Promotion Optimization is live — measure, diagnose and simulate every promotion against its baseline.
               Five more modules are on the roadmap.
             </p>
           </div>
-          <div className="hidden shrink-0 md:block">
+          {/* Decoration yields to content on a short screen. The art is a
+              fixed 112px SVG beside 73px of text, so on a laptop viewport it
+              was the tallest thing in the hero and pushed the module grid
+              down by the difference -- for a drawing. Above 800px of viewport
+              height there is room for both and it stays. */}
+          <div className="hidden shrink-0 md:block [@media(max-height:800px)]:!hidden">
             <HeroArt />
           </div>
         </div>

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 import { apiPost } from '../lib/api'
 import type { ApiFilters } from '../lib/scope'
-import type { CurveResponse, ScopeResponse, SimulateResponse } from '../types/studio'
+import type { CurveResponse, OptimizeRequest, OptimizeResponse, ScopeResponse, SimulateResponse } from '../types/studio'
 
 /** POST /api/simulation/scope — what the page needs before a slider moves:
  *  the measured plan, the fitted lift model and each lever's range and
@@ -69,3 +69,17 @@ export function useDebounced<T>(value: T, ms = 120): T {
   }, [value, ms])
   return settled
 }
+
+/** POST /api/simulation/optimize — the best levers, for ROI, inside the
+ *  ranges the reader ticked.
+ *
+ *  A MUTATION, unlike the three queries above: it runs when the button is
+ *  pressed, not whenever its inputs change, and its answer is a
+ *  recommendation the reader applies or dismisses rather than state the page
+ *  is always showing. */
+export function useStudioOptimize() {
+  return useMutation({
+    mutationFn: (body: OptimizeRequest) => apiPost<OptimizeResponse>('/simulation/optimize', body),
+  })
+}
+

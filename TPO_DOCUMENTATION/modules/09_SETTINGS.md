@@ -183,13 +183,17 @@ same class of mismatch B9 corrected on the Settings card).
 
 ### Portal — known limitations
 
-| # | Limitation |
-|---|---|
-| 1 | **Sign-in validates nothing** and reaches no server |
-| 2 | **No route guard** anywhere |
-| 3 | `DEFAULT_USER` is `"Abhinav"`; the Topbar shows `"Sanjay Kumar"` from `user.json`; Settings shows the typed email. **Three different identities are reachable in one session** |
-| 4 | Five of the six portal modules are placeholders |
-| 5 | The advisor forwards a caller-supplied OpenAI key through the server |
+Rows 1-3 describe the PREDECESSOR and have since been corrected; they are
+kept because the rest of this file explains what was done about them. Rows 4
+and 5 are still true of the app today.
+
+| # | Limitation | Status |
+|---|---|---|
+| 1 | **Sign-in validates nothing** and reaches no server | Fixed — `auth_store.verify_or_create_user` hashes with a per-user salt and `hmac.compare_digest`-checks it on every sign-in after the first |
+| 2 | **No route guard** anywhere | Fixed — every route but `/login` is wrapped in `RequireAuth`, and the data routes in `RequireDataset` too |
+| 3 | `DEFAULT_USER` is `"Abhinav"`; the Topbar shows `"Sanjay Kumar"` from `user.json`; Settings shows the typed email. **Three different identities are reachable in one session** | Fixed — `DEFAULT_USER` is gone; the signed-in account is the only identity |
+| 4 | Five of the six portal modules are placeholders | Still true |
+| 5 | The advisor forwards a caller-supplied OpenAI key through the server | Still true |
 
 ## File map
 

@@ -4,22 +4,27 @@ import { Pill, useToast } from '../ui'
 import { MODULES } from './modules'
 
 // Ported from js/portal.js's renderModules + css/portal.css .module-*.
+//
+// Sized to the fold, not just to the width. Six cards in two rows have to
+// clear a 1366x768 laptop's ~625px viewport at 100% zoom, so the padding,
+// the gaps and the icon are a notch tighter than the vanilla app's -- the
+// content is untouched, only the space around it.
 export function ModuleGrid() {
   const { show } = useToast()
 
   return (
-    <div className="grid grid-cols-3 gap-4 @max-[900px]:grid-cols-2 @max-[620px]:grid-cols-1">
+    <div className="grid grid-cols-3 gap-3.5 @max-[900px]:grid-cols-2 @max-[620px]:grid-cols-1">
       {MODULES.map((m) => {
         const card = (
           <div
-            className={`flex h-full flex-col gap-3 rounded-[var(--r-xl)] border bg-surface-card p-5 transition-[box-shadow,border-color,transform] duration-150 ${
+            className={`flex h-full flex-col gap-2.5 rounded-[var(--r-xl)] border bg-surface-card p-[18px] transition-[box-shadow,border-color,transform] duration-150 ${
               m.live
                 ? 'cursor-pointer border-brand-violet shadow-[var(--shadow-violet)] hover:-translate-y-px hover:shadow-[var(--shadow-md)]'
                 : 'cursor-default border-border-subtle'
             }`}
           >
             <div
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl [&_svg]:h-[22px] [&_svg]:w-[22px]"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl [&_svg]:h-5 [&_svg]:w-5"
               style={{ background: `var(--tint-${m.tint})`, color: `var(--tint-${m.tint}-icon)` }}
             >
               <Icon name={m.icon} />

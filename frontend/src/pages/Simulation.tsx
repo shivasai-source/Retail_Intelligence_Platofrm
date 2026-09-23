@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
-import { Button, Card, CardBody, CardHeader, Spinner, useToast } from '../components/ui'
+import { Button, Card, CardBody, CardHeader, InfoPopover, Pill, Spinner, useToast } from '../components/ui'
 import { Icon } from '../icons'
 import { FilterBar } from '../components/command/FilterBar'
 import { ExportReportButton } from '../components/reports/ExportReportButton'
@@ -10,14 +10,14 @@ import { ResultStrip } from '../components/studio/ResultStrip'
 import { SeriesLegend, WindowChart } from '../components/studio/WindowChart'
 import { CurveChart } from '../components/studio/CurveChart'
 import { useFilterOptionsFor } from '../hooks/useCommandCenter'
-import { useDebounced, useStudioCurve, useStudioScope, useStudioSimulate, type Levers } from '../hooks/useStudio'
+import { useDebounced, useStudioCurve, useStudioOptimize, useStudioScope, useStudioSimulate, type Levers } from '../hooks/useStudio'
 import { ApiError } from '../lib/api'
 import { toApiFilters } from '../lib/scope'
 import { useStudioFilters } from '../store/studioFilters'
 import { useStudioHandoff } from '../store/studioHandoff'
 import { MAX_SCENARIOS, scenarioSignature, useDecisionScenarios, type ScenarioKpi } from '../store/decisionScenarios'
 import type { FiltersResponse } from '../types/commandCenter'
-import type { ScopeResponse, SimulateResponse } from '../types/studio'
+import type { Direction, MoneyDelta, OptimizableLever, OptimizeResponse, ScopeResponse, SimulateResponse } from '../types/studio'
 
 /** TPO Simulation Studio — three levers, one window.
  *
@@ -32,12 +32,32 @@ import type { ScopeResponse, SimulateResponse } from '../types/studio'
  *  produced by the validated KPI engine over rows the studio synthesized.
  *  Nothing here subtracts, divides or rounds.
  *
+ *  OPTIMIZE. Only while a product carried in from Promotion Intelligence is
+ *  the selection. Each lever card gets a tick; a ticked lever is free to
+ *  vary from its minimum up to where its slider sits (the slider IS the
+ *  ceiling — move it and the range follows), an unticked one is held. The
+ *  button posts the three levers and the ranges to /api/simulation/optimize
+ *  and shows what came back beside what is on the sliders; "Apply" moves
+ *  the sliders there. The page never searches anything itself.
+ *
  *  SCOPE. The studio's own filter state (store/studioFilters.ts), edited by
  *  the filter bar here. Promotion Intelligence's "Go to Simulation" pre-selects
  *  its product in that store (store/studioHandoff.ts); the option lists then
  *  cascade to that product's data, and clearing the product — from the banner
  *  or the Product dropdown — brings everything back.
  */
+const NO_VARY: Record<OptimizableLever, number | null> = { discount_pct: null, trade_spend: null, days: null }
+const LEVER_LABEL: Record<OptimizableLever, string> = { discount_pct: 'Discount', trade_spend: 'Trade spend', days: 'Days' }
+/** In the Optimize card the budget sits one table away from the Trade Spend
+ *  the engine measured, and they are different numbers — a budget of ₹81.35 L
+ *  funding a 9% window that only costs ₹27.28 L. Naming them both "Trade
+ *  spend" made the card look like it contradicted itself. */
+const OPTIMIZE_LEVER_LABEL: Record<OptimizableLever, string> = {
+  discount_pct: 'Discount',
+  trade_spend: 'Trade spend budget',
+  days: 'Days',
+}
+
 export function Simulation() {
   const studioFilters = useStudioFilters((s) => s.filters)
   const currency = useStudioFilters((s) => s.currency)
@@ -93,6 +113,29 @@ export function Simulation() {
     setSeededFor(scopeKey)
   }, [scope.data, scopeKey, seededFor])
 
+  // OPTIMIZE'S TICKS. Per lever, the top of the range it may search, or
+  // null when the lever is held. Set to the slider's value when ticked, and
+  // kept at the slider's value while ticked, so the reader has one control
+  // for "how far": the slider. Cleared with the scope and with the hand-off,
+  // since both are what the ranges were about.
+  const [vary, setVary] = useState<Record<OptimizableLever, number | null>>(NO_VARY)
+  const [optimized, setOptimized] = useState<{ response: OptimizeResponse; forLevers: string } | null>(null)
+  const optimize = useStudioOptimize()
+  useEffect(() => {
+    setVary(NO_VARY)
+    setOptimized(null)
+  }, [scopeKey, carriedProduct?.productId])
+
+  const moveLever = (key: OptimizableLever, value: number) => {
+    if (!levers) return
+    setLevers({ ...levers, [key]: value })
+    if (vary[key] != null) setVary({ ...vary, [key]: value })
+  }
+  const toggleVary = (key: OptimizableLever) => {
+    if (!levers) return
+    setVary({ ...vary, [key]: vary[key] == null ? levers[key] : null })
+  }
+
   const settled = useDebounced(levers)
   const live = seededFor === scopeKey ? settled : null
   const result = useStudioSimulate(filters, currency, live)
@@ -102,7 +145,40 @@ export function Simulation() {
   const symbol = currency === 'USD' ? '$' : '₹'
   const money = (v: number) => formatMoney(v, rate, symbol)
 
-  const reset = () => scope.data && setLevers(defaultsOf(scope.data))
+  // THE BUDGET SLIDER'S RANGE follows the other two levers. The scope's
+  // ceiling is the worst case — the deepest depth over the longest window,
+  // priced at the top of the band — so at a 7-day plan costing ₹81.35 L it
+  // put seven eighths of the track beyond full coverage, where dragging
+  // changed nothing but the unspent figure. The live full-coverage cost is
+  // what "the whole scope" costs AT these levers, so the track runs a
+  // quarter past it: the binding range is most of the travel, the starting
+  // budget sits where the scope is exactly funded, and there is room to
+  // overspend on purpose.
+  //
+  // THE BUDGET IS NEVER CLAMPED. It is the one lever that is a constraint
+  // the reader brings ("this is the money I have"), not a plan choice, and
+  // "how many days can I fund with this?" is the reason to drag Days at all.
+  // So the track also never ends below the budget already settled: shortening
+  // the window makes the budget generous, it does not confiscate it. The
+  // settled budget, not the live one, so dragging this slider cannot stretch
+  // the track it is being dragged along.
+  const spendLever = useMemo(() => {
+    const base = scope.data?.levers.trade_spend
+    if (!base) return null
+    const cost = result.data?.levers.trade_spend.full_coverage_cost.value ?? 0
+    const settledSpend = result.data?.levers.trade_spend.requested.value ?? 0
+    if (cost <= 0) return base
+    const useful = Math.ceil((cost * 1.25) / base.step) * base.step
+    const max = Math.min(base.max, Math.max(useful, settledSpend))
+    return { ...base, max, max_display: formatMoney(max, rate, symbol) }
+  }, [scope.data, result.data, rate, symbol])
+
+  const reset = () => {
+    if (!scope.data) return
+    setLevers(defaultsOf(scope.data))
+    setVary(NO_VARY)
+    setOptimized(null)
+  }
   const atDefaults = !!scope.data && !!levers && JSON.stringify(levers) === JSON.stringify(defaultsOf(scope.data))
 
   // ADD TO DECISION CENTER. A snapshot of what is on screen — the display
@@ -134,6 +210,55 @@ export function Simulation() {
     if (added) show(`Added as Scenario ${added.slot} · ${held.length + 1} of ${MAX_SCENARIOS} in Decision Center`, { duration: 3000 })
   }
 
+  // OPTIMIZE. The blocker names the reason the button is off, so nobody
+  // has to guess which of the three conditions is unmet.
+  const ticked = (Object.keys(vary) as OptimizableLever[]).filter((k) => vary[k] != null)
+  const emptyRange = ticked.find((k) => (vary[k] ?? 0) <= 0)
+  // An Optimize answer is standing in for the exploration deck -- but only
+  // while it still describes what is on the sliders. The moment the reader
+  // moves one they are exploring again, the card says so itself, and hiding
+  // the charts would leave them unable to see the move they just made.
+  const optimizeStale = !!optimized && JSON.stringify(levers) !== optimized.forLevers
+  const optimizeAnswered = !!optimized && !!carriedProduct && !optimizeStale
+  const optimizeBlocker = !carriedProduct
+    ? 'Optimize is for the product carried in from Promotion Intelligence'
+    : !levers || !scope.data
+      ? 'Wait for the scope'
+      : ticked.length === 0
+        ? 'Tick at least one lever to give Optimize something to vary'
+        : emptyRange
+          ? `Move the ${LEVER_LABEL[emptyRange]} slider above zero to give Optimize a range`
+          : optimize.isPending
+            ? 'Optimizing…'
+            : null
+  const runOptimize = () => {
+    if (!levers || optimizeBlocker) return
+    const ranges = Object.fromEntries(ticked.map((k) => [k, vary[k]])) as Partial<Record<OptimizableLever, number>>
+    optimize.mutate(
+      { filters, currency, ...levers, vary: ranges },
+      {
+        onSuccess: (response) => setOptimized({ response, forLevers: JSON.stringify(levers) }),
+        onError: (e) => show(e instanceof Error ? e.message : 'Optimize could not run', { duration: 4000 }),
+      },
+    )
+  }
+  const applyOptimized = () => {
+    if (!optimized) return
+    const b = optimized.response.best.levers
+    setLevers({ discount_pct: b.discount_pct, trade_spend: b.trade_spend, days: b.days })
+    setVary(NO_VARY)
+    setOptimized(null)
+    show('Sliders set to the optimized values', { duration: 3000 })
+  }
+  const varyRange = (key: OptimizableLever): string => {
+    const top = vary[key] ?? 0
+    if (key === 'discount_pct') return `0% → ${top.toFixed(2)}%`
+    if (key === 'days') return `1 → ${top} day${top === 1 ? '' : 's'}`
+    return `${symbol}0 → ${money(top)}`
+  }
+  const varyProps = (key: OptimizableLever) =>
+    carriedProduct ? { on: vary[key] != null, range: varyRange(key), onToggle: () => toggleVary(key) } : undefined
+
   const crumbs = [{ label: 'TPO Intelligence' }, { label: 'Simulation Studio' }]
   const scopeError = scope.error instanceof ApiError ? scope.error : null
 
@@ -155,6 +280,31 @@ export function Simulation() {
           <Button variant="secondary" onClick={reset} disabled={!scope.data || atDefaults}>
             <Icon name="refresh" /> <span>Reset</span>
           </Button>
+          {carriedProduct && (
+            <span className="inline-flex items-center gap-1">
+              <Button variant="secondary" onClick={runOptimize} disabled={!!optimizeBlocker} title={optimizeBlocker ?? undefined}>
+                {optimize.isPending ? <Spinner /> : <Icon name="target" />} <span>Optimize</span>
+              </Button>
+              <InfoPopover label="How Optimize works" title="How Optimize works" width={320}>
+                <div className="mt-1.5 space-y-1.5 text-xs leading-snug text-ink-secondary">
+                  <p>
+                    Tick a lever to let Optimize vary it from its minimum up to where its slider sits — the slider is
+                    the ceiling, so move it to widen or narrow the range. Unticked levers are held where they are.
+                  </p>
+                  <p>
+                    It then prices every position in those ranges with the same engine the sliders use — every step
+                    of discount, every whole day, and for the budget the smaller of the ceiling and what full coverage
+                    costs — and returns the combination with the highest ROI.
+                  </p>
+                  <p>
+                    Where ROIs tie it prefers the higher revenue, then the lower spend: the budget only scales a
+                    promotion, so without that rule it would have no best value. Only for the product carried in from
+                    Promotion Intelligence.
+                  </p>
+                </div>
+              </InfoPopover>
+            </span>
+          )}
           <Button variant="primary" onClick={addToDecisionCenter} disabled={!!addBlocker} title={addBlocker ?? undefined}>
             <Icon name="plus" /> <span>Add to Decision Center</span>
           </Button>
@@ -172,8 +322,6 @@ export function Simulation() {
           layout="studio"
           groupLabel="Simulation Studio filters"
           options={filterOptions.data}
-          onRefresh={() => scope.refetch()}
-          refreshing={scope.isFetching}
         />
       </div>
 
@@ -229,7 +377,7 @@ export function Simulation() {
         </Card>
       )}
 
-      {scope.data && levers && (
+      {scope.data && levers && spendLever && (
         <>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-base text-ink-muted">
             <span>
@@ -249,10 +397,21 @@ export function Simulation() {
                 <strong className="font-semibold text-ink-secondary">{scope.data.measured.roi.display}</strong>
               </span>
             )}
+            {/* THE THREE LEVERS' STARTING POSITIONS, in words — the depth this
+                scope ran at, how long it ran, and what running it over that
+                window costs. The studio opens on exactly these three, so a
+                reader arriving from Promotion Intelligence sees the plan they
+                came to ask about rather than three numbers from nowhere. */}
             <span>
               Current plan{' '}
               <strong className="font-semibold text-ink-secondary">{scope.data.observed_plan.discount_pct.toFixed(2)}%</strong> for{' '}
               <strong className="font-semibold text-ink-secondary">{scope.data.observed_plan.days} days</strong>
+              {scope.data.levers.trade_spend.default > 0 && (
+                <>
+                  , costing{' '}
+                  <strong className="font-semibold text-ink-secondary">{scope.data.levers.trade_spend.default_display}</strong>
+                </>
+              )}
             </span>
           </div>
 
@@ -262,26 +421,24 @@ export function Simulation() {
               lever={scope.data.levers.discount_pct}
               value={levers.discount_pct}
               format={(v) => `${v.toFixed(2)}%`}
-              onChange={(v) => setLevers({ ...levers, discount_pct: v })}
+              onChange={(v) => moveLever('discount_pct', v)}
               marks={['0%', `${scope.data.levers.discount_pct.max.toFixed(2)}%`]}
+              vary={varyProps('discount_pct')}
             >
-              {result.data && levers.discount_pct > 0 && (
-                <>
-                  Volume lift <strong className="font-semibold text-ink-primary">{(result.data.lift.mid * 100).toFixed(2)}%</strong>
-                </>
-              )}
+              {result.data && levers.discount_pct > 0 && <LiftNote result={result.data} />}
               {levers.discount_pct === 0 && <>No promotion</>}
             </LeverSlider>
 
             <LeverSlider
               label="Trade spend"
-              lever={scope.data.levers.trade_spend}
+              lever={spendLever}
               value={levers.trade_spend}
               format={money}
-              onChange={(v) => setLevers({ ...levers, trade_spend: v })}
-              marks={[money(0), scope.data.levers.trade_spend.max_display ?? money(scope.data.levers.trade_spend.max)]}
+              onChange={(v) => moveLever('trade_spend', v)}
+              marks={[`${symbol}0`, spendLever.max_display ?? money(spendLever.max)]}
+              vary={varyProps('trade_spend')}
             >
-              {result.data && <BudgetNote spend={result.data.levers.trade_spend} discount={levers.discount_pct} />}
+              {result.data && <BudgetNote spend={result.data.levers.trade_spend} discount={levers.discount_pct} days={result.data.window.days} />}
             </LeverSlider>
 
             <LeverSlider
@@ -289,17 +446,29 @@ export function Simulation() {
               lever={scope.data.levers.days}
               value={levers.days}
               format={(v) => `${v} day${v === 1 ? '' : 's'}`}
-              onChange={(v) => setLevers({ ...levers, days: v })}
+              onChange={(v) => moveLever('days', v)}
               marks={['1 day', `${scope.data.levers.days.max} days`]}
+              vary={varyProps('days')}
             >
-              {result.data && (
-                <>
-                  {result.data.window.weeks} business week{result.data.window.weeks === 1 ? '' : 's'}
-                  {result.data.window.partial_week_fraction != null && <>, last one partial</>}
-                </>
-              )}
+
             </LeverSlider>
           </div>
+
+          {optimized && carriedProduct && (
+            <OptimizeResult
+              response={optimized.response}
+              stale={optimizeStale}
+              symbol={symbol}
+              atBest={
+                !!levers &&
+                levers.discount_pct === optimized.response.best.levers.discount_pct &&
+                levers.trade_spend === optimized.response.best.levers.trade_spend &&
+                levers.days === optimized.response.best.levers.days
+              }
+              onApply={applyOptimized}
+              onDismiss={() => setOptimized(null)}
+            />
+          )}
 
           {result.isError && (
             <Card className="mt-4">
@@ -310,7 +479,19 @@ export function Simulation() {
             </Card>
           )}
 
-          {result.data && (
+          {/* THE EXPLORATION DECK -- the two result tiles, the week chart and
+              the depth curve. It is what the sliders are for: move one, watch
+              these. It stands down in exactly one case: an Optimize answer is
+              on screen FOR A PRODUCT CARRIED IN FROM PROMOTION INTELLIGENCE.
+              There the reader arrived with a question, not an exploration,
+              and the answer card already carries the figures on both sides of
+              it -- leaving four more panels underneath, all still showing the
+              position Optimize has just superseded, asks them to work out for
+              themselves which numbers are the answer. Dismissing the card
+              brings the deck straight back. Every other case keeps it: no
+              Optimize run yet, a scope with no product carried in (where
+              Optimize does not appear at all), or the card dismissed. */}
+          {result.data && !optimizeAnswered && (
             <>
               <div className="mt-4">
                 <ResultStrip
@@ -372,6 +553,134 @@ export function Simulation() {
 
 // --- pieces ----------------------------------------------------------------
 
+/** What Optimize found, beside what is on the sliders.
+ *
+ *  Every figure is the payload's. The card says which ranges were searched,
+ *  which levers moved and which were held, and the ROI, revenue and spend at
+ *  both points with the engine's own delta; "Apply" moves the sliders to the
+ *  best levers, and until then the sliders are untouched. `stale` means the
+ *  sliders have moved since this ran, so the "now" column is history. */
+function OptimizeResult({
+  response: r,
+  stale,
+  symbol,
+  atBest,
+  onApply,
+  onDismiss,
+}: {
+  response: OptimizeResponse
+  stale: boolean
+  symbol: string
+  /** The sliders are already on the best levers, so Apply has nothing to do.
+   *  NOT the same as `already_optimal`: when the current plan is the best
+   *  answer, Apply still has work — moving the sliders back to it. */
+  atBest: boolean
+  onApply: () => void
+  onDismiss: () => void
+}) {
+  const roiTone = { profitable: 'success', break_even: 'warning', loss_making: 'danger', not_applicable: 'neutral' } as const
+  const roiLabel = { profitable: 'Profitable', break_even: 'Break-even', loss_making: 'Loss-making', not_applicable: 'No promotion' } as const
+  const searched = (key: OptimizableLever): string => {
+    const s = r.searched[key]
+    if (!s) return 'held'
+    if (key === 'discount_pct') return `0% – ${s.max.toFixed(2)}%`
+    if (key === 'days') return `1 – ${s.max} days`
+    return `${symbol}0 – ${(s as { max_display: string }).max_display}`
+  }
+  const leverValue = (l: OptimizeResponse['from']['levers'], key: OptimizableLever): string =>
+    key === 'discount_pct' ? `${l.discount_pct.toFixed(2)}%` : key === 'days' ? `${l.days} day${l.days === 1 ? '' : 's'}` : l.trade_spend_display
+  const money = (d: OptimizeResponse['gain']['revenue']) =>
+    d.percent == null ? d.absolute.display : `${d.absolute.display} (${d.percent_display})`
+  // Every row carries its own change now. Trade spend and incremental sales
+  // used to print a dash — not because they were flat, but because the
+  // payload had no delta for them.
+  const figures: [string, string, string, string, Direction][] = [
+    ['ROI', r.from.figures.roi.display, r.best.figures.roi.display, r.gain.roi.absolute_display, r.gain.roi.direction],
+    ['Revenue', r.from.figures.revenue.display, r.best.figures.revenue.display, money(r.gain.revenue), r.gain.revenue.direction],
+    ['Trade spend', r.from.figures.trade_spend.display, r.best.figures.trade_spend.display, money(r.gain.trade_spend), r.gain.trade_spend.direction],
+    ['Incremental sales', r.from.figures.incremental_sales.display, r.best.figures.incremental_sales.display, money(r.gain.incremental_sales), r.gain.incremental_sales.direction],
+  ]
+  const deltaTone = (d: Direction) => (d === 'up' ? 'text-status-success' : d === 'down' ? 'text-status-danger' : 'text-ink-muted')
+  return (
+    <Card className="mt-4 border-brand-violet-100">
+      <CardHeader
+        title={r.already_optimal ? 'Nothing in the searched ranges beats the current plan' : 'Best levers in the searched ranges'}
+        subtitle={`${r.searched.evaluations.toLocaleString()} positions priced · highest ROI, then revenue, then lower spend`}
+        actions={<Pill tone={roiTone[r.best.roi_status]}>{roiLabel[r.best.roi_status]}</Pill>}
+      />
+      <CardBody>
+        {stale && (
+          <div className="mb-3 rounded-[var(--r-md)] bg-status-warning/10 px-3 py-2 text-sm text-ink-secondary">
+            The sliders have moved since this ran — the "now" column is where they were. Run Optimize again for the current position.
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-6 @max-[900px]:grid-cols-1">
+          <table className="w-full text-base [font-variant-numeric:tabular-nums]">
+            <thead>
+              <tr className="text-sm font-semibold text-ink-muted">
+                <th className="pb-2 text-left font-semibold">Lever</th>
+                <th className="pb-2 text-left font-semibold">Searched</th>
+                <th className="pb-2 text-right font-semibold">Current plan</th>
+                <th className="pb-2 text-right font-semibold">Best</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(['discount_pct', 'trade_spend', 'days'] as OptimizableLever[]).map((key) => (
+                <tr key={key} className="border-t border-border-subtle">
+                  <td className="py-1.5 font-semibold text-ink-primary">{OPTIMIZE_LEVER_LABEL[key]}</td>
+                  <td className="py-1.5 text-ink-muted">{searched(key)}</td>
+                  <td className="py-1.5 text-right text-ink-secondary">{leverValue(r.from.levers, key)}</td>
+                  {/* Violet marks what OPTIMIZE found. A held lever can also
+                      differ from the plan — the reader pinned it there — and
+                      dressing that as a finding would take credit for their
+                      own choice. */}
+                  <td className={`py-1.5 text-right ${r.searched[key] && r.best.changed[key] ? 'font-bold text-brand-violet' : 'text-ink-secondary'}`}>
+                    {leverValue(r.best.levers, key)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <table className="w-full text-base [font-variant-numeric:tabular-nums]">
+            <thead>
+              <tr className="text-sm font-semibold text-ink-muted">
+                {/* Each column says which window it is over. They are not the
+                    same window whenever Optimize moved Days, and one shared
+                    "Over N days" heading quietly mislabelled the Now column. */}
+                <th className="pb-2 text-left font-semibold">Figure</th>
+                <th className="pb-2 text-right font-semibold">Current plan · {r.from.levers.days}d</th>
+                <th className="pb-2 text-right font-semibold">Best · {r.best.levers.days}d</th>
+                <th className="pb-2 text-right font-semibold">Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              {figures.map(([label, now, best, delta, direction]) => (
+                <tr key={label} className="border-t border-border-subtle">
+                  <td className="py-1.5 font-semibold text-ink-primary">{label}</td>
+                  <td className="py-1.5 text-right text-ink-secondary">{now}</td>
+                  <td className="py-1.5 text-right font-bold text-ink-primary">{best}</td>
+                  <td className={`py-1.5 text-right font-semibold ${deltaTone(direction)}`}>{delta}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1">
+          <Button variant="primary" onClick={onApply} disabled={atBest}>
+            <Icon name="target" /> <span>Apply to sliders</span>
+          </Button>
+          <Button variant="ghost" onClick={onDismiss}>
+            Dismiss
+          </Button>
+          {/* The deck below is hidden while this card is up, so say so --
+              otherwise the charts look like they broke. */}
+          <span className="ml-1 text-sm text-ink-muted">Dismiss to go back to the charts</span>
+        </div>
+      </CardBody>
+    </Card>
+  )
+}
+
 /** The scope in words, from the option lists' own names. */
 function scopeLabel(
   scope: ScopeResponse,
@@ -405,7 +714,7 @@ function kpisOf(r: SimulateResponse): ScenarioKpi[] {
     { key: 'incremental_sales', label: 'Incremental sales', value: s.incremental_sales.display, sub: `current plan ${c.incremental_sales.display}`, raw: s.incremental_sales.value },
     { key: 'incremental_units', label: 'Incremental units', value: s.incremental_units.display, sub: `current plan ${c.incremental_units.display}`, raw: s.incremental_units.value },
     { key: 'margin', label: 'Margin', value: s.margin_pct.display, sub: `current plan ${c.margin_pct.display}`, raw: s.margin_pct.value },
-    { key: 'lift', label: 'Volume lift', value: `${(r.lift.mid * 100).toFixed(2)}%`, raw: r.lift.mid },
+    { key: 'lift', label: 'Volume lift', value: r.lift.mid_display, sub: r.lift.display, raw: r.lift.mid },
     { key: 'vs_baseline', label: 'Revenue vs no promotion', value: r.vs_baseline.revenue.display, raw: r.vs_baseline.revenue.value },
   ]
 }
@@ -442,44 +751,100 @@ function formatMoney(v: number, rate: number, symbol: string): string {
   return `${symbol}${a.toFixed(2)}`
 }
 
+/** The discount's effect, in the engine's own words.
+ *
+ *  The headline lift is `mid_display`; the band beside it is the fit's
+ *  residual range, so the number is not read as exact. And when the budget
+ *  is binding the lift is qualified: it is a per-unit lift on the share of
+ *  the scope the budget actually funds, NOT on the window. Without that
+ *  clause a reader sees "Volume lift 56.21%" beside "Covers 49.13% of the
+ *  scope" and has no way to know the two multiply. */
+function LiftNote({ result }: { result: SimulateResponse }) {
+  const spend = result.levers.trade_spend
+  return (
+    <>
+      Volume lift <strong className="font-semibold text-ink-primary">{result.lift.mid_display}</strong>{' '}
+      <span className="text-ink-muted">({result.lift.display})</span>
+      {spend.binding && <> on the funded {spend.coverage_display}</>}
+    </>
+  )
+}
+
+/** The budget in one line: what it buys over the window, and what is left.
+ *
+ *  The studio opens with this budget set to exactly what the current plan
+ *  costs over its own window, so the usual first reading is "funds the whole
+ *  scope, nothing over" — and saying that plainly beats an unspent figure of
+ *  zero. */
 function BudgetNote({
   spend,
   discount,
+  days,
 }: {
-  spend: { coverage_display: string; binding: boolean; unspent: { display: string }; full_coverage_cost: { display: string } }
+  spend: SimulateResponse['levers']['trade_spend']
   discount: number
+  days: number
 }) {
+  const dayLabel = `${days} day${days === 1 ? '' : 's'}`
   if (discount === 0) return <>Nothing to fund</>
   if (spend.binding) {
     return (
       <>
-        Covers <strong className="font-semibold text-ink-primary">{spend.coverage_display}</strong> of the scope
+        Covers <strong className="font-semibold text-ink-primary">{spend.coverage_display}</strong> of the scope over {dayLabel}
+      </>
+    )
+  }
+  if (!spend.unspent.value) {
+    return (
+      <>
+        Funds the <strong className="font-semibold text-ink-primary">whole scope</strong> over {dayLabel}, nothing over
       </>
     )
   }
   return (
     <>
-      Covers the whole scope · <strong className="font-semibold text-ink-primary">{spend.unspent.display}</strong> unspent
+      Covers the whole scope over {dayLabel} · <strong className="font-semibold text-ink-primary">{spend.unspent.display}</strong> unspent
     </>
   )
 }
 
+/** The four figures the week chart does not draw.
+ *
+ *  "₹81.35 L vs ₹81.35 L" is a sentence that makes a reader look twice for
+ *  the difference. When the scenario IS the current plan — which it is every
+ *  time the page opens — each cell says so once, in words, and the two
+ *  figures that carry an engine delta show it instead of restating the
+ *  number they were compared against. */
 function SecondaryFigures({ result }: { result: SimulateResponse }) {
   const s = result.scenario
   const c = result.current_plan
-  const cells: [string, string, string][] = [
-    ['Trade spend', s.trade_spend.display, c.trade_spend.display],
-    ['Incremental sales', s.incremental_sales.display, c.incremental_sales.display],
-    ['Incremental units', s.incremental_units.display, c.incremental_units.display],
-    ['Margin', s.margin_pct.display, c.margin_pct.display],
+  const d = result.deltas
+  const withPct = (m: MoneyDelta) => (m.percent == null ? m.absolute.display : `${m.absolute.display} (${m.percent_display})`)
+  const tone = (dir: Direction) => (dir === 'up' ? 'text-status-success' : dir === 'down' ? 'text-status-danger' : 'text-ink-muted')
+  // Every cell carries the engine's own change; none falls back to restating
+  // the figure it was compared against.
+  const cells: { label: string; value: string; current: string; change: string; direction: Direction }[] = [
+    { label: 'Trade spend', value: s.trade_spend.display, current: c.trade_spend.display, change: withPct(d.trade_spend), direction: d.trade_spend.direction },
+    { label: 'Incremental sales', value: s.incremental_sales.display, current: c.incremental_sales.display, change: withPct(d.incremental_sales), direction: d.incremental_sales.direction },
+    {
+      label: 'Incremental units',
+      value: s.incremental_units.display,
+      current: c.incremental_units.display,
+      change: d.incremental_units.percent == null
+        ? d.incremental_units.absolute_display
+        : `${d.incremental_units.absolute_display} (${d.incremental_units.percent_display})`,
+      direction: d.incremental_units.direction,
+    },
+    { label: 'Margin', value: s.margin_pct.display, current: c.margin_pct.display, change: d.margin_pct.absolute_display, direction: d.margin_pct.direction },
   ]
   return (
     <div className="mt-5 grid grid-cols-4 gap-4 border-t border-border-subtle pt-4 @max-[900px]:grid-cols-2">
-      {cells.map(([label, scenario, current]) => (
+      {cells.map(({ label, value, current, change, direction }) => (
         <div key={label}>
           <div className="text-sm font-semibold text-ink-muted">{label}</div>
-          <div className="mt-0.5 text-md font-bold text-ink-primary [font-variant-numeric:tabular-nums]">
-            {scenario} <span className="text-sm font-medium text-ink-muted">vs {current}</span>
+          <div className="mt-0.5 text-md font-bold text-ink-primary [font-variant-numeric:tabular-nums]">{value}</div>
+          <div className={`mt-0.5 text-sm font-medium [font-variant-numeric:tabular-nums] ${value === current ? 'text-ink-muted' : tone(direction)}`}>
+            {value === current ? 'Same as current plan' : change}
           </div>
         </div>
       ))}
