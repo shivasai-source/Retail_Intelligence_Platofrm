@@ -48,7 +48,11 @@ export const MODULES: PortalModule[] = [
     title: 'Supply, Inventory & Network Intelligence',
     desc: 'Track stock cover, fill rate and network health feeding every promotion decision.',
     icon: 'inventory',
-    tint: 'sky',
+    // Was `sky`, the same tint as Forecasting — which made two of the six cards
+    // identical in a grid whose whole hover treatment is "each module has its
+    // own colour". `rose` is the one unused tint that is far from all five
+    // others (blue, violet, teal, orange, green).
+    tint: 'rose',
     live: false,
   },
 ]

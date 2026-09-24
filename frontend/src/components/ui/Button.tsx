@@ -3,7 +3,7 @@ import { type ButtonHTMLAttributes, forwardRef } from 'react'
 // Ported from css/components.css .btn / .btn-primary / .btn-secondary / .btn-ghost /
 // .btn-violet-soft / .btn-sm / .btn-lg / .btn-block.
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'violet-soft'
-export type ButtonSize = 'sm' | 'md' | 'lg'
+export type ButtonSize = 'sm' | 'md' | 'pill' | 'lg'
 
 const base =
   'inline-flex items-center justify-center gap-2 rounded-[var(--r-md)] font-semibold ' +
@@ -25,6 +25,13 @@ const variants: Record<ButtonVariant, string> = {
 const sizes: Record<ButtonSize, string> = {
   sm: 'h-[30px] px-3 text-sm',
   md: 'h-9 px-4 text-base',
+  // A TOOLBAR PILL: `md`'s height, so it lines up with Export and the icon
+  // buttons beside it, but the `text-sm` label and tighter padding the Target
+  // ROI control and the currency toggle already use. At `md` the filter row's
+  // seven controls came to more than the row could hold and the last one
+  // wrapped to a line of its own; this is also the size that makes the row
+  // read as one set of controls rather than two.
+  pill: 'h-9 px-3 text-sm',
   lg: 'h-[42px] px-5 text-base',
 }
 

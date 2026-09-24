@@ -35,7 +35,12 @@
   /* ===== Text ===== */
   --text-primary:   #1A1F2E;
   --text-secondary: #4B5563;
-  --text-muted:     #6B7280;
+  /* Was #6B7280, which cleared 4.5:1 on a white card (4.83) but not on the
+     PAGE (4.43) — and every module's one-line subtitle under its title sits
+     on the page, so the most-repeated secondary text in the app was the one
+     place the scale failed. #606A7B holds the same grey-blue cast at 5.01 on
+     the page and 5.46 on a card. Nothing else about the scale moves. */
+  --text-muted:     #606A7B;
   --text-disabled:  #9CA3AF;
   --text-inverse:   #FFFFFF;
 
@@ -45,7 +50,10 @@
   --border-strong:  #CDD1DB;
 
   /* ===== Status (calibrated to match the reference greens/reds/ambers) ===== */
-  --status-success:    #16A34A;
+  /* #16A34A read 3.30:1 on a white card, and it is not decorative -- it is
+     the colour every positive delta and above-target ROI is printed in.
+     #15803D is the same green one step down the ramp, at 5.02:1. */
+  --status-success:    #15803D;
   --status-success-bg: #DCFCE7;
   --status-warning:    #F59E0B;
   --status-warning-bg: #FEF3C7;
@@ -53,6 +61,25 @@
   --status-danger-bg:  #FEE2E2;
   --status-info:       #3B82F6;
   --status-info-bg:    #DBEAFE;
+
+  /* ===== Pill ink =====
+     A pill's label sits on the PALE `--status-*-bg` wash, not on the card, so
+     it needs its own value: `--status-success` (#15803D) is tuned to read as
+     ink on a white card and measures 3.3:1 on the mint chip behind it. These
+     four are the darker steps that clear AA there, and they were literal hexes
+     inside Pill.tsx until this pass.
+
+     THE REASON THEY ARE TOKENS. Hard-coded, they could not follow the theme:
+     on a dark card the wash becomes a low-alpha tint of the same hue and a
+     near-black green on it measured 3.12:1 — so every "Live", "Roadmap" and
+     status chip in the product failed AA in dark mode while the correctly
+     lifted `--status-*` values sat unused a few lines above. The dark block
+     below points these at exactly those. */
+  --pill-success-ink: #047857;
+  --pill-warning-ink: #B45309;
+  --pill-danger-ink:  #B91C1C;
+  --pill-info-ink:    #1D4ED8;
+  --pill-violet-ink:  var(--brand-violet);
 
   /* Peach / coral for medium impact pills in reference image 3 */
   --tone-peach:    #F97316;
@@ -86,9 +113,19 @@
      palette is unchanged; only the dark override is new. */
   --alert-bg:        #FEEEEC;
   --alert-border:    #FBC3BD;
-  --alert-ink:       #DC2626;
+  /* #DC2626 on the alert's own #FEEEEC wash was 4.29:1 -- the one place this
+     red is read as small text. #C81E1E takes it to 5.10 there and 5.74 on
+     white, and lifts the CRITICAL chip with it. `--status-danger` keeps the
+     original red: it is used as a fill, not as ink on this wash. */
+  --alert-ink:       #C81E1E;
   --alert-ink-soft:  #7F1D1D;
   --alert-cta-hover: #FEF6F5;
+  /* The CRITICAL chip's own ink, and the wash behind the pulsing glyph.
+     Both were hard-coded white in the component, which is right on a #DC2626
+     chip (4.83:1) and unreadable on the dark theme's pale #FCA5A5 one
+     (1.90:1). Named here so each theme can answer for itself. */
+  --alert-badge-ink: #FFFFFF;
+  --alert-dot-bg:    rgba(255, 255, 255, 0.60);
   --btn-disabled-bg: #D6D9E2;
 
   /* ===== Effects ===== */
@@ -170,13 +207,25 @@
   /* ===== Brand =====
      The hue is the brand's and does not change. Only the step moves: #6B47FF
      on a #141B2E card is close to the floor for readable accent text, so dark
-     uses the lighter step the avatars already use. The two tint colours are
-     light washes meant to sit on white; on dark they become the same violet
-     at low alpha, which is what a wash IS rather than a second colour. */
+     uses the lighter step the avatars already use. The tint colours are
+     light washes meant to sit on white; on dark they become the same hue at
+     low alpha, which is what a wash IS rather than a second colour. */
+  /* KNOWN TRADE-OFF, left as it is deliberately. This violet plays two roles
+     on a dark card and they pull in opposite directions: as a FILL under a
+     white label it wants to be darker (white on #8C6EFF is 3.63:1, under AA
+     for a 13px button label), and as INK for a link or a figure it wants to
+     be lighter (#8C6EFF on the card is 4.72:1, and darkening it to #7A5BED
+     drops that to 3.71:1). One token cannot satisfy both; splitting fill from
+     ink is a design decision, not a fix, so the lighter value stays and the
+     shortfall is on the button label rather than on every violet link. */
   --brand-violet:     #8C6EFF;
   --brand-violet-600: #7A5AF0;
   --brand-violet-50:  rgba(107, 71, 255, 0.18);
   --brand-violet-100: rgba(107, 71, 255, 0.30);
+  /* Dark had no --brand-blue-50 at all, so it kept the light palette's
+     near-white #EEF3FF -- which the sign-in page's corner wash rendered as a
+     grey floodlight on a near-black panel. */
+  --brand-blue-50:    rgba(79, 124, 255, 0.18);
 
   /* ===== Status =====
      MEANING IS PRESERVED: green is still success, red still danger. The
@@ -191,6 +240,19 @@
   --status-danger-bg:  rgba(220, 38, 38, 0.20);
   --status-info:       #60A5FA;
   --status-info-bg:    rgba(59, 130, 246, 0.18);
+
+  /* Pill ink — the lifted status colours, which is what they were lifted for.
+     Measured on each pill's own blended background over #141B2E: success 7.77,
+     warning 7.42, danger 5.41, info 5.30. The violet pill is the one that
+     needs a step of its own: --brand-violet (#8C6EFF) on the violet wash is
+     4.01, just under AA for an 11px label, and lightening only the PILL avoids
+     touching the violet that every link and figure on a dark card uses. */
+  --pill-success-ink: var(--status-success);
+  --pill-warning-ink: var(--status-warning);
+  --pill-danger-ink:  var(--status-danger);
+  --pill-info-ink:    var(--status-info);
+  --pill-violet-ink:  #A78BFF;
+
   --tone-peach:        #FB923C;
   --tone-peach-bg:     rgba(249, 115, 22, 0.18);
 
@@ -215,6 +277,11 @@
   --alert-ink:       #FCA5A5;
   --alert-ink-soft:  #F0C9C9;
   --alert-cta-hover: rgba(220, 38, 38, 0.22);
+  /* Dark red ON the pale chip rather than white (1.90:1 -> 5.28:1), and a
+     12% wash behind the glyph instead of 60% -- at 60% the circle came out
+     near-white and the light-red glyph on it measured 1.28:1. */
+  --alert-badge-ink: #7F1D1D;
+  --alert-dot-bg:    rgba(255, 255, 255, 0.12);
   --btn-disabled-bg: var(--dark-border-strong);
 
   /* ===== Effects =====

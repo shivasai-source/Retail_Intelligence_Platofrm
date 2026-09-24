@@ -23,15 +23,17 @@ function Bar({ className = '', style }: { className?: string; style?: React.CSSP
 export function KpiSkeleton({ delayMs = 0, className = '' }: { delayMs?: number; className?: string }) {
   return (
     <div
-      className={`fade-in-up flex items-center gap-3 rounded-[var(--r-lg)] border border-border-subtle bg-surface-card p-[16px_18px] shadow-[var(--shadow-card-soft)] ${className}`}
+      className={`fade-in-up flex items-center gap-2.5 rounded-[var(--r-lg)] border border-border-subtle bg-surface-card p-[16px_14px] shadow-[var(--shadow-card-soft)] ${className}`}
       style={{ animationDelay: `${delayMs}ms` }}
       aria-hidden="true"
     >
-      <Bar className="h-11 w-11 shrink-0 rounded-xl" />
+      {/* The tile's narrow box (TpoKpiTile `labelLines=2`): a 40px icon and
+          14px of side padding, not the 44/18 every other page's tile uses. */}
+      <Bar className="h-10 w-10 shrink-0 rounded-xl" />
       <div className="min-w-0 flex-1">
         {/* The label's two-line reservation (TpoKpiTile labelLines=2), so
             the skeleton is the tile's exact height. */}
-        <div className="flex min-h-[2.5em] items-end text-sm leading-tight"><Bar className="h-3 w-20" /></div>
+        <div className="flex min-h-[2.5em] items-end text-base leading-tight"><Bar className="h-3 w-20" /></div>
         <Bar className="mt-2.5 h-5 w-24" />
         <Bar className="mt-2.5 h-3 w-28" />
       </div>

@@ -76,7 +76,17 @@ export function InfoPopover({
         type="button"
         aria-label={label}
         aria-expanded={open}
-        className="grid h-5 w-5 cursor-pointer place-items-center rounded-full text-ink-muted opacity-45 transition-[opacity,background,color] duration-150 hover:bg-ink-primary/[0.06] hover:text-ink-secondary hover:opacity-100 focus:opacity-100 focus:outline-none focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-brand-violet group-hover/kpi:opacity-80 [&_svg]:h-3.5 [&_svg]:w-3.5"
+        // 24x24, not the 20x20 it was: WCAG 2.5.8 puts the floor for a
+        // pointer target at 24px, and this one sits in the busiest corner of
+        // a KPI card where a near-miss lands on the card instead. The GLYPH is
+        // unchanged at 14px — the button grew, the mark did not, so nothing on
+        // the card moved.
+        //
+        // The resting opacity went 0.45 -> 0.62 for the same reason it is
+        // recessive at all: it should not compete with the KPI, but at 0.45 on
+        // `ink-muted` it was under 3:1 against the card and read as disabled
+        // rather than quiet. 0.62 is still clearly secondary.
+        className="grid h-6 w-6 cursor-pointer place-items-center rounded-full text-ink-muted opacity-[0.62] transition-[opacity,background,color] duration-150 hover:bg-ink-primary/[0.06] hover:text-ink-secondary hover:opacity-100 focus:opacity-100 focus:outline-none focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-brand-violet group-hover/kpi:opacity-90 [&_svg]:h-3.5 [&_svg]:w-3.5"
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => !pinned && setOpen(false)}
         onFocus={() => setOpen(true)}

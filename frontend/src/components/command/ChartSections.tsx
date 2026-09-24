@@ -151,7 +151,7 @@ function MetricRows({
         <div key={g.code} className="group" title={rowTooltip(g)}>
           <div className="flex items-baseline justify-between gap-2 text-sm">
             <span className="flex min-w-0 items-baseline gap-1.5">
-              <span className="tabular-nums text-ink-disabled">{i + 1}</span>
+              <span className="tabular-nums text-ink-muted">{i + 1}</span>
               <span className="truncate font-semibold text-ink-primary">{g.label}</span>
             </span>
             <span className="shrink-0 tabular-nums">
@@ -1029,7 +1029,7 @@ function MetricTable({
           title={[g.label, '', `Incremental Sales: ${g.incremental_sales_display}`, `Trade Spend: ${g.trade_spend_display}`, `ROI: ${fmtRoi(g.roi)}`].join('\n')}
         >
           <div role="cell" className="flex min-w-0 items-center gap-1.5 border-t border-border-subtle py-2 text-sm group-hover:bg-surface-hover">
-            <span className="tabular-nums text-ink-disabled">{i + 1}</span>
+            <span className="tabular-nums text-ink-muted">{i + 1}</span>
             <span className="truncate font-semibold text-ink-primary">{g.label}</span>
           </div>
           <div role="cell" className="border-t border-border-subtle py-2 group-hover:bg-surface-hover">{cell(g, 'incremental_sales')}</div>

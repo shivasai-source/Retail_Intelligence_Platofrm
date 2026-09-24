@@ -133,7 +133,14 @@ def inc_sales_trend(filters: dict[str, Any] | None = None) -> dict[str, Any]:
     series = t.get("series") or {}
     spend = series.get("trade_spend") or []
     actual = series.get("incremental_sales") or []
-    target = [config.target_incremental_sales(s) if s else None for s in spend]
+    # `s is not None`, NOT a truth test. A month with no promotional spend has a
+    # target of zero — that is a KNOWN target that was met, not an unknown one.
+    # `if s` made every such month fall to None, which put holes in the dashed
+    # target line, dropped those months out of `months_below_target`, and left
+    # `gap_to_target` null so the chart painted them as "on target" by fallback.
+    # A narrow scope — one product, one offer — is mostly inactive months, so
+    # this was the normal case there, not an edge case.
+    target = [config.target_incremental_sales(s) if s is not None else None for s in spend]
     gap = [
         round(a - g, 2) if (a is not None and g is not None) else None
         for a, g in zip(actual, target)

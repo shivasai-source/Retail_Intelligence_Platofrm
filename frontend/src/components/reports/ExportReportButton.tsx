@@ -36,6 +36,7 @@ export function ExportReportButton({
   disabled,
   disabledReason,
   label = 'Export Report',
+  collapse = false,
 }: {
   module: ReportModule
   /** Read at click time — see the note above. */
@@ -46,6 +47,12 @@ export function ExportReportButton({
   disabled?: boolean
   disabledReason?: string
   label?: string
+  /** Icon only until pointed at, the label sliding out on hover or keyboard
+   *  focus. For a toolbar that has run out of room — the Insights Hub's — where
+   *  Export is the one control a reader reaches for deliberately rather than
+   *  scans for. Off by default: every other module has the width, and a
+   *  permanently captioned button is the more discoverable one. */
+  collapse?: boolean
 }) {
   const { show } = useToast()
   const navigate = useNavigate()
@@ -77,10 +84,47 @@ export function ExportReportButton({
     )
   }
 
+  // Busy is never collapsed: "Generating…" is the whole point of the state, and
+  // hiding it behind a hover would make the button look merely unresponsive.
+  const text = generate.isPending ? 'Generating…' : label
+  const showLabel = !collapse || generate.isPending
+
+  /** The label, either plain or sliding out from zero width.
+   *
+   *  The reveal is a `grid-template-columns: 0fr -> 1fr` transition rather than
+   *  a width or max-width one: it animates to the text's OWN width, so the
+   *  button never overshoots or clips at a guessed maximum, and the row beside
+   *  it is laid out from a real measurement. `group-focus-visible` is not
+   *  decoration — without it the control is icon-only for anyone arriving by
+   *  keyboard. */
+  const caption = showLabel ? (
+    <span>{text}</span>
+  ) : (
+    <span
+      aria-hidden="true"
+      className="grid grid-cols-[0fr] transition-[grid-template-columns] duration-200 ease-[var(--ease-out)] group-hover:grid-cols-[1fr] group-focus-visible:grid-cols-[1fr]"
+    >
+      <span className="overflow-hidden">
+        <span className="block whitespace-nowrap pl-2">{text}</span>
+      </span>
+    </span>
+  )
+
+  // `gap-0` cancels the Button's own gap so the collapsed state is a square;
+  // the padding that separates icon from label lives on the label instead.
+  const shape = collapse ? 'group cursor-pointer !gap-0 !px-2.5' : 'cursor-pointer'
+
   if (disabled) {
     return (
-      <Button variant="secondary" disabled title={disabledReason}>
-        <Icon name="download" /> <span>{label}</span>
+      <Button
+        variant="secondary"
+        disabled
+        title={disabledReason}
+        aria-label={label}
+        className={collapse ? '!gap-0 !px-2.5' : undefined}
+      >
+        <Icon name="download" />
+        {showLabel && <span>{label}</span>}
       </Button>
     )
   }
@@ -91,11 +135,12 @@ export function ExportReportButton({
         variant="secondary"
         onClick={run}
         disabled={generate.isPending}
-        className="cursor-pointer"
+        className={shape}
+        aria-label={text}
         title="Generate this view as a report and store it in the Report Center"
       >
         <Icon name="download" />
-        <span>{generate.isPending ? 'Generating…' : label}</span>
+        {caption}
       </Button>
       {generate.isSuccess && (
         <Button

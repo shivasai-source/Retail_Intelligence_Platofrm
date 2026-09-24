@@ -1046,9 +1046,9 @@ doesn't flash the light palette.
 | Page | Lines | Purpose |
 | --- | --- | --- |
 | `Login.tsx` | 94 | The unguarded entry. First sign-in for an email creates the account; after that the password is genuinely checked. |
-| `Home.tsx` | 195 | The portal. `ModuleGrid` (six modules, TPO live) + `ConnectorRail` + five modals. Marks Excel/Shared Drives connected from **real** `useDatasets()` data, not a hardcoded flag. |
+| `Home.tsx` | 106 | The portal — `ModuleGrid` and nothing else. The connector rail and its five modals moved to `Connections.tsx`, so connecting happens in exactly one place. The live TPO card routes to `/connections` until the six tables are installed, and to `/command` after. |
 | `PlaceholderPage.tsx` | 36 | Template for an unbuilt route; no longer referenced. |
-| `Connections.tsx` | 81 | Catalog of the four connectors Home offers. Connect hands off to `/home`, which owns the modals and session state, rather than faking a connection. |
+| `Connections.tsx` | 350 | The connector catalogue, ported from `transorg-engineering/connector-template`: dataset strip, search, family filter, and 27 tiles in five categories. The four that really connect raise this app's own modals; the other 23 are greyed "Soon" and disabled. |
 | `Settings.tsx` | 120 | Shows the **signed-in user's** name and email, not a persona from `settings.json`, and states plainly "Signed in locally — no identity provider, nothing here is verified". Integrations carry "Not connected" pills rather than the fictional green "Active" ones they replaced. |
 | `Calendar.tsx` | 232 | Year → Month → Channel → Promotion matrix. A **plan, not a diary**. Channel options come from `all_channels` (the full roster), or picking CH001 would make the others unreachable. |
 | `Reports.tsx` | 586 | The Report Center — the library, and **the only place the app saves a file**. Every row is a real artifact; the page it replaced had six seeded fake rows. |
@@ -1235,14 +1235,16 @@ data-derived right axis.
 - **`PromotionDetailPanel.tsx`** (237) — weekly channels additionally show a week-by-week breakdown, because October's Dussehra and Diwali stay two distinct weekly promotions and are never merged.
 - **`UpcomingEventsPanel.tsx`** (123) — a **contextual** feed, never a fixed list, and never crosses into another year because the matrix beside it is a one-year plan.
 
-### 10.15 `src/components/portal/` (13 files incl. `modals/`)
+### 10.15 `src/components/portal/` (14 files incl. `modals/`)
 
-`connectors.ts` (14), `modules.ts` (54), `HeroArt` (34), `ModuleGrid` (57),
-`ConnectorRail` (99), `AdvisorCard` (171), `modals/shared.tsx` (108), `UploadModal` (160),
+`connectors.ts` (14), `catalog.ts` (367), `modules.ts` (54), `HeroArt` (34),
+`ModuleGrid` (77), `ConnectorLogo` (165), `modals/shared.tsx` (108), `UploadModal` (160),
 `SapModal` (143), `NielsenModal` (183), `PowerBiModal` (166), `AzureModal` (165),
 `DatabricksModal` (164).
 
-- **`ConnectorRail`** — special connectors **can't be switched on blind**: turning one *on* opens its modal instead of toggling.
+- **`catalog.ts`** — the connector landscape ported from the connector-template, with this backend's truth written over it: a tile is clickable only if it carries a `portalKey`, and only the four real connectors have one.
+- **`ConnectorLogo`** — brand marks from `simple-icons`, plus in-house glyphs for the Amazon/Microsoft/Salesforce marks that package no longer ships. The chip stays white in both themes so a near-black mark does not vanish on a dark card.
+- **`ModuleGrid`** — the live TPO card's destination is the caller's to decide (`tpoHref`), so the portal can send a dataset-less user to the connectors rather than to a gate.
 - **`AdvisorCard`** — `buildSystemPrompt()` composes the system message **from the `MODULES` catalog itself**, marking each LIVE or coming-soon, and instructs the model not to invent capabilities.
 - **`UploadModal`** — files **genuinely upload**; previously this was a 1.1 s `setTimeout` and nothing ever left the browser. Handles partial success by naming the failures rather than silently dropping them.
 - **`NielsenModal`** — a **generic REST shell**, because there is no single standardized public NielsenIQ API; nothing is guessed.

@@ -1,97 +1,32 @@
-import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Dropdown, IconButton, ThemeToggle, useToast } from '../components/ui'
 import { useCurrentUser, useLogout } from '../hooks/useAuth'
 import { useStarStatus } from '../hooks/useDatasets'
 import { HeroArt } from '../components/portal/HeroArt'
 import { ModuleGrid } from '../components/portal/ModuleGrid'
-import { ConnectorRail } from '../components/portal/ConnectorRail'
-import { INITIAL_CONNECTORS } from '../components/portal/connectors'
-import { UploadModal } from '../components/portal/modals/UploadModal'
-import { AzureDatasetModal } from '../components/portal/modals/AzureDatasetModal'
-import { DatabricksModal } from '../components/portal/modals/DatabricksModal'
-import { SapModal } from '../components/portal/modals/SapModal'
-import { PowerBiModal } from '../components/portal/modals/PowerBiModal'
-import { NielsenModal } from '../components/portal/modals/NielsenModal'
-import { loadAzureConn, loadDatasetSource, saveDatasetSource } from '../lib/portalConnectors'
-import type { ConnectorSpecial, PortalConnector } from '../types/portal'
-
-// Connectors the portal does not offer. A DISPLAY choice and nothing more:
-// the catalog in components/portal/connectors.ts still carries them, their
-// modals and the /api/proxy endpoints behind them are untouched, and offering
-// one again means only removing its key from here.
-const HIDDEN_ON_HOME = new Set(['sap', 'niq', 'pbi'])
 
 // Ported from home.html + js/portal.js's Portal.initHome(). Same topbar/hero/module
-// grid/connector rail/advisor layout as the vanilla app, state-driven instead of
-// direct DOM mutation.
+// grid layout as the vanilla app, state-driven instead of direct DOM mutation.
+//
+// NO CONNECTOR RAIL. The portal used to carry a "Connected Data Sources" card
+// beside the modules, which meant two screens offered the same four connectors
+// and neither was clearly the one to use. Connecting now lives only on
+// /connections, which owns the catalog, the dialogs and the dataset's state —
+// and the TPO card routes there while the platform has no data, so the rail's
+// job is done by the one card that was already the way in.
 export function Home() {
   const { data: user } = useCurrentUser()
   const { data: starStatus } = useStarStatus()
   const logout = useLogout()
   const navigate = useNavigate()
   const { show } = useToast()
-  const [connectors, setConnectors] = useState<PortalConnector[]>(() =>
-    INITIAL_CONNECTORS.filter((c) => !HIDDEN_ON_HOME.has(c.key)),
-  )
-  const [modal, setModal] = useState<ConnectorSpecial | 'upload' | null>(null)
-  const [source, setSource] = useState<string | null>(() => loadDatasetSource())
-  const [uploadTarget, setUploadTarget] = useState<PortalConnector | null>(null)
 
-  // Reflect a saved Azure session (this browser tab) before first paint, same as
-  // the vanilla app's renderConnectors().
-  useEffect(() => {
-    const saved = loadAzureConn()
-    if (saved) {
-      setConnectors((prev) => prev.map((c) => (c.key === 'azure' ? { ...c, on: true, detail: c.detail || 'Saved session' } : c)))
-    }
-  }, [])
-
-  // Excel / Shared Drives reflects real ingested data, not a hardcoded flag.
-  // The core star-schema tables in the Data/ folder are what it reports: those
-  // are the files every dashboard and KPI actually reads, so "6 of 6 core
-  // tables" is the honest description of the connection. Only the six count —
-  // the upload route rejects anything else by name, so there is no such thing
-  // as a standalone profiled upload to mention alongside them any more.
-  useEffect(() => {
-    if (!starStatus) return
-    const present = starStatus.files.filter((f) => f.present).length
-    const total = starStatus.files.length
-    setConnectors((prev) =>
-      prev.map((c) =>
-        c.key === 'xls'
-          ? { ...c, on: present > 0, detail: total ? `${present}/${total} core tables` : undefined }
-          : c,
-      ),
-    )
-  }, [starStatus])
-
-  const updateConnector = (key: string, patch: Partial<PortalConnector>) => {
-    setConnectors((prev) => prev.map((c) => (c.key === key ? { ...c, ...patch } : c)))
-  }
-
-  // Null unless a dataset is really installed, so a Reset silently retires the
-  // remembered source rather than leaving the rail claiming a stale one.
-  const presentCount = starStatus?.files.filter((f) => f.present).length ?? 0
-  const totalCount = starStatus?.files.length ?? 0
-  const anyLoaded = presentCount > 0
-  const sourceConnector = anyLoaded ? connectors.find((c) => c.key === source) ?? null : null
-  // Read from the star status rather than the connector's own label, so the
-  // count is right even for a dataset loaded before the source was recorded.
-  const sourceDetail = totalCount ? `${presentCount}/${totalCount} core tables` : null
-
-  const closeModal = () => {
-    setModal(null)
-    setUploadTarget(null)
-  }
-
-  // Remember which connector the dataset came from — the backend stores the six
-  // files but not their provenance, so the rail could not otherwise say.
-  const onConnected = (key: string) => (detail: string) => {
-    saveDatasetSource(key)
-    setSource(key)
-    updateConnector(key, { on: true, detail })
-  }
+  // Where the live module goes. With no dataset installed every TPO page is a
+  // locked door (RequireDataset), so the card sends a first-time user to the
+  // connectors instead of to a gate; once the six tables are in it opens the
+  // Insights Hub directly, as it always did.
+  const complete = Boolean(starStatus?.complete)
+  const tpoHref = complete ? '/command' : '/connections'
 
   const signOut = () => {
     logout.mutate(undefined, { onSuccess: () => navigate('/login', { replace: true }) })
@@ -103,12 +38,15 @@ export function Home() {
 
   return (
     <div className="min-h-screen bg-surface-page">
-      <header className="flex h-[72px] items-center gap-3 border-b border-border-subtle bg-surface-card px-4 sm:px-8">
+      <header className="portal-header flex h-[76px] items-center gap-3 border-b border-border-subtle bg-surface-card px-4 sm:px-8">
         <Link to="/home" className="flex min-w-0 items-center gap-3">
-          <img src="/image.png" alt="TransOrg" className="h-[34px] w-[34px] shrink-0" />
+          <img src="/image.png" alt="TransOrg" className="h-[38px] w-[38px] shrink-0" />
           <div className="min-w-0">
-            <h1 className="truncate text-md leading-[1.25] sm:text-lg">Agentic CPG &amp; Retail Intelligence Platform</h1>
-            <p className="mt-px hidden truncate text-sm text-ink-muted sm:block">Enterprise decision intelligence for FMCG/CPG</p>
+            <h1 className="truncate text-lg leading-[1.22] sm:text-xl">Agentic CPG &amp; Retail Intelligence Platform</h1>
+            {/* One step up and one shade darker. At 13px in `ink-muted` this
+                sat under a 21px wordmark and read as fine print rather than as
+                the product's description. */}
+            <p className="mt-0.5 hidden truncate text-md text-ink-secondary sm:block">Enterprise decision intelligence for FMCG/CPG</p>
           </div>
         </Link>
         <div className="flex-1" />
@@ -124,12 +62,14 @@ export function Home() {
               signOut()
             }}
             trigger={
-              <div
+              <button
+                type="button"
                 className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-full bg-[linear-gradient(135deg,#6B47FF,#8C6EFF)] text-sm font-bold text-white"
                 title={user.name}
+                aria-label={`Account menu — ${user.name}`}
               >
                 {user.initials}
-              </div>
+              </button>
             }
           />
         </div>
@@ -137,19 +77,25 @@ export function Home() {
 
       {/* `@container` so this page's `@max-[...]` breakpoints have something to
           resolve against. AppShell's main carries it and this one never did, so
-          every container query on the portal — the module/rail split and the
-          module grid's own columns — silently never fired at any width.
+          every container query on the portal — the module grid's own columns —
+          silently never fired at any width.
 
           The bottom padding was 64px of nothing below the fold. On a 1366x768
           laptop at 100% zoom the viewport is ~625px tall and this page wanted
           828px, so the second row of modules was cut through its titles. */}
-      <main className="@container mx-auto max-w-[1920px] p-[20px_16px_28px] sm:p-[28px_40px_30px]">
-        <div className="fade-in-up mb-5 flex items-center justify-between gap-6">
+      <main className="portal-main @container mx-auto max-w-[1920px] p-[20px_16px_28px] sm:p-[28px_40px_30px]">
+        <div className="portal-hero fade-in-up mb-5 flex items-center justify-between gap-6">
           <div className="min-w-0 flex-1">
             {/* The person's name as they gave it -- capitals shout, and mangle
                 names that are not meant to be uppercased. */}
-            <h2 className="mb-1.5 text-xl font-extrabold tracking-[-0.02em] sm:text-2xl">Good to see you, {user.name}.</h2>
-            <p className="max-w-[78ch] text-base leading-[1.6] text-ink-secondary">
+            <h2 className="mb-2 text-2xl font-extrabold tracking-[-0.02em] sm:text-3xl">Good to see you, {user.name}.</h2>
+            {/* ONE LINE. The sentence measures 1059px at this size, and the
+                column it sits in is 1286px wide at 1366 and 1200px at 1280, so
+                the cap is what was wrapping it — 72ch is 582px. Raised to clear
+                the sentence with slack, not removed: below ~1150px of column
+                there is genuinely no room for it and it should wrap rather than
+                overflow. */}
+            <p className="max-w-[1100px] text-md leading-[1.55] text-ink-secondary">
               Trade Promotion Optimization is live — measure, diagnose and simulate every promotion against its baseline.
               Five more modules are on the roadmap.
             </p>
@@ -164,43 +110,8 @@ export function Home() {
           </div>
         </div>
 
-        <div className="grid grid-cols-[1fr_360px] items-start gap-6 @max-[1080px]:grid-cols-1">
-          <ModuleGrid />
-
-          <div className="flex flex-col gap-6">
-            <ConnectorRail
-              connectors={connectors}
-              onOpenSpecial={(special) => setModal(special)}
-              onOpenUpload={(c) => {
-                setUploadTarget(c)
-                setModal('upload')
-              }}
-              loaded={anyLoaded}
-              sourceName={sourceConnector?.name ?? null}
-              sourceDetail={sourceDetail}
-            />
-          </div>
-        </div>
+        <ModuleGrid tpoHref={tpoHref} needsData={!complete} />
       </main>
-
-      {modal === 'upload' && uploadTarget && <UploadModal connector={uploadTarget} onClose={closeModal} onConnected={onConnected('xls')} />}
-      {modal === 'azure' && (
-        <AzureDatasetModal connector={connectors.find((c) => c.key === 'azure')!} onClose={closeModal} onConnected={onConnected('azure')} />
-      )}
-      {modal === 'databricks' && (
-        <DatabricksModal
-          connector={connectors.find((c) => c.key === 'databricks')!}
-          onClose={closeModal}
-          onConnected={onConnected('databricks')}
-        />
-      )}
-      {modal === 'sap' && <SapModal connector={connectors.find((c) => c.key === 'sap')!} onClose={closeModal} onConnected={onConnected('sap')} />}
-      {modal === 'powerbi' && (
-        <PowerBiModal connector={connectors.find((c) => c.key === 'pbi')!} onClose={closeModal} onConnected={onConnected('pbi')} />
-      )}
-      {modal === 'nielsen' && (
-        <NielsenModal connector={connectors.find((c) => c.key === 'niq')!} onClose={closeModal} onConnected={onConnected('niq')} />
-      )}
     </div>
   )
 }

@@ -81,12 +81,17 @@ function AskSomething({
         {(types ?? []).map((t) => (
           <div key={t.key} className="rounded-[var(--r-lg)] border border-border-subtle p-[12px_14px]">
             <div className="mb-1.5 text-xs font-bold uppercase tracking-[0.06em] text-ink-muted">{t.title}</div>
-            <div className="flex flex-col gap-1.5">
+            {/* `gap-0.5` with padding on the rows rather than `gap-1.5` with
+                none: these were 20px-tall targets in a stack, under the 24px
+                floor, and the gap was doing the spacing that the targets
+                should have been doing themselves. Same rhythm on screen, a
+                row you can actually hit. */}
+            <div className="flex flex-col gap-0.5">
               {(t.questions ?? []).slice(0, 2).map((q) => (
                 <button
                   key={q}
                   onClick={() => onPick(q)}
-                  className="text-left text-base leading-[1.5] text-brand-violet hover:underline"
+                  className="-mx-1.5 rounded-[var(--r-sm)] px-1.5 py-1 text-left text-base leading-[1.5] text-brand-violet transition-colors duration-150 hover:bg-brand-violet-50 hover:underline"
                 >
                   {q}
                 </button>
@@ -335,7 +340,10 @@ function OutOfScope({ question, reason, onReset }: { question: string; reason: s
         </div>
         <h2 className="text-lg font-extrabold">That's outside what this data can answer</h2>
         <p className="max-w-[540px] text-base leading-[1.6] text-ink-muted">{reason}</p>
-        <p className="max-w-[540px] text-sm italic leading-[1.5] text-ink-disabled">You asked: "{question}"</p>
+        {/* The reader's own question, quoted back so they can see what was
+            parsed. Content, so it is read at the muted tone rather than the
+            disabled one it used to borrow. */}
+        <p className="max-w-[540px] text-sm italic leading-[1.5] text-ink-muted">You asked: "{question}"</p>
         <button
           onClick={onReset}
           className="mt-1 rounded-[var(--r-md)] bg-brand-violet px-4 py-2 text-base font-semibold text-white"

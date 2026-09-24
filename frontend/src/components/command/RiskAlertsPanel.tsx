@@ -129,7 +129,11 @@ export function RiskAlertsPanel({
               }`}
             >
               {s}
-              <span className={on ? 'text-white/75' : 'text-ink-disabled'}>{counts[s]}</span>
+              {/* `ink-muted`, not `ink-disabled`: this is the count of alerts in
+                  the band, which is the whole point of the tab -- it is data, not
+                  a greyed-out affordance, and at the disabled tone it sat at
+                  2.5:1 against the strip. */}
+              <span className={on ? 'text-white/75' : 'text-ink-muted'}>{counts[s]}</span>
             </button>
           )
         })}

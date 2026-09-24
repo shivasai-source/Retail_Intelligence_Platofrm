@@ -131,8 +131,12 @@ export function Calendar() {
               </span>
             }
             actions={
+              // 26px tall gave 24px segments, right on the WCAG 2.5.8 floor for
+              // a pointer target and visibly shorter than every other control
+              // in a card header. 30px clears it and lines the group up with
+              // the header's other actions; the type and padding are unchanged.
               <div
-                className="inline-flex h-[26px] items-stretch overflow-hidden rounded-[var(--r-md)] border border-border-subtle"
+                className="inline-flex h-[30px] items-stretch overflow-hidden rounded-[var(--r-md)] border border-border-subtle"
                 role="radiogroup"
                 aria-label="Calendar year"
               >

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError, apiFetch, apiPost } from '../lib/api'
+import { offerToSavePassword } from '../lib/credentials'
 import type { LoginResult, PortalUser } from '../types/portal'
 
 // The current session's user, from the httpOnly cookie FastAPI set on
@@ -32,7 +33,18 @@ export function useCurrentUser() {
 export function useLogin() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (body: { email: string; password: string }) => apiPost<LoginResult>('/auth/login', body),
+    // The save prompt is asked for HERE rather than from the Login page's own
+    // onSuccess, for two reasons. It runs on exactly the condition wanted — a
+    // 2xx from /auth/login, never a failure — without depending on React
+    // Query's callback lifecycle, which is tied to the calling component still
+    // being mounted; and login succeeding is a property of this mutation, not
+    // of whichever screen happened to trigger it. `credentials.ts` explains
+    // what the call is for.
+    mutationFn: async (body: { email: string; password: string }) => {
+      const result = await apiPost<LoginResult>('/auth/login', body)
+      offerToSavePassword(body.email, body.password, result.user.name)
+      return result
+    },
     onSuccess: (result) => {
       queryClient.setQueryData(['auth', 'me'], result.user)
     },

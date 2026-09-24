@@ -1,9 +1,8 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect } from 'react'
 import { Button, Dropdown, IconButton } from '../ui'
 import { Icon } from '../../icons'
 import { useCommandFilters, type FilterStoreHook, type ListFilterKey } from '../../store/commandFilters'
 import { MultiSelect, SelectionChips, type MultiOption } from './MultiSelect'
-import { TargetRoiControl, type TargetRoiInfo } from './TargetRoiControl'
 import type { Currency, FiltersResponse, Option } from '../../types/commandCenter'
 
 /** A single-select dropdown over a filter the API models as a list.
@@ -16,7 +15,7 @@ function FilterSelect({
   value,
   options,
   onChange,
-  size = 'md',
+  size = 'pill',
 }: {
   label: string
   /** The "no constraint" entry. Passed explicitly rather than derived as
@@ -25,7 +24,9 @@ function FilterSelect({
   value: string | null
   options: Option[]
   onChange: (value: string | null) => void
-  size?: 'sm' | 'md'
+  /** `pill` is the toolbar's own size and the default; the Additional
+   *  Filters panel passes `sm`. */
+  size?: 'sm' | 'pill'
 }) {
   const allLabel = allLabelProp ?? `All ${label}s`
   const selectedName = value ? (options.find((o) => o.code === value)?.name ?? value) : allLabel
@@ -58,14 +59,14 @@ function FilterMulti({
   allLabel: allLabelProp,
   dimension,
   options,
-  size = 'md',
+  size = 'pill',
   store = useCommandFilters,
 }: {
   label: string
   allLabel?: string
   dimension: ListFilterKey
   options: MultiOption[]
-  size?: 'sm' | 'md'
+  size?: 'sm' | 'pill'
   store?: FilterStoreHook
 }) {
   const selected = store((s) => s.filters[dimension])
@@ -125,9 +126,7 @@ export function FilterBar({
   options,
   onRefresh,
   refreshing = false,
-  target,
   refreshInline = true,
-  trailing,
   store = useCommandFilters,
   layout = 'insights',
   groupLabel = 'Insights Hub filters',
@@ -144,23 +143,15 @@ export function FilterBar({
   layout?: FilterBarLayout
   groupLabel?: string
   /** False when the page draws the refresh button itself (the Insights Hub
-   *  keeps it beside Export, so a wrapping filter row never strands it).
-   *  Ignored when there is no `onRefresh` to call. */
+   *  keeps it in the action group on the right). Ignored when there is no
+   *  `onRefresh` to call. */
   refreshInline?: boolean
-  /** The target ROI control — current value, default and bounds, from the
-   *  KPI payload's meta. Omitted where the page has no target to set. */
-  target?: TargetRoiInfo
-  /** Controls a page adds to the end of the row — after the target — that
-   *  change what the page shows without changing its scope, so they wrap
-   *  with the filters rather than being stranded beside Export. */
-  trailing?: ReactNode
 }) {
   const filters = store((s) => s.filters)
   const currency = store((s) => s.currency)
   const expanded = store((s) => s.expanded)
   const set = store((s) => s.set)
   const setCurrency = store((s) => s.setCurrency)
-  const setTargetRoi = store((s) => s.setTargetRoi)
   const toggleExpanded = store((s) => s.toggleExpanded)
   const reset = store((s) => s.reset)
   const reconcile = store((s) => s.reconcile)
@@ -213,10 +204,24 @@ export function FilterBar({
 
   return (
     <>
-      {/* Primary controls — same row, same order, same controls as before.
-          `flex-wrap` lets the bar reflow on tablet/mobile instead of forcing a
-          horizontal scrollbar; nothing is hidden or reordered. */}
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={groupLabel}>
+      {/* ONE ROW, AND IT STAYS ONE ROW. Target ROI and Add KPI moved out to the
+          page's action group on the right, which left the scope controls few
+          enough to fit — so `flex-nowrap` is now a promise the bar can keep
+          rather than one that would force a horizontal scrollbar.
+
+          It reflows only when the width is genuinely not there: the container
+          query below (against <main>, per the project's layout rule — not the
+          viewport) restores wrapping on tablet and narrower, where a single
+          line would clip. Nothing is hidden or reordered at any width.
+
+          `gap-x-1.5` rather than a uniform `gap-2`: the controls are pills with
+          their own padding, so 6px between them still reads as separate. The
+          vertical gap stays at 8px for the widths where the row does wrap. */}
+      <div
+        className="flex flex-nowrap items-center gap-x-1.5 gap-y-2 @max-[1080px]:flex-wrap"
+        role="group"
+        aria-label={groupLabel}
+      >
         <Dropdown
           selected={yearLabel}
           options={[{ label: 'All Years' }, ...years.map((y) => ({ label: y.name }))]}
@@ -226,7 +231,7 @@ export function FilterBar({
             set('year', match ? Number(match.code) : null)
           }}
           trigger={
-            <Button variant="secondary" size="md" className="cursor-pointer">
+            <Button variant="secondary" size="pill" className="cursor-pointer">
               <Icon name="filter" />
               <span>{yearLabel}</span>
               <Icon name="chevronDown" />
@@ -264,11 +269,16 @@ export function FilterBar({
         <div className="relative">
           <Button
             variant={expanded ? 'primary' : 'secondary'}
-            size="md"
+            size="pill"
             className="cursor-pointer"
             onClick={toggleExpanded}
             aria-expanded={expanded}
-            aria-controls="cc-more-filters"
+            // Only while the panel exists. `aria-controls` pointing at an id
+            // that is not in the document is an invalid reference, and some
+            // screen readers announce the control as broken rather than
+            // ignoring it. The panel is unmounted when collapsed, so the
+            // attribute has to come and go with it.
+            aria-controls={expanded ? 'cc-more-filters' : undefined}
           >
             <Icon name="filter" />
             <span>More Filters{activeCount > 0 ? ` (${activeCount})` : ''}</span>
@@ -334,10 +344,6 @@ export function FilterBar({
 
         <CurrencyToggle currency={currency} onChange={setCurrency} />
 
-        {target && <TargetRoiControl target={target} onApply={setTargetRoi} />}
-
-        {trailing}
-
         {refreshInline && onRefresh && (
           <IconButton icon="refresh" className="!h-9 !w-9" title="Refresh data" spinning={refreshing} disabled={refreshing} onClick={onRefresh} />
         )}
@@ -364,7 +370,11 @@ function CurrencyToggle({ currency, onChange }: { currency: Currency; onChange: 
           aria-checked={currency === code}
           aria-label={code === 'INR' ? 'Indian rupees' : 'US dollars'}
           onClick={() => onChange(code)}
-          className={`cursor-pointer rounded-[calc(var(--r-md)-3px)] px-2.5 py-1 text-sm font-semibold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet ${
+          // `h-full` rather than `py-1`: the segments were 25px inside a 36px
+          // shell, so a third of the control's height was a dead strip that
+          // looked clickable and was not. Filling the shell makes the visible
+          // pill and the hit target the same rectangle.
+          className={`h-full cursor-pointer rounded-[calc(var(--r-md)-3px)] px-2.5 text-sm font-semibold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet ${
             currency === code
               ? 'bg-brand-violet text-white shadow-[var(--shadow-card-soft)]'
               : 'text-ink-muted hover:bg-surface-hover hover:text-ink-primary'

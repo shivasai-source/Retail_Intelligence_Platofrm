@@ -23,6 +23,7 @@ import { RiskAlertsPanel } from '../components/command/RiskAlertsPanel'
 import { ALERT_FETCH_LIMIT, topPriorityAlert } from '../components/command/riskRanking'
 import { EmptyState as CcEmptyState, ErrorState, KpiSkeleton, PanelSkeleton, Stale } from '../components/command/States'
 import { AddKpiMenu } from '../components/command/AddKpiMenu'
+import { TargetRoiControl } from '../components/command/TargetRoiControl'
 import { SERIES_CLASS } from '../components/command/series'
 import { PriorityAlert } from '../components/command/PriorityAlert'
 import { ADDABLE_KPI_ORDER, HERO_TILE_CLASS, readAddedKpis, writeAddedKpis } from '../components/command/kpiDeckState'
@@ -154,6 +155,7 @@ export function CommandCenter() {
   const initialised = useCommandFilters((s) => s.initialised)
   const reset = useCommandFilters((s) => s.reset)
   const targetRoi = useCommandFilters((s) => s.targetRoi)
+  const setTargetRoi = useCommandFilters((s) => s.setTargetRoi)
   /** The RCA hand-off for a risk alert. EXTRACTED to hooks/useAlertHandoff.ts
    *  so the header's notification bell opens the same investigation this page's
    *  own alert rows open — one definition, not two that can drift. Behaviour is
@@ -323,59 +325,81 @@ export function CommandCenter() {
           )}
         </div>
 
-        {/* THE TOOLBAR: every control that changes what the page shows on
-            the left, Export pinned to the right. The outer row never wraps;
-            when the width runs out the FILTER GROUP wraps inside itself, so
-            Export keeps its corner instead of dropping to a line of its own. */}
+        {/* THE TOOLBAR, IN TWO GROUPS.
+         *
+         *  LEFT — what the page is looking at: the scope filters, which now fit
+         *  on a single line because the two controls that are not filters moved
+         *  out of them.
+         *
+         *  RIGHT — what the page shows about that scope, and what to do with
+         *  it: Add KPI, then Target ROI, then a hairline, then Refresh and
+         *  Export. Add KPI and Target ROI sit together and apart from the
+         *  filters because neither changes the SELECTION — they change which
+         *  cards are on screen and what those cards are judged against, over
+         *  the very same rows.
+         *
+         *  The outer row never wraps; when the width runs out the filter group
+         *  wraps inside itself, so the action group keeps its corner instead of
+         *  dropping to a line of its own. */}
         <div className="mt-4 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <FilterBar
               options={options.data}
               onRefresh={handleRefresh}
               refreshing={refreshing}
-              // `current` is the STORE's value, not the payload's: the pill flips
-              // the moment the reader applies a target, while the panels catch
-              // up behind the Stale wash. The default and bounds are the
-              // backend's, so nothing here hard-codes 1.5.
-              target={{ current: targetRoi ?? meta.default_target_roi, defaultValue: meta.default_target_roi, range: meta.target_roi_range }}
               refreshInline={false}
-              // Adds KPI cards to the deck below. It sits with the filters
-              // because, like them, it changes what the page shows — but it
-              // never touches the scope: every card it adds is measured over
-              // the same selection as the headline three.
-              trailing={
-                <AddKpiMenu
-                  cards={allCards}
-                  selected={addedKpis}
-                  onToggle={(key) =>
-                    setAdded(addedKpis.includes(key) ? addedKpis.filter((k) => k !== key) : [...addedKpis, key])
-                  }
-                  onClear={() => setAdded([])}
-                />
-              }
             />
           </div>
-          {/* EXPORTS WHAT THE SCREEN IS SHOWING. `scope` is read at click time
-              from the same `commandFilters` store every card, chart and table on
-              this page reads, so a report can never describe a different
-              selection from the one on screen. */}
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5">
+            {/* Adds KPI cards to the deck below. It never touches the scope:
+                every card it adds is measured over the same selection as the
+                headline three. */}
+            <AddKpiMenu
+              cards={allCards}
+              selected={addedKpis}
+              onToggle={(key) =>
+                setAdded(addedKpis.includes(key) ? addedKpis.filter((k) => k !== key) : [...addedKpis, key])
+              }
+              onClear={() => setAdded([])}
+            />
+            {/* `current` is the STORE's value, not the payload's: the pill flips
+                the moment the reader applies a target, while the panels catch
+                up behind the Stale wash. The default and bounds are the
+                backend's, so nothing here hard-codes 1.5. */}
+            <TargetRoiControl
+              target={{
+                current: targetRoi ?? meta.default_target_roi,
+                defaultValue: meta.default_target_roi,
+                range: meta.target_roi_range,
+              }}
+              onApply={setTargetRoi}
+            />
+            {/* The hairline separates the two controls that change the VIEW
+                from the two that act on it. Decoration only. */}
+            <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border-subtle" />
             <IconButton icon="refresh" className="!h-9 !w-9" title="Refresh data" spinning={refreshing} disabled={refreshing} onClick={handleRefresh} />
+            {/* EXPORTS WHAT THE SCREEN IS SHOWING. `scope` is read at click time
+                from the same `commandFilters` store every card, chart and table
+                on this page reads, so a report can never describe a different
+                selection from the one on screen. `collapse` keeps it to its
+                glyph until it is pointed at — see ExportReportButton. */}
             <ExportReportButton
               module="command-center"
               label="Export"
+              collapse
               scope={() => toReportScope(useCommandFilters.getState().filters)}
               currency={meta.currency}
               disabled={isEmpty}
               disabledReason="This filter selection matches no sales rows, so there is nothing to report."
             />
-            {/* THE BOT, last in the row — it is the one control here that opens
-                another surface rather than changing this one. Never disabled by
-                an empty filter selection the way Export is: "this selection has
-                no rows" is itself a reasonable thing to ask the Analyst about. */}
-            <AnalystButton open={analystOpen} onClick={() => setAnalystOpen(true)} />
           </div>
         </div>
+        {/* THE BOT floats in the page's bottom-right corner rather than sitting
+            in this row — it is the one control here that opens another surface
+            instead of changing this one, and it stays available when an empty
+            filter selection disables Export, because "this selection has no
+            rows" is itself a reasonable thing to ask the Analyst about. */}
+        <AnalystButton open={analystOpen} onClick={() => setAnalystOpen(true)} />
       </div>
 
       {isEmpty ? (

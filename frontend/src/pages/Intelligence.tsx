@@ -137,6 +137,28 @@ function SectionLoading({ loading }: { loading: boolean }) {
   )
 }
 
+/** THE PAGE'S OWN NAME, for the states that have no analysis to head.
+ *
+ *  The loaded state carries its title in its header row; the loading and
+ *  "no investigation yet" states carried none at all, so this page was the
+ *  only one in the app that could render without an `<h1>` — a reader landing
+ *  here from the rail saw a card telling them to go elsewhere, with nothing on
+ *  screen naming where "here" was, and assistive technology had no page
+ *  heading to announce. Same wording and same treatment as the loaded state,
+ *  so the title does not move when the analysis arrives. */
+function PageTitle() {
+  return (
+    <div className="fade-in">
+      <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-[-0.02em]">
+        Promotion Intelligence <Icon name="sparkles" className="h-5 w-5 text-brand-violet" />
+      </h1>
+      <p className="mt-1.5 text-base text-ink-muted">
+        The mechanism behind a root cause, and what it is worth
+      </p>
+    </div>
+  )
+}
+
 /** Shown when no investigation has been run — this page has nothing to deepen. */
 function NoInvestigation() {
   return (
@@ -366,7 +388,8 @@ export function Intelligence() {
   if (ctxLoading) {
     return (
       <AppShell activeKey="intelligence" crumbs={crumbs}>
-        <div className="grid min-h-[60vh] place-items-center gap-3 text-base text-ink-muted">
+        <PageTitle />
+        <div className="grid min-h-[50vh] place-items-center gap-3 text-base text-ink-muted">
           <Spinner className="h-5 w-5" />
           Loading…
         </div>
@@ -377,6 +400,7 @@ export function Intelligence() {
   if (!investigation) {
     return (
       <AppShell activeKey="intelligence" crumbs={crumbs}>
+        <PageTitle />
         <NoInvestigation />
       </AppShell>
     )
@@ -601,8 +625,16 @@ export function Intelligence() {
                 <CardHeader
                   title="Incremental Sales vs Target"
                   actions={
-                    <Pill tone={facts.trend.months_below_target > 6 ? 'danger' : 'warning'}>
-                      {facts.trend.months_below_target} months below
+                    <Pill
+                      tone={
+                        facts.trend.months_below_target === 0
+                          ? 'success'
+                          : facts.trend.months_below_target > facts.trend.labels.length / 2
+                            ? 'danger'
+                            : 'warning'
+                      }
+                    >
+                      {facts.trend.months_below_target} {facts.trend.months_below_target === 1 ? 'month' : 'months'} below
                     </Pill>
                   }
                 />

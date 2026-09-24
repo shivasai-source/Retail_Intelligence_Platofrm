@@ -154,7 +154,8 @@ SOON" badges** from the other five.
 
 Also on the page:
 
-- **`ConnectorRail`** — six connectors with working modals and live proxies.
+- Connecting a source is **not** on this page, and no longer on the portal
+  either — it lives only on `#/connections`.
   See [modules/08_DATA_CONNECTIONS.md](08_DATA_CONNECTIONS.md).
 - **`AdvisorCard`** — an OpenAI capability chat via
   `POST /api/proxy/openai/chat`. **The one genuinely live LLM path in this

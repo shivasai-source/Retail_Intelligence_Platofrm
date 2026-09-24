@@ -12,9 +12,9 @@ import type { KpiCard } from '../../types/commandCenter'
  *  So the six sit behind this control, and a reader picks the ones they want
  *  under the headline row; the choice is remembered per browser.
  *
- *  Same MultiSelect and same secondary Button as the Channels and Retailers
- *  pills beside it, so it reads as one more control on the row rather than a
- *  different kind of thing. Every name in the menu is the backend's own card
+ *  Same MultiSelect, same secondary Button and the same `pill` size as the
+ *  Channels and Retailers pills beside it, so it reads as one more control on
+ *  the row rather than a different kind of thing. Every name in the menu is the backend's own card
  *  label; nothing here names a KPI in code. */
 
 /** "net_incremental_profit" -> "Net incremental profit", for the one render
@@ -46,9 +46,12 @@ export function AddKpiMenu({
       onToggle={onToggle}
       onClear={onClear}
       trigger={
-        <Button variant="secondary" className="cursor-pointer">
+        <Button variant="secondary" size="pill" className="cursor-pointer">
           <Icon name="plus" />
-          <span>Add your KPI</span>
+          {/* "Add KPI", not "Add your KPI": the row has to hold seven controls
+              and still end before Export, and the two dropped words bought
+              the last of the width it needed. */}
+          <span>Add KPI</span>
           {/* A count, not the names: six titles like "Net Incremental Profit"
               would push Export off the row. The cards themselves say what
               was added. */}

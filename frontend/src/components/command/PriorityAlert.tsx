@@ -34,11 +34,11 @@ export function PriorityAlert({ alert, onOpen }: { alert: RiskAlert; onOpen: () 
         flash ? 'shadow-[0_0_0_5px_rgba(239,68,68,0.18)]' : 'shadow-[0_0_0_0_rgba(239,68,68,0)]'
       }`}
     >
-      <span className="grid h-7 w-7 shrink-0 animate-[pulseDot_2s_ease-in-out_infinite] place-items-center rounded-full bg-white/60 text-[var(--alert-ink)] [&_svg]:h-4 [&_svg]:w-4 [&_svg]:stroke-2">
+      <span className="grid h-7 w-7 shrink-0 animate-[pulseDot_2s_ease-in-out_infinite] place-items-center rounded-full bg-[var(--alert-dot-bg)] text-[var(--alert-ink)] [&_svg]:h-4 [&_svg]:w-4 [&_svg]:stroke-2">
         <Icon name="warning" />
       </span>
       <span className="min-w-0 truncate text-sm">
-        <span className="mr-1.5 rounded-[var(--r-sm)] bg-[var(--alert-ink)] px-1.5 py-px text-2xs font-bold uppercase tracking-wide text-white">
+        <span className="mr-1.5 rounded-[var(--r-sm)] bg-[var(--alert-ink)] px-1.5 py-px text-2xs font-bold uppercase tracking-wide text-[var(--alert-badge-ink)]">
           {alert.severity}
         </span>
         <span className="font-semibold text-[var(--alert-ink)]">{alert.title}</span>

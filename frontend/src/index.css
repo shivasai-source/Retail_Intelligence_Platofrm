@@ -16,7 +16,7 @@
 ============================================================================ */
 @theme {
   /* ===== Type scale — THE ONLY FONT SIZES IN THE APP =====
-     Every module reads from these eight steps. Before this the app used
+     Every module reads from these steps. Before this the app used
      22 ad-hoc `text-[Npx]` values plus Tailwind's own six, so the same
      kind of label rendered at 11px on one screen and 11.5px on another.
      Sizes are px (not rem) because the whole design is px-based; the
@@ -29,6 +29,11 @@
   --text-lg: 18px;    --text-lg--line-height: 1.35;   /* section headings */
   --text-xl: 21px;    --text-xl--line-height: 1.2;    /* KPI values */
   --text-2xl: 26px;   --text-2xl--line-height: 1.15;  /* page titles */
+  /* The ninth step, and the only one no module uses: sign-in is the one
+     screen in the product with no density pressure -- a single card on an
+     empty page -- and 26px read there as just another card title rather
+     than as the page's one statement. */
+  --text-3xl: 32px;   --text-3xl--line-height: 1.1;   /* the sign-in greeting */
 
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
@@ -238,6 +243,104 @@ h4 { font-size: 15px; line-height: 1.4; }
      stroke on the icon itself also beats its `stroke="currentColor"` attribute,
      since any rule outranks a presentation attribute. */
   .bell-ring svg { stroke: var(--brand-violet); }
+}
+
+/* ============================================================================
+   THE PORTAL'S MODULE CARDS — hover
+
+   The whole card warms, in the module's OWN colour: Forecasting sky blue, TPO
+   violet, MMM teal, Pricing peach, Customer mint, Supply sky. Two layers fade
+   in together — a flat wash across the card, and a soft spotlight that follows
+   the pointer inside it.
+
+   IT IS DRIVEN BY `--card-accent`, NOT `--card-tint`, AND THAT IS THE WHOLE
+   POINT. Both are set per card in ModuleGrid.tsx; `--card-tint` is the pale
+   chip colour the icon sits on (#DCEEFF, #E9DFFF, #CCEFE9 …). Those are close
+   enough in lightness that a wash made from them reads as "slightly not-white"
+   on every card — the colour is technically different and perceptually the
+   same. `--card-accent` is the saturated counterpart (#3B82F6, #6B47FF,
+   #14B8A6 …); at 10% it is just as quiet but the HUE is unmistakable, so the
+   six modules finally look like six different things.
+
+   The layers are an OVERLAY, not a background-color change. The accents are
+   solid hexes in both themes and compositing one layer over the card behaves
+   the same in each — where mixing into `--surface-card` would need its own
+   reasoning per theme.
+
+   `::before`, NOT `::after`, AND THAT IS LOAD-BEARING. Both pseudo elements
+   paint in the same step as the card's positioned children, ordered by tree
+   position — so an `::after` lands ON TOP of the title and description and
+   washes them out along with the background. `::before` precedes the children,
+   which puts the layer exactly where it belongs: above the card's own
+   background, below every word on it.
+============================================================================ */
+.module-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 220ms var(--ease-out);
+  background:
+    radial-gradient(
+      240px circle at var(--mx, 50%) var(--my, 50%),
+      color-mix(in srgb, var(--card-accent, var(--brand-violet)) 14%, transparent) 0%,
+      transparent 72%
+    ),
+    linear-gradient(
+      0deg,
+      color-mix(in srgb, var(--card-accent, var(--brand-violet)) 10%, transparent),
+      color-mix(in srgb, var(--card-accent, var(--brand-violet)) 10%, transparent)
+    );
+}
+
+.module-card:hover::before { opacity: 1; }
+
+/* The border picks up the same hue, so the card is outlined in its own colour
+   rather than warming inside a neutral frame. The live card is excluded: its
+   border is already solid brand violet, and mixing that toward the same hue
+   would only make it paler. */
+.module-card:not(.module-card-live):hover {
+  border-color: color-mix(in srgb, var(--card-accent) 30%, var(--border-subtle));
+}
+
+/* The live module's own cue: the violet ring it already wears gains a soft halo
+   rather than another panel of colour. */
+.module-card-live:hover {
+  border-color: var(--brand-violet);
+  box-shadow: var(--shadow-lg), 0 0 0 3px color-mix(in srgb, var(--brand-violet) 16%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .module-card::before { transition: none; }
+}
+
+/* ============================================================================
+   THE PORTAL AT LAPTOP HEIGHT
+
+   The portal carries a full step more type than the dashboards (18px card
+   titles, 15px descriptions, a 32px greeting) because it is six cards on an
+   empty background rather than a screen under density pressure. That type costs
+   about 70px of height, and the one viewport where the page has none to spare
+   is the 1366x768 laptop — ~625px of usable height at 100% zoom, which is
+   exactly enough for two rows of cards and nothing more. Overflowing it cuts
+   the second row through its titles.
+
+   So the SPACE flexes and the TYPE does not. Below 800px of viewport height the
+   gaps, padding and header tighten by ~80px in total; above it they open back
+   up. Reading size is the same on both — a laptop user gets the same words at
+   the same size, just closer together.
+
+   Height media queries rather than width: this is a vertical problem, and the
+   page already hides its hero art on the same `max-height: 800px` condition.
+============================================================================ */
+@media (max-height: 800px) {
+  .portal-header { height: 68px; }
+  .portal-main   { padding-top: 16px; padding-bottom: 16px; }
+  .portal-hero   { margin-bottom: 12px; }
+  .portal-grid   { gap: 12px; }
+  .portal-card   { padding: 14px; gap: 8px; }
 }
 
 /* ============================================================================

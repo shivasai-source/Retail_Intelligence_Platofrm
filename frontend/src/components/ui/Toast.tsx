@@ -46,7 +46,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ show }}>
       {children}
-      <div className="fixed bottom-6 right-6 z-[200] flex flex-col gap-2">
+      {/* Bottom-right, but clearing the Analyst launcher that now owns that
+          corner: `bottom-24` is the launcher's 56px circle plus its own 24px
+          inset and a gap. Stated as one offset for every page rather than one
+          the launcher toggles — a toast that jumped when a drawer opened would
+          be worse than a toast that sits a little high on the pages without
+          a launcher. */}
+      <div className="fixed bottom-24 right-6 z-[200] flex flex-col gap-2">
         {toasts.map((t) => (
           <div
             key={t.id}

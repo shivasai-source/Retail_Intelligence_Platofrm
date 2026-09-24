@@ -117,9 +117,29 @@ export function TrendVsTarget({ trend, height = 230 }: { trend: TrendFacts; heig
   // A null month is a gap, not a zero: the line lifts (M) after every gap
   // rather than bridging it, and a series whose first month is null no
   // longer opens with an "L" -- which is not a path and drew nothing at all.
+  //
+  // AN ISLAND NEEDS A ZERO-LENGTH SEGMENT, NOT JUST A CAP. A month with nulls
+  // on both sides used to emit "M x y" and nothing else, and a bare moveto is
+  // not a strokable subpath -- it paints nothing whatever the linecap. Measured
+  // in the browser, over a 40x40 canvas:
+  //
+  //     "M 20 20"                           round cap ->  0 px
+  //     "M 20 20 L 20 20"                   butt cap  ->  0 px
+  //     "M 20 20 L 20 20"                   round cap -> 12 px   <-
+  //
+  // So a lone point is emitted as a degenerate lineto and both paths carry
+  // `strokeLinecap="round"` (see below). It matters most for the TARGET series,
+  // which has no per-point markers of its own: a scope with one active month
+  // drew no target line at all, which is what made the chart look empty.
   const line = (series: (number | null)[]) =>
     series
-      .map((v, i) => (v == null ? '' : `${i === 0 || series[i - 1] == null ? 'M' : 'L'} ${x(i)} ${y(v)}`))
+      .map((v, i) => {
+        if (v == null) return ''
+        const starts = i === 0 || series[i - 1] == null
+        const ends = i === series.length - 1 || series[i + 1] == null
+        if (starts && ends) return `M ${x(i)} ${y(v)} L ${x(i)} ${y(v)}`
+        return `${starts ? 'M' : 'L'} ${x(i)} ${y(v)}`
+      })
       .filter(Boolean)
       .join(' ')
 
@@ -136,8 +156,22 @@ export function TrendVsTarget({ trend, height = 230 }: { trend: TrendFacts; heig
             </text>
           </g>
         ))}
-        <path d={line(trend.target)} fill="none" stroke="#9CA3AF" strokeWidth={1.6} strokeDasharray="5 4" />
-        <path d={line(trend.actual)} fill="none" stroke="#7C5CFF" strokeWidth={2.4} strokeLinejoin="round" />
+        <path
+          d={line(trend.target)}
+          fill="none"
+          stroke="#9CA3AF"
+          strokeWidth={1.6}
+          strokeDasharray="5 4"
+          strokeLinecap="round"
+        />
+        <path
+          d={line(trend.actual)}
+          fill="none"
+          stroke="#7C5CFF"
+          strokeWidth={2.4}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
         {trend.actual.map((v, i) =>
           v == null ? null : (
             <circle
@@ -145,7 +179,12 @@ export function TrendVsTarget({ trend, height = 230 }: { trend: TrendFacts; heig
               cx={x(i)}
               cy={y(v)}
               r={3}
-              fill={(trend.gap_to_target[i] ?? 0) < 0 ? '#EF4444' : '#10B981'}
+              // An UNKNOWN gap is grey, not green. `?? 0` painted a month
+              // with no computable target as if it had met one — the same
+              // colour as a genuine beat.
+              fill={
+                trend.gap_to_target[i] == null ? '#9CA3AF' : trend.gap_to_target[i]! < 0 ? '#EF4444' : '#10B981'
+              }
               stroke="white"
               strokeWidth={1.4}
             />
@@ -164,7 +203,9 @@ export function TrendVsTarget({ trend, height = 230 }: { trend: TrendFacts; heig
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block h-0.5 w-4 border-t border-dashed border-[#9CA3AF]" /> Target (spend × {fmtRoi(trend.target_roi)})
         </span>
-        <span className="font-semibold text-status-danger">{trend.months_below_target} of {trend.labels.length} months below target</span>
+        <span className={trend.months_below_target > 0 ? 'font-semibold text-status-danger' : 'font-semibold text-ink-muted'}>
+          {trend.months_below_target} of {trend.labels.length} {trend.labels.length === 1 ? 'month' : 'months'} below target
+        </span>
       </div>
     </div>
   )

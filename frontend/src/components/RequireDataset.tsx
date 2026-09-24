@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { Icon } from '../icons'
 import { Spinner } from './ui'
 import { useStarStatus } from '../hooks/useDatasets'
@@ -118,7 +119,13 @@ export function RequireDataset({ children }: { children: ReactNode }) {
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-border-subtle p-[14px_24px]">
-          <span className="text-xs text-ink-muted">.csv, .xlsx or .xls</span>
+          {/* This screen is the backstop for a typed URL. Connecting properly
+              lives on Data Connections, which also offers Azure and Databricks
+              — so the way there is on the gate rather than only the one
+              connector the gate can raise itself. */}
+          <Link to="/connections" className="text-sm font-semibold text-brand-violet hover:underline">
+            Browse all connectors
+          </Link>
           <button
             onClick={() => setUploadOpen(true)}
             className="flex items-center gap-1.5 rounded-[var(--r-md)] bg-brand-violet px-4 py-2 text-base font-bold text-white [&_svg]:h-[13px] [&_svg]:w-[13px]"

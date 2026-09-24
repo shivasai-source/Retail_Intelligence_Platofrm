@@ -86,12 +86,14 @@ export function Topbar({ crumbs = [], onMenuClick }: { crumbs?: Crumb[]; onMenuC
           ]}
           onSelect={onAccountSelect}
           trigger={
-            <div
+            <button
+              type="button"
               className="ml-1 grid h-9 w-9 cursor-pointer place-items-center rounded-full bg-gradient-to-br from-[#6B47FF] to-[#8C6EFF] text-sm font-bold text-white"
               title={user ? `${user.name} — signed in` : 'Not signed in'}
+              aria-label={user ? `Account menu — ${user.name}` : 'Account menu'}
             >
               {user?.initials}
-            </div>
+            </button>
           }
         />
       </div>

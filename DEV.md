@@ -120,11 +120,14 @@ rather than trying to out-z-index the animation.
 `/login` and `/home` — ported from login.html/home.html + js/portal.js. Client-side
 auth is a real server session (`hooks/useAuth.ts` → `POST /api/auth/login`) —
 no real identity provider yet. `/` redirects to `/login`; the live "Trade Promotion
-Optimization" module card on Home links straight to `/command` via React Router
-(a same-app navigation now, vs. the vanilla app's full page load to `index.html`).
+Optimization" module card on Home links via React Router (a same-app navigation now,
+vs. the vanilla app's full page load to `index.html`) to `/connections` while the
+platform has no dataset, and to `/command` once it has one.
 
-`components/portal/` — `ModuleGrid`, `ConnectorRail`, `AdvisorCard` (OpenAI capability
-chat), `modals/` (Upload, Azure, Databricks, SAP, PowerBI, Nielsen).
+`components/portal/` — `ModuleGrid`, `catalog.ts` + `ConnectorLogo` (the connector
+catalogue `/connections` renders), `modals/` (Upload, Azure, Databricks, SAP,
+PowerBI, Nielsen). The old `ConnectorRail` on Home is gone: connecting happens
+only on `/connections`.
 
 Connector backends were intentionally left unchanged in this phase — see Phase 6 below
 for where that logic moved.

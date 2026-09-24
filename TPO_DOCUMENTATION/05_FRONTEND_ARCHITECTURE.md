@@ -56,7 +56,7 @@ Sidebar groups, straight from `nav.json`:
 | `components/reports/` | 1 | ExportReportButton |
 | `components/investigations/` | 8 | InvestigationGraph, NodeDetailPopover, BizQuestionCard, AccelList, ProgressStrip, QueryBar, ActiveInvBanner, `graphLayout.ts` |
 | `components/intelligence/` | 8 | `tabs.tsx` (8 tabs), AiAnswerCard, KeyInsightsList, SalesTrendChart, SaturationChart, RegionVarianceBars, `useStreamedAnswer`, `answerFormat` |
-| `components/portal/` | 12 | ModuleGrid, ConnectorRail, AdvisorCard, HeroArt, `modules.ts`, `connectors.ts`, and 6 connector modals |
+| `components/portal/` | 13 | ModuleGrid, ConnectorLogo, HeroArt, `catalog.ts` (the 27-entry connector catalogue), `modules.ts`, `connectors.ts`, and 6 connector modals |
 
 ## 4. Hooks — the only API callers
 

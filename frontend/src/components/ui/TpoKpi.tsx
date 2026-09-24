@@ -95,6 +95,18 @@ export function TpoKpiTile({
   labelLines?: 1 | 2
 }) {
   const t = TINTS[tint] ?? { bg: 'var(--brand-violet-50)', fg: 'var(--brand-violet)' }
+  // A TILE THAT WRAPS ITS LABEL IS A NARROW TILE. `labelLines: 2` is asked for
+  // by the page that puts six of these on one row, and there the label's
+  // column came to 88px, which left "Cannibalization" no room to sit on a
+  // line of its own -- the browser broke it mid-word -- and clipped
+  // "Promotion Efficiency Index" to an ellipsis. The measurements below buy
+  // that column back: 8px from the side padding, 4 from the icon, 2 from the
+  // gap and 4 from the label's own right inset, for 106px. The label moves up
+  // a step to `text-base` with the room, so the six names a reader adds are
+  // no smaller than the three they sit under. Nothing here changes the tile's
+  // height, and no other page is affected -- every other caller leaves
+  // `labelLines` at 1.
+  const narrow = labelLines === 2
   const isGood = trend === null ? null : (trend === 'up') !== lowerIsBetter
   const tone = isGood === null ? 'text-ink-muted' : isGood ? 'text-status-success' : 'text-status-danger'
 
@@ -110,7 +122,7 @@ export function TpoKpiTile({
     // box or shift the grid. The transform is behind `motion-safe`, leaving
     // just the shadow under prefers-reduced-motion.
     <div
-      className={`fade-in-up group/kpi relative flex items-center gap-3 rounded-[var(--r-lg)] border border-border-subtle bg-surface-card p-[16px_18px] shadow-[var(--shadow-card-soft)] transition-[transform,box-shadow,border-color] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] [animation-fill-mode:backwards] hover:border-border-default hover:shadow-[0_6px_16px_rgba(0,0,0,0.12)] motion-safe:hover:-translate-y-[3px] motion-safe:hover:scale-[1.005] ${className}`}
+      className={`fade-in-up group/kpi relative flex items-center ${narrow ? 'gap-2.5 p-[16px_14px]' : 'gap-3 p-[16px_18px]'} rounded-[var(--r-lg)] border border-border-subtle bg-surface-card shadow-[var(--shadow-card-soft)] transition-[transform,box-shadow,border-color] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] [animation-fill-mode:backwards] hover:border-border-default hover:shadow-[0_6px_16px_rgba(0,0,0,0.12)] motion-safe:hover:-translate-y-[3px] motion-safe:hover:scale-[1.005] ${className}`}
       style={{ animationDelay: `${delayMs}ms` }}
     >
       {/* Top-right, and out of the label's flex row so a long label can use the
@@ -121,7 +133,7 @@ export function TpoKpiTile({
         </span>
       )}
       <div
-        className="grid h-11 w-11 shrink-0 place-items-center rounded-xl transition-transform duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-safe:group-hover/kpi:scale-[1.04] [&_svg]:h-5 [&_svg]:w-5"
+        className={`grid ${narrow ? 'h-10 w-10' : 'h-11 w-11'} shrink-0 place-items-center rounded-xl transition-transform duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-safe:group-hover/kpi:scale-[1.04] [&_svg]:h-5 [&_svg]:w-5`}
         style={{ background: t.bg, color: t.fg }}
       >
         <Icon name={icon} />
@@ -133,11 +145,11 @@ export function TpoKpiTile({
             does not still put their values on the same baseline. The
             default keeps the single-line tile every other page renders. */}
         <div
-          className={`flex gap-1 pr-4 text-sm font-medium leading-tight text-ink-muted transition-colors duration-[220ms] group-hover/kpi:text-brand-violet ${
-            labelLines === 2 ? 'min-h-[2.5em] items-end' : 'items-center'
+          className={`flex gap-1 font-medium leading-tight text-ink-muted transition-colors duration-[220ms] group-hover/kpi:text-brand-violet ${
+            narrow ? 'min-h-[2.5em] items-end pr-3 text-base' : 'items-center pr-4 text-sm'
           }`}
         >
-          <span className={labelLines === 2 ? 'line-clamp-2 break-words' : 'truncate'}>{label}</span>
+          <span className={narrow ? 'line-clamp-2 break-words' : 'truncate'}>{label}</span>
         </div>
         <div className="mt-2.5 text-xl font-bold leading-[1.15] tracking-[-0.015em] text-ink-primary opacity-90 transition-opacity duration-[220ms] group-hover/kpi:opacity-100 [font-variant-numeric:tabular-nums]">
           {value}
