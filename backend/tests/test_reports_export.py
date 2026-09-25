@@ -402,11 +402,11 @@ def test_the_alert_listing_introduces_no_duplicates() -> None:
     as the service returned for the same cap -- no row is repeated on its way
     into the workbook, and none is dropped.
 
-    Deliberately NOT asserted on the exported rows' own contents: the sheet's
-    Period column is empty (`_alert_row` reads a key `risk_alerts` does not
-    emit), so two events that differ only by week are indistinguishable there.
-    That is a separate defect in the alert LISTING, outside this fix, and it
-    must not be papered over by a test that quietly tolerates it.
+    Deliberately NOT asserted on the exported rows' own contents: identity is
+    the engine's `id`, which the sheet does not carry, so the check stays on
+    the engine's ids and the row count. (The sheet's Period column, once empty
+    because `_alert_row` read a key `risk_alerts` does not emit, now carries
+    the alert's week.)
     """
     state = FilterState.build(**WIDE_CC_SCOPE)
     served = tpo_service.risk_alerts(state, "INR", limit=200)["alerts"]

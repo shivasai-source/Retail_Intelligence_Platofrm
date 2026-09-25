@@ -183,6 +183,61 @@ function NoInvestigation() {
   )
 }
 
+/** What each tab holds once the analysis lands, in tab order. Worded from
+ *  what the tab actually renders, so the preview promises nothing the page
+ *  does not then show. */
+const LAYERS: { label: string; desc: string; icon: Parameters<typeof Icon>[0]['name'] }[] = [
+  { label: 'Synthesis', desc: 'The headline answer to your question, and the key insights behind it.', icon: 'sparkles' },
+  { label: 'Mechanism', desc: 'The discount saturation curve, sales against target by month, and ROI by mechanic.', icon: 'gauge' },
+  { label: 'Drivers', desc: 'The root cause split into weighted drivers, with a confidence score.', icon: 'layers' },
+  { label: 'Channels & Regions', desc: 'Where it hits hardest — by channel, region and retailer.', icon: 'retailer' },
+  { label: 'Portfolio', desc: 'The same figures by category, brand and product.', icon: 'package' },
+  { label: 'Exposure', desc: 'Risk alerts by severity, and the trade spend at stake.', icon: 'shield' },
+  { label: 'Recommendations', desc: 'Actions Simulation can model, what not to do, and their combined impact.', icon: 'target' },
+]
+
+/** THE PAGE BEFORE THE ANALYSIS HAS RUN. The tabs stay hidden until there is
+ *  something in them, which left the space under the KPIs blank; this fills it
+ *  with what the header's "Go deeper" will produce. Deliberately no button of
+ *  its own — the header's is the single way in. */
+function DeepenPreview() {
+  return (
+    <Card className="fade-in mt-[14px]">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-border-subtle p-[12px_20px]">
+        <h2 className="text-base font-bold text-ink-primary">What going deeper adds</h2>
+        <div className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-ink-muted">
+          {DEEPEN_PHASES.map((p, i) => (
+            <span key={p.key} className="flex items-center gap-1.5">
+              {i > 0 && <Icon name="chevronRight" className="h-3 w-3" />}
+              <span className="rounded-full bg-surface-muted px-2.5 py-1 text-ink-secondary">{p.label}</span>
+            </span>
+          ))}
+          <span className="ml-1.5 flex items-center gap-1">
+            <Icon name="clock" className="h-3.5 w-3.5" /> about a minute
+          </span>
+        </div>
+      </div>
+      <div className="grid grid-cols-4 gap-3 p-[16px_20px] @max-[900px]:grid-cols-2">
+        {LAYERS.map((l, i) => (
+          <div
+            key={l.label}
+            className={`flex items-start gap-3 rounded-[var(--r-md)] border border-border-subtle bg-surface-muted p-[12px_14px] ${
+              i === 0 ? 'col-span-2' : ''
+            }`}
+          >
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-violet-50 text-brand-violet [&_svg]:h-4 [&_svg]:w-4">
+              <Icon name={l.icon} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-bold text-ink-primary">{l.label}</div>
+              <div className="mt-0.5 text-sm leading-[1.5] text-ink-muted">{l.desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  )
+}
 
 const DEEPEN_PHASES = [
   { key: 'compute', label: 'Compute' },
@@ -358,6 +413,8 @@ export function Intelligence() {
   const runAnalysis = () => {
     if (!investigation) return
     setRunId(undefined)
+    // The tabs hide while the analysis runs; they come back on Synthesis.
+    setTab(0)
     startAnalysis.mutate(
       { investigation_run_id: investigation.run_id },
       {
@@ -553,45 +610,38 @@ export function Intelligence() {
         <DeepeningState specialists={run?.specialists ?? []} stage={run?.stage} startedAt={run?.created_at} />
       )}
 
-      <div className="mt-[14px]">
-        <Tabs tabs={TABS} active={String(tab)} onChange={(key) => setTab(Number(key))} />
-      </div>
+      {/* THE LAYERS APPEAR ONLY ONCE THE ANALYSIS HAS RUN. The header's "Go
+          deeper" is the one way in: before it is clicked the page shows the
+          investigation and its KPIs, while it runs the progress card above,
+          and when it lands the tabs. A second "Go deeper" card inside the
+          tabs used to duplicate the header button. */}
+      {!result && !analysing && <DeepenPreview />}
 
-      {factsLoading && !facts ? (
+      {result && (
+        <div className="fade-in mt-[14px]">
+          <Tabs tabs={TABS} active={String(tab)} onChange={(key) => setTab(Number(key))} />
+        </div>
+      )}
+
+      {!result ? null : factsLoading && !facts ? (
         <SectionLoading loading />
       ) : (
         <div key={tab} className="fade-in flex flex-col gap-4">
-          {tab === 0 &&
-            (analysis ? (
-              <>
-                <AiAnswerCard
-                  answer={{ summary: analysis.headline, text: analysis.narrative }}
-                  // The agents that actually produced this answer, named by the
-                  // run itself. The card used to list five enterprise systems
-                  // and a 205,920-row source count, both written here as
-                  // constants: no such provenance is recorded anywhere, and
-                  // the analysis reads the star schema through the KPI engine.
-                  specialists={(run?.specialists ?? []).map((sp) => sp.name)}
-                  streamKey={run?.id ?? 'none'}
-                />
-                {keyInsights.length > 0 && <KeyInsightsGrid insights={keyInsights} />}
-              </>
-            ) : (
-              <Card className="fade-in">
-                <div className="flex flex-wrap items-center justify-between gap-3 p-[18px_20px]">
-                  <div className="min-w-0">
-                    <div className="text-base font-bold">Go deeper on this finding</div>
-                    <div className="mt-0.5 max-w-[560px] text-base leading-[1.55] text-ink-muted">
-                      The investigation found the cause. This layer explains the mechanism behind it, which channels,
-                      regions and products it hits hardest, and what it's worth — then recommends what to change.
-                    </div>
-                  </div>
-                  <Button variant="primary" onClick={runAnalysis} disabled={analysing}>
-                    <Icon name="sparkles" /> Go deeper
-                  </Button>
-                </div>
-              </Card>
-            ))}
+          {tab === 0 && analysis && (
+            <>
+              <AiAnswerCard
+                answer={{ summary: analysis.headline, text: analysis.narrative }}
+                // The agents that actually produced this answer, named by the
+                // run itself. The card used to list five enterprise systems
+                // and a 205,920-row source count, both written here as
+                // constants: no such provenance is recorded anywhere, and
+                // the analysis reads the star schema through the KPI engine.
+                specialists={(run?.specialists ?? []).map((sp) => sp.name)}
+                streamKey={run?.id ?? 'none'}
+              />
+              {keyInsights.length > 0 && <KeyInsightsGrid insights={keyInsights} />}
+            </>
+          )}
 
           {tab === 1 && facts && (
             <>
@@ -704,28 +754,13 @@ export function Intelligence() {
 
           {tab === 5 && (extra?.risk ? <RiskPanel risk={extra.risk} /> : <SectionLoading loading={extraLoading} />)}
 
-          {tab === 6 &&
-            (result ? (
-              <RecommendationsPanel
-                recommendations={result.recommendations}
-                doNotDo={result.do_not_do}
-                combined={result.expected_combined_impact}
-              />
-            ) : (
-              <Card className="fade-in">
-                <div className="flex flex-wrap items-center justify-between gap-3 p-[18px_20px]">
-                  <div>
-                    <div className="text-base font-bold">Recommendations need the deeper analysis</div>
-                    <div className="mt-0.5 text-base text-ink-muted">
-                      The Advisor turns the diagnosis into actions Simulation can model.
-                    </div>
-                  </div>
-                  <Button variant="primary" onClick={runAnalysis} disabled={analysing}>
-                    <Icon name="sparkles" /> {analysing ? 'Analysing…' : 'Go deeper'}
-                  </Button>
-                </div>
-              </Card>
-            ))}
+          {tab === 6 && (
+            <RecommendationsPanel
+              recommendations={result.recommendations}
+              doNotDo={result.do_not_do}
+              combined={result.expected_combined_impact}
+            />
+          )}
         </div>
       )}
     </AppShell>

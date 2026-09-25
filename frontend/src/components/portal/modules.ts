@@ -1,6 +1,8 @@
 import type { PortalModule } from '../../types/portal'
 
-// Ported verbatim from js/portal.js's MODULES catalog — TPO is the only live module.
+// Ported from js/portal.js's MODULES catalog — TPO is the only live module.
+// Listed in decision order: baseline forecast → who buys → what and at what
+// price → marketing envelope → trade spend within it → can supply meet the plan.
 export const MODULES: PortalModule[] = [
   {
     key: 'forecasting',
@@ -8,6 +10,30 @@ export const MODULES: PortalModule[] = [
     desc: 'Forecast demand, sell-out and sell-in across SKUs, stores and channels.',
     icon: 'trending',
     tint: 'sky',
+    live: false,
+  },
+  {
+    key: 'customer',
+    title: 'Customer & Channel Intelligence',
+    desc: 'Segment retailers and shoppers to target investment where it actually converts.',
+    icon: 'users',
+    tint: 'mint',
+    live: false,
+  },
+  {
+    key: 'pricing',
+    title: 'Assortment & Pricing Intelligence',
+    desc: 'Right-size the range and price ladder by store cluster, channel and region.',
+    icon: 'pricing',
+    tint: 'peach',
+    live: false,
+  },
+  {
+    key: 'mmm',
+    title: 'Market Mix & Marketing Intelligence (MMM)',
+    desc: "Attribute revenue across trade, media and price to guide next quarter's marketing mix.",
+    icon: 'flow',
+    tint: 'teal',
     live: false,
   },
   {
@@ -20,33 +46,9 @@ export const MODULES: PortalModule[] = [
     href: '/command',
   },
   {
-    key: 'mmm',
-    title: 'Market Mix & Marketing Intelligence (MMM)',
-    desc: "Attribute revenue across trade, media and price to guide next quarter's marketing mix.",
-    icon: 'flow',
-    tint: 'teal',
-    live: false,
-  },
-  {
-    key: 'pricing',
-    title: 'Assortment & Pricing Intelligence',
-    desc: 'Right-size the range and price ladder by store cluster, channel and region.',
-    icon: 'pricing',
-    tint: 'peach',
-    live: false,
-  },
-  {
-    key: 'customer',
-    title: 'Customer & Channel Intelligence',
-    desc: 'Segment retailers and shoppers to target investment where it actually converts.',
-    icon: 'users',
-    tint: 'mint',
-    live: false,
-  },
-  {
     key: 'supply',
     title: 'Supply, Inventory & Network Intelligence',
-    desc: 'Track stock cover, fill rate and network health feeding every promotion decision.',
+    desc: 'Check stock cover, fill rate and network capacity against the final demand plan.',
     icon: 'inventory',
     // Was `sky`, the same tint as Forecasting — which made two of the six cards
     // identical in a grid whose whole hover treatment is "each module has its

@@ -38,14 +38,14 @@ export function LeverSlider({
 }) {
   const id = useId()
   return (
-    <div className="rounded-[var(--r-lg)] border border-border-subtle bg-surface-card px-5 py-4">
+    <div className="rounded-[var(--r-lg)] border border-border-subtle bg-surface-card px-5 py-4 shadow-[var(--shadow-card-soft)]">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <label htmlFor={id} className="text-md font-bold text-ink-primary">
             {label}
           </label>
           {vary && (
-            <label className="inline-flex cursor-pointer select-none items-center gap-1.5 text-sm font-medium text-ink-muted">
+            <label className="inline-flex cursor-pointer select-none items-center gap-1.5 text-sm font-medium text-ink-secondary">
               <input
                 type="checkbox"
                 checked={vary.on}
@@ -75,7 +75,7 @@ export function LeverSlider({
         onChange={(e) => onChange(Number(e.target.value))}
         className="mt-4 w-full cursor-pointer accent-brand-violet disabled:cursor-not-allowed"
       />
-      <div className="mt-1 flex justify-between text-sm text-ink-muted [font-variant-numeric:tabular-nums]">
+      <div className="mt-1 flex justify-between text-sm text-ink-secondary [font-variant-numeric:tabular-nums]">
         <span>{marks[0]}</span>
         <span>{marks[1]}</span>
       </div>

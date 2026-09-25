@@ -40,15 +40,15 @@ export function AiAnswerCard({
             It printed an authored 82-87%; nothing in this project computes a
             confidence figure. The synthesis line beside it describes how the
             answer was assembled, which is a property of the run. */}
-        <div className="flex flex-wrap items-center gap-3.5 text-sm text-ink-muted">
-          <span className="inline-flex items-center gap-1.5 text-ink-secondary">
+        <div className="flex flex-wrap items-center gap-3.5 text-base font-medium text-ink-primary">
+          <span className="inline-flex items-center gap-2">
             <span className="inline-block h-[7px] w-[7px] animate-[aiPulseDot_1.8s_ease-in-out_infinite] rounded-full bg-status-success shadow-[0_0_0_3px_rgba(16,185,129,0.15)]" />
             {answer.summary}
           </span>
         </div>
       </div>
 
-      <div className="min-h-[60px] p-5 text-base leading-[1.65] text-ink-primary">
+      <div className="min-h-[60px] p-5 text-md leading-[1.7] text-ink-primary">
         {paragraphs.map((runs, pi) => (
           <p key={pi} className="mb-2.5 last:mb-0">
             {runs.map((r, ri) => (r.tone ? <strong key={ri} className={toneClass(r.tone)}>{r.text}</strong> : <span key={ri}>{r.text}</span>))}
@@ -63,14 +63,14 @@ export function AiAnswerCard({
         {specialists.map((name) => (
           <span
             key={name}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface-card py-[3px] px-2.5 text-xs font-semibold text-ink-secondary shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface-card py-1 px-3 text-sm font-semibold text-ink-primary shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
           >
             <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-status-success" />
             {name}
           </span>
         ))}
         <span className="flex-1" />
-        <Link to="/investigations" className="text-sm font-semibold text-ink-primary hover:underline">
+        <Link to="/investigations" className="text-base font-semibold text-brand-violet hover:underline">
           View full investigation →
         </Link>
       </div>

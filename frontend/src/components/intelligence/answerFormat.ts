@@ -56,15 +56,14 @@ export function parseSegments(text: string): Segment[] {
   return out
 }
 
-// Ported from .ai-answer-body .ai-key(-good|-bad|-neutral) — a colored underline
-// wash rather than a solid highlight, via a two-stop gradient background.
+// Ported from .ai-answer-body .ai-key(-good|-bad|-neutral) — an underline wash
+// rather than a solid highlight, via a two-stop gradient background.
+//
+// ONE STYLE FOR EVERY TONE. The tone is the model's own [g]/[r]/[n] marker, and
+// it marked "100% of trade spend at this low ROI" as good — so the green wash
+// told the reader a failure was a success. The highlight now says only "this
+// figure matters"; whether it is good or bad is the sentence's job.
 export function toneClass(tone: Tone): string {
-  const base = 'rounded-[3px] px-0.5 font-bold'
-  if (tone === 'good') {
-    return `${base} text-status-success bg-[linear-gradient(180deg,rgba(16,185,129,0)_60%,rgba(16,185,129,0.14)_60%)]`
-  }
-  if (tone === 'bad' || tone === 'neutral') {
-    return `${base} text-ink-primary bg-[linear-gradient(180deg,rgba(15,23,42,0)_60%,rgba(15,23,42,0.07)_60%)]`
-  }
-  return ''
+  if (!tone) return ''
+  return 'rounded-[3px] px-0.5 font-bold text-ink-primary bg-[linear-gradient(180deg,rgba(15,23,42,0)_60%,rgba(15,23,42,0.07)_60%)]'
 }

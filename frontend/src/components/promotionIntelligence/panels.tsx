@@ -223,14 +223,14 @@ export function KeyInsightsGrid({ insights }: { insights: KeyInsight[] }) {
   return (
     <div className="grid grid-cols-2 gap-3.5 @max-[900px]:grid-cols-1">
       {insights.map((k) => (
-        <div key={k.title} className="rounded-[var(--r-lg)] border border-border-subtle bg-surface-card p-[14px_16px]">
-          <div className="mb-1.5 flex items-start justify-between gap-2">
-            <strong className="text-base leading-[1.35]">{k.title}</strong>
+        <div key={k.title} className="rounded-[var(--r-lg)] border border-border-subtle bg-surface-card p-[16px_18px] shadow-[var(--shadow-card-soft)]">
+          <div className="mb-2 flex items-start justify-between gap-2">
+            <strong className="text-md leading-[1.35] text-ink-primary">{k.title}</strong>
             <Pill tone={SEVERITY_TONE[k.severity]}>{k.severity}</Pill>
           </div>
-          <p className="text-base leading-[1.55] text-ink-secondary">{k.detail}</p>
-          <div className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-ink-primary">
-            <Icon name={k.trend === 'down' ? 'arrowDown' : k.trend === 'up' ? 'arrowUp' : 'variance'} className="h-3 w-3" />
+          <p className="text-md leading-[1.6] text-ink-secondary">{k.detail}</p>
+          <div className="mt-2.5 inline-flex items-center gap-2 text-base font-semibold text-ink-primary">
+            <Icon name={k.trend === 'down' ? 'arrowDown' : k.trend === 'up' ? 'arrowUp' : 'variance'} className="h-3.5 w-3.5 shrink-0" />
             {k.impact}
           </div>
         </div>
@@ -291,29 +291,29 @@ export function RecommendationsPanel({
             </div>
             <div className="min-w-0 flex-1">
               <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                <strong className="text-base leading-[1.35]">{r.action}</strong>
+                <strong className="text-md leading-[1.35] text-ink-primary">{r.action}</strong>
                 <Pill tone={PRIORITY_TONE[r.priority]}>{r.priority} priority</Pill>
                 <Pill tone="neutral">{r.effort} effort</Pill>
                 <Pill tone="violet">{r.confidence}% confident</Pill>
               </div>
-              <p className="text-base leading-[1.55] text-ink-secondary">{r.rationale}</p>
+              <p className="text-md leading-[1.6] text-ink-secondary">{r.rationale}</p>
 
               <div className="mt-2.5 grid grid-cols-2 gap-2.5 @max-[760px]:grid-cols-1">
-                <div className="rounded-[var(--r-md)] bg-surface-muted p-[9px_12px]">
-                  <div className="text-xs font-bold uppercase tracking-[0.06em] text-ink-muted">Evidence</div>
-                  <div className="mt-0.5 text-sm leading-[1.5] text-ink-secondary">{r.evidence}</div>
+                <div className="rounded-[var(--r-md)] bg-surface-muted p-[10px_14px]">
+                  <div className="text-xs font-bold uppercase tracking-[0.06em] text-ink-secondary">Evidence</div>
+                  <div className="mt-1 text-base leading-[1.55] text-ink-primary">{r.evidence}</div>
                 </div>
-                <div className="rounded-[var(--r-md)] border border-[rgba(16,185,129,0.25)] bg-status-success-bg p-[9px_12px]">
-                  <div className="text-xs font-bold uppercase tracking-[0.06em] text-ink-muted">Expected impact</div>
-                  <div className="mt-0.5 text-sm leading-[1.5] text-ink-secondary">{r.expected_impact}</div>
+                <div className="rounded-[var(--r-md)] bg-surface-muted p-[10px_14px]">
+                  <div className="text-xs font-bold uppercase tracking-[0.06em] text-ink-secondary">Expected impact</div>
+                  <div className="mt-1 text-base leading-[1.55] text-ink-primary">{r.expected_impact}</div>
                 </div>
               </div>
 
-              <div className="mt-2.5 rounded-[var(--r-md)] border border-[rgba(124,92,255,0.2)] bg-[linear-gradient(135deg,rgba(124,92,255,0.06),rgba(79,124,255,0.04))] p-[9px_12px]">
-                <div className="min-w-0 text-sm leading-[1.5] text-ink-secondary">
+              <div className="mt-2.5 rounded-[var(--r-md)] border border-[rgba(124,92,255,0.2)] bg-[linear-gradient(135deg,rgba(124,92,255,0.06),rgba(79,124,255,0.04))] p-[10px_14px]">
+                <div className="min-w-0 text-base leading-[1.55] text-ink-secondary">
                   <span className="font-bold text-ink-primary">Lever:</span> {r.simulation.lever} ·{' '}
-                  <span className="text-ink-muted">{r.simulation.current_value}</span> → {r.simulation.proposed_value}
-                  <span className="text-ink-muted"> · watch {r.simulation.metric_to_watch}</span>
+                  <span className="text-ink-secondary">{r.simulation.current_value}</span> → {r.simulation.proposed_value}
+                  <span> · watch {r.simulation.metric_to_watch}</span>
                 </div>
               </div>
             </div>
@@ -332,8 +332,8 @@ export function RecommendationsPanel({
           />
           <ul className="flex flex-col gap-2 p-[14px_18px]">
             {doNotDo.map((d, i) => (
-              <li key={i} className="flex items-start gap-2 text-base leading-[1.55] text-ink-secondary">
-                <Icon name="x" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-status-danger" />
+              <li key={i} className="flex items-start gap-2 text-md leading-[1.6] text-ink-secondary">
+                <Icon name="x" className="mt-1 h-3.5 w-3.5 shrink-0 text-status-danger" />
                 <span>{d}</span>
               </li>
             ))}
@@ -342,7 +342,7 @@ export function RecommendationsPanel({
       )}
 
       {combined && (
-        <div className="rounded-[var(--r-md)] bg-surface-muted p-[12px_16px] text-base leading-[1.55] text-ink-secondary">
+        <div className="rounded-[var(--r-md)] bg-surface-muted p-[12px_16px] text-md leading-[1.6] text-ink-secondary">
           <span className="font-bold text-ink-primary">Combined effect: </span>
           {combined}
         </div>

@@ -262,6 +262,20 @@ export function Simulation() {
   const crumbs = [{ label: 'TPO Intelligence' }, { label: 'Simulation Studio' }]
   const scopeError = scope.error instanceof ApiError ? scope.error : null
 
+  // A CARRIED PRODUCT'S FIGURES, for its banner: what it measured and the
+  // plan the three levers open on. The period, the product-channel count and
+  // the plan's cost are left out — the banner names the product, and the
+  // Trade Spend lever below already shows what the plan costs.
+  const sd = scope.data
+  const bannerFacts = sd
+    ? [
+        sd.measured.roi.value != null
+          ? `Trade spend ${sd.measured.trade_spend.display} · Incremental sales ${sd.measured.incremental_sales.display} · ROI ${sd.measured.roi.display}`
+          : null,
+        `Current plan ${sd.observed_plan.discount_pct.toFixed(2)}% for ${sd.observed_plan.days} days`,
+      ].filter((f): f is string => f != null)
+    : []
+
   return (
     <AppShell activeKey="simulation" crumbs={crumbs}>
       <div className="fade-in flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
@@ -327,31 +341,21 @@ export function Simulation() {
 
       {carriedProduct && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[var(--r-lg)] border border-brand-violet-100 bg-brand-violet-50 px-4 py-2.5">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-base">
-            <span className="font-semibold text-brand-violet">From Promotion Intelligence</span>
-            <span className="text-ink-muted">·</span>
+          {/* THE CARRIED PRODUCT, AND EVERYTHING ABOUT IT, ON ONE LINE. The
+              scope facts follow it here instead of on a line of their own, so
+              everything about the product is stated once, in one place. */}
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-base">
             <span className="font-bold text-ink-primary">{carriedName}</span>
-            {offerName && (
-              <>
-                <span className="text-ink-muted">·</span>
-                <span className="font-semibold text-ink-secondary">{offerName}</span>
-              </>
-            )}
-            {carriedProduct.year && (
-              <>
-                <span className="text-ink-muted">·</span>
-                <span className="text-ink-secondary">F{String(carriedProduct.year).slice(2)}</span>
-              </>
-            )}
+            {[offerName, ...bannerFacts].filter(Boolean).map((f) => (
+              <span key={f} className="flex items-center gap-x-2 font-bold text-ink-primary">
+                <span className="font-normal text-ink-muted">·</span>
+                {f}
+              </span>
+            ))}
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="!text-brand-violet" onClick={() => navigate('/intelligence')}>
-              ← Back to Promotion Intelligence
-            </Button>
-            <Button variant="secondary" size="sm" onClick={releaseProduct}>
-              <Icon name="x" /> Show all products
-            </Button>
-          </div>
+          <Button variant="secondary" size="sm" onClick={releaseProduct}>
+            <Icon name="x" /> Show all products
+          </Button>
         </div>
       )}
 
@@ -379,41 +383,40 @@ export function Simulation() {
 
       {scope.data && levers && spendLever && (
         <>
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-base text-ink-muted">
-            <span>
-              <strong className="font-semibold text-ink-secondary">{scope.data.scope.period}</strong>
-              {offerName && !carriedProduct && <> · {offerName}</>}
-              {' · '}
-              {scope.data.scope.product_channels} product-channel{scope.data.scope.product_channels === 1 ? '' : 's'}
-            </span>
-            {/* THE MEASURED ANCHOR — the same engine over the same rows the
-                Insights Hub and Promotion Intelligence report, so the studio's
-                figures can be checked against theirs. */}
-            {scope.data.measured.roi.value != null && (
+          {/* THE SCOPE IN WORDS, when no product is carried (a carried
+              product's banner says it instead): the period and count, the
+              measured anchor — the same engine over the same rows the Insights
+              Hub and Promotion Intelligence report, so the studio's figures can
+              be checked against theirs — and the plan the three levers open on. */}
+          {!carriedProduct && (
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-base text-ink-muted">
               <span>
-                Measured{offerName ? ` (${offerName})` : ''}: trade spend{' '}
-                <strong className="font-semibold text-ink-secondary">{scope.data.measured.trade_spend.display}</strong> · incremental sales{' '}
-                <strong className="font-semibold text-ink-secondary">{scope.data.measured.incremental_sales.display}</strong> · ROI{' '}
-                <strong className="font-semibold text-ink-secondary">{scope.data.measured.roi.display}</strong>
+                <strong className="font-semibold text-ink-secondary">{scope.data.scope.period}</strong>
+                {offerName && <> · {offerName}</>}
+                {' · '}
+                {scope.data.scope.product_channels} product-channel{scope.data.scope.product_channels === 1 ? '' : 's'}
               </span>
-            )}
-            {/* THE THREE LEVERS' STARTING POSITIONS, in words — the depth this
-                scope ran at, how long it ran, and what running it over that
-                window costs. The studio opens on exactly these three, so a
-                reader arriving from Promotion Intelligence sees the plan they
-                came to ask about rather than three numbers from nowhere. */}
-            <span>
-              Current plan{' '}
-              <strong className="font-semibold text-ink-secondary">{scope.data.observed_plan.discount_pct.toFixed(2)}%</strong> for{' '}
-              <strong className="font-semibold text-ink-secondary">{scope.data.observed_plan.days} days</strong>
-              {scope.data.levers.trade_spend.default > 0 && (
-                <>
-                  , costing{' '}
-                  <strong className="font-semibold text-ink-secondary">{scope.data.levers.trade_spend.default_display}</strong>
-                </>
+              {scope.data.measured.roi.value != null && (
+                <span>
+                  Measured{offerName ? ` (${offerName})` : ''}: trade spend{' '}
+                  <strong className="font-semibold text-ink-secondary">{scope.data.measured.trade_spend.display}</strong> · incremental sales{' '}
+                  <strong className="font-semibold text-ink-secondary">{scope.data.measured.incremental_sales.display}</strong> · ROI{' '}
+                  <strong className="font-semibold text-ink-secondary">{scope.data.measured.roi.display}</strong>
+                </span>
               )}
-            </span>
-          </div>
+              <span>
+                Current plan{' '}
+                <strong className="font-semibold text-ink-secondary">{scope.data.observed_plan.discount_pct.toFixed(2)}%</strong> for{' '}
+                <strong className="font-semibold text-ink-secondary">{scope.data.observed_plan.days} days</strong>
+                {scope.data.levers.trade_spend.default > 0 && (
+                  <>
+                    , costing{' '}
+                    <strong className="font-semibold text-ink-secondary">{scope.data.levers.trade_spend.default_display}</strong>
+                  </>
+                )}
+              </span>
+            </div>
+          )}
 
           <div className="mt-4 grid grid-cols-3 gap-4 @max-[1000px]:grid-cols-1">
             <LeverSlider
@@ -424,10 +427,7 @@ export function Simulation() {
               onChange={(v) => moveLever('discount_pct', v)}
               marks={['0%', `${scope.data.levers.discount_pct.max.toFixed(2)}%`]}
               vary={varyProps('discount_pct')}
-            >
-              {result.data && levers.discount_pct > 0 && <LiftNote result={result.data} />}
-              {levers.discount_pct === 0 && <>No promotion</>}
-            </LeverSlider>
+            />
 
             <LeverSlider
               label="Trade spend"
@@ -437,9 +437,7 @@ export function Simulation() {
               onChange={(v) => moveLever('trade_spend', v)}
               marks={[`${symbol}0`, spendLever.max_display ?? money(spendLever.max)]}
               vary={varyProps('trade_spend')}
-            >
-              {result.data && <BudgetNote spend={result.data.levers.trade_spend} discount={levers.discount_pct} days={result.data.window.days} />}
-            </LeverSlider>
+            />
 
             <LeverSlider
               label="Days"
@@ -449,9 +447,7 @@ export function Simulation() {
               onChange={(v) => moveLever('days', v)}
               marks={['1 day', `${scope.data.levers.days.max} days`]}
               vary={varyProps('days')}
-            >
-
-            </LeverSlider>
+            />
           </div>
 
           {optimized && carriedProduct && (
@@ -629,12 +625,12 @@ function OptimizeResult({
                 <tr key={key} className="border-t border-border-subtle">
                   <td className="py-1.5 font-semibold text-ink-primary">{OPTIMIZE_LEVER_LABEL[key]}</td>
                   <td className="py-1.5 text-ink-muted">{searched(key)}</td>
-                  <td className="py-1.5 text-right text-ink-secondary">{leverValue(r.from.levers, key)}</td>
+                  <td className="py-1.5 text-right font-semibold text-ink-primary">{leverValue(r.from.levers, key)}</td>
                   {/* Violet marks what OPTIMIZE found. A held lever can also
                       differ from the plan — the reader pinned it there — and
                       dressing that as a finding would take credit for their
                       own choice. */}
-                  <td className={`py-1.5 text-right ${r.searched[key] && r.best.changed[key] ? 'font-bold text-brand-violet' : 'text-ink-secondary'}`}>
+                  <td className={`py-1.5 text-right ${r.searched[key] && r.best.changed[key] ? 'font-bold text-brand-violet' : 'font-bold text-ink-primary'}`}>
                     {leverValue(r.best.levers, key)}
                   </td>
                 </tr>
@@ -657,7 +653,7 @@ function OptimizeResult({
               {figures.map(([label, now, best, delta, direction]) => (
                 <tr key={label} className="border-t border-border-subtle">
                   <td className="py-1.5 font-semibold text-ink-primary">{label}</td>
-                  <td className="py-1.5 text-right text-ink-secondary">{now}</td>
+                  <td className="py-1.5 text-right font-semibold text-ink-primary">{now}</td>
                   <td className="py-1.5 text-right font-bold text-ink-primary">{best}</td>
                   <td className={`py-1.5 text-right font-semibold ${deltaTone(direction)}`}>{delta}</td>
                 </tr>
@@ -751,63 +747,6 @@ function formatMoney(v: number, rate: number, symbol: string): string {
   return `${symbol}${a.toFixed(2)}`
 }
 
-/** The discount's effect, in the engine's own words.
- *
- *  The headline lift is `mid_display`; the band beside it is the fit's
- *  residual range, so the number is not read as exact. And when the budget
- *  is binding the lift is qualified: it is a per-unit lift on the share of
- *  the scope the budget actually funds, NOT on the window. Without that
- *  clause a reader sees "Volume lift 56.21%" beside "Covers 49.13% of the
- *  scope" and has no way to know the two multiply. */
-function LiftNote({ result }: { result: SimulateResponse }) {
-  const spend = result.levers.trade_spend
-  return (
-    <>
-      Volume lift <strong className="font-semibold text-ink-primary">{result.lift.mid_display}</strong>{' '}
-      <span className="text-ink-muted">({result.lift.display})</span>
-      {spend.binding && <> on the funded {spend.coverage_display}</>}
-    </>
-  )
-}
-
-/** The budget in one line: what it buys over the window, and what is left.
- *
- *  The studio opens with this budget set to exactly what the current plan
- *  costs over its own window, so the usual first reading is "funds the whole
- *  scope, nothing over" — and saying that plainly beats an unspent figure of
- *  zero. */
-function BudgetNote({
-  spend,
-  discount,
-  days,
-}: {
-  spend: SimulateResponse['levers']['trade_spend']
-  discount: number
-  days: number
-}) {
-  const dayLabel = `${days} day${days === 1 ? '' : 's'}`
-  if (discount === 0) return <>Nothing to fund</>
-  if (spend.binding) {
-    return (
-      <>
-        Covers <strong className="font-semibold text-ink-primary">{spend.coverage_display}</strong> of the scope over {dayLabel}
-      </>
-    )
-  }
-  if (!spend.unspent.value) {
-    return (
-      <>
-        Funds the <strong className="font-semibold text-ink-primary">whole scope</strong> over {dayLabel}, nothing over
-      </>
-    )
-  }
-  return (
-    <>
-      Covers the whole scope over {dayLabel} · <strong className="font-semibold text-ink-primary">{spend.unspent.display}</strong> unspent
-    </>
-  )
-}
-
 /** The four figures the week chart does not draw.
  *
  *  "₹81.35 L vs ₹81.35 L" is a sentence that makes a reader look twice for
@@ -841,9 +780,9 @@ function SecondaryFigures({ result }: { result: SimulateResponse }) {
     <div className="mt-5 grid grid-cols-4 gap-4 border-t border-border-subtle pt-4 @max-[900px]:grid-cols-2">
       {cells.map(({ label, value, current, change, direction }) => (
         <div key={label}>
-          <div className="text-sm font-semibold text-ink-muted">{label}</div>
-          <div className="mt-0.5 text-md font-bold text-ink-primary [font-variant-numeric:tabular-nums]">{value}</div>
-          <div className={`mt-0.5 text-sm font-medium [font-variant-numeric:tabular-nums] ${value === current ? 'text-ink-muted' : tone(direction)}`}>
+          <div className="text-base font-bold text-ink-primary">{label}</div>
+          <div className="mt-1 text-lg font-bold text-ink-primary [font-variant-numeric:tabular-nums]">{value}</div>
+          <div className={`mt-0.5 text-sm font-semibold [font-variant-numeric:tabular-nums] ${value === current ? 'text-ink-secondary' : tone(direction)}`}>
             {value === current ? 'Same as current plan' : change}
           </div>
         </div>

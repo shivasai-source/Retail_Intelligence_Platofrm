@@ -189,8 +189,9 @@ def excel_number_format(kind: ColumnKind, currency: str) -> str:
         "percent": '0.00"%";[Red]-0.00"%"',
         # The Promotion ROI: a multiple at two decimals carrying its unit
         # (1.40x). Red below 1.00 would be the useful cue, but a number format
-        # can only colour on sign, so it stays plain.
-        "multiple": '0.00"x"',
+        # can only colour on sign — so only a negative multiple (a gap to
+        # target) goes red.
+        "multiple": '0.00"x";[Red]-0.00"x"',
         "date": "dd mmm yyyy",
         "text": "@",
         "status": "@",
@@ -199,3 +200,40 @@ def excel_number_format(kind: ColumnKind, currency: str) -> str:
 
 def is_numeric(kind: ColumnKind) -> bool:
     return kind in ("currency", "number", "units", "percent", "multiple")
+
+
+#: Status words, by the tone a reader should see them in. Matched on the start
+#: of the cell's text, case-insensitively, so "Critical" and "Loss-making (below
+#: 1.00)" both land. PRESENTATION ONLY: the word is the engine's, and a writer
+#: only decides its colour — an unknown word stays plain.
+_TONES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("negative", ("critical", "high", "underperforming", "loss-making", "loss making",
+                  "below target", "off track", "at risk")),
+    ("warning", ("medium", "watch", "break-even", "break even", "warning")),
+    ("positive", ("on track", "profitable", "achieved", "target achieved", "low", "healthy")),
+)
+
+
+def status_tone(value: Any) -> str:
+    """"negative", "warning", "positive" or "" for one status cell."""
+    text = str(value or "").strip().lower()
+    for tone, words in _TONES:
+        if any(text.startswith(w) for w in words):
+            return tone
+    return ""
+
+
+def visible_columns(table: Table) -> tuple[Column, ...]:
+    """The table's columns minus any that are blank on EVERY row.
+
+    A column with nothing in it is not a measured absence on one row — it is a
+    field the source never carries for this table, and printing it as a strip
+    of dashes down every page only costs width the other columns need. A column
+    blank on some rows and filled on others is kept, blanks and all.
+    """
+    if not table.rows:
+        return table.columns
+    return tuple(
+        c for c in table.columns
+        if any(r.get(c.key) not in (None, "") for r in table.rows)
+    ) or table.columns

@@ -386,7 +386,9 @@ def _alert_row(alert: dict[str, Any], target: Any) -> dict[str, Any]:
         "promotion": alert.get("promotion") or alert.get("title"),
         "product": alert.get("product"),
         "channel": alert.get("channel"),
-        "period": alert.get("period") or alert.get("week_key"),
+        # `risk_alerts` names the week `week`; the other two are kept for any
+        # payload that already spells it that way.
+        "period": alert.get("period") or alert.get("week") or alert.get("week_key"),
         "roi_multiple": roi,
         "target_roi": target,
         "gap": gap,

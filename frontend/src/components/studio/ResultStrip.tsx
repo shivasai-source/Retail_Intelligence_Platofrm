@@ -50,28 +50,28 @@ function Tile({
 }) {
   return (
     <div
-      className={`rounded-[var(--r-lg)] border border-border-subtle bg-surface-card px-6 py-5 shadow-[var(--shadow-card-soft)] transition-opacity ${
+      className={`rounded-[var(--r-lg)] border border-border-subtle bg-surface-card px-5 py-4 shadow-[var(--shadow-card-soft)] transition-opacity ${
         stale ? 'opacity-70' : ''
       }`}
     >
       <div className="flex items-center justify-between gap-3">
-        <div className="text-base font-semibold text-ink-muted">{label}</div>
+        <div className="text-md font-bold text-ink-primary">{label}</div>
         {status && <Pill tone={status.tone}>{status.label}</Pill>}
       </div>
-      <div className="mt-2 flex flex-wrap items-baseline gap-x-3">
-        <span className="text-md font-semibold text-ink-muted [font-variant-numeric:tabular-nums]">{current}</span>
+      <div className="mt-3 flex flex-wrap items-baseline gap-x-2.5">
+        <span className="text-lg font-bold text-ink-primary [font-variant-numeric:tabular-nums]">{current}</span>
         <span className="text-ink-muted">→</span>
-        <span className="text-[30px] font-extrabold leading-none tracking-[-0.02em] text-ink-primary [font-variant-numeric:tabular-nums]">
+        <span className="text-[24px] font-bold leading-none tracking-[-0.01em] text-ink-primary [font-variant-numeric:tabular-nums]">
           {scenario}
         </span>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-base">
-        <span className={`inline-flex items-center gap-1.5 font-bold [font-variant-numeric:tabular-nums] ${deltaTone(direction)}`}>
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        <span className={`inline-flex items-center gap-1.5 font-semibold [font-variant-numeric:tabular-nums] ${direction === 'unchanged' ? 'text-ink-secondary' : deltaTone(direction)}`}>
           <Arrow direction={direction} />
           {direction === 'unchanged' ? 'Same as current plan' : direction === 'not_applicable' ? '—' : `${delta} vs current plan`}
         </span>
       </div>
-      {note && <div className="mt-1.5 text-sm text-ink-muted [font-variant-numeric:tabular-nums]">{note}</div>}
+      {note && <div className="mt-1.5 text-sm text-ink-secondary [font-variant-numeric:tabular-nums]">{note}</div>}
     </div>
   )
 }
