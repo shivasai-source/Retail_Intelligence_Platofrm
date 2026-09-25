@@ -23,7 +23,7 @@ result tiles, a week-by-week chart and a discount-depth curve.
 │  Days          ───●─────────   14 days   2 business weeks                          │
 │                                                                                    │
 │  REVENUE · 14 days   ₹56.3 Cr → ₹49.5 Cr    ▼ −₹6.8 Cr (−12.0%) vs current plan    │
-│  ROI · 14 days       1.50 → 1.46            ▼ −0.04   [Profitable · above 1.00]    │
+│  ROI · 14 days       1.50 → 1.46            ▼ −0.04   [Net Gain · above 1.00]      │
 │                                                                                    │
 │  Revenue by week: no promotion · current plan · scenario, every bar labelled        │
 │  What each discount depth would do: Revenue and ROI curves, break-even marked       │

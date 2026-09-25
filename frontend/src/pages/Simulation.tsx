@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
-import { Button, Card, CardBody, CardHeader, InfoPopover, Pill, Spinner, useToast } from '../components/ui'
+import { Button, Card, CardBody, CardHeader, InfoPopover, Spinner, useToast } from '../components/ui'
 import { Icon } from '../icons'
 import { FilterBar } from '../components/command/FilterBar'
 import { ExportReportButton } from '../components/reports/ExportReportButton'
 import { LeverSlider } from '../components/studio/LeverSlider'
 import { ResultStrip } from '../components/studio/ResultStrip'
+import { RoiStatusPill } from '../components/studio/RoiStatusPill'
 import { SeriesLegend, WindowChart } from '../components/studio/WindowChart'
 import { CurveChart } from '../components/studio/CurveChart'
 import { useFilterOptionsFor } from '../hooks/useCommandCenter'
@@ -575,7 +576,6 @@ function OptimizeResult({
   onDismiss: () => void
 }) {
   const roiTone = { profitable: 'success', break_even: 'warning', loss_making: 'danger', not_applicable: 'neutral' } as const
-  const roiLabel = { profitable: 'Profitable', break_even: 'Break-even', loss_making: 'Loss-making', not_applicable: 'No promotion' } as const
   const searched = (key: OptimizableLever): string => {
     const s = r.searched[key]
     if (!s) return 'held'
@@ -602,7 +602,7 @@ function OptimizeResult({
       <CardHeader
         title={r.already_optimal ? 'Nothing in the searched ranges beats the current plan' : 'Best levers in the searched ranges'}
         subtitle={`${r.searched.evaluations.toLocaleString()} positions priced · highest ROI, then revenue, then lower spend`}
-        actions={<Pill tone={roiTone[r.best.roi_status]}>{roiLabel[r.best.roi_status]}</Pill>}
+        actions={<RoiStatusPill tone={roiTone[r.best.roi_status]} />}
       />
       <CardBody>
         {stale && (

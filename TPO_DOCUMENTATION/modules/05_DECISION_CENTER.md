@@ -10,8 +10,8 @@
    is reused after removal), each sent from the Simulation Studio's **Add to
    Decision Center**. A card shows the scope, the three lever values as chips,
    and the deciding figures up front: **Revenue** and **ROI** with their
-   movement against the current plan and the ROI status (Profitable /
-   Break-even / Loss-making). **Choose this scenario** marks it as the
+   movement against the current plan and the ROI status (Net Gain /
+   Break-even / Net Loss). **Choose this scenario** marks it as the
    decision. The studio refuses the same scenario twice (same scope, currency
    and levers) and a fourth.
 2. The better **Revenue** and **ROI** across the cards get a check. Revenue

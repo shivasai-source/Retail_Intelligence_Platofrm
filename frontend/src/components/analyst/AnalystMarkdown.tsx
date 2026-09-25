@@ -66,14 +66,14 @@ export function AnalystMarkdown({ text }: { text: string }) {
       blocks.push(
         // A ranking can be longer than the panel is wide; it scrolls on its own
         // rather than widening the thread.
-        <div key={`tbl-${i}`} className="my-2 overflow-x-auto">
+        <div key={`tbl-${i}`} className="my-2.5 overflow-x-auto rounded-[10px] border border-border-subtle">
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr>
                 {head.map((h, hi) => (
                   <th
                     key={hi}
-                    className={`border-b border-border-default px-2 py-1.5 font-semibold text-ink-muted ${
+                    className={`border-b border-border-default bg-surface-page px-2.5 py-2 text-xs font-bold uppercase tracking-[0.04em] text-ink-secondary ${
                       hi === 0 ? 'text-left' : 'text-right'
                     }`}
                   >
@@ -84,11 +84,11 @@ export function AnalystMarkdown({ text }: { text: string }) {
             </thead>
             <tbody>
               {body.map((row, ri) => (
-                <tr key={ri} className="border-b border-border-subtle last:border-0">
+                <tr key={ri} className="border-b border-border-subtle last:border-0 even:bg-surface-page/60">
                   {row.map((c, ci) => (
                     <td
                       key={ci}
-                      className={`px-2 py-1.5 ${
+                      className={`px-2.5 py-2 ${
                         ci === 0 ? 'text-left text-ink-primary' : 'text-right tabular-nums text-ink-primary'
                       }`}
                     >
@@ -112,7 +112,7 @@ export function AnalystMarkdown({ text }: { text: string }) {
         i++
       }
       blocks.push(
-        <ul key={`ul-${i}`} className="my-1.5 list-disc space-y-1 pl-4.5 marker:text-ink-disabled">
+        <ul key={`ul-${i}`} className="my-2 list-disc space-y-1.5 pl-5 marker:text-brand-violet">
           {items.map((item, ii) => (
             <li key={ii}>{inline(item, `li${ii}`)}</li>
           ))}
@@ -133,7 +133,7 @@ export function AnalystMarkdown({ text }: { text: string }) {
       i++
     }
     blocks.push(
-      <p key={`p-${i}`} className="my-1 first:mt-0 last:mb-0">
+      <p key={`p-${i}`} className="my-2 first:mt-0 last:mb-0">
         {inline(para.join(' '), `p${i}`)}
       </p>,
     )

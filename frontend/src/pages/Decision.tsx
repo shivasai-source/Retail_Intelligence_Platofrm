@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
 import { Button, Card, CardBody, CardHeader, Pill, Spinner, Textarea, useConfirm, useToast } from '../components/ui'
 import { ExportReportButton } from '../components/reports/ExportReportButton'
+import { RoiStatusPill } from '../components/studio/RoiStatusPill'
 import { Icon } from '../icons'
 import {
   useBoardDecisions,
@@ -130,7 +131,7 @@ export function Decision() {
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[var(--r-lg)] border border-brand-violet-100 bg-brand-violet-50 px-4 py-2.5 text-base">
           <span>
             <span className="font-semibold text-brand-violet">Reviewing a saved decision</span>
-            <span className="text-ink-muted"> · {shortId(loadedFrom)}</span>
+            <span className="font-medium text-ink-secondary"> · {shortId(loadedFrom)}</span>
           </span>
           <Button variant="secondary" size="sm" onClick={clear}>
             <Icon name="x" /> Start a new board
@@ -141,7 +142,7 @@ export function Decision() {
       {scenarios.length === 0 ? (
         <div className="mt-6 rounded-[var(--r-lg)] border border-dashed border-border-default bg-surface-card px-6 py-14 text-center">
           <div className="text-md font-bold text-ink-primary">No scenarios on the board</div>
-          <div className="mt-1 text-base text-ink-muted">
+          <div className="mt-1 text-base text-ink-secondary">
             Set the levers in Simulation Studio and press <strong className="font-semibold text-ink-secondary">Add to Decision Center</strong>. Up to {MAX_SCENARIOS} at a time.
           </div>
           <Button variant="primary" className="mt-5" onClick={() => navigate('/simulation')}>
@@ -193,7 +194,7 @@ export function Decision() {
             <CardBody>
               <div className="grid grid-cols-[1fr_auto] items-end gap-4 @max-[760px]:grid-cols-1">
                 <div>
-                  <label htmlFor="rationale" className="text-sm font-semibold text-ink-muted">
+                  <label htmlFor="rationale" className="text-base font-bold text-ink-primary">
                     Rationale
                   </label>
                   <Textarea
@@ -283,10 +284,12 @@ function ScenarioCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-md font-extrabold text-ink-primary">Scenario {scenario.slot}</span>
+            <span className="text-lg font-extrabold text-ink-primary">Scenario {scenario.slot}</span>
             {chosen && <Pill tone="violet">Chosen</Pill>}
           </div>
-          <div className="mt-0.5 truncate text-sm text-ink-muted" title={scenario.scope.label}>
+          {/* The scope in full, up to two lines: which year, channel and
+              product this scenario is for is what tells the cards apart. */}
+          <div className="mt-1 line-clamp-2 text-base font-semibold leading-[1.45] text-ink-primary [text-wrap:balance]" title={scenario.scope.label}>
             {scenario.scope.label}
           </div>
         </div>
@@ -301,23 +304,30 @@ function ScenarioCard({
         </button>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {(['discount', 'days', 'budget'] as const).map((k) => {
+      {/* THE THREE LEVERS, EACH NAMED. Bare chips reading "25.00% · 7 days ·
+          ₹81.35 L" left the reader to work out which was which. */}
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        {([['discount', 'Discount'], ['days', 'Days'], ['budget', 'Budget']] as const).map(([k, name]) => {
           const v = kpi(k)
           return v ? (
-            <span key={k} className="rounded-[var(--r-pill)] bg-surface-muted px-2.5 py-1 text-sm font-semibold text-ink-secondary [font-variant-numeric:tabular-nums]">
-              {v.value}
-            </span>
+            <div key={k} className="rounded-[var(--r-md)] border border-border-subtle px-3 py-2">
+              <div className="text-xs font-semibold uppercase tracking-[0.05em] text-ink-muted">{name}</div>
+              <div className="mt-0.5 truncate text-base font-bold text-ink-primary [font-variant-numeric:tabular-nums]" title={v.value}>
+                {v.value}
+              </div>
+            </div>
           ) : null
         })}
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-4">
+      <div className="mb-5 mt-3 grid grid-cols-2 gap-4 rounded-[var(--r-md)] bg-surface-muted p-3.5">
         <Figure label="Revenue" kpi={revenue} best={bestKeys.has('revenue')} />
         <Figure label="ROI" kpi={roi} best={bestKeys.has('roi')} showTone />
       </div>
 
-      <Button variant={chosen ? 'secondary' : 'primary'} className="mt-5 w-full" onClick={onChoose}>
+      {/* Pinned to the card's foot, so the three buttons line up even when one
+          card has no change lines and the others do. */}
+      <Button variant={chosen ? 'secondary' : 'primary'} className="mt-auto w-full" onClick={onChoose}>
         <Icon name={chosen ? 'check' : 'target'} /> {chosen ? 'Chosen' : 'Choose this scenario'}
       </Button>
     </div>
@@ -327,16 +337,49 @@ function ScenarioCard({
 function Figure({ label, kpi, best, showTone }: { label: string; kpi?: ScenarioKpi; best: boolean; showTone?: boolean }) {
   if (!kpi) return null
   return (
-    <div>
-      <div className="flex items-center gap-1.5 text-sm font-semibold text-ink-muted">
-        {label}
-        {best && <Icon name="checkCircle" className="h-3.5 w-3.5 text-status-success" />}
+    <div className="min-w-0">
+      {/* The verdict pill sits beside the label, not after the value, so a
+          narrow card never wraps it under the number. */}
+      <div className="flex min-h-7 flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="flex items-center gap-1.5 text-base font-bold text-ink-secondary">
+          {label}
+          {best && <Icon name="checkCircle" className="h-3.5 w-3.5 text-status-success" />}
+        </span>
+        {showTone && kpi.tone && <RoiStatusPill tone={kpi.tone} />}
       </div>
-      <div className="mt-0.5 flex flex-wrap items-center gap-2">
-        <span className="text-xl font-extrabold tracking-[-0.01em] text-ink-primary [font-variant-numeric:tabular-nums]">{kpi.value}</span>
-        {showTone && kpi.tone && <Pill tone={kpi.tone}>{toneLabel(kpi.tone)}</Pill>}
+      <div className="mt-1 text-xl font-extrabold tracking-[-0.01em] text-ink-primary [font-variant-numeric:tabular-nums]">{kpi.value}</div>
+      <ChangeLine sub={kpi.sub} />
+    </div>
+  )
+}
+
+/** The change against the current plan, split so it never wraps mid-phrase:
+ *  the change itself bold in its direction's colour, "vs current plan" on the
+ *  line beneath — or "Same as current plan" when nothing moved. The figures
+ *  are the studio's own strings; only their sign is read here, for colour. */
+function ChangeLine({ sub }: { sub?: string }) {
+  if (!sub) return null
+  const suffix = ' vs current plan'
+  if (!sub.endsWith(suffix)) {
+    return <div className="mt-1 text-sm font-medium text-ink-secondary [font-variant-numeric:tabular-nums]">{sub}</div>
+  }
+  const change = sub.slice(0, -suffix.length).trim()
+  const down = /^[-−]/.test(change) || /\([-−]/.test(change)
+  const up = !down && (/^\+/.test(change) || /\(\+/.test(change))
+  if (!up && !down) {
+    return <div className="mt-1.5 text-sm font-bold text-ink-secondary">Same as current plan</div>
+  }
+  return (
+    <div className="mt-1.5 leading-tight">
+      <div
+        className={`flex items-center gap-1 text-base font-bold [font-variant-numeric:tabular-nums] ${
+          up ? 'text-[var(--pill-success-ink)]' : 'text-[var(--pill-danger-ink)]'
+        }`}
+      >
+        <Icon name={up ? 'arrowUp' : 'arrowDown'} className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate" title={change}>{change}</span>
       </div>
-      {kpi.sub && <div className="mt-0.5 text-sm text-ink-muted [font-variant-numeric:tabular-nums]">{kpi.sub}</div>}
+      <div className="mt-0.5 text-sm font-bold text-ink-secondary">vs current plan</div>
     </div>
   )
 }
@@ -350,18 +393,18 @@ function HistoryRow({ decision, active, onOpen }: { decision: BoardDecisionSumma
           <span className="font-bold text-ink-primary">
             {decision.chosen_slot ? `Scenario ${decision.chosen_slot}` : 'No scenario chosen'}
           </span>
-          {decision.chosen_label && <span className="text-ink-muted">· {decision.chosen_label}</span>}
+          {decision.chosen_label && <span className="font-medium text-ink-secondary">· {decision.chosen_label}</span>}
           {decision.stale && <Pill tone="warning">Data changed since</Pill>}
         </div>
-        <div className="mt-0.5 flex flex-wrap gap-x-3 text-sm text-ink-muted [font-variant-numeric:tabular-nums]">
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-sm text-ink-secondary [font-variant-numeric:tabular-nums]">
           <span>{when(decision.created_at)}</span>
-          {s.discount && <span>{s.discount}</span>}
+          {s.discount && <span>Discount {s.discount}</span>}
           {s.days && <span>{s.days}</span>}
           {s.revenue && <span>Revenue {s.revenue}</span>}
           {s.roi && <span>ROI {s.roi}</span>}
           <span>{decision.scenario_count} compared</span>
         </div>
-        {decision.rationale && <div className="mt-1 line-clamp-2 text-sm text-ink-secondary">{decision.rationale}</div>}
+        {decision.rationale && <div className="mt-1 line-clamp-2 text-sm italic text-ink-primary">“{decision.rationale}”</div>}
       </div>
       <Button variant="secondary" size="sm" onClick={onOpen} disabled={active}>
         {active ? 'Open' : 'Review'}
@@ -388,10 +431,6 @@ function bestBySlot(scenarios: DecisionScenario[]): Record<number, Set<string>> 
     ;(out[winners[0].slot] ??= new Set()).add(key)
   }
   return out
-}
-
-function toneLabel(tone: NonNullable<ScenarioKpi['tone']>): string {
-  return { success: 'Profitable', warning: 'Break-even', danger: 'Loss-making', neutral: 'No promotion' }[tone]
 }
 
 function shortId(id: string): string {

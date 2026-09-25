@@ -459,7 +459,7 @@ def simulation_studio(state: FilterState, currency: str, options: dict[str, Any]
                        "loss_making": "warning", "not_applicable": "neutral"}[deltas["roi"]["status"]],
     )
 
-    status = {"profitable": "Profitable (above 1.00)", "loss_making": "Loss-making (below 1.00)",
+    status = {"profitable": "Net Gain (above 1.00)", "loss_making": "Net Loss (below 1.00)",
               "break_even": "Break-even (1.00)", "not_applicable": "Not applicable (no spend)"}
     weeks_word = "business week" if window["weeks"] == 1 else "business weeks"
     partial = window.get("partial_week_fraction")

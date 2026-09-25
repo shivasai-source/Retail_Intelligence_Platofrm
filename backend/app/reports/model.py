@@ -203,14 +203,14 @@ def is_numeric(kind: ColumnKind) -> bool:
 
 
 #: Status words, by the tone a reader should see them in. Matched on the start
-#: of the cell's text, case-insensitively, so "Critical" and "Loss-making (below
+#: of the cell's text, case-insensitively, so "Critical" and "Net Loss (below
 #: 1.00)" both land. PRESENTATION ONLY: the word is the engine's, and a writer
 #: only decides its colour — an unknown word stays plain.
 _TONES: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("negative", ("critical", "high", "underperforming", "loss-making", "loss making",
+    ("negative", ("critical", "high", "underperforming", "net loss", "loses money", "loss-making", "loss making",
                   "below target", "off track", "at risk")),
     ("warning", ("medium", "watch", "break-even", "break even", "warning")),
-    ("positive", ("on track", "profitable", "achieved", "target achieved", "low", "healthy")),
+    ("positive", ("on track", "net gain", "profitable", "achieved", "target achieved", "low", "healthy")),
 )
 
 
