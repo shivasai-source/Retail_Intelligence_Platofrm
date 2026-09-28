@@ -593,7 +593,7 @@ export function CommandCenter() {
       {/* OUTSIDE the isEmpty branch: a selection with no rows is a perfectly
           good thing to ask the Analyst about, so the drawer has to survive
           that state. It portals to <body> regardless of where it sits here. */}
-      <AnalystPanel open={analystOpen} onClose={() => setAnalystOpen(false)} />
+      <AnalystPanel open={analystOpen} onClose={() => setAnalystOpen(false)} onOpen={() => setAnalystOpen(true)} />
     </AppShell>
   )
 }

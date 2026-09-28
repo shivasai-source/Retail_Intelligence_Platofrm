@@ -2,10 +2,12 @@ import { useState, type ReactNode } from 'react'
 import { Sidebar } from './Sidebar'
 import { Topbar, type Crumb } from './Topbar'
 import { useSidebar } from '../../store/sidebar'
+import { useAnalystLayout } from '../../store/analystLayout'
 
 /** The page shell. Ported from css/layout.css #app / .main / .content.
  *
- *  THE CONTENT IS INSET BY THE NAVIGATION'S PINNED WIDTH, and by nothing else:
+ *  THE CONTENT IS INSET BY THE NAVIGATION'S PINNED WIDTH on the left, and on
+ *  the right by the docked Analyst while it is open (store/analystLayout.ts):
  *
  *      below md      ->  none                       (off-canvas drawer)
  *      md, unpinned  ->  --sidebar-rail-w  (68px)   the icon rail
@@ -32,14 +34,22 @@ export function AppShell({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const pinned = useSidebar((s) => s.pinned)
+  // The docked Analyst's width, when it is open beside the page. Padding on
+  // this wrapper narrows <main>, so the page's container queries reflow the
+  // cards into the space left rather than letting the panel cover them.
+  const analystInset = useAnalystLayout((s) => s.inset)
+  const analystResizing = useAnalystLayout((s) => s.resizing)
 
   return (
     <div className="min-h-screen">
       <Sidebar activeKey={activeKey} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div
+        style={analystInset ? { paddingRight: analystInset } : undefined}
         className={[
           'flex min-h-screen min-w-0 flex-col bg-surface-page',
-          'transition-[padding-left] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none',
+          analystResizing
+            ? 'transition-none'
+            : 'transition-[padding-left,padding-right] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none',
           pinned ? 'md:pl-[var(--sidebar-w)]' : 'md:pl-[var(--sidebar-rail-w)]',
         ].join(' ')}
       >

@@ -10,6 +10,7 @@ import { Calendar } from './pages/Calendar'
 import { Reports } from './pages/Reports'
 import { Connections } from './pages/Connections'
 import { Settings } from './pages/Settings'
+import { AnalystWindow } from './pages/AnalystWindow'
 import { RequireAuth } from './components/RequireAuth'
 import { RequireDataset } from './components/RequireDataset'
 
@@ -40,6 +41,7 @@ function App() {
         <Route path="/decision" element={<RequireAuth><RequireDataset><Decision /></RequireDataset></RequireAuth>} />
         <Route path="/calendar" element={<RequireAuth><RequireDataset><Calendar /></RequireDataset></RequireAuth>} />
         <Route path="/reports" element={<RequireAuth><RequireDataset><Reports /></RequireDataset></RequireAuth>} />
+        <Route path="/analyst" element={<RequireAuth><RequireDataset><AnalystWindow /></RequireDataset></RequireAuth>} />
         <Route path="/connections" element={<RequireAuth><Connections /></RequireAuth>} />
         <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/login" replace />} />

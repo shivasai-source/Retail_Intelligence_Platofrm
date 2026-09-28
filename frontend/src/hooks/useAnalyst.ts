@@ -42,6 +42,14 @@ interface AskResponse {
   memory_usage?: MemoryUsage
 }
 
+/** Everything a conversation is, in a form that survives JSON — what the
+ *  pop-out window is handed so the thread moves with the reader. */
+export interface AnalystSnapshot {
+  messages: AnalystMessage[]
+  memory: Record<string, unknown> | null
+  usage: MemoryUsage | null
+}
+
 let counter = 0
 const nextId = () => `m${++counter}`
 
@@ -149,5 +157,24 @@ export function useAnalyst() {
     setUsage(null)
   }, [])
 
-  return { messages, busy, ask, clear, usage, resetMemory }
+  /** The finished turns and the memory behind them. A pending bubble is left
+   *  out: its answer would arrive in the window that asked, not this copy. */
+  const snapshot = useCallback(
+    (): AnalystSnapshot => ({
+      messages: messages.filter((m) => !m.pending),
+      memory: memoryRef.current,
+      usage,
+    }),
+    [messages, usage],
+  )
+
+  /** Replace the conversation with one handed over from another window. Ids
+   *  are reissued so they cannot collide with this window's counter. */
+  const restore = useCallback((snap: AnalystSnapshot) => {
+    setMessages(snap.messages.map((m) => ({ ...m, id: nextId(), pending: false })))
+    memoryRef.current = snap.memory
+    setUsage(snap.usage)
+  }, [])
+
+  return { messages, busy, ask, clear, usage, resetMemory, snapshot, restore }
 }

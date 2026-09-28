@@ -1,9 +1,60 @@
-import { useEffect } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Button, Dropdown, IconButton } from '../ui'
 import { Icon } from '../../icons'
 import { useCommandFilters, type FilterStoreHook, type ListFilterKey } from '../../store/commandFilters'
 import { MultiSelect, SelectionChips, type MultiOption } from './MultiSelect'
 import type { Currency, FiltersResponse, Option } from '../../types/commandCenter'
+
+/** Where the More Filters panel sits, relative to its button.
+ *
+ *  The panel used to be pinned to the button's RIGHT edge at a fixed 680px.
+ *  That only works while the button is at least 680px from the page's left
+ *  edge — at a laptop width, or with the Analyst docked, the bar wraps and the
+ *  button lands near the left, so the panel ran off the page: its first
+ *  column (Month, Product, Region, …) sat under the sidebar or was cut off by
+ *  <main>'s `overflow-x: hidden`.
+ *
+ *  So it is placed by measurement: as wide as the page allows (up to 680px),
+ *  aligned to the button's left edge when that fits, slid left when it would
+ *  overflow on the right, and never past the page's left edge. Re-measured
+ *  whenever <main> changes size — a window resize, the sidebar pinning, the
+ *  Analyst docking. */
+const PANEL_MAX_W = 680
+const PANEL_GUTTER = 16
+
+function usePanelPlacement(open: boolean) {
+  const anchorRef = useRef<HTMLDivElement>(null)
+  const [place, setPlace] = useState<{ left: number; width: number } | null>(null)
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPlace(null)
+      return
+    }
+    const anchor = anchorRef.current
+    const main = anchor?.closest('main')
+    if (!anchor || !main) return
+    const measure = () => {
+      const a = anchor.getBoundingClientRect()
+      const m = main.getBoundingClientRect()
+      const minX = m.left + PANEL_GUTTER
+      const maxX = m.right - PANEL_GUTTER
+      const width = Math.min(PANEL_MAX_W, maxX - minX)
+      const x = Math.max(minX, Math.min(a.left, maxX - width))
+      setPlace({ left: x - a.left, width })
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(main)
+    window.addEventListener('resize', measure)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [open])
+
+  return { anchorRef, place }
+}
 
 /** A single-select dropdown over a filter the API models as a list.
  *
@@ -153,6 +204,7 @@ export function FilterBar({
   const set = store((s) => s.set)
   const setCurrency = store((s) => s.setCurrency)
   const toggleExpanded = store((s) => s.toggleExpanded)
+  const { anchorRef, place } = usePanelPlacement(expanded)
   const reset = store((s) => s.reset)
   const reconcile = store((s) => s.reconcile)
   const studio = layout === 'studio'
@@ -266,7 +318,7 @@ export function FilterBar({
             therefore laid out beside the toolbar rather than beneath it,
             shrink-fitted to its content, and it stretched the header row to
             its own height — which is where the empty band came from. */}
-        <div className="relative">
+        <div ref={anchorRef} className="relative">
           <Button
             variant={expanded ? 'primary' : 'secondary'}
             size="pill"
@@ -289,7 +341,10 @@ export function FilterBar({
             id="cc-more-filters"
             role="region"
             aria-label="Additional filters"
-            className="panel-enter cc-filter-surface absolute right-0 top-full z-30 mt-2 w-[min(680px,calc(100vw-2rem))] max-h-[min(70vh,560px)] overflow-y-auto rounded-[var(--r-lg)] border border-border-subtle p-4 shadow-[var(--shadow-lg)]"
+            // Hidden for the one layout pass before it is measured, so it never
+            // flashes at the wrong place.
+            style={place ? { left: place.left, width: place.width } : { visibility: 'hidden' }}
+            className="panel-enter cc-filter-surface absolute top-full z-30 mt-2 max-h-[min(70vh,560px)] overflow-y-auto rounded-[var(--r-lg)] border border-border-subtle p-4 shadow-[var(--shadow-lg)]"
           >
             <div className="mb-3 flex items-center justify-between gap-3">
               <span className="text-base font-bold text-ink-primary">Additional Filters</span>

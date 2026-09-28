@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
 import { Button, Input, Pill } from '../components/ui'
@@ -11,6 +11,7 @@ import { UploadModal } from '../components/portal/modals/UploadModal'
 import { AzureDatasetModal } from '../components/portal/modals/AzureDatasetModal'
 import { DatabricksModal } from '../components/portal/modals/DatabricksModal'
 import { PowerBiModal } from '../components/portal/modals/PowerBiModal'
+import { DataRequirementsDetail } from '../components/portal/modals/DataRequirementsDetail'
 import { loadAzureConn, loadDatasetSource, loadProxyConn, saveDatasetSource } from '../lib/portalConnectors'
 import type { ConnectorSpecial } from '../types/portal'
 
@@ -46,6 +47,29 @@ const FAMILY_LABEL: Record<CatalogEntry['family'], string> = {
 /** The connector a live tile hands off to, by INITIAL_CONNECTORS key. */
 const portalConnector = (key: string) => INITIAL_CONNECTORS.find((c) => c.key === key)!
 
+// The requirements guide opens on its own every time a user lands here while no
+// complete dataset is loaded — this page is the front door, and without it they
+// have nothing to go on — unless they have asked it not to. Storage can throw
+// (private windows, blocked site data), and then the guide simply opens.
+const GUIDE_MUTED_KEY = 'tpo.dataGuide.muted'
+
+function shouldAutoOpenGuide(): boolean {
+  try {
+    return !localStorage.getItem(GUIDE_MUTED_KEY)
+  } catch {
+    return true
+  }
+}
+
+function setGuideMuted(muted: boolean) {
+  try {
+    if (muted) localStorage.setItem(GUIDE_MUTED_KEY, '1')
+    else localStorage.removeItem(GUIDE_MUTED_KEY)
+  } catch {
+    /* not remembered */
+  }
+}
+
 /** Saved sign-ins, read fresh whenever a dialog closes. */
 function readSessions() {
   return {
@@ -61,7 +85,8 @@ export function Connections() {
 
   const [query, setQuery] = useState('')
   const [family, setFamily] = useState<FamilyFilter>('all')
-  const [modal, setModal] = useState<ConnectorSpecial | 'upload' | null>(null)
+  const [modal, setModal] = useState<ConnectorSpecial | 'upload' | 'requirements' | null>(null)
+  const [guideAuto, setGuideAuto] = useState(false)
   const [source, setSource] = useState<string | null>(() => loadDatasetSource())
   const [sessions, setSessions] = useState(readSessions)
 
@@ -69,6 +94,14 @@ export function Connections() {
   const total = starStatus?.files.length ?? 0
   const complete = Boolean(starStatus?.complete)
   const anyLoaded = present > 0
+  const statusKnown = starStatus !== undefined
+
+  useEffect(() => {
+    if (!statusKnown || complete || modal !== null || !shouldAutoOpenGuide()) return
+    setGuideAuto(true)
+    setModal('requirements')
+    // Only the first settled status matters; later changes must not reopen it.
+  }, [statusKnown])
 
   // A tile says "Connected" for one of two reasons: it is the connector the
   // installed star schema came from, or it holds a saved sign-in of its own
@@ -109,6 +142,7 @@ export function Connections() {
 
   const closeModal = () => {
     setModal(null)
+    setGuideAuto(false)
     // sessionStorage is not reactive, so the tiles learn about a new sign-in
     // here rather than on a timer.
     setSessions(readSessions())
@@ -148,6 +182,7 @@ export function Connections() {
         total={total}
         sourceLabel={anyLoaded ? sourceLabel : null}
         onContinue={() => navigate('/command')}
+        onShowRequirements={() => setModal('requirements')}
       />
 
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -212,6 +247,17 @@ export function Connections() {
         </div>
       )}
 
+      {modal === 'requirements' && (
+        <DataRequirementsDetail
+          onClose={closeModal}
+          onStartUpload={() => {
+            setGuideAuto(false)
+            setModal('upload')
+          }}
+          autoOpened={guideAuto}
+          onDontShowAgain={setGuideMuted}
+        />
+      )}
       {modal === 'upload' && (
         <UploadModal connector={portalConnector('xls')} onClose={closeModal} onConnected={onConnected('xls')} />
       )}
@@ -239,12 +285,14 @@ function DatasetStrip({
   total,
   sourceLabel,
   onContinue,
+  onShowRequirements,
 }: {
   complete: boolean
   present: number
   total: number
   sourceLabel: string | null
   onContinue: () => void
+  onShowRequirements: () => void
 }) {
   return (
     <div
@@ -279,6 +327,9 @@ function DatasetStrip({
         <Pill tone={complete ? 'success' : 'neutral'} dot={complete}>
           {total ? `${present} of ${total} core tables` : 'Checking…'}
         </Pill>
+        <Button variant={complete ? 'ghost' : 'secondary'} onClick={onShowRequirements}>
+          <Icon name="book" /> {complete ? 'Data requirements' : 'What do I upload?'}
+        </Button>
         {complete && (
           <Button variant="primary" onClick={onContinue}>
             Continue to Insights Hub <Icon name="arrowRight" />

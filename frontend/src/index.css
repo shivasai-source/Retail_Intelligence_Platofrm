@@ -408,9 +408,14 @@ h4 { font-size: 15px; line-height: 1.4; }
 }
 
 /* A restrained top-edge highlight on the filter bar, so it reads as a raised
-   surface rather than a flat strip. */
+   surface rather than a flat strip.
+
+   The solid background-color underneath is load-bearing: the gradient's lower
+   stop is translucent, and this surface is the More Filters popover that opens
+   OVER the KPI cards — without an opaque base their figures read through it. */
 .cc-filter-surface {
-  background: linear-gradient(180deg,
+  background-color: var(--surface-card);
+  background-image: linear-gradient(180deg,
               color-mix(in srgb, var(--surface-card) 100%, transparent) 0%,
               color-mix(in srgb, var(--surface-card) 96%, transparent) 100%);
 }

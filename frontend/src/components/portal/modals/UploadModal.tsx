@@ -10,6 +10,7 @@ import type { PortalConnector } from '../../../types/portal'
 import type { StarRole } from '../../../types/dataset'
 import { StarFileViewer } from './StarFileViewer'
 import { InstallProgress } from './InstallProgress'
+import { DataRequirementsDetail } from './DataRequirementsDetail'
 
 // The Excel connector's upload screen.
 //
@@ -43,6 +44,7 @@ export function UploadModal({
   const [dragging, setDragging] = useState(false)
   const [error, setError] = useState('')
   const [viewing, setViewing] = useState<StarRole | null>(null)
+  const [showGuide, setShowGuide] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const { show } = useToast()
   const confirm = useConfirm()
@@ -152,6 +154,10 @@ export function UploadModal({
   if (viewing) {
     return <StarFileViewer role={viewing} onBack={() => setViewing(null)} onClose={onClose} />
   }
+  // Same takeover for the requirements guide, so files already picked survive it.
+  if (showGuide) {
+    return <DataRequirementsDetail onBack={() => setShowGuide(false)} onClose={onClose} />
+  }
 
   const installed = status.data?.files.filter((f) => f.present) ?? []
 
@@ -243,6 +249,13 @@ export function UploadModal({
               className="hidden"
               onChange={(e) => { void addFiles(e.target.files); e.target.value = '' }}
             />
+            <button
+              type="button"
+              onClick={() => setShowGuide(true)}
+              className="mt-2.5 inline-flex items-center gap-1.5 text-sm font-bold text-brand-violet hover:underline [&_svg]:h-3.5 [&_svg]:w-3.5"
+            >
+              <Icon name="book" /> Not sure what to upload? See what each file needs
+            </button>
 
             {classified.length > 0 && (
               <div className="mt-3.5 flex flex-col gap-2">
