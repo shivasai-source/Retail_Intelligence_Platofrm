@@ -270,8 +270,9 @@ export function AzureDatasetModal({
             </div>
             <InfoNote>
               Needs Read and List permission on blobs and containers. The files are fetched by the
-              server, so CORS does not need to be enabled on the storage account. The token is used
-              per request and never stored on the server.
+              server, so CORS does not need to be enabled on the storage account. Once the data loads,
+              the server keeps this connection so the Live pill can sync new rows — use a read-only
+              token that expires.
             </InfoNote>
 
             <Button

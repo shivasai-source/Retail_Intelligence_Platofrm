@@ -4,7 +4,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from app import azure_blob, databricks_catalog, star_dataset
+from app import azure_blob, databricks_catalog, source_sync, star_dataset
 from app.azure_blob import AzureError, BlobRef, ContainerScopedSas
 from app.databricks_catalog import DatabricksError, TableRef
 from app.dataset_store import delete_dataset, get_dataset, list_datasets
@@ -86,6 +86,9 @@ async def upload_datasets(
     if star_items or unrecognised:
         try:
             star_result = star_dataset.install(star_items, unrecognised)
+            # Files from someone's machine cannot be re-read, so there is no
+            # longer a source to sync from.
+            source_sync.clear()
         except StarDatasetError as e:
             # ONE error for the set, not one per file. The failure ("two files
             # claim to be the fact table", "three tables still missing") is a
@@ -120,8 +123,31 @@ def reset_star(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     installer exists to prevent.
     """
     try:
-        return star_dataset.reset()
+        result = star_dataset.reset()
     except StarDatasetError as e:
+        raise HTTPException(400, str(e)) from e
+    source_sync.clear()
+    return result
+
+
+@router.get("/source")
+def source_status(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    """Where the loaded dataset came from and when it was last synced — never
+    the stored token. See app/source_sync.py."""
+    return source_sync.public_status()
+
+
+@router.post("/source/sync")
+async def source_sync_now(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    """Re-read the connected source's six tables and swap them in.
+
+    Pulls the same blobs or tables the dataset was installed from, so rows
+    added at the source since then (new weeks, new promotions) come in. On any
+    failure the previously loaded data stays in place.
+    """
+    try:
+        return await source_sync.sync()
+    except source_sync.SourceSyncError as e:
         raise HTTPException(400, str(e)) from e
 
 
@@ -176,7 +202,8 @@ async def inspect_star_upload(
 # identification, all-six-or-nothing, the lock, the reset — is star_dataset's and
 # is not restated here; these routes only get the bytes out of Azure.
 #
-# Credentials arrive per request and are never stored. See app/azure_blob.py.
+# Credentials arrive per request. A successful install saves them for syncing —
+# see app/source_sync.py.
 class AzureCredsReq(BaseModel):
     account: str = ""
     sas: str = ""
@@ -289,9 +316,12 @@ async def azure_install(
             items.append(classified)
 
     try:
-        return star_dataset.install(items, unrecognised)
+        result = star_dataset.install(items, unrecognised)
     except StarDatasetError as e:
         raise HTTPException(400, str(e)) from e
+    # Remembered so the Live pill can pull the same blobs again later.
+    source_sync.save_azure(req.account, req.sas, refs, result.get("rows"))
+    return result
 
 
 # ==================================================== Databricks Unity Catalog ==
@@ -300,7 +330,8 @@ async def azure_install(
 # identification by columns, all six or nothing, the lock, the reset.
 #
 # Browsing is metadata-only (no warehouse, no compute). Data moves exactly once,
-# at install time. Credentials arrive per request and are never stored.
+# at install time. Credentials arrive per request; a successful install saves
+# them for syncing — see app/source_sync.py.
 class DbxCredsReq(BaseModel):
     workspace_url: str = ""
     token: str = ""
@@ -430,9 +461,12 @@ async def dbx_install(
             items.append(classified)
 
     try:
-        return star_dataset.install(items, unrecognised)
+        result = star_dataset.install(items, unrecognised)
     except StarDatasetError as e:
         raise HTTPException(400, str(e)) from e
+    # Remembered so the Live pill can export the same tables again later.
+    source_sync.save_databricks(req.workspace_url, req.token, refs, result.get("rows"))
+    return result
 
 
 @router.get("")

@@ -585,6 +585,92 @@ def install(items: list[Classified], unrecognised: list[str] | None = None) -> d
     }
 
 
+def replace(items: list[Classified], unrecognised: list[str] | None = None) -> dict[str, Any]:
+    """Swap a fresh copy of the SAME source's six tables in over the loaded set.
+
+    This is the sync path (see app/source_sync.py), and it differs from
+    `install` in the two ways a sync needs:
+
+      * It runs while a complete set is loaded. The lock exists to stop a user
+        silently mixing two datasets; a sync re-reads the very files that were
+        installed, so it is the same dataset, newer — not a mix.
+      * It keeps the current files until the new set has loaded. A sync that
+        fails (a malformed row pushed to the source, a file open in Excel) must
+        leave the platform on yesterday's data, not on an empty folder — the
+        user did nothing destructive, so nothing should be lost.
+
+    The six current files are renamed to `.<name>.previous`, the staged set is
+    swapped in, and the store is rebuilt from it. Any failure moves the previous
+    files back and rebuilds from them.
+    """
+    validate(items, unrecognised)
+
+    folder = data_dir()
+    folder.mkdir(parents=True, exist_ok=True)
+    payloads = [(item, _to_csv_bytes(item)) for item in items]
+
+    from app.tpo.loader import get_store
+
+    with _install_lock:
+        try:
+            previous_rows = get_store().row_count if is_locked() else 0
+        except Exception:
+            previous_rows = 0
+
+        staged: list[tuple[Path, Path]] = []
+        try:
+            for item, payload in payloads:
+                target = folder / item.target_name
+                staged.append((_stage(target, payload), target))
+        except Exception as e:
+            for temp, _ in staged:
+                temp.unlink(missing_ok=True)
+            raise StarDatasetError(f"Couldn't write the synced files into {folder}: {e}") from e
+
+        backups: list[tuple[Path, Path]] = []
+        try:
+            for _, target in staged:
+                if target.is_file():
+                    backup = target.with_name(f".{target.name}.previous")
+                    _replace_with_retry(target, backup)
+                    backups.append((backup, target))
+            for temp, target in staged:
+                _replace_with_retry(temp, target)
+            reset_caches()
+            rows = get_store().row_count
+        except Exception as e:
+            for temp, _ in staged:
+                temp.unlink(missing_ok=True)
+            for backup, target in backups:
+                try:
+                    _replace_with_retry(backup, target)
+                except Exception:
+                    pass  # reported below; the backup file is left in place to recover by hand
+            reset_caches()
+            raise StarDatasetError(
+                f"The synced files couldn't be loaded, so the previous data was kept: {e}"
+            ) from e
+
+        for backup, _ in backups:
+            backup.unlink(missing_ok=True)
+
+    return {
+        "installed": [
+            {
+                "role": item.role,
+                "filename": item.target_name,
+                "original_name": item.original_name,
+                "matched_by": item.matched_by,
+                "size_bytes": len(payload),
+            }
+            for item, payload in payloads
+        ],
+        "rows": rows,
+        "previous_rows": previous_rows,
+        "data_dir": str(folder),
+    }
+
+
 def current_status() -> dict[str, Any]:
     """Which of the six files the data folder currently holds. Lets the
     frontend show what is connected without parsing anything."""
@@ -650,6 +736,9 @@ def reset() -> dict[str, Any]:
         # staging and swapping; they are invisible to current_status() but would
         # otherwise sit in the folder forever.
         for temp in folder.glob(".*.incoming"):
+            temp.unlink(missing_ok=True)
+        # Likewise a sync's `.name.previous` backups (see `replace`).
+        for temp in folder.glob(".*.previous"):
             temp.unlink(missing_ok=True)
         reset_caches()
     return {"removed": removed, "data_dir": str(folder)}

@@ -81,6 +81,39 @@ export interface StarStatus {
   locked: boolean
 }
 
+/** How the last pull from the connected source went. */
+export interface SourceSync {
+  /** ISO timestamp (UTC). */
+  at: string
+  ok: boolean
+  /** Fact rows loaded — null when the sync failed. */
+  rows: number | null
+  previous_rows: number | null
+  error: string | null
+}
+
+/** Where the loaded dataset came from — never includes the stored token.
+ *  See backend/app/source_sync.py. */
+export interface SourceStatus {
+  kind: 'azure' | 'databricks' | null
+  /** True when the data can be pulled again from its source. */
+  syncable: boolean
+  label: string | null
+  /** Storage account, or Databricks workspace URL. */
+  origin: string | null
+  items: string[]
+  saved_at: string | null
+  last_sync: SourceSync | null
+  syncing: boolean
+}
+
+export interface SourceSyncResult {
+  rows: number
+  previous_rows: number
+  source: string
+  last_sync: SourceSync
+}
+
 /** A window of rows from one installed table, for the View panel. */
 export interface StarPreview {
   role: StarRole
@@ -111,7 +144,8 @@ export interface UploadResult {
 
 // ===== Azure Blob Storage source =====
 // The same six tables as the Excel connector, reached from a storage account.
-// Credentials are passed per request and never persisted server-side — see
+// Credentials are passed per request; a successful install saves them for
+// syncing (backend/app/source_sync.py) — see
 // backend/app/azure_blob.py.
 
 export interface AzureContainer {
@@ -158,7 +192,8 @@ export interface StarInspectResult {
 // ===== Databricks Unity Catalog source =====
 // The same six tables again, this time as catalog tables rather than files.
 // Browsing is metadata-only; data moves once, at install. Credentials are sent
-// per request and never persisted — see backend/app/databricks_catalog.py.
+// per request; a successful install saves them for syncing — see
+// backend/app/source_sync.py.
 
 export interface DbxCatalog {
   name: string

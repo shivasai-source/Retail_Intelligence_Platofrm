@@ -9,6 +9,8 @@ import type {
   DbxSchema,
   DbxTableListing,
   DbxTableSel,
+  SourceStatus,
+  SourceSyncResult,
   StarInspectResult,
   StarInstallResult,
   StarPreview,
@@ -26,7 +28,8 @@ export interface DbxCreds {
 }
 
 /** Storage account + SAS, as the Azure routes take them. Held in component
- *  state for the life of the modal and sent per request — never persisted. */
+ *  state for the life of the modal and sent per request; a successful install
+ *  saves it server-side for syncing (backend/app/source_sync.py). */
 export interface AzureCreds {
   account: string
   sas: string
@@ -52,6 +55,27 @@ export function useStarStatus() {
   return useQuery({
     queryKey: ['datasets', 'star'],
     queryFn: () => apiFetch<StarStatus>('/datasets/star'),
+  })
+}
+
+// Where the loaded dataset came from, and when it was last pulled. Drives the
+// Live pill: a dataset from Azure or Databricks can be synced from there.
+export function useSourceStatus() {
+  return useQuery({
+    queryKey: ['datasets', 'source'],
+    queryFn: () => apiFetch<SourceStatus>('/datasets/source'),
+  })
+}
+
+// Re-read the connected source's six tables and swap them in. On failure the
+// server keeps the data it had, so there is nothing to undo here.
+export function useSourceSync() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => apiPost<SourceSyncResult>('/datasets/source/sync', {}),
+    // Replaced the CSVs behind every KPI, chart and filter, as an install does.
+    // A failed sync still records its error, so the status is refreshed too.
+    onSettled: () => queryClient.invalidateQueries(),
   })
 }
 

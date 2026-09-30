@@ -299,8 +299,9 @@ export function DatabricksModal({
             </div>
             <InfoNote>
               Needs a token with USE and SELECT on the tables. Browsing reads catalog metadata only —
-              a SQL warehouse is used just once, to export the data when you load. The token is sent
-              per request and never stored on the server.
+              a SQL warehouse is used only to export the data, when you load and each time you sync.
+              Once the data loads, the server keeps this connection so the Live pill can sync new
+              rows — use a read-only token that expires.
             </InfoNote>
 
             <Button

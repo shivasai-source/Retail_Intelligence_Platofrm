@@ -1,7 +1,8 @@
 import { useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Icon } from '../../icons'
-import { Dropdown, IconButton, LiveStatus, ThemeToggle, useLiveStatus } from '../ui'
+import { Dropdown, IconButton, ThemeToggle, useLiveStatus } from '../ui'
+import { SyncStatus } from './SyncStatus'
 import { NotificationBell } from '../command/NotificationBell'
 import { useCurrentUser, useLogout } from '../../hooks/useAuth'
 
@@ -73,7 +74,9 @@ export function Topbar({ crumbs = [], onMenuClick }: { crumbs?: Crumb[]; onMenuC
         {/* The Help button that sat here is gone. It opened a toast promising a
             help centre that does not exist, and there is nothing behind it to
             open; nothing replaces it, so the row closes up on its own. */}
-        <LiveStatus label={live.label} className="mr-1.5 hidden sm:inline-flex" />
+        {/* Clickable when the data came from Azure or Databricks: it pulls the
+            latest rows from there. Otherwise the plain timer pill. */}
+        <SyncStatus liveLabel={live.label} onSynced={live.reset} className="mr-1.5 hidden sm:inline-flex" />
         <ThemeToggle />
         <NotificationBell />
         <IconButton icon="settings" title="Settings" onClick={() => navigate('/settings')} />

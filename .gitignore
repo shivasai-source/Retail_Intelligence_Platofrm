@@ -29,3 +29,6 @@ backend/.env
 
 # B10 store (SQLite)
 backend/.store/
+
+# Runtime-written; holds the connected source's token — see app/source_sync.py
+backend/app/data/source-connection.json
