@@ -40,6 +40,13 @@ export function ModuleGrid({ tpoHref, needsData = false }: { tpoHref?: string; n
         // other card is on the roadmap and goes nowhere either way.
         const href = m.key === 'tpo' ? (tpoHref ?? m.href) : m.href
         const gated = m.live && needsData
+        // A card OPENS if it has somewhere to go, which is no longer the same
+        // question as whether its module is live. MMM is not live and has no
+        // model behind it, but it does have a real Data Connections page, so
+        // the card navigates there instead of raising the roadmap toast. Only
+        // `live` still drives the violet border, the lift and the Live pill —
+        // a destination is not a working module.
+        const opens = Boolean(href)
         const card = (
           <div
             onMouseMove={track}
@@ -92,12 +99,18 @@ export function ModuleGrid({ tpoHref, needsData = false }: { tpoHref?: string; n
                     </Pill>
                   )}
                 </span>
+              ) : opens ? (
+                // Honest about both halves: the module is not live, and the one
+                // screen it does have is the one this card opens.
+                <Pill tone="violet" size="md">
+                  Data setup
+                </Pill>
               ) : (
                 <Pill tone="neutral" size="md">
                   Roadmap
                 </Pill>
               )}
-              {m.live && (
+              {opens && (
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-violet text-white transition-[background-color,transform] duration-200 ease-[var(--ease-out)] group-hover:translate-x-1 group-hover:bg-brand-violet-600 motion-reduce:transition-none [&_svg]:h-4 [&_svg]:w-4">
                   <Icon name="arrowRight" />
                 </span>
@@ -105,7 +118,7 @@ export function ModuleGrid({ tpoHref, needsData = false }: { tpoHref?: string; n
             </div>
           </div>
         )
-        return m.live && href ? (
+        return href ? (
           <Link
             key={m.key}
             to={href}

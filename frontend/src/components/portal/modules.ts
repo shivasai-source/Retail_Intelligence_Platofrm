@@ -34,7 +34,12 @@ export const MODULES: PortalModule[] = [
     desc: "Attribute revenue across trade, media and price to guide next quarter's marketing mix.",
     icon: 'flow',
     tint: 'teal',
+    // Not live — MMM models nothing yet. It does have one real screen, its Data
+    // Connections page, so the card goes there rather than raising the roadmap
+    // toast. `live` stays false, which is what keeps the "Live" pill and the
+    // violet treatment off it: a destination is not a working module.
     live: false,
+    href: '/mmm/connections',
   },
   {
     key: 'tpo',

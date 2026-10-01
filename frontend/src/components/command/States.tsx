@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Button } from '../ui'
-import { Icon } from '../../icons'
+import { Icon, type IconName } from '../../icons'
 import { ApiError } from '../../lib/api'
 
 /** Skeletons, empty and error states for the Insights Hub.
@@ -84,11 +84,17 @@ export function EmptyState({
   hint,
   onClear,
   compact = false,
+  icon = 'filter',
 }: {
   message?: string
   hint?: string
   onClear?: () => void
   compact?: boolean
+  /** The glyph in the disc. Defaults to the funnel, which is right when the
+   *  emptiness was caused by a filter — every existing caller. A panel that is
+   *  empty for another reason (no source connected at all) says so with its
+   *  own glyph rather than blaming a filter the reader never set. */
+  icon?: IconName
 }) {
   return (
     <div
@@ -97,7 +103,7 @@ export function EmptyState({
     >
       <div>
         <div className="mx-auto grid h-9 w-9 place-items-center rounded-full bg-ink-primary/[0.05] text-ink-muted [&_svg]:h-4 [&_svg]:w-4">
-          <Icon name="filter" />
+          <Icon name={icon} />
         </div>
         <p className="mt-3 text-base font-semibold text-ink-primary">{message}</p>
         {hint && <p className="mt-1 text-sm text-ink-muted">{hint}</p>}
