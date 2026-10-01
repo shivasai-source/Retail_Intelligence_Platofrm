@@ -15,7 +15,18 @@ pypdf>=4.0
 
 # Dataset ingestion (app/dataset_store.py) — parsing uploaded CSV/Excel and
 # profiling it into the schema + aggregates the investigation agents read.
-pandas>=2.2
+# Upper bound is load-bearing, not caution. pandas 3.x ships unsigned compiled
+# extensions (`pandas/_libs/tslibs/timezones.*.pyd`); Windows Smart App Control,
+# once it switches to enforcing, refuses to load them and `import pandas` dies
+# with "DLL load failed while importing timezones: An Application Control policy
+# has blocked this file." That kills the uvicorn worker at import, so the server
+# never binds its port and the UI reports "Can't reach the server" — which reads
+# as a down backend rather than a blocked dependency. Seen on 2026-10-01 after a
+# Windows update flipped SAC to enforcing (build 26200 -> 26300).
+#
+# 2.3.x is long-established and loads under the same policy. Lift this bound only
+# once pandas 3's wheels are accepted on the target machines.
+pandas>=2.2,<3
 python-multipart>=0.0.9
 # Investigation agents (app/agents/) — OpenAI client + .env loading for the
 # server-side API key. The key is NEVER sent from the browser.

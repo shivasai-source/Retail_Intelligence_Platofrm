@@ -19,6 +19,11 @@ backend/app/data/uploads/
 backend/app/data/investigation-runs.json
 # Secrets (OPENAI_API_KEY) — never commit
 backend/.env
+# The repo root can hold one too. Only `backend/.env` was ignored, so a root
+# `.env` showed up as an ordinary untracked file and `git add .` would have
+# committed a live key. Note that app/agents/client.py loads `backend/.env`
+# specifically, so a key placed here is also never read.
+/.env
 
 # Planning docs — kept local, not part of the codebase
 *.xlsx

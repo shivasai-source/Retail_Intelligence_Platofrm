@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FocusEvent, type ReactNode } from 're
 import { createPortal } from 'react-dom'
 import { Link, useNavigate } from 'react-router-dom'
 import { useNav } from '../../hooks/useNav'
+import type { NavData } from '../../types/nav'
 import { useCurrentUser, useLogout } from '../../hooks/useAuth'
 import { useStarStatus } from '../../hooks/useDatasets'
 import { Icon, type IconName } from '../../icons'
@@ -60,12 +61,30 @@ export function Sidebar({
   activeKey,
   open,
   onClose,
+  nav: navOverride,
+  brand = 'TPO Intelligence',
+  brandHref = '/command',
+  datasetComplete,
 }: {
   activeKey?: string
   open: boolean
   onClose: () => void
+  /** Navigation for a module that is not TPO. Defaults to GET /api/nav, which
+   *  is TPO's — see the note above on where routes come from. */
+  nav?: NavData
+  /** The wordmark under the logo, and where the logo goes. */
+  brand?: string
+  brandHref?: string
+  /** Whether THIS module's dataset is loaded, for the padlock below.
+   *
+   *  Omitted — TPO — the answer comes from `/api/datasets/star` as it always
+   *  has, so TPO's rail is unchanged. Supplied, it replaces that check: MMM's
+   *  pages are not computed from TPO's six CSVs, so TPO's dataset state must
+   *  not decide whether an MMM row opens. Each module answers for itself. */
+  datasetComplete?: boolean
 }) {
-  const { data: nav } = useNav()
+  const { data: apiNav } = useNav()
+  const nav = navOverride ?? apiNav
   // B12: the signed-in persona, not user.json's hard-coded "Sanjay Kumar ·
   // Commercial Analyst". The chrome used to name a different person from the
   // one who signed in.
@@ -82,7 +101,10 @@ export function Sidebar({
   // Undefined while the status request is in flight. Treated as unlocked until
   // it resolves, so the rail does not flash a wall of padlocks on every load of
   // a page that is about to render perfectly well.
-  const gating = starStatus ? !starStatus.complete : false
+  // A module that answers for itself wins; otherwise TPO's star status, with
+  // "still loading" treated as unlocked exactly as before.
+  const gating =
+    datasetComplete !== undefined ? !datasetComplete : starStatus ? !starStatus.complete : false
 
   // The footer row carried a chevron and a hover state but no handler — it
   // advertised a menu that never opened. Same account menu as the topbar
@@ -181,8 +203,8 @@ export function Sidebar({
             with the one across the content and the two read as one chrome. */}
         <div className="flex h-[var(--topbar-h)] shrink-0 items-center gap-2.5 overflow-hidden border-b border-white/[0.06] px-[14px]">
           <Link
-            to="/command"
-            title="TransOrg IQ — TPO Intelligence"
+            to={brandHref}
+            title={`TransOrg IQ — ${brand}`}
             onClick={onClose}
             className="flex shrink-0 items-center rounded-[var(--r-md)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-violet)]"
           >
@@ -192,7 +214,7 @@ export function Sidebar({
           </Link>
           <Reveal expanded={labelled} className="min-w-0 flex-1">
             <span className="block truncate text-base font-semibold uppercase tracking-[0.1em] text-sidebar-brand-sub">
-              TPO Intelligence
+              {brand}
             </span>
           </Reveal>
         </div>
@@ -212,7 +234,13 @@ export function Sidebar({
               onNavigate={onClose}
             />
           ))}
-          <div className="mx-2 my-3 h-px shrink-0 bg-white/[0.06]" />
+          {/* A SEPARATOR NEEDS TWO SIDES. TPO's nav has four secondary rows, so
+              this always divided something; a module whose nav has none (MMM)
+              got a rule hanging under its last row with nothing beneath it.
+              Unchanged for TPO — only the empty case stops drawing. */}
+          {nav?.navSecondary.length ? (
+            <div className="mx-2 my-3 h-px shrink-0 bg-white/[0.06]" />
+          ) : null}
           {nav?.navSecondary.map((n) => (
             <NavRow
               key={n.key}

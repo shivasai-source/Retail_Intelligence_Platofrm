@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Sidebar } from './Sidebar'
 import { Topbar, type Crumb } from './Topbar'
 import { useSidebar } from '../../store/sidebar'
+import type { NavData } from '../../types/nav'
 
 /** The page shell. Ported from css/layout.css #app / .main / .content.
  *
@@ -25,17 +26,37 @@ export function AppShell({
   activeKey,
   crumbs,
   children,
+  nav,
+  brand,
+  brandHref,
+  datasetComplete,
 }: {
   activeKey?: string
   crumbs?: Crumb[]
   children: ReactNode
+  /** Passed straight to Sidebar — an intelligence module other than TPO
+   *  supplies its own navigation and wordmark. Omitted, the rail is TPO's. */
+  nav?: NavData
+  brand?: string
+  brandHref?: string
+  /** See Sidebar — a module that does not read TPO's star schema answers the
+   *  padlock question itself. */
+  datasetComplete?: boolean
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const pinned = useSidebar((s) => s.pinned)
 
   return (
     <div className="min-h-screen">
-      <Sidebar activeKey={activeKey} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar
+        activeKey={activeKey}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        nav={nav}
+        brand={brand}
+        brandHref={brandHref}
+        datasetComplete={datasetComplete}
+      />
       <div
         className={[
           'flex min-h-screen min-w-0 flex-col bg-surface-page',
