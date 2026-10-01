@@ -2,11 +2,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon } from '../../icons'
 import { Button, Pill, Spinner } from '../ui'
-import { useFilterOptions, useRiskAlerts } from '../../hooks/useCommandCenter'
+import { useRiskAlerts } from '../../hooks/useCommandCenter'
 import { useAlertHandoff } from '../../hooks/useAlertHandoff'
-import { useCommandFilters } from '../../store/commandFilters'
+import { useEnsureCommandScope } from '../../hooks/useCommandScope'
 import { ALERT_FETCH_LIMIT, topAlerts } from '../command/riskRanking'
-import { BREAKEVEN_ROI, fmtRoi } from '../../lib/roi'
+import { BREAKEVEN_ROI, ROI_TONE_CLASS, fmtRoi, netTone } from '../../lib/roi'
 import type { RiskAlert } from '../../types/commandCenter'
 
 /** START AN INVESTIGATION FROM AN ALERT, without going back to the Insights Hub.
@@ -59,17 +59,9 @@ export function AlertPicker({ disabled }: { disabled?: boolean }) {
   const [coords, setCoords] = useState({ left: 0, top: 0 })
 
   // The Insights Hub's scope, initialised the way that page initialises it if
-  // the user has not been there yet this session.
-  const initialised = useCommandFilters((s) => s.initialised)
-  const initialise = useCommandFilters((s) => s.initialise)
-  const options = useFilterOptions()
-  useEffect(() => {
-    if (initialised) return
-    const years = options.data?.years
-    if (!years?.length) return
-    const completed = years.filter((y) => y < new Date().getFullYear())
-    initialise(Math.max(...(completed.length ? completed : years)))
-  }, [initialised, options.data?.years, initialise])
+  // the user has not been there yet this session — the same hook the alerts
+  // dialog on this page uses, so the two cannot resolve different years.
+  const initialised = useEnsureCommandScope()
 
   const alerts = useRiskAlerts(ALERT_FETCH_LIMIT)
   const handoff = useAlertHandoff()
@@ -242,12 +234,17 @@ export function AlertPicker({ disabled }: { disabled?: boolean }) {
                           {a.channel} · {a.week}
                         </span>
                       </span>
-                      <span
-                        className={`text-right text-sm font-bold tabular-nums ${
-                          roi !== null && roi < BREAKEVEN_ROI ? 'text-status-danger' : 'text-ink-primary'
-                        }`}
-                      >
-                        ROI {fmtRoi(roi)}
+                      <span className="flex items-baseline justify-end gap-2.5 text-sm font-bold tabular-nums">
+                        <span className={roi !== null && roi < BREAKEVEN_ROI ? 'text-status-danger' : 'text-ink-primary'}>
+                          ROI {fmtRoi(roi)}
+                        </span>
+                        <span
+                          title="Incremental sales − trade spend"
+                          className={ROI_TONE_CLASS[netTone(a.net_incremental_profit, roi)]}
+                        >
+                          {a.net_incremental_profit_display}
+                          <span className="ml-1 text-xs font-semibold text-ink-muted">net</span>
+                        </span>
                       </span>
                       <span className="truncate text-xs text-ink-secondary">{a.product}</span>
                       <span className="text-right text-xs tabular-nums text-ink-muted">{a.at_stake_display} at stake</span>

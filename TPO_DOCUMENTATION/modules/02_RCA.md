@@ -37,6 +37,19 @@ Simulation Studio                                 [REAL AGAIN]
 
 ### From the Command Center (real)
 
+**Two doors from the Insights Hub.** Its **Alerts** button
+(`components/command/AlertsButton`) navigates here with an
+`OPEN_ALERTS_STATE_KEY` intent in router state (`lib/askWhy`), and the page
+opens `components/investigations/AlertsModal` over itself, blurred: step one
+sets the target ROI (`TargetRoiForm`, written to the Hub's filter store), step
+two lists every event below it in `RiskAlertsPanel` — the same `/risk-alerts`
+payload, bands and ranking the Hub used to draw beside its trend chart. An
+*Ask why* on a row goes through `useAlertHandoff` exactly as a Hub row did, and
+the dialog closes. The query bar's *From an alert* menu (`AlertPicker`) is the
+same list without the target step. Both initialise the Hub's scope through
+`hooks/useCommandScope` when the reader arrives cold, so neither waits on a
+page the reader has not visited.
+
 `store/activeInvestigation.InvestigationScope`:
 
 ```ts

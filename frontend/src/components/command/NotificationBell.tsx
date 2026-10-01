@@ -1,10 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import { Icon, type IconName } from '../../icons'
 import { IconButton } from '../ui'
 import { useRiskAlerts, useTargetRoi } from '../../hooks/useCommandCenter'
 import { useAlertHandoff } from '../../hooks/useAlertHandoff'
 import { ALERT_FETCH_LIMIT, alertHeadline, topAlerts } from './riskRanking'
+import { OPEN_ALERTS_STATE_KEY, buildOpenAlertsIntent } from '../../lib/askWhy'
 import type { RiskAlert } from '../../types/commandCenter'
 import { ROI_TONE_CLASS, fmtRoi, roiTone } from '../../lib/roi'
 
@@ -45,8 +47,9 @@ import { ROI_TONE_CLASS, fmtRoi, roiTone } from '../../lib/roi'
  *  reader who cannot use motion. See `.bell-ring` in index.css.
  */
 
-/** How many alerts the panel shows. The rest stay in the Insights Hub's own
- *  Risk Alerts panel, which is what the footer links to. */
+/** How many alerts the panel shows. The rest are in the alerts dialog on
+ *  Investigations — every event, banded and ranked — which is what the footer
+ *  opens. */
 const TOP_N = 3
 
 const PANEL_W = 344
@@ -81,6 +84,7 @@ export function NotificationBell() {
   const alerts = useRiskAlerts(ALERT_FETCH_LIMIT)
   const targetRoi = useTargetRoi(alerts.data?.meta)
   const handOff = useAlertHandoff()
+  const navigate = useNavigate()
 
   const counts = alerts.data?.counts
   // Every banded alert, not just the rows on screen: `alerts[]` is capped by
@@ -177,8 +181,22 @@ export function NotificationBell() {
             />
 
             {rows.length > 0 && total > rows.length && (
-              <div className="border-t border-border-subtle px-4 py-2 text-xs text-ink-muted">
-                Showing the top {rows.length} of {total}. The Insights Hub lists them all.
+              <div className="flex items-center justify-between gap-2 border-t border-border-subtle px-4 py-2 text-xs text-ink-muted">
+                <span>Showing the top {rows.length} of {total.toLocaleString()}.</span>
+                {/* The same door the Insights Hub's Alerts button opens: the
+                    dialog with every event, banded and ranked, over the
+                    investigation page an "Ask why" lands on. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false)
+                    navigate('/investigations', { state: { [OPEN_ALERTS_STATE_KEY]: buildOpenAlertsIntent() } })
+                  }}
+                  className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-[var(--r-sm)] px-1.5 py-1 font-semibold text-brand-violet transition-colors hover:bg-brand-violet-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet [&_svg]:h-3 [&_svg]:w-3"
+                >
+                  View all alerts
+                  <Icon name="arrowRight" />
+                </button>
               </div>
             )}
           </div>,

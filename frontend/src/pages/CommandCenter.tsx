@@ -19,13 +19,10 @@ import { calendarYear } from '../lib/labels'
 import { FilterBar } from '../components/command/FilterBar'
 import { PromotionMixCard } from '../components/command/PromotionMixCard'
 import { SalesComparisonCard } from '../components/command/SalesComparisonCard'
-import { RiskAlertsPanel } from '../components/command/RiskAlertsPanel'
-import { ALERT_FETCH_LIMIT, topPriorityAlert } from '../components/command/riskRanking'
 import { EmptyState as CcEmptyState, ErrorState, KpiSkeleton, PanelSkeleton, Stale } from '../components/command/States'
 import { AddKpiMenu } from '../components/command/AddKpiMenu'
-import { TargetRoiControl } from '../components/command/TargetRoiControl'
+import { AlertsButton } from '../components/command/AlertsButton'
 import { SERIES_CLASS } from '../components/command/series'
-import { PriorityAlert } from '../components/command/PriorityAlert'
 import { ADDABLE_KPI_ORDER, HERO_TILE_CLASS, readAddedKpis, writeAddedKpis } from '../components/command/kpiDeckState'
 import { TrendPanels } from '../components/command/TrendPanels'
 import {
@@ -41,7 +38,6 @@ import {
   useKpis,
   usePromotionMix,
   useBreakdown,
-  useRiskAlerts,
   useTrend,
 } from '../hooks/useCommandCenter'
 import { useCommandFilters } from '../store/commandFilters'
@@ -50,7 +46,6 @@ import { ExportReportButton } from '../components/reports/ExportReportButton'
 // posts with. Reused rather than rewritten: a second implementation is how an
 // export starts describing a different selection from the screen.
 import { toApiFilters as toReportScope } from '../lib/scope'
-import { useAlertHandoff } from '../hooks/useAlertHandoff'
 import { fmtRoi } from '../lib/roi'
 import type { KpiCard } from '../types/commandCenter'
 import { AnalystButton } from '../components/analyst/AnalystButton'
@@ -154,19 +149,6 @@ export function CommandCenter() {
   const initialise = useCommandFilters((s) => s.initialise)
   const initialised = useCommandFilters((s) => s.initialised)
   const reset = useCommandFilters((s) => s.reset)
-  const targetRoi = useCommandFilters((s) => s.targetRoi)
-  const setTargetRoi = useCommandFilters((s) => s.setTargetRoi)
-  /** The RCA hand-off for a risk alert. EXTRACTED to hooks/useAlertHandoff.ts
-   *  so the header's notification bell opens the same investigation this page's
-   *  own alert rows open — one definition, not two that can drift. Behaviour is
-   *  unchanged; see that file for why the week and the display names stay
-   *  labels rather than filters.
-   *
-   *  Called HERE, with the other hooks: this component returns early while the
-   *  filters and KPIs are loading, so a hook called further down would run in
-   *  some renders and not others.
-   */
-  const handOffAlert = useAlertHandoff()
 
   const options = useFilterOptions()
   const kpis = useKpis()
@@ -181,7 +163,6 @@ export function CommandCenter() {
     setAddedKpis(ordered)
   }
   const trend = useTrend(granularity)
-  const alerts = useRiskAlerts(ALERT_FETCH_LIMIT)
   // Both metrics per SCHEME for the Promotion Mix toggle.
   //
   // Was `by=promotion`, which is why the 20% seasonal scheme never appeared
@@ -207,7 +188,7 @@ export function CommandCenter() {
 
   const crumbs = [{ label: 'TPO Intelligence' }, { label: 'Insights Hub' }]
 
-  const refreshing = kpis.isFetching || trend.isFetching || alerts.isFetching || mix.isFetching
+  const refreshing = kpis.isFetching || trend.isFetching || mix.isFetching
 
   const handleRefresh = () => {
     show('Refreshing all data sources...', { duration: 1500 })
@@ -278,11 +259,6 @@ export function CommandCenter() {
   // two under separate keys so its other readers see exactly the six they
   // always did; the page reads them as one set.
   const allCards: Record<string, KpiCard | undefined> = { ...kpis.data.kpis, ...(kpis.data.secondary ?? {}) }
-  // Highest-priority risk in the CURRENT scope: Critical before High before
-  // Medium, then worst ROI, then largest stake. Derived from the data, so it
-  // follows every filter change and names no promotion in code.
-  const headline = topPriorityAlert(alerts.data?.alerts)
-
   // No rows for this filter combination. Show the filter bar (so the user can
   // undo it) and say so plainly — never a grid of "0"s, which would read as a
   // genuine result.
@@ -303,8 +279,13 @@ export function CommandCenter() {
           No effect while the popover is closed: nothing else here overlaps. */}
       <div className="fade-in relative z-20">
         {/* THE TITLE ROW: the page's name and what it is looking at on the
-            left; its one leading alert on the right, where a reader looks for
-            status first. The toolbar is its own row beneath. */}
+            left; the way into the alerts on the right, where a reader looks
+            for status first. The alerts themselves — the target they are
+            judged against and the events below it — live in one dialog on
+            Investigations now (components/investigations/AlertsModal), where
+            an "Ask why" is a step away rather than a page away; this page
+            carries only the door and the count. The toolbar is its own row
+            beneath. */}
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <div className="min-w-0">
             <h1 className="text-2xl font-extrabold tracking-[-0.025em] leading-[1.1]">TPO Insights Hub</h1>
@@ -318,11 +299,12 @@ export function CommandCenter() {
               {calendarYear(meta.period)}
             </p>
           </div>
-          {headline && !isEmpty && (
-            <div className="ml-auto">
-              <PriorityAlert alert={headline} onOpen={() => handOffAlert(headline)} />
-            </div>
-          )}
+          <div className="ml-auto">
+            <AlertsButton
+              disabled={isEmpty}
+              disabledReason="This filter selection matches no sales rows, so there are no promotion events to judge."
+            />
+          </div>
         </div>
 
         {/* THE TOOLBAR, IN TWO GROUPS.
@@ -332,11 +314,13 @@ export function CommandCenter() {
          *  out of them.
          *
          *  RIGHT — what the page shows about that scope, and what to do with
-         *  it: Add KPI, then Target ROI, then a hairline, then Refresh and
-         *  Export. Add KPI and Target ROI sit together and apart from the
-         *  filters because neither changes the SELECTION — they change which
-         *  cards are on screen and what those cards are judged against, over
-         *  the very same rows.
+         *  it: Add KPI, then a hairline, then Refresh and Export. Add KPI sits
+         *  apart from the filters because it does not change the SELECTION —
+         *  it changes which cards are on screen, over the very same rows.
+         *  The Target ROI control that stood beside it moved into the alerts
+         *  dialog on Investigations, as the first step before the events are
+         *  listed: the target is what those events are judged against, so it
+         *  is set where they are read.
          *
          *  The outer row never wraps; when the width runs out the filter group
          *  wraps inside itself, so the action group keeps its corner instead of
@@ -362,20 +346,8 @@ export function CommandCenter() {
               }
               onClear={() => setAdded([])}
             />
-            {/* `current` is the STORE's value, not the payload's: the pill flips
-                the moment the reader applies a target, while the panels catch
-                up behind the Stale wash. The default and bounds are the
-                backend's, so nothing here hard-codes 1.5. */}
-            <TargetRoiControl
-              target={{
-                current: targetRoi ?? meta.default_target_roi,
-                defaultValue: meta.default_target_roi,
-                range: meta.target_roi_range,
-              }}
-              onApply={setTargetRoi}
-            />
-            {/* The hairline separates the two controls that change the VIEW
-                from the two that act on it. Decoration only. */}
+            {/* The hairline separates the control that changes the VIEW from
+                the two that act on it. Decoration only. */}
             <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border-subtle" />
             <IconButton icon="refresh" className="!h-9 !w-9" title="Refresh data" spinning={refreshing} disabled={refreshing} onClick={handleRefresh} />
             {/* EXPORTS WHAT THE SCREEN IS SHOWING. `scope` is read at click time
@@ -437,7 +409,10 @@ export function CommandCenter() {
         )}
       </div>
 
-      <div className="mt-[14px] grid grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] gap-4 @max-[1000px]:grid-cols-1">
+      {/* The trend has the row to itself. The Risk Alerts card that shared it
+          — "Promotion Events Below ROI Target" — is the second step of the
+          alerts dialog on Investigations now; see the title row above. */}
+      <div className="mt-[14px]">
         <Card>
           <CardHeader
             title={
@@ -494,10 +469,10 @@ export function CommandCenter() {
                   rate={trend.data.meta.exchange_rate}
                   symbol={trend.data.meta.currency === 'USD' ? '$' : '₹'}
                   granularity={granularity}
-                  /* Sized to the height the grid row actually gives this card
-                     (its Risk Alerts sibling drives it). At the previous 320
-                     the plot stopped ~88px short of the card's own border; 408
-                     left 30px once the card chrome tightened. */
+                  /* The height the card settled on while a Risk Alerts sibling
+                     drove the row. Kept now the row is its own: at the
+                     previous 320 the plot stopped ~88px short of the card's
+                     border; 408 left 30px once the card chrome tightened. */
                   height={438}
                 />
               </Stale>
@@ -507,56 +482,6 @@ export function CommandCenter() {
           </CardBody>
         </Card>
 
-        {/* One row per promotion EVENT -- a promotion on one product, in one
-            channel, in one business week -- whose ROI sits below the target.
-            Named for that grain: "Underperforming Promotions" is already the
-            table the Simulation context bar hands off from, and a promotion
-            can be above target overall while one of its events is not. */}
-        <Card className="flex flex-col">
-          <CardHeader
-            title="Promotion Events Below ROI Target"
-            /* The "N of M at target" count lives on the severity strip below
-               (RiskAlertsPanel), not here: beside this title it pushed the
-               title onto two lines at the card's width, and the header grew
-               past the trend card's so the two dividers no longer met. */
-            actions={
-              <div className="flex items-center gap-2">
-                <InfoPopover label="About promotion events below ROI target" title="How events are banded">
-                  <InfoBlock label="Event">
-                    One promotion on one product, in one channel, in one business week
-                  </InfoBlock>
-                  <InfoBlock label="Severity">
-                    Critical &lt; {fmtRoi(meta.severity_bands.critical)}
-                    <br />
-                    High {fmtRoi(meta.severity_bands.critical)}–{fmtRoi(meta.severity_bands.high)}
-                    <br />
-                    Medium {fmtRoi(meta.severity_bands.high)}–{fmtRoi(meta.target_roi)}
-                    <br />
-                    Target ≥ {fmtRoi(meta.target_roi)}
-                  </InfoBlock>
-                  <InfoBlock label="Ranking">
-                    Highest stake first
-                    <br />
-                    ROI as tie-breaker
-                  </InfoBlock>
-                </InfoPopover>
-              </div>
-            }
-          />
-          {alerts.data && alerts.data.alerts.length > 0 ? (
-            <RiskAlertsPanel
-              data={alerts.data}
-              onSelect={(a) => {
-                show(`Investigating "${a.title}"…`, { duration: 1500 })
-                window.setTimeout(() => handOffAlert(a), 700)
-              }}
-            />
-          ) : (
-            <CardBody className="px-5 py-1.5">
-              <EmptyState message="Every promotion event in this selection is at or above target." />
-            </CardBody>
-          )}
-        </Card>
       </div>
 
       {/* Sales by Region gives up the wide column it used to have: an even

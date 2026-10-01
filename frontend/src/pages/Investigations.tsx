@@ -15,7 +15,8 @@ import {
 } from '../hooks/useInvestigations'
 import { useStartInvestigationRun, useInvestigationRun } from '../hooks/useInvestigationRun'
 import { ApiError } from '../lib/api'
-import { ASK_WHY_STATE_KEY, type AskWhyIntent } from '../lib/askWhy'
+import { ASK_WHY_STATE_KEY, OPEN_ALERTS_STATE_KEY, type AskWhyIntent, type OpenAlertsIntent } from '../lib/askWhy'
+import { useAlertHandoff } from '../hooks/useAlertHandoff'
 import { useActiveInvestigationStore } from '../store/activeInvestigation'
 import { InvestigationGraph } from '../components/investigations/InvestigationGraph'
 import { bindCannibalizationNode } from '../components/investigations/cannibalizationNode'
@@ -25,6 +26,7 @@ import { AgentFindings } from '../components/investigations/AgentFindings'
 import { AccelList } from '../components/investigations/AccelList'
 import { ProgressStrip } from '../components/investigations/ProgressStrip'
 import { QueryBar } from '../components/investigations/QueryBar'
+import { AlertsModal } from '../components/investigations/AlertsModal'
 import {
   CEILING,
   PhaseRail,
@@ -401,6 +403,23 @@ export function Investigations() {
     | AskWhyIntent
     | undefined
 
+  // ARRIVING FROM THE INSIGHTS HUB'S "ALERTS" BUTTON: open the alerts dialog —
+  // set the target ROI, then pick the event to investigate — over this page,
+  // blurred until the reader chooses. The pick goes through the SAME hand-off
+  // an Insights Hub row used to, so the investigation it starts is the one
+  // that row would have started; the dialog then closes because the page
+  // behind it is the answer. The intent carries a per-press id (lib/askWhy),
+  // so a second press reopens a dialog the reader has since closed.
+  const openAlerts = (location.state as Record<string, unknown> | null)?.[OPEN_ALERTS_STATE_KEY] as
+    | OpenAlertsIntent
+    | undefined
+  const openAlertsKey = openAlerts?.id
+  const [alertsOpen, setAlertsOpen] = useState(false)
+  useEffect(() => {
+    if (openAlertsKey) setAlertsOpen(true)
+  }, [openAlertsKey])
+  const handOffAlert = useAlertHandoff()
+
   // Nothing is rendered until the user actually asks something. Opening the
   // page from the sidebar used to show a hardcoded question and a sample graph
   // — an answer to a question nobody asked. `hasAsked` is now store-backed, so
@@ -771,6 +790,15 @@ export function Investigations() {
         />
       </div>
 
+
+      <AlertsModal
+        open={alertsOpen}
+        onClose={() => setAlertsOpen(false)}
+        onPick={(alert) => {
+          setAlertsOpen(false)
+          handOffAlert(alert)
+        }}
+      />
 
       {run?.status === 'error' && (
         <div className="mt-3 rounded-[var(--r-md)] bg-status-danger-bg p-[10px_14px] text-base text-[#B91C1C]">

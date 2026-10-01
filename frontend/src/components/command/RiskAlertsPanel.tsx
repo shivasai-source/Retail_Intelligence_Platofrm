@@ -3,7 +3,7 @@ import { IconButton, Modal } from '../ui'
 import { Icon, type IconName } from '../../icons'
 import { SEVERITIES, rankByImpact, type Severity } from './riskRanking'
 import type { RiskAlert, RiskAlertsResponse } from '../../types/commandCenter'
-import { ROI_TONE_CLASS, fmtRoi, roiTone } from '../../lib/roi'
+import { ROI_TONE_CLASS, fmtRoi, netTone, roiTone } from '../../lib/roi'
 
 /** Top Risk Alerts, segmented by severity.
  *
@@ -243,10 +243,22 @@ function AlertRow({
           assistive tech. */}
       <div className="flex min-w-0 items-baseline justify-between gap-3">
         <span className="truncate text-base font-bold text-ink-primary">{promotionOf(a)}</span>
-        <span
-          className={`shrink-0 text-sm font-bold tabular-nums ${ROI_TONE_CLASS[roiTone(roi, targetRoi)]}`}
-        >
-          ROI {fmtRoi(roi)}
+        {/* The two figures that say how the event did: the ROI it returned,
+            judged against the target, and the money behind that ratio —
+            incremental sales less trade spend, the event's net incremental
+            profit — green when the promotion made money, red when it lost
+            it, and plain ink when the ROI beside it prints as break-even (see
+            netTone). Both are the backend's own values and display strings;
+            nothing is computed or formatted here. */}
+        <span className="flex shrink-0 items-baseline gap-2.5 text-sm font-bold tabular-nums">
+          <span className={ROI_TONE_CLASS[roiTone(roi, targetRoi)]}>ROI {fmtRoi(roi)}</span>
+          <span
+            title="Incremental sales − trade spend"
+            className={ROI_TONE_CLASS[netTone(a.net_incremental_profit, roi)]}
+          >
+            {a.net_incremental_profit_display}
+            <span className="ml-1 text-xs font-semibold text-ink-muted">net</span>
+          </span>
         </span>
       </div>
 

@@ -20,7 +20,7 @@ All eight share the same 14-dimension filter contract.
 | Filters | `/api/command-center/filters` | GET | Dependent option lists | `useFilterOptions` → `FilterBar`, GenOpt & Rescue pickers |
 | KPI | `/api/command-center/kpis` | GET | The 6 KPI cards | `useKpis` → `TpoKpiTile` |
 | KPI | `/api/command-center/trend` | GET | Trade Spend / Incremental Sales / ROI over time | `useTrend` → `TrendPanels` |
-| KPI | `/api/command-center/risk-alerts` | GET | Events below the ROI target, banded | `useRiskAlerts` → `RiskAlertsPanel`, `AlertBanner` |
+| KPI | `/api/command-center/risk-alerts` | GET | Events below the ROI target, banded | `useRiskAlerts` → `AlertsModal` (Investigations), `AlertsButton`, `NotificationBell`, `AlertPicker` |
 | KPI | `/api/command-center/underperforming-promotions` | GET | Underperforming events, At Stake DESC | `useUnderperforming` → table |
 | KPI | `/api/command-center/top-promotions` | GET | Best events by ROI | `useTopPromotions` → `TopPerformingSection` |
 | KPI | `/api/command-center/promotion-mix` | GET | Trade Spend share by offer | `usePromotionMix` → `PromotionMixCard` |

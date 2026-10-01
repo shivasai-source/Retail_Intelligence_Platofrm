@@ -48,7 +48,7 @@ Sidebar groups, straight from `nav.json`:
 |---|---:|---|
 | `components/ui/` | 22 | Button, Card, Modal, Dropdown, Table, Tabs, Toast, Confirm, Spinner, Badge, Chip, Pill, Field, IconButton, InfoPopover, SidePopover, AlertBanner, LiveStatus, RiskList, Kpi, **TpoKpi**, BrandLogo |
 | `components/charts/` | 10 | Sparkline, Donut, DonutBreakdown, GroupedBar, DualLine, Waterfall, Forecast, ComboBarLine, `useChartWidth` — **hand-rolled SVG, no library** |
-| `components/command/` | 10 | FilterBar, MultiSelect, ChartFrame, **ChartSections** (6 chart sections, 953 lines), RankedBar, ScatterQuadrant, TrendPanels, RiskAlertsPanel, PromotionMixCard, States, `riskRanking.ts` |
+| `components/command/` | 10 | FilterBar, MultiSelect, ChartFrame, **ChartSections** (6 chart sections, 953 lines), RankedBar, ScatterQuadrant, TrendPanels, RiskAlertsPanel (rendered inside `investigations/AlertsModal`), AlertsButton, TargetRoiForm, PromotionMixCard, States, `riskRanking.ts` |
 | `components/calendar/` | 4 | PromotionMatrix, PromotionDetailPanel, UpcomingEventsPanel, `statusColors.ts` |
 | `components/simulation/` | 12 | ContextBar, ScenarioRow, CurrentPlanPanel, LeverPanel, ScenarioResultPanel, ComparisonTable, RecommendationPanel, WeeklyImpactPanel, RiskPanel, TrendChart, `panels.tsx` |
 | `components/optimization/` | 2 | GeneralOptimization (507 lines), Slider |

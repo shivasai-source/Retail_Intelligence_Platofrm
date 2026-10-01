@@ -177,7 +177,7 @@ Extra params: `currency`, `limit` (default 20).
   and narrowing to the promoted week would remove the non-promoted rows the
   counterfactual needs, collapsing ROI to −100%.
 
-**Frontend consumer:** `useRiskAlerts` → `RiskAlertsPanel`, `AlertBanner`.
+**Frontend consumer:** `useRiskAlerts` → `AlertsModal` on Investigations (`RiskAlertsPanel` inside it), `AlertsButton`, `NotificationBell`, `AlertPicker`.
 
 ---
 

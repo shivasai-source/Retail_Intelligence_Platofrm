@@ -67,22 +67,46 @@ Each tile carries an ⓘ popover with the formula and meaning from
 Endpoint: `GET /api/command-center/kpis` — **the full filter payload**.
 Formulas: [08_KPI_AND_BUSINESS_LOGIC.md](../08_KPI_AND_BUSINESS_LOGIC.md).
 
-## 5. Headline alert banner
+## 5. Alerts button
 
-`topPriorityAlert(alerts)` (`components/command/riskRanking.ts`) picks the
-highest-priority risk in the current scope — Critical before High before Medium,
-then the API's own At Stake ranking. Rendered as an `AlertBanner` with
-`"{description} {at_stake_display} at stake."` and a CTA to
-`#/investigations`; clicking it performs the scope hand-off.
+The Hub used to carry three alert surfaces of its own — a strip leading with
+the single worst alert, a Target ROI popover in the toolbar, and a card listing
+every event below target by severity. All three now live in one place, the
+**alerts dialog on Investigations** (`components/investigations/AlertsModal`),
+and the Hub carries only the door: an **Alerts** button in the title row
+(`components/command/AlertsButton`) where the strip sat.
+
+The button computes nothing. Its count is the sum of the three band counts the
+`/risk-alerts` payload reports (computed server-side over every banded event,
+not the `limit`-capped rows), read through the same `useRiskAlerts` at the same
+`ALERT_FETCH_LIMIT` the notification bell uses, so React Query serves both from
+one cache entry. Its tint is the worst band present: danger while any Critical
+exists, warning for High or Medium only, neutral at zero. It is disabled when
+the selection has no rows.
+
+Clicking it navigates to `#/investigations` with an `OPEN_ALERTS_STATE_KEY`
+intent in router state (`lib/askWhy`, beside the Ask-why one, minted per press).
+Investigations opens the dialog over itself, blurred, in two steps:
+
+1. **Set the target ROI** — `TargetRoiForm`, the body of the old toolbar
+   popover, writing to the Hub's filter store. Every opening starts here.
+2. **Promotion events below ROI target** — `RiskAlertsPanel`, the same
+   component, bands, ranking and "View all" the Hub drew beside its trend
+   chart, judged against the target just set, with a *Change target* link back.
+
+An **Ask why** on a row goes through `useAlertHandoff` exactly as a Hub row did,
+and the dialog closes because the page behind it is the answer. The backdrop
+does not dismiss it (a stray click should not undo the step); Escape and ✕ do.
 
 ## 6. Panels and charts
 
-Ten analytical surfaces below the cards.
+Ten analytical surfaces below the cards — one of them, Risk Alerts, has moved
+to the alerts dialog on Investigations (§5) and is listed for its data path.
 
 | # | Surface | Component | Endpoint | Local control |
 |---|---|---|---|---|
 | 1 | **Promotion Performance Trend** | `TrendPanels` | `/trend` | Weekly / Monthly |
-| 2 | **Risk Alerts** | `RiskAlertsPanel` | `/risk-alerts` | severity segmentation (client) |
+| 2 | **Risk Alerts** — *moved to Investigations, §5* | `RiskAlertsPanel` inside `AlertsModal` | `/risk-alerts` | severity segmentation (client) |
 | 3 | **Top Underperforming Promotions** | table in the page | `/underperforming-promotions` | — |
 | 4 | **Promotion Mix** | `PromotionMixCard` | `/promotion-mix` | — |
 | 5 | **Channel Performance** | `ChannelSection` → `RankedBar` | `/breakdown?by=channel` | discount-mechanic selector |
@@ -92,8 +116,8 @@ Ten analytical surfaces below the cards.
 | 9 | **Product Performance** | `ProductSection` | `/breakdown?by=product` | metric |
 | 10 | **Regular vs Seasonal Performance** | `PromotionTypeSection` | `/breakdown?by=promotion_type` | metric |
 
-Layout: trend (1.7fr) beside Risk Alerts (1fr), collapsing to one column below
-1280 px; then the underperforming table; then the mix; then the six chart
+Layout: the trend on a row of its own (the Risk Alerts card that shared it has
+moved, §5); then the underperforming table; then the mix; then the six chart
 sections in three two-column rows.
 
 ### 6.1 Promotion Performance Trend
@@ -106,19 +130,23 @@ The currency **symbol and rate both come from the trend response**, not the KPI
 response — taking the symbol from the KPI payload let the axis briefly render ₹
 against USD-converted numbers while the slower query settled.
 
-Height is fixed at 408 px, sized to the row height its Risk Alerts sibling
-drives.
+Height is fixed at 438 px — the figure it settled on while a Risk Alerts
+sibling drove the row, kept now the row is its own.
 
-### 6.2 Risk Alerts
+### 6.2 Risk Alerts (in the alerts dialog on Investigations)
 
 The API emits **one concatenated Critical → High → Medium list** and truncates
 the tail, so the top of the High band sits behind every Critical row and a small
-`limit` cannot reach it. The page therefore fetches the whole set
+`limit` cannot reach it. The dialog therefore fetches the whole set
 (`ALERT_FETCH_LIMIT = 100000`) and segments client-side. React Query caches it
-per scope, so this is one request per scope, not per render.
+per scope and target, so this is one request per scope, not per render — and
+the Alerts button, the notification bell and the query bar's *From an alert*
+menu all read that same entry.
 
-Header shows `"{target_achieved} of {total_events} at target"` and an ⓘ
-explaining the banding rule.
+The dialog's header names the target the events were judged against, with a
+*Change target* link back to step one and an ⓘ explaining the banding rule; the
+severity strip shows `"{target_achieved} of {total_events} at target"`. A
+target change re-judges the list behind a `Stale` wash rather than blanking it.
 
 ### 6.3 Top Underperforming Promotions
 
@@ -174,10 +202,11 @@ and *"A ranking, not a share of the total."*
 
 ## 7. Interaction and hand-off
 
-Two hand-off paths, both in `pages/CommandCenter.tsx`:
+Two hand-off paths — the alert one from the alerts dialog on Investigations
+(`hooks/useAlertHandoff.ts`), the promotion one in `pages/CommandCenter.tsx`:
 
 ```ts
-handOffAlert(alert)        // from the banner or the Risk Alerts panel
+handOffAlert(alert)        // from the alerts dialog (AlertsModal) — see §5
 handOffPromotion(row)      // from the underperforming table
 ```
 
@@ -208,7 +237,7 @@ model wearing a disguise.
 
 - Per-card ⓘ: name, formula, meaning (from `service.KPI_SPECS`).
 - Trend ⓘ: Incremental Sales, Trade Spend, ROI and the target, as formulas.
-- Risk Alerts ⓘ: the severity banding rule.
+- Alerts dialog ⓘ (on Investigations): the severity banding rule.
 - Truncated table cells carry a native `title` attribute.
 
 ## 9. Export

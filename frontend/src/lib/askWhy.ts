@@ -107,3 +107,27 @@ export function buildAskWhyIntent(source: AskWhySource): AskWhyIntent {
 
 /** Router state key, so Investigations can tell a handoff from a normal visit. */
 export const ASK_WHY_STATE_KEY = 'askWhy'
+
+/** THE OTHER WAY IN FROM THE INSIGHTS HUB: not one alert, but the alerts.
+ *
+ *  The Hub's "Alerts" button sends a reader here to choose which event to
+ *  investigate, so Investigations opens its alerts dialog — set the target
+ *  ROI, then pick an event, whose "Ask why" goes through the ordinary
+ *  hand-off above. Same channel as an Ask-why intent (router state) and the
+ *  same per-click id, for the same reason: a second press of the button must
+ *  reopen a dialog the reader has since closed, and text carries no identity.
+ *
+ *  A replayed `location.state` — a reload, a step back through history —
+ *  reopens the dialog too. That is acceptable where re-running an
+ *  investigation was not: this is a choice screen, and the choice is still
+ *  the reader's to make or dismiss. */
+export interface OpenAlertsIntent {
+  id: string
+}
+
+export function buildOpenAlertsIntent(): OpenAlertsIntent {
+  return { id: `${Date.now().toString(36)}-${++handoffSeq}` }
+}
+
+/** Router state key for the alerts dialog, beside the Ask-why one. */
+export const OPEN_ALERTS_STATE_KEY = 'openAlerts'

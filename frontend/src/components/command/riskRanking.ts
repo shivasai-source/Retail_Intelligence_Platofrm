@@ -2,8 +2,9 @@ import type { RiskAlert } from '../../types/commandCenter'
 
 /** How Risk Alerts are prioritised in the Insights Hub.
  *
- *  Kept apart from the panel component so both the panel and the hero banner
- *  read ONE definition — the banner cannot disagree with the list beneath it.
+ *  Kept apart from the panel component so the panel, the notification bell
+ *  and the Investigations alert picker all read ONE definition — none of them
+ *  can disagree with the others about which alert matters most.
  *
  *  This re-ranks, it never recomputes: every ROI, stake and severity is the
  *  value the backend produced. No financial figure is derived here.
@@ -42,16 +43,11 @@ function byPriority(a: RiskAlert, b: RiskAlert): number {
 
 /** The `count` highest-priority alerts, in order. Empty when there are none.
  *
- *  The notification bell and the hero banner both read this, so the bell can
- *  never disagree with the banner about which alert matters most. */
+ *  The notification bell and the Investigations alert picker both read this,
+ *  so they can never disagree about which alert matters most. */
 export function topAlerts(alerts: RiskAlert[] | undefined, count: number): RiskAlert[] {
   if (!alerts?.length) return []
   return [...alerts].sort(byPriority).slice(0, count)
-}
-
-/** The single highest-priority alert. Undefined when the selection has none. */
-export function topPriorityAlert(alerts: RiskAlert[] | undefined): RiskAlert | undefined {
-  return topAlerts(alerts, 1)[0]
 }
 
 /** "ROI below target — Diwali Special 25" -> "ROI below target".
@@ -68,7 +64,8 @@ export function alertHeadline(alert: RiskAlert): string {
  *
  *  DELIBERATELY THE WHOLE SET. `/risk-alerts` emits ONE concatenated
  *  Critical -> High -> Medium list and truncates the tail, so a small `limit`
- *  cannot reach the top of the High band. Both the Insights Hub panel and the
- *  notification bell request this same figure, which means React Query serves
- *  them from ONE cache entry and one request rather than two. */
+ *  cannot reach the top of the High band. The alerts dialog, the Insights
+ *  Hub's Alerts button and the notification bell all request this same
+ *  figure, which means React Query serves them from ONE cache entry and one
+ *  request rather than three. */
 export const ALERT_FETCH_LIMIT = 100000

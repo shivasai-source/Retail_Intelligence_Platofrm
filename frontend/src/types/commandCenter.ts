@@ -126,6 +126,12 @@ export interface RiskAlert {
   trade_spend: number
   trade_spend_display: string
   incremental_sales: number
+  incremental_sales_display: string
+  /** Incremental Sales − Trade Spend: the event's Net Incremental Profit,
+   *  positive exactly when its ROI is above 1.00. Computed and formatted by
+   *  the backend, beside the two figures it is made of. */
+  net_incremental_profit: number
+  net_incremental_profit_display: string
   at_stake: number
   at_stake_display: string
   channel: string

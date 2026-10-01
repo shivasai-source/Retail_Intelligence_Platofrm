@@ -844,6 +844,27 @@ def risk_alerts(
                 "trade_spend": event.trade_spend,
                 "trade_spend_display": F.money(event.trade_spend, currency),
                 "incremental_sales": event.incremental_sales,
+                "incremental_sales_display": F.money(event.incremental_sales, currency),
+                # Net Incremental Profit for the event — the same two figures
+                # ROI divides, subtracted (aggregate.calculate_net_incremental_profit),
+                # so it is positive exactly when the ROI is above 1.00. Formatted
+                # here like every other money figure; the client never does.
+                #
+                # SHOWN AS ZERO WHEN THE ROI SHOWS BREAK-EVEN. The multiple is
+                # printed to two decimals, so an event at 1.0014 reads "1.00x"
+                # while its net is +Rs 977 on Rs 6.8 L of spend. Printing that
+                # beside a break-even multiple made readers ask why "equal"
+                # figures left money over — a fair question with no answer a
+                # row can give. The displayed net therefore follows the
+                # displayed ROI: break-even as printed is zero as printed. The
+                # raw figure beside it is untouched, so nothing downstream
+                # loses the real number.
+                "net_incremental_profit": event.incremental_sales - event.trade_spend,
+                "net_incremental_profit_display": F.money(
+                    0.0 if round(event.roi_multiple, 2) == 1.0
+                    else event.incremental_sales - event.trade_spend,
+                    currency,
+                ),
                 "at_stake": event.at_stake,
                 "at_stake_display": F.money(event.at_stake, currency),
                 "channel": event.channel_name,
