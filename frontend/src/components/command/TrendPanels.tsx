@@ -22,7 +22,16 @@ import { fmtRoi } from '../../lib/roi'
  *  NULL ROI IS NEVER DRAWN AS ZERO. A period with no promotion has undefined
  *  ROI; plotting 0 would claim the promotion returned nothing. The line breaks
  *  across the gap and the tooltip says why.
+ *
+ *  The legend above the card toggles each series through `hidden`. A tried
+ *  set of extras — below-target shading, a filled sales/spend band, curved
+ *  lines and peak markers — was taken back out: on the real data the shading
+ *  covered most of the year and the chart stopped matching the plain lines of
+ *  every other chart on the page.
  */
+
+/** The legend's toggles. `target` is the dashed Target ROI reference. */
+export type TrendSeries = 'sales' | 'spend' | 'roi' | 'target'
 
 /** The smallest round step at or above `raw`, so axis labels are readable
  *  numbers rather than whatever the data happened to reach.
@@ -47,12 +56,15 @@ const DIVISIONS = 4
  *  wide, leaving 3px between them — the axis read as one grey smear. */
 const TICK_PITCH = 48
 
+const TOOLTIP_W = 224
+
 export function TrendPanels({
   data,
   rate,
   symbol,
   granularity = 'week',
   height = 290,
+  hidden = new Set<TrendSeries>(),
 }: {
   data: TrendResponse
   /** From `meta.exchange_rate` — the single backend-defined rate. */
@@ -60,9 +72,18 @@ export function TrendPanels({
   symbol: string
   granularity?: 'week' | 'month'
   height?: number
+  /** Series the legend has switched off. */
+  hidden?: ReadonlySet<TrendSeries>
 }) {
   const { ref: host, width } = useChartWidth(640)
   const [hover, setHover] = useState<number | null>(null)
+
+  const show = {
+    sales: !hidden.has('sales'),
+    spend: !hidden.has('spend'),
+    roi: !hidden.has('roi'),
+    target: !hidden.has('target'),
+  }
 
   const { labels, series } = data
   const n = labels.length
@@ -88,7 +109,16 @@ export function TrendPanels({
   }
 
   // --- left axis: currency, 0 to a rounded maximum -------------------------
-  const moneyPeak = Math.max(...series.incremental_sales, ...series.trade_spend, 1)
+  // Scaled to the money series on screen, so hiding the taller one lets the
+  // other fill the plot; with both hidden the axis keeps its full range.
+  const visibleMoney = [
+    ...(show.sales ? series.incremental_sales : []),
+    ...(show.spend ? series.trade_spend : []),
+  ]
+  const moneyPeak = Math.max(
+    ...(visibleMoney.length ? visibleMoney : [...series.incremental_sales, ...series.trade_spend]),
+    1,
+  )
   const moneyStep = niceStep(moneyPeak / DIVISIONS)
   const moneyMax = moneyStep * DIVISIONS
   const yMoney = (v: number) => padT + innerH * (1 - v / moneyMax)
@@ -141,6 +171,16 @@ export function TrendPanels({
 
   const periodWord = granularity === 'month' ? 'Month' : 'Week'
   const roiAt = active === null ? null : series.roi[active]
+  const roiAxis = show.roi || show.target
+
+  // The tooltip sits BESIDE the hovered period — on the side with more room —
+  // so it never covers the points it is describing.
+  const tipLeft =
+    active === null
+      ? 0
+      : cx(active) > width / 2
+        ? Math.max(0, cx(active) - TOOLTIP_W - 14)
+        : Math.min(cx(active) + 14, Math.max(0, width - TOOLTIP_W))
 
   return (
     <div ref={host} className="relative w-full">
@@ -152,37 +192,45 @@ export function TrendPanels({
           return (
             <g key={k}>
               <line x1={padL} x2={width - padR} y1={y} y2={y} stroke="var(--border-subtle)" />
-              <text x={padL - 8} y={y + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
-                {money(moneyMax * f)}
-              </text>
-              <text x={width - padR + 8} y={y + 3} textAnchor="start" fontSize={10} fill="var(--text-muted)">
-                {fmtRoi(roiLo + (roiHi - roiLo) * f)}
-              </text>
+              {(show.sales || show.spend) && (
+                <text x={padL - 8} y={y + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+                  {money(moneyMax * f)}
+                </text>
+              )}
+              {roiAxis && (
+                <text x={width - padR + 8} y={y + 3} textAnchor="start" fontSize={10} fill="var(--text-muted)">
+                  {fmtRoi(roiLo + (roiHi - roiLo) * f)}
+                </text>
+              )}
             </g>
           )
         })}
 
         {/* Target ROI — a reference on the ROI axis, never a business curve. */}
-        <line
-          x1={padL}
-          x2={width - padR}
-          y1={yRoi(targetRoi)}
-          y2={yRoi(targetRoi)}
-          stroke="var(--text-muted)"
-          strokeWidth={1.5}
-          strokeDasharray="5 4"
-          opacity={0.75}
-        />
-        <text
-          x={width - padR - 4}
-          y={yRoi(targetRoi) - 4}
-          textAnchor="end"
-          fontSize={10}
-          fill="var(--text-muted)"
-          fontWeight={700}
-        >
-          Target {fmtRoi(targetRoi)}
-        </text>
+        {show.target && (
+          <>
+            <line
+              x1={padL}
+              x2={width - padR}
+              y1={yRoi(targetRoi)}
+              y2={yRoi(targetRoi)}
+              stroke="var(--text-muted)"
+              strokeWidth={1.5}
+              strokeDasharray="5 4"
+              opacity={0.75}
+            />
+            <text
+              x={width - padR - 4}
+              y={yRoi(targetRoi) - 4}
+              textAnchor="end"
+              fontSize={10}
+              fill="var(--text-muted)"
+              fontWeight={700}
+            >
+              Target {fmtRoi(targetRoi)}
+            </text>
+          </>
+        )}
 
         {/* Hover guide */}
         {active !== null && (
@@ -197,22 +245,31 @@ export function TrendPanels({
         )}
 
         {/* 1 — Incremental Sales (left axis) */}
-        <polyline fill="none" stroke="var(--brand-violet)" strokeWidth={2} strokeLinejoin="round"
-          points={path(series.incremental_sales)} />
+        {show.sales && (
+          <polyline fill="none" stroke={SERIES.incremental} strokeWidth={2} strokeLinejoin="round"
+            points={path(series.incremental_sales)} />
+        )}
         {/* 2 — Trade Spend (left axis) */}
-        <polyline fill="none" stroke={SERIES.spend} strokeWidth={2} strokeLinejoin="round"
-          points={path(series.trade_spend)} />
+        {show.spend && (
+          <polyline fill="none" stroke={SERIES.spend} strokeWidth={2} strokeLinejoin="round"
+            points={path(series.trade_spend)} />
+        )}
         {/* 3 — ROI (right axis), one run per unbroken stretch */}
-        {runs.map((r, k) => (
-          <polyline key={k} fill="none" stroke="var(--tint-teal-icon)" strokeWidth={2} strokeLinejoin="round"
-            points={r.map((p) => `${cx(p.i)},${yRoi(p.v)}`).join(' ')} />
-        ))}
+        {show.roi &&
+          runs.map((r, k) => (
+            <polyline key={k} fill="none" stroke={SERIES.roi} strokeWidth={2} strokeLinejoin="round"
+              points={r.map((p) => `${cx(p.i)},${yRoi(p.v)}`).join(' ')} />
+          ))}
 
         {active !== null && (
           <>
-            <circle cx={cx(active)} cy={yMoney(series.incremental_sales[active])} r={3.5} fill="var(--brand-violet)" />
-            <circle cx={cx(active)} cy={yMoney(series.trade_spend[active])} r={3.5} fill={SERIES.spend} />
-            {roiAt !== null && <circle cx={cx(active)} cy={yRoi(roiAt)} r={3.5} fill="var(--tint-teal-icon)" />}
+            {show.sales && (
+              <circle cx={cx(active)} cy={yMoney(series.incremental_sales[active])} r={3.5} fill={SERIES.incremental} />
+            )}
+            {show.spend && (
+              <circle cx={cx(active)} cy={yMoney(series.trade_spend[active])} r={3.5} fill={SERIES.spend} />
+            )}
+            {show.roi && roiAt !== null && <circle cx={cx(active)} cy={yRoi(roiAt)} r={3.5} fill={SERIES.roi} />}
           </>
         )}
 
@@ -231,20 +288,26 @@ export function TrendPanels({
 
       {active !== null && (
         <div
-          className="pointer-events-none absolute top-2 z-20 w-56 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
-          style={{ left: Math.min(Math.max(0, cx(active) - 112), Math.max(0, width - 224)) }}
+          className="pointer-events-none absolute top-2 z-20 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
+          style={{ left: tipLeft, width: TOOLTIP_W }}
         >
-          <div className="font-bold text-ink-primary">
-            {periodWord} {calendarYear(labels[active])}
+          <div className="flex items-center justify-between gap-2 font-bold text-ink-primary">
+            <span>
+              {periodWord} {calendarYear(labels[active])}
+            </span>
+            {roiAt !== null && roiAt < targetRoi && (
+              <span className="text-[11px] font-semibold text-status-danger">Below target</span>
+            )}
           </div>
-          <Row swatch="var(--brand-violet)" k="Incremental Sales" v={data.display.incremental_sales[active]} />
-          <Row swatch={SERIES.spend} k="Trade Spend" v={data.display.trade_spend[active]} />
-          {roiAt === null ? (
-            <div className="mt-1 text-ink-muted">ROI — no promotion / insufficient baseline</div>
-          ) : (
-            <Row swatch="var(--tint-teal-icon)" k="ROI" v={fmtRoi(roiAt)} />
-          )}
-          <Row k="Target ROI" v={fmtRoi(targetRoi)} dashed />
+          {show.sales && <Row swatch={SERIES.incremental} k="Incremental Sales" v={data.display.incremental_sales[active]} />}
+          {show.spend && <Row swatch={SERIES.spend} k="Trade Spend" v={data.display.trade_spend[active]} />}
+          {show.roi &&
+            (roiAt === null ? (
+              <div className="mt-1 text-ink-muted">ROI — no promotion / insufficient baseline</div>
+            ) : (
+              <Row swatch={SERIES.roi} k="ROI" v={fmtRoi(roiAt)} />
+            ))}
+          {show.target && <Row k="Target ROI" v={fmtRoi(targetRoi)} dashed />}
         </div>
       )}
     </div>

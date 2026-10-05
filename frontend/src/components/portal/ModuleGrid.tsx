@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { Icon } from '../../icons'
 import { Pill, useToast } from '../ui'
 import { MODULES } from './modules'
+import { useMmmStatus } from '../../mmm/hooks'
+import { MMM_ROUTES } from '../../mmm/nav'
 
 // Ported from js/portal.js's renderModules + css/portal.css .module-*.
 //
@@ -20,6 +22,7 @@ import { MODULES } from './modules'
 // the hero, not out of a scrollbar.
 export function ModuleGrid({ tpoHref, needsData = false }: { tpoHref?: string; needsData?: boolean }) {
   const { show } = useToast()
+  const mmmLoaded = Boolean(useMmmStatus().data?.complete)
 
   // Feeds the spotlight in index.css the pointer's position inside the card.
   // Written straight onto the node rather than held in state: this fires on
@@ -38,7 +41,14 @@ export function ModuleGrid({ tpoHref, needsData = false }: { tpoHref?: string; n
         // The live module's destination is decided by the caller: /connections
         // while the platform has no dataset, /command once it has one. Every
         // other card is on the roadmap and goes nowhere either way.
-        const href = m.key === 'tpo' ? (tpoHref ?? m.href) : m.href
+        // MMM, likewise: its Data Connections page until an MMM dataset is
+        // loaded, its Insights Hub after (status from src/mmm).
+        const href =
+          m.key === 'tpo'
+            ? (tpoHref ?? m.href)
+            : m.key === 'mmm' && mmmLoaded
+              ? MMM_ROUTES.insights
+              : m.href
         const gated = m.live && needsData
         // A card OPENS if it has somewhere to go, which is no longer the same
         // question as whether its module is live. MMM is not live and has no
@@ -103,7 +113,7 @@ export function ModuleGrid({ tpoHref, needsData = false }: { tpoHref?: string; n
                 // Honest about both halves: the module is not live, and the one
                 // screen it does have is the one this card opens.
                 <Pill tone="violet" size="md">
-                  Data setup
+                  {m.key === 'mmm' && mmmLoaded ? 'Data loaded' : 'Data setup'}
                 </Pill>
               ) : (
                 <Pill tone="neutral" size="md">

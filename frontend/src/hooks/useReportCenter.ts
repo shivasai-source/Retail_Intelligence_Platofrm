@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, apiPost } from '../lib/api'
 import type {
   GenerateReportRequest,
+  ReportFamily,
   ReportFormat,
   ReportLibrary,
   ReportRecord,
@@ -26,8 +27,11 @@ export function useReportLibrary(params: {
   module?: string | null
   format?: ReportFormat | null
   search?: string
+  /** One intelligence module's reports only — TPO's or MMM's. */
+  family?: ReportFamily
 }) {
   const search = new URLSearchParams()
+  if (params.family) search.set('family', params.family)
   if (params.module) search.set('module', params.module)
   if (params.format) search.set('format', params.format)
   if (params.search?.trim()) search.set('search', params.search.trim())
@@ -76,11 +80,13 @@ export function useDeleteReport() {
  *  leave reports behind in a library the user believes is empty. The server
  *  answers with the count removed so the caller can report it.
  */
-export function useClearReports() {
+export function useClearReports(family?: ReportFamily) {
   const queries = useQueryClient()
   return useMutation<{ deleted: number; total: number }, Error, void>({
     mutationFn: async () => {
-      const response = await fetch('/api/reports', { method: 'DELETE' })
+      const response = await fetch(`/api/reports${family ? `?family=${family}` : ''}`, {
+        method: 'DELETE',
+      })
       if (!response.ok) throw new Error(await detailOf(response))
       return (await response.json()) as { deleted: number; total: number }
     },

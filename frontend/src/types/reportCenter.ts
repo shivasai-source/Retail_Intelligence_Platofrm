@@ -22,6 +22,12 @@ export type ReportModule =
   | 'simulation-studio'
   | 'decision-center'
   | 'investigations'
+  /** MMM's hub report — frontend/src/mmm, backend/app/mmm/report.py. */
+  | 'mmm-insights'
+
+/** Which intelligence module's reports a Report Center shows. Module keys
+ *  starting `mmm-` are MMM's; every other key is TPO's. */
+export type ReportFamily = 'tpo' | 'mmm'
 
 /** One KPI line as the report captured it — the card's own display string, not
  *  a re-rendering. */

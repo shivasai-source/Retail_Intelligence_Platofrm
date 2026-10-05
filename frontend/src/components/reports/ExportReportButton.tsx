@@ -37,6 +37,7 @@ export function ExportReportButton({
   disabledReason,
   label = 'Export Report',
   collapse = false,
+  reportsHref = '/reports',
 }: {
   module: ReportModule
   /** Read at click time — see the note above. */
@@ -53,6 +54,8 @@ export function ExportReportButton({
    *  scans for. Off by default: every other module has the width, and a
    *  permanently captioned button is the more discoverable one. */
   collapse?: boolean
+  /** The module's own Report Center, for the "View Report" link. */
+  reportsHref?: string
 }) {
   const { show } = useToast()
   const navigate = useNavigate()
@@ -145,7 +148,7 @@ export function ExportReportButton({
       {generate.isSuccess && (
         <Button
           variant="secondary"
-          onClick={() => navigate('/reports')}
+          onClick={() => navigate(reportsHref)}
           className="cursor-pointer"
           title="Open the Report Center"
         >

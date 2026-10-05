@@ -26,6 +26,7 @@ from app.tpo import formatting as F
 from app.tpo.filters import DIMENSIONS, FilterState
 from app.tpo.loader import MONTHS, get_store
 
+from app.mmm import report as mmm_report
 from app.reports import adapters, excel, pdf
 from app.reports.model import ReportDoc
 from app.store import reports as report_store
@@ -77,6 +78,11 @@ MODULES: dict[str, Module] = {
         "decision-center", "Decision Center", adapters.decision_center, "TPO_Decision_Record"),
     "investigations": Module(
         "investigations", "Investigations", adapters.investigation, "TPO_Investigation"),
+    # MMM's adapter lives with the rest of MMM (app/mmm/report.py). Its scope is
+    # empty -- MMM has no TPO filter dimensions -- and the year rides in
+    # options, which `filename_hint` below carries into the file name.
+    "mmm-insights": Module(
+        "mmm-insights", "MMM Insights Hub", mmm_report.build, "MMM_Insights_Hub"),
 }
 
 

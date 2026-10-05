@@ -32,6 +32,8 @@ export function AppShell({
   brand,
   brandHref,
   datasetComplete,
+  settingsHref,
+  tpoTools,
 }: {
   activeKey?: string
   crumbs?: Crumb[]
@@ -44,6 +46,10 @@ export function AppShell({
   /** See Sidebar — a module that does not read TPO's star schema answers the
    *  padlock question itself. */
   datasetComplete?: boolean
+  /** See Topbar — a module's own settings route, and whether TPO's alert bell
+   *  and sync pill belong in its top bar. Omitted, both are TPO's. */
+  settingsHref?: string
+  tpoTools?: boolean
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const pinned = useSidebar((s) => s.pinned)
@@ -63,6 +69,7 @@ export function AppShell({
         brand={brand}
         brandHref={brandHref}
         datasetComplete={datasetComplete}
+        settingsHref={settingsHref}
       />
       <div
         style={analystInset ? { paddingRight: analystInset } : undefined}
@@ -74,7 +81,12 @@ export function AppShell({
           pinned ? 'md:pl-[var(--sidebar-w)]' : 'md:pl-[var(--sidebar-rail-w)]',
         ].join(' ')}
       >
-        <Topbar crumbs={crumbs} onMenuClick={() => setSidebarOpen(true)} />
+        <Topbar
+          crumbs={crumbs}
+          onMenuClick={() => setSidebarOpen(true)}
+          settingsHref={settingsHref}
+          tpoTools={tpoTools}
+        />
         <main className="@container min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-10 pt-6 sm:px-8">{children}</main>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { AppShell } from '../components/layout/AppShell'
 import { Button, Card, CardHeader, Pill } from '../components/ui'
 import { Icon } from '../icons'
@@ -20,26 +21,63 @@ import { useCurrentUser } from '../hooks/useAuth'
  *  connection and no mail sender anywhere in this project. They are listed as
  *  Not connected. */
 export function Settings() {
+  return (
+    <SettingsPage
+      shell={(children) => (
+        <AppShell activeKey="settings" crumbs={[{ label: 'TPO Intelligence' }, { label: 'Settings' }]}>
+          {children}
+        </AppShell>
+      )}
+    />
+  )
+}
+
+/** The settings page for one intelligence module.
+ *
+ *  Shared by TPO (above) and MMM (frontend/src/mmm/pages/MmmSettings.tsx). The
+ *  profile, preferences and integrations are the platform's — the same on
+ *  both — so only the shell, and an optional card about the module's own data,
+ *  differ. TPO's two TPO-only preferences (default period and channel) are
+ *  hidden where they mean nothing. */
+export function SettingsPage({
+  shell,
+  moduleCard,
+  tpoPreferences = true,
+}: {
+  shell: (children: ReactNode) => ReactNode
+  /** A module-specific card, rendered first (e.g. MMM's dataset). */
+  moduleCard?: ReactNode
+  tpoPreferences?: boolean
+}) {
   const { data: D, isLoading } = useSettings()
   const { data: user } = useCurrentUser()
-  const crumbs = [{ label: 'TPO Intelligence' }, { label: 'Settings' }]
 
   if (isLoading || !D) {
-    return (
-      <AppShell activeKey="settings" crumbs={crumbs}>
-        <div className="grid min-h-[60vh] place-items-center text-base text-ink-muted">Loading Settings…</div>
-      </AppShell>
+    return shell(
+      <div className="grid min-h-[60vh] place-items-center text-base text-ink-muted">Loading Settings…</div>,
     )
   }
 
-  return (
-    <AppShell activeKey="settings" crumbs={crumbs}>
+  const preferences: Array<[string, string]> = [
+    ['Theme', D.preferences.theme],
+    ['Density', D.preferences.density],
+    ...(tpoPreferences
+      ? ([
+          ['Default Period', D.preferences.defaultPeriod],
+          ['Default Channel', D.preferences.defaultChannel],
+        ] as Array<[string, string]>)
+      : []),
+  ]
+
+  return shell(
+    <>
       <div className="fade-in mb-5">
         <h1>Settings</h1>
         <p className="mt-1.5 text-base text-ink-muted">Profile, preferences and integrations</p>
       </div>
 
       <div className="grid grid-cols-2 gap-4 @max-[900px]:grid-cols-1">
+        {moduleCard}
         <Card className="fade-in">
           <CardHeader title="Profile" />
           <div className="p-5">
@@ -77,12 +115,7 @@ export function Settings() {
         <Card className="fade-in">
           <CardHeader title="Preferences" />
           <div className="flex flex-col p-5">
-            {[
-              ['Theme', D.preferences.theme],
-              ['Density', D.preferences.density],
-              ['Default Period', D.preferences.defaultPeriod],
-              ['Default Channel', D.preferences.defaultChannel],
-            ].map(([k, v], i, arr) => (
+            {preferences.map(([k, v], i, arr) => (
               <div key={k} className={`flex justify-between py-2.5 text-base ${i < arr.length - 1 ? 'border-b border-dashed border-border-subtle' : ''}`}>
                 <span className="text-ink-muted">{k}</span>
                 <span className="font-bold text-ink-primary">{v}</span>
@@ -115,6 +148,6 @@ export function Settings() {
           </div>
         </Card>
       </div>
-    </AppShell>
+    </>,
   )
 }

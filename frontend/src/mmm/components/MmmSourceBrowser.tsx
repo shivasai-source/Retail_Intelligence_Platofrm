@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Field, Input, Modal, Spinner } from '../ui'
+import { Button, Field, Input, Modal, Spinner } from '../../components/ui'
 import { Icon } from '../../icons'
 import { fmtSize } from '../../lib/portalConnectors'
 import {
@@ -9,57 +9,32 @@ import {
   useDbxSchemas,
   useDbxTables,
 } from '../../hooks/useDatasets'
-// Header reading only. `matchHeader`/`classifyFiles` next to it in that module
-// decide TPO's six roles and are deliberately NOT used here -- a media-spend
-// export is not a star table and must not be graded as one.
-import { readHeader } from '../../lib/starSchema'
 
 // MMM — SOURCE BROWSER. Sign in to a storage account or a warehouse, browse
 // what is actually there, and stop.
 //
 // WHY THIS EXISTS RATHER THAN REUSING AzureDatasetModal / DatabricksModal.
-// Those two are star-schema INSTALLERS. Read their imports: `useAzureInspect`,
-// `useAzureInstall`, `StarInspectResult`, `StarRole`, `MissingTables`,
-// `StarFileViewer`, and a `useStarStatus()` panel listing the six installed
-// tables. Their browse step is generic, but everything after it writes TPO's
-// Data/ folder through `star_dataset.install()`. Opening either from MMM would
-// either import MMM files into TPO's dataset — the one thing the brief forbids
-// — or require inventing the MMM ingestion contract, which does not exist.
+// Those two are star-schema INSTALLERS: everything after their browse step
+// writes TPO's Data/ folder through `star_dataset.install()`. Opening either
+// from MMM would import MMM files into TPO's dataset.
 //
 // SO THE MECHANISM IS REUSED, NOT THE INSTALLER. Every request below goes
-// through the SAME hooks TPO's modals use (hooks/useDatasets.ts) and therefore
-// the same FastAPI routes and the same credential handling: nothing is
-// re-implemented, and no TPO file is touched. What is absent is the install
-// call — there is nowhere honest to send the bytes yet.
+// through the SAME hooks TPO's modals use (hooks/useDatasets.ts), so the same
+// FastAPI routes and credential handling: nothing is re-implemented and no TPO
+// file is touched. What is absent is an install from these sources into MMM —
+// MMM's installer (POST /api/mmm/dataset) takes an uploaded file today, so the
+// dialog points there.
 //
-// CREDENTIALS ARE NOT PERSISTED HERE. TPO's modals save a session so a tile can
-// say "Connected"; this holds them in component state for the life of the
-// dialog and drops them on close. A saved MMM sign-in would claim a standing
-// connection to a module that cannot yet read anything through it.
+// CREDENTIALS ARE NOT PERSISTED HERE. They are held in component state for
+// the life of the dialog and dropped on close; a saved MMM sign-in would claim
+// a standing connection MMM cannot yet read through.
 
-type Mode = 'azure' | 'databricks' | 'upload'
+type Mode = 'azure' | 'databricks'
 
 const TITLE: Record<Mode, string> = {
   azure: 'Azure Blob Storage',
   databricks: 'Databricks',
-  upload: 'Excel / Shared Drives',
 }
-
-/** THE UPLOAD MODE IS A FILE INSPECTOR, NOT AN UPLOADER.
- *
- *  TPO's UploadModal calls `useUploadDatasets` -> POST /api/datasets, and that
- *  route IS `star_dataset.install()`: it writes the six canonical CSVs into the
- *  Data/ folder the TPO loader reads, matched on TPO's column headers. Pointing
- *  MMM at it would import marketing files into TPO's dataset and silently
- *  replace the live promotion data -- which is the one outcome every version of
- *  this brief rules out.
- *
- *  So this mode stops one step short of that call. It opens the real file
- *  picker, and it does real work on what you choose: `readHeader` (the same
- *  helper lib/starSchema.ts exports for TPO's picker) reads each CSV's header
- *  row IN THE BROWSER, so you can see the columns the platform would receive.
- *  Nothing is sent anywhere. The moment an MMM ingestion route exists, this is
- *  where its call goes. */
 
 /** The honest end of the road, shown once something is selected. */
 function NotIngested({ kind, items }: { kind: string; items: string[] }) {
@@ -73,8 +48,8 @@ function NotIngested({ kind, items }: { kind: string; items: string[] }) {
             {items.length === 1 ? '' : 's'} selected — not imported
           </div>
           <p className="mt-0.5 text-sm leading-[1.5] text-ink-muted">
-            MMM has no ingestion yet, so nothing was read, copied or installed. This browser
-            confirms the platform can reach the source and see what is in it.
+            Installing into MMM from this source is not built yet, so nothing was read, copied or
+            installed. To load MMM data now, export the file and use Excel / Shared Drives.
           </p>
           <ul className="mt-2 flex flex-col gap-1">
             {items.map((i) => (
@@ -146,18 +121,6 @@ export function MmmSourceBrowser({ mode, onClose }: { mode: Mode; onClose: () =>
   const [schemas, setSchemas] = useState<string[] | null>(null)
   const [schema, setSchema] = useState<string | null>(null)
   const [picked, setPicked] = useState<string[]>([])
-  /** Local files the reader chose, with headers read in the browser. Never sent. */
-  const [chosen, setChosen] = useState<Array<{ name: string; size: number; headers: string[] }>>([])
-
-  const chooseFiles = async (list: FileList | null) => {
-    setError(null)
-    if (!list?.length) return
-    const files = Array.from(list)
-    const read = await Promise.all(
-      files.map(async (f) => ({ name: f.name, size: f.size, headers: await readHeader(f) })),
-    )
-    setChosen(read)
-  }
 
   const busy =
     azContainers.isPending ||
@@ -214,10 +177,7 @@ export function MmmSourceBrowser({ mode, onClose }: { mode: Mode; onClose: () =>
     )
   }
 
-  // The upload mode has no sign-in step: there is nothing to authenticate
-  // against, so it goes straight to the picker.
-  const signedIn =
-    mode === 'upload' ? true : mode === 'azure' ? containers !== null : catalogs !== null
+  const signedIn = mode === 'azure' ? containers !== null : catalogs !== null
   const canConnect =
     mode === 'azure'
       ? account.trim() !== '' && sas.trim() !== ''
@@ -229,9 +189,7 @@ export function MmmSourceBrowser({ mode, onClose }: { mode: Mode; onClose: () =>
         <div className="min-w-0">
           <h2 className="text-md font-bold">{TITLE[mode]}</h2>
           <p className="mt-0.5 text-sm text-ink-muted">
-            {mode === 'upload'
-              ? 'Inspect the files and their columns. MMM cannot import them yet.'
-              : 'Browse what this source holds. MMM cannot import from it yet.'}
+            Browse what this source holds. Installing from it into MMM is not built yet.
           </p>
         </div>
         <button
@@ -245,48 +203,7 @@ export function MmmSourceBrowser({ mode, onClose }: { mode: Mode; onClose: () =>
       </div>
 
       <div className="max-h-[60vh] overflow-y-auto p-[16px_20px]">
-        {mode === 'upload' ? (
-          <>
-            <label className="flex cursor-pointer flex-col items-center gap-2 rounded-[var(--r-lg)] border border-dashed border-border-strong p-7 text-center transition-colors duration-150 hover:border-brand-violet">
-              <span className="grid h-10 w-10 place-items-center rounded-full bg-tint-lavender text-tint-lavender-icon [&_svg]:h-[18px] [&_svg]:w-[18px]">
-                <Icon name="plus" />
-              </span>
-              <span className="text-base font-bold text-ink-primary">Choose files</span>
-              <span className="text-sm text-ink-muted">.csv, .xlsx or .xls from this machine</span>
-              <input
-                type="file"
-                multiple
-                accept=".csv,.xlsx,.xls"
-                className="hidden"
-                onChange={(e) => void chooseFiles(e.target.files)}
-              />
-            </label>
-
-            {chosen.length > 0 && (
-              <div className="mt-3.5 flex flex-col gap-1">
-                {chosen.map((f) => (
-                  <div
-                    key={f.name}
-                    className="rounded-[var(--r-md)] bg-surface-muted p-[8px_12px]"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Icon name="file" className="h-4 w-4 shrink-0 text-ink-muted" />
-                      <span className="min-w-0 flex-1 truncate text-base text-ink-primary">{f.name}</span>
-                      <span className="shrink-0 text-2xs text-ink-muted">{fmtSize(f.size)}</span>
-                    </div>
-                    <div className="mt-0.5 pl-[26px] text-2xs text-ink-muted">
-                      {f.headers.length
-                        ? `${f.headers.length} columns · ${f.headers.slice(0, 6).join(', ')}${f.headers.length > 6 ? '…' : ''}`
-                        : 'Columns are read on the server — .xlsx cannot be opened in the browser'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {chosen.length > 0 && <NotIngested kind="file" items={chosen.map((f) => f.name)} />}
-          </>
-        ) : !signedIn ? (
+        {!signedIn ? (
           <>
             {mode === 'azure' ? (
               <>
@@ -295,7 +212,7 @@ export function MmmSourceBrowser({ mode, onClose }: { mode: Mode; onClose: () =>
                 </Field>
                 <div className="mt-3">
                   <Field label="SAS token">
-                  <Input value={sas} onChange={(e) => setSas(e.target.value)} placeholder="sv=2022-11-02&ss=b&..." />
+                    <Input value={sas} onChange={(e) => setSas(e.target.value)} placeholder="sv=2022-11-02&ss=b&..." />
                   </Field>
                 </div>
               </>
@@ -310,7 +227,7 @@ export function MmmSourceBrowser({ mode, onClose }: { mode: Mode; onClose: () =>
                 </Field>
                 <div className="mt-3">
                   <Field label="Personal access token">
-                  <Input value={token} onChange={(e) => setToken(e.target.value)} placeholder="dapi..." />
+                    <Input value={token} onChange={(e) => setToken(e.target.value)} placeholder="dapi..." />
                   </Field>
                 </div>
               </>
@@ -444,20 +361,12 @@ export function MmmSourceBrowser({ mode, onClose }: { mode: Mode; onClose: () =>
       </div>
 
       <div className="flex items-center justify-between gap-3 border-t border-border-subtle p-[14px_20px]">
-        <span className="text-sm text-ink-muted">
-          {mode === 'upload'
-            ? chosen.length
-              ? `${chosen.length} file${chosen.length === 1 ? '' : 's'} inspected · nothing sent`
-              : 'No files chosen'
-            : signedIn
-              ? 'Connected · browsing only'
-              : 'Not connected'}
-        </span>
+        <span className="text-sm text-ink-muted">{signedIn ? 'Connected · browsing only' : 'Not connected'}</span>
         <div className="flex items-center gap-2">
           <Button variant="ghost" onClick={onClose}>
             Close
           </Button>
-          {mode !== 'upload' && !signedIn && (
+          {!signedIn && (
             <Button variant="primary" onClick={connect} disabled={!canConnect || busy}>
               Connect
             </Button>

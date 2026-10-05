@@ -14,7 +14,20 @@ export interface Crumb {
 // Ported from js/components/topbar.js + css/layout.css .topbar*. `onMenuClick` only
 // renders (and only matters) below `md`, where Sidebar is an off-canvas drawer; at
 // `md` and up the collapsed rail is always on screen and needs no menu button.
-export function Topbar({ crumbs = [], onMenuClick }: { crumbs?: Crumb[]; onMenuClick?: () => void }) {
+export function Topbar({
+  crumbs = [],
+  onMenuClick,
+  settingsHref = '/settings',
+  tpoTools = true,
+}: {
+  crumbs?: Crumb[]
+  onMenuClick?: () => void
+  /** Where the settings icon and the account menu go. */
+  settingsHref?: string
+  /** TPO's alert bell and its source-sync pill. Both read TPO's star schema,
+   *  so another module's pages turn them off rather than show TPO alerts. */
+  tpoTools?: boolean
+}) {
   // B12: see Sidebar — the real signed-in session, not the authored persona.
   const { data: user } = useCurrentUser()
   const logout = useLogout()
@@ -33,7 +46,7 @@ export function Topbar({ crumbs = [], onMenuClick }: { crumbs?: Crumb[]; onMenuC
   // header (pages/Home.tsx) already had, so the gesture means the same thing
   // wherever the avatar appears.
   const onAccountSelect = (value: string) => {
-    if (value === 'settings') navigate('/settings')
+    if (value === 'settings') navigate(settingsHref)
     else if (value === 'signout') logout.mutate(undefined, { onSuccess: () => navigate('/login', { replace: true }) })
   }
 
@@ -76,10 +89,12 @@ export function Topbar({ crumbs = [], onMenuClick }: { crumbs?: Crumb[]; onMenuC
             open; nothing replaces it, so the row closes up on its own. */}
         {/* Clickable when the data came from Azure or Databricks: it pulls the
             latest rows from there. Otherwise the plain timer pill. */}
-        <SyncStatus liveLabel={live.label} onSynced={live.reset} className="mr-1.5 hidden sm:inline-flex" />
+        {tpoTools && (
+          <SyncStatus liveLabel={live.label} onSynced={live.reset} className="mr-1.5 hidden sm:inline-flex" />
+        )}
         <ThemeToggle />
-        <NotificationBell />
-        <IconButton icon="settings" title="Settings" onClick={() => navigate('/settings')} />
+        {tpoTools && <NotificationBell />}
+        <IconButton icon="settings" title="Settings" onClick={() => navigate(settingsHref)} />
         <Dropdown
           selected=""
           options={[

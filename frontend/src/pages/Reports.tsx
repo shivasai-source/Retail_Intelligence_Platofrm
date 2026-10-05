@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { AppShell } from '../components/layout/AppShell'
 import {
   Button,
@@ -22,7 +22,7 @@ import {
   useDeleteReport,
   useReportLibrary,
 } from '../hooks/useReportCenter'
-import type { ReportFormat, ReportRecord } from '../types/reportCenter'
+import type { ReportFamily, ReportFormat, ReportRecord } from '../types/reportCenter'
 
 /** THE TPO INTELLIGENCE REPORT CENTER.
  *
@@ -49,16 +49,50 @@ const FORMAT_LABEL: Record<string, ReportFormat | null> = {
   'PDF (.pdf)': 'pdf',
 }
 
+/** TPO's Report Center: the shared page in TPO's shell, over TPO's reports. */
 export function Reports() {
+  return (
+    <ReportCenterPage
+      family="tpo"
+      brandLabel="TPO Intelligence"
+      sourceHint="Generate a report from Insights Hub, Simulation Studio or Decision Center."
+      shell={(children) => (
+        <AppShell activeKey="reports" crumbs={[{ label: 'Reports' }]}>
+          {children}
+        </AppShell>
+      )}
+    />
+  )
+}
+
+/** THE REPORT CENTER, for one intelligence module.
+ *
+ *  Shared by TPO (above) and MMM (frontend/src/mmm/pages/MmmReports.tsx). The
+ *  module supplies its shell, its family — which narrows the library, the
+ *  module list, the totals and Clear all to that module's own reports on the
+ *  server — and the words that name it. Everything else is one page. */
+export function ReportCenterPage({
+  family,
+  brandLabel,
+  sourceHint,
+  shell,
+}: {
+  family: ReportFamily
+  /** "TPO Intelligence" — the eyebrow on the preview and the file fallback. */
+  brandLabel: string
+  /** Where reports come from, for the empty state. */
+  sourceHint: string
+  shell: (children: ReactNode) => ReactNode
+}) {
   const [moduleFilter, setModuleFilter] = useState<string | null>(null)
   const [formatFilter, setFormatFilter] = useState<ReportFormat | null>(null)
   const [search, setSearch] = useState('')
   const [viewing, setViewing] = useState<ReportRecord | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
-  const library = useReportLibrary({ module: moduleFilter, format: formatFilter, search })
+  const library = useReportLibrary({ module: moduleFilter, format: formatFilter, search, family })
   const remove = useDeleteReport()
-  const clear = useClearReports()
+  const clear = useClearReports(family)
   const { show } = useToast()
   const confirm = useConfirm()
 
@@ -76,7 +110,7 @@ export function Reports() {
       const result = await downloadArtifact(
         report.report_id,
         format,
-        report.formats[format] ?? `TPO_Report.${format}`,
+        report.formats[format] ?? `${brandLabel.split(' ')[0]}_Report.${format}`,
       )
       show(`${result.filename} · ${(result.bytes / 1024).toFixed(0)} KB downloaded`, {
         duration: 4000,
@@ -140,8 +174,8 @@ export function Reports() {
     })
   }
 
-  return (
-    <AppShell activeKey="reports" crumbs={[{ label: 'Reports' }]}>
+  return shell(
+    <>
       <div className="fade-in flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold tracking-[-0.02em]">Reports</h1>
@@ -231,7 +265,10 @@ export function Reports() {
             Could not load the Report Center. {library.error.message}
           </div>
         ) : reports.length === 0 ? (
-          <EmptyState filtered={Boolean(moduleFilter || formatFilter || search.trim())} />
+          <EmptyState
+            filtered={Boolean(moduleFilter || formatFilter || search.trim())}
+            sourceHint={sourceHint}
+          />
         ) : (
           <div className="overflow-x-auto rounded-b-[var(--r-lg)]">
             <Table>
@@ -269,12 +306,14 @@ export function Reports() {
         </div>
       )}
 
-      {viewing && <ReportPreviewModal report={viewing} onClose={() => setViewing(null)} />}
-    </AppShell>
+      {viewing && (
+        <ReportPreviewModal report={viewing} brandLabel={brandLabel} onClose={() => setViewing(null)} />
+      )}
+    </>,
   )
 }
 
-function EmptyState({ filtered }: { filtered: boolean }) {
+function EmptyState({ filtered, sourceHint }: { filtered: boolean; sourceHint: string }) {
   return (
     <div className="grid min-h-[160px] place-items-center px-6 py-7 text-center">
       <div className="max-w-[520px]">
@@ -287,7 +326,7 @@ function EmptyState({ filtered }: { filtered: boolean }) {
         <div className="mt-1 text-base leading-[1.55] text-ink-secondary">
           {filtered
             ? 'Clear the module, format or search filter to see the whole Report Center.'
-            : 'Generate a report from Insights Hub, Simulation Studio or Decision Center. It will be stored here, and you can download it as Excel or PDF.'}
+            : `${sourceHint} It will be stored here, and you can download it as Excel or PDF.`}
         </div>
       </div>
     </div>
@@ -451,9 +490,11 @@ function StatusPill({ report }: { report: ReportRecord }) {
  */
 function ReportPreviewModal({
   report,
+  brandLabel,
   onClose,
 }: {
   report: ReportRecord
+  brandLabel: string
   onClose: () => void
 }) {
   const preview = report.preview
@@ -463,7 +504,7 @@ function ReportPreviewModal({
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="text-xs font-semibold uppercase tracking-[0.1em] text-brand-violet">
-              TPO Intelligence · Report Center
+              {brandLabel} · Report Center
             </div>
             <div className="truncate text-lg font-extrabold text-ink-primary" title={report.name}>
               {report.name}

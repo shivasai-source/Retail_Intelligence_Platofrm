@@ -278,8 +278,23 @@ def artifact(report_id: str, fmt: str) -> tuple[str, bytes]:
     return record["name"], bytes(record["blob"])
 
 
+#: Module keys of the MMM intelligence module all start with this; everything
+#: else is TPO's. Each module's Report Center lists, counts and clears only its
+#: own family, so an MMM user never deletes a TPO report from the MMM page.
+MMM_PREFIX = "mmm-"
+
+
+def _family_clause(family: str | None) -> tuple[str, tuple[Any, ...]] | None:
+    if family == "mmm":
+        return "module LIKE ?", (f"{MMM_PREFIX}%",)
+    if family == "tpo":
+        return "module NOT LIKE ?", (f"{MMM_PREFIX}%",)
+    return None
+
+
 def listing(*, module: str | None = None, fmt: str | None = None,
-            search: str | None = None, limit: int = 200) -> list[ReportRow]:
+            search: str | None = None, limit: int = 200,
+            family: str | None = None) -> list[ReportRow]:
     """The library, newest first.
 
     Filtering happens in SQL rather than in the browser so a long library stays
@@ -288,6 +303,10 @@ def listing(*, module: str | None = None, fmt: str | None = None,
     """
     clauses: list[str] = []
     params: list[Any] = []
+    scoped = _family_clause(family)
+    if scoped:
+        clauses.append(scoped[0])
+        params += scoped[1]
     if module:
         clauses.append("module = ?")
         params.append(module)
@@ -326,7 +345,7 @@ def delete(report_id: str) -> None:
         raise ReportNotFound(f"No report {report_id!r}.")
 
 
-def clear() -> int:
+def clear(family: str | None = None) -> int:
     """Empty the Report Center. Returns how many reports were removed.
 
     ONE STATEMENT, so metadata and artifacts go together and nothing is left
@@ -342,10 +361,22 @@ def clear() -> int:
     Reports are DERIVED artifacts, regenerable from their stored scope, so this
     destroys no history. It is why the reports table permits deletion where the
     scenario and decision tables beside it do not.
+
+    `family` narrows the clear to one intelligence module's reports (see
+    MMM_PREFIX): the MMM page's Clear all must not empty TPO's library. Within
+    a family it is still unfiltered.
     """
-    cursor = _conn().execute("DELETE FROM reports")
+    scoped = _family_clause(family)
+    if scoped:
+        cursor = _conn().execute(f"DELETE FROM reports WHERE {scoped[0]}", scoped[1])
+    else:
+        cursor = _conn().execute("DELETE FROM reports")
     return int(cursor.rowcount or 0)
 
 
-def count() -> int:
+def count(family: str | None = None) -> int:
+    scoped = _family_clause(family)
+    if scoped:
+        return int(_conn().execute(f"SELECT COUNT(*) AS n FROM reports WHERE {scoped[0]}",
+                                   scoped[1]).fetchone()["n"])
     return int(_conn().execute("SELECT COUNT(*) AS n FROM reports").fetchone()["n"])

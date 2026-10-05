@@ -796,9 +796,11 @@ def test_the_registry_only_carries_modules_with_a_computed_source() -> None:
     """Administrative screens are deliberately absent: the brief rules out export
     controls with no reportable dataset behind them. Investigations joined the
     registry once a finished run — its stored synthesis and findings — was a
-    computed source of its own."""
+    computed source of its own. The MMM Insights Hub joined once MMM had an
+    installed dataset and a hub computed from it (app/mmm)."""
     keys = set(report_service.module_keys())
-    assert keys == {"command-center", "simulation-studio", "decision-center", "investigations"}
+    assert keys == {"command-center", "simulation-studio", "decision-center", "investigations",
+                    "mmm-insights"}
     for absent in ("settings", "connections", "reports", "promotion-intelligence"):
         assert absent not in keys
 

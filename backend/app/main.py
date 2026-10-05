@@ -136,9 +136,11 @@ from app.routers import (  # noqa: E402
     store,
 )
 
+from app.mmm import router as mmm  # noqa: E402  — every /api/mmm/* route
+
 for r in (nav, command_center, investigations, misc, connectors,
           promotion_calendar, simulation, decision, decision_brief, briefing, store, reports,
-          auth, datasets, intelligence, analyst):
+          auth, datasets, intelligence, analyst, mmm):
     app.include_router(r.router)
 
 

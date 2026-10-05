@@ -24,7 +24,7 @@ import { AddKpiMenu } from '../components/command/AddKpiMenu'
 import { AlertsButton } from '../components/command/AlertsButton'
 import { SERIES_CLASS } from '../components/command/series'
 import { ADDABLE_KPI_ORDER, HERO_TILE_CLASS, readAddedKpis, writeAddedKpis } from '../components/command/kpiDeckState'
-import { TrendPanels } from '../components/command/TrendPanels'
+import { TrendPanels, type TrendSeries } from '../components/command/TrendPanels'
 import {
   ChannelSection,
   ProductSection,
@@ -139,6 +139,15 @@ function KpiTile({
 
 export function CommandCenter() {
   const [granularity, setGranularity] = useState<'week' | 'month'>('week')
+  // Trend series the legend has switched off. View state only — never sent.
+  const [trendHidden, setTrendHidden] = useState<ReadonlySet<TrendSeries>>(() => new Set())
+  const toggleTrend = (key: TrendSeries) =>
+    setTrendHidden((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
   /** The Analyst drawer. Page state rather than global: it is opened from this
    *  page's header and closes with it, so nothing else needs to know. */
   const [analystOpen, setAnalystOpen] = useState(false)
@@ -423,6 +432,7 @@ export function CommandCenter() {
                   <InfoBlock label="Trade Spend">Discount Value + Promotion Cost</InfoBlock>
                   <InfoBlock label="ROI">Incremental Sales ÷ Trade Spend — 1.00 is break-even</InfoBlock>
                   <InfoBlock label="Target ROI">{fmtRoi(meta.target_roi)}</InfoBlock>
+                  <InfoBlock label="Legend">Click an item to hide or show that line.</InfoBlock>
                 </InfoPopover>
               </span>
             }
@@ -444,14 +454,32 @@ export function CommandCenter() {
           />
           <CardBody>
             {/* Three business series, all lines, plus the dashed reference. The
-                swatches mirror the stroke colours in TrendPanels. */}
+                swatches mirror the stroke colours in TrendPanels; each item
+                toggles its series. */}
             <div className="mb-2 flex flex-wrap gap-4 pb-2">
-              <LegendItem swatch={<span className="h-0.5 w-[18px] rounded-sm bg-brand-violet" />} label={`Incremental Sales (${meta.currency})`} />
-              <LegendItem swatch={<span className={`h-0.5 w-[18px] rounded-sm ${SERIES_CLASS.spend}`} />} label={`Trade Spend (${meta.currency})`} />
-              <LegendItem swatch={<span className="h-0.5 w-[18px] rounded-sm" style={{ background: 'var(--tint-teal-icon)' }} />} label="ROI" />
+              <LegendItem
+                swatch={<span className="h-0.5 w-[18px] rounded-sm bg-brand-violet" />}
+                label={`Incremental Sales (${meta.currency})`}
+                on={!trendHidden.has('sales')}
+                onToggle={() => toggleTrend('sales')}
+              />
+              <LegendItem
+                swatch={<span className={`h-0.5 w-[18px] rounded-sm ${SERIES_CLASS.spend}`} />}
+                label={`Trade Spend (${meta.currency})`}
+                on={!trendHidden.has('spend')}
+                onToggle={() => toggleTrend('spend')}
+              />
+              <LegendItem
+                swatch={<span className={`h-0.5 w-[18px] rounded-sm ${SERIES_CLASS.roi}`} />}
+                label="ROI"
+                on={!trendHidden.has('roi')}
+                onToggle={() => toggleTrend('roi')}
+              />
               <LegendItem
                 swatch={<span className="h-0 w-[18px] border-t-2 border-dashed border-ink-muted" />}
                 label={`Target ROI (${fmtRoi(meta.target_roi)})`}
+                on={!trendHidden.has('target')}
+                onToggle={() => toggleTrend('target')}
               />
             </div>
             {trend.isLoading ? (
@@ -474,6 +502,7 @@ export function CommandCenter() {
                      previous 320 the plot stopped ~88px short of the card's
                      border; 408 left 30px once the card chrome tightened. */
                   height={438}
+                  hidden={trendHidden}
                 />
               </Stale>
             ) : (
@@ -523,12 +552,30 @@ export function CommandCenter() {
   )
 }
 
-function LegendItem({ swatch, label }: { swatch: React.ReactNode; label: string }) {
+function LegendItem({
+  swatch,
+  label,
+  on,
+  onToggle,
+}: {
+  swatch: React.ReactNode
+  label: string
+  on: boolean
+  onToggle: () => void
+}) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-secondary">
+    <button
+      type="button"
+      aria-pressed={on}
+      title={on ? `Hide ${label}` : `Show ${label}`}
+      onClick={onToggle}
+      className={`inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--r-sm)] text-sm font-medium transition-[color,opacity] duration-150 hover:text-ink-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet ${
+        on ? 'text-ink-secondary' : 'text-ink-secondary opacity-40'
+      }`}
+    >
       {swatch}
       {label}
-    </span>
+    </button>
   )
 }
 

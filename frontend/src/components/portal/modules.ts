@@ -34,10 +34,11 @@ export const MODULES: PortalModule[] = [
     desc: "Attribute revenue across trade, media and price to guide next quarter's marketing mix.",
     icon: 'flow',
     tint: 'teal',
-    // Not live — MMM models nothing yet. It does have one real screen, its Data
-    // Connections page, so the card goes there rather than raising the roadmap
-    // toast. `live` stays false, which is what keeps the "Live" pill and the
-    // violet treatment off it: a destination is not a working module.
+    // Not "live" — MMM fits no model yet. It does have real screens (Data
+    // Connections, and once a dataset is loaded a descriptive Insights Hub,
+    // Calendar and Reports — see src/mmm), so the card opens them rather than
+    // raising the roadmap toast; ModuleGrid picks which one from MMM's dataset
+    // status. `live` stays false, which keeps the "Live" pill off it.
     live: false,
     href: '/mmm/connections',
   },

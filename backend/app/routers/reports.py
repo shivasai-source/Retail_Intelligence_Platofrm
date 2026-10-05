@@ -116,20 +116,31 @@ def library(
     format: Annotated[Literal["xlsx", "pdf"] | None, Query()] = None,
     search: Annotated[str | None, Query(max_length=120)] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 200,
+    family: Annotated[Literal["tpo", "mmm"] | None, Query()] = None,
 ) -> dict[str, Any]:
     """The Report Center's contents, newest first.
 
     Every row corresponds to a stored artifact. There are no seeded or example
     rows: an empty library returns an empty list, and the page says so.
+
+    `family` narrows the library, its total and its module list to one
+    intelligence module (TPO or MMM), so each module's Report Center shows only
+    its own reports. Omitted, everything is listed, as before.
     """
-    rows = report_store.listing(module=module, fmt=format, search=search, limit=limit)
+    rows = report_store.listing(module=module, fmt=format, search=search, limit=limit,
+                                family=family)
+    in_family = (
+        (lambda k: k.startswith(report_store.MMM_PREFIX)) if family == "mmm"
+        else (lambda k: not k.startswith(report_store.MMM_PREFIX)) if family == "tpo"
+        else (lambda k: True)
+    )
     return {
         "reports": [r.as_dict() for r in rows],
-        "total": report_store.count(),
+        "total": report_store.count(family),
         "returned": len(rows),
         "modules": [
             {"key": m.key, "label": m.label}
-            for m in (service.MODULES[k] for k in service.module_keys())
+            for m in (service.MODULES[k] for k in service.module_keys() if in_family(k))
         ],
         "owner_note": report_store.NO_OWNER_NOTE,
     }
@@ -183,7 +194,9 @@ def download(report_id: str, fmt: Literal["xlsx", "pdf"]) -> Response:
 
 
 @router.delete("", status_code=200)
-def clear() -> dict[str, Any]:
+def clear(
+    family: Annotated[Literal["tpo", "mmm"] | None, Query()] = None,
+) -> dict[str, Any]:
     """Empty the Report Center.
 
     Answers with the number removed rather than 204, so the caller can say "12
@@ -193,10 +206,11 @@ def clear() -> dict[str, Any]:
 
     THIS IS NOT FILTERED. It empties the whole library, not the rows the page is
     currently showing; a clear that spared what a filter was hiding would leave
-    reports behind in a library the user believes is empty.
+    reports behind in a library the user believes is empty. `family` limits it
+    to one intelligence module's reports — the MMM page never clears TPO's.
     """
-    removed = report_store.clear()
-    return {"deleted": removed, "total": report_store.count()}
+    removed = report_store.clear(family)
+    return {"deleted": removed, "total": report_store.count(family)}
 
 
 @router.delete("/{report_id}", status_code=204)

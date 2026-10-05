@@ -63,8 +63,11 @@ export function Sidebar({
   onClose,
   nav: navOverride,
   brand = 'TPO Intelligence',
-  brandHref = '/command',
+  // The TransOrg mark is the way back to the portal from any module, TPO
+  // included — it used to send TPO to its own Insights Hub, unlike MMM.
+  brandHref = '/home',
   datasetComplete,
+  settingsHref = '/settings',
 }: {
   activeKey?: string
   open: boolean
@@ -82,6 +85,9 @@ export function Sidebar({
    *  pages are not computed from TPO's six CSVs, so TPO's dataset state must
    *  not decide whether an MMM row opens. Each module answers for itself. */
   datasetComplete?: boolean
+  /** Where the account menu's "Profile & settings" goes. Each module keeps
+   *  its own shell around the shared settings page. */
+  settingsHref?: string
 }) {
   const { data: apiNav } = useNav()
   const nav = navOverride ?? apiNav
@@ -111,7 +117,7 @@ export function Sidebar({
   // avatar, so the chevron now means what it looks like it means.
   const onAccountSelect = (value: string) => {
     onClose()
-    if (value === 'settings') navigate('/settings')
+    if (value === 'settings') navigate(settingsHref)
     else if (value === 'signout') logout.mutate(undefined, { onSuccess: () => navigate('/login', { replace: true }) })
   }
 
