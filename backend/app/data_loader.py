@@ -14,11 +14,8 @@ from pathlib import Path
 from typing import Literal
 
 DATA_DIR = Path(__file__).parent / "data"
-
 InvestigationType = Literal["diagnostic", "optimization", "launch", "strategic"]
 INVESTIGATION_TYPES: tuple[InvestigationType, ...] = ("diagnostic", "optimization", "launch", "strategic")
-
-
 @lru_cache(maxsize=None)
 def load(name: str):
     """Load and cache app/data/{name}.json. Raises FileNotFoundError with a
