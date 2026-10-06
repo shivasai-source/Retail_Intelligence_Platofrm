@@ -11,8 +11,8 @@ import { MmmShell } from '../components/MmmShell'
 import { MmmAddKpiMenu } from '../components/MmmAddKpiMenu'
 import { MmmFilterBar } from '../components/MmmFilterBar'
 import { resolveYear } from '../components/MmmToolbar'
-import { MMM_SERIES, MmmTrend, ShareBars, type MmmTrendSeries } from '../components/charts'
-import { BaselineCard, ComparisonCard, EventsCard, PanelTitle, PromotionsCard } from '../components/MmmPanels'
+import { BREAKEVEN_ROAS, MMM_SERIES, MmmTrend, type MmmTrendSeries } from '../components/charts'
+import { ChannelCard, ComparisonCard, EventsCard, PromotionsCard } from '../components/MmmPanels'
 import { useMmmFilterOptions, useMmmHub } from '../hooks'
 import { MMM_ADDABLE_KPIS, MMM_HERO_KPIS, readAddedMmmKpis, writeAddedMmmKpis } from '../kpiDeck'
 import { MMM_ROUTES } from '../nav'
@@ -29,7 +29,7 @@ import type { MmmKpi } from '../types'
 // THE BASELINE IS PER RANGE. Baseline Revenue, Incremental Revenue and ROAS
 // come from the formula in backend/app/mmm/baseline.py, re-estimated for
 // whatever range the filters select, for each comparison period and for each
-// point on the trend. The Baseline Calculation card shows its steps.
+// point on the trend.
 
 const KPI_STYLE: Record<string, { icon: IconName; tint: string; accent: string }> = {
   // The headline three wear the tints of TPO's headline three: return, spend,
@@ -225,13 +225,12 @@ export function MmmInsights() {
                   <span className="flex items-center gap-1.5">
                     Ad Spend vs Revenue Trend
                     <InfoPopover label="About Ad Spend vs Revenue Trend" title="Ad Spend vs Revenue Trend">
-                      <InfoBlock label="Revenue">Sum of Revenue per period</InfoBlock>
-                      <InfoBlock label="Ad Spend">Sum of the selected channels’ spend per period</InfoBlock>
-                      <InfoBlock label="Baseline">
-                        Each period’s own baseline per day (R − (X − Y)) × its days
-                      </InfoBlock>
-                      <InfoBlock label="ROAS">(Revenue − Baseline) ÷ Ad Spend — right-hand axis</InfoBlock>
-                      <InfoBlock label="Legend">Click an item to hide or show that line.</InfoBlock>
+                      <InfoBlock label="Revenue">Total sales in each period.</InfoBlock>
+                      <InfoBlock label="Ad Spend">Total spent on ads in each period.</InfoBlock>
+                      <InfoBlock label="Baseline">Sales you would have made with no ads.</InfoBlock>
+                      <InfoBlock label="ROAS">Extra revenue for every 1 spent (right axis).</InfoBlock>
+                      <InfoBlock label="Break-even">1.00x — ads paid for themselves.</InfoBlock>
+                      <InfoBlock label="Tip">Click a legend item to hide or show a line.</InfoBlock>
                     </InfoPopover>
                   </span>
                 }
@@ -277,6 +276,12 @@ export function MmmInsights() {
                     on={!trendHidden.has('roas')}
                     onToggle={() => toggleTrend('roas')}
                   />
+                  <LegendItem
+                    swatch={<span className="h-0 w-[18px] border-t-2 border-dotted" style={{ borderColor: MMM_SERIES.roas }} />}
+                    label={`Break-even (${BREAKEVEN_ROAS.toFixed(2)}x)`}
+                    on={!trendHidden.has('breakeven')}
+                    onToggle={() => toggleTrend('breakeven')}
+                  />
                   {granularity === 'day' && shownGranularity !== 'day' && (
                     <span className="ml-auto text-xs text-ink-muted">Daily is offered for ranges up to 400 days; showing weekly.</span>
                   )}
@@ -287,70 +292,14 @@ export function MmmInsights() {
           </div>
 
           <div className="mt-[14px] grid grid-cols-2 gap-4 @max-[1000px]:grid-cols-1">
-            <ComparisonCard data={data} />
+            <ChannelCard data={data} />
+            <PromotionsCard data={data} />
+          </div>
+
+          <div className="mt-[14px] grid grid-cols-2 gap-4 @max-[1000px]:grid-cols-1">
+            <ComparisonCard data={data} scope={scope} options={options.data} currency={currency} />
             <EventsCard data={data} />
           </div>
-
-          <div className="mt-[14px] grid grid-cols-2 gap-4 @max-[1000px]:grid-cols-1">
-            <PromotionsCard data={data} />
-            <BaselineCard data={data} />
-          </div>
-
-          <div className="mt-[14px] grid grid-cols-2 gap-4 @max-[1000px]:grid-cols-1">
-            <Card>
-              <CardHeader
-                title={
-                  <PanelTitle
-                    title="Ad Spend by Channel"
-                    about={[
-                      ['Spend', 'Sum of the channel’s *_Spend column'],
-                      ['Share', 'Channel spend ÷ total ad spend in scope'],
-                    ]}
-                  />
-                }
-                subtitle={`${data.channels.length} of ${data.meta.channels_total} channels`}
-              />
-              <CardBody className="max-h-[520px] overflow-y-auto">
-                <ShareBars
-                  color={SERIES.spend}
-                  rows={data.channels.map((c) => ({
-                    key: c.column,
-                    label: c.label,
-                    sub: `${c.active_days.toLocaleString()} days on air`,
-                    value: c.spend,
-                    display: c.spend_display,
-                    share: c.share_display,
-                  }))}
-                />
-              </CardBody>
-            </Card>
-            <Card>
-              <CardHeader
-                title={
-                  <PanelTitle
-                    title="Ad Spend by Channel Family"
-                    about={[['Share', 'Family spend ÷ total ad spend. Families group the channels for reading.']]}
-                  />
-                }
-              />
-              <CardBody>
-                <ShareBars
-                  rows={data.families.map((f) => ({
-                    key: f.family,
-                    label: f.family,
-                    value: f.spend,
-                    display: f.spend_display,
-                    share: f.share_display,
-                  }))}
-                />
-              </CardBody>
-            </Card>
-          </div>
-
-          <p className="mt-3 text-xs leading-[1.5] text-ink-muted">
-            Revenue and ad spend are sums of the uploaded daily dataset. Baseline, Incremental Revenue and ROAS are
-            estimated per range from days with and without ad spend and events (see Baseline Calculation).
-          </p>
         </Stale>
       )}
     </MmmShell>

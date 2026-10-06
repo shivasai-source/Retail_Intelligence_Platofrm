@@ -129,7 +129,6 @@ from app.routers import (  # noqa: E402
     intelligence,
     investigations,
     misc,
-    mmm,
     nav,
     promotion_calendar,
     reports,

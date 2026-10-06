@@ -92,6 +92,12 @@ export interface MmmChannel {
   family: string
   spend: number
   spend_display: string
+  /** Revenue on days the channel was on air; overlapping channels are not additive. */
+  revenue: number
+  revenue_display: string
+  /** Estimated return over the channel's active days, not attributed revenue. */
+  roas: number | null
+  roas_display: string
   share: number
   share_display: string
   active_days: number
@@ -188,6 +194,10 @@ export interface MmmHub {
     share_of_revenue: number
     avg_revenue: number
     avg_revenue_display: string
+    spend: number
+    spend_display: string
+    roas: number | null
+    roas_display: string
   }>
   events: Array<{
     key: string

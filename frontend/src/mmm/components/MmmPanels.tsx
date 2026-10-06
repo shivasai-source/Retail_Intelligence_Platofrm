@@ -3,9 +3,11 @@ import { Card, CardBody, CardHeader, Table, Td, Th, Tr } from '../../components/
 import { InfoBlock, InfoPopover } from '../../components/ui/InfoPopover'
 import { TipRow } from '../../components/command/ChartSections'
 import { Segmented } from '../../components/command/Segmented'
+import { Stale } from '../../components/command/States'
 import { Icon } from '../../icons'
-import { FILL, PairedColumns, ShareBars, ValueColumns, axisMoney } from './charts'
-import type { MmmHub } from '../types'
+import { FILL, MMM_SERIES, PairedColumns, RankedColumns, ShareBars, ValueColumns, axisMoney } from './charts'
+import { useMmmHub } from '../hooks'
+import type { MmmChannel, MmmFilterOptions, MmmHub, MmmScopeWire } from '../types'
 
 /** The Insights Hub's panels below the trend. Every value and display string
  *  arrives formatted from app/mmm/service.py. These components choose
@@ -58,6 +60,20 @@ function Caveat({ children }: { children: React.ReactNode }) {
   return <p className="mt-2 text-xs leading-[1.5] text-ink-muted">{children}</p>
 }
 
+/** One plain line per comparison measure for the ⓘ. The backend's
+ *  `formula` is the full derivation; this is what a reader needs. */
+const SHORT_DEFINITION: Record<string, string> = {
+  revenue: 'Total sales in the period.',
+  spend: 'Total spent on ads.',
+  roas: 'Extra revenue for every 1 spent. Above 1.00x pays back.',
+  baseline: 'Sales you would have made with no ads.',
+  incremental: 'Sales the ads added: Revenue − Baseline.',
+  baseline_per_day: 'No-ads sales per day.',
+  avg_daily_revenue: 'Revenue per day.',
+  ad_lift: 'Extra revenue per day on ad days.',
+  media_days: 'Days with any ad spend.',
+}
+
 /** A metric value in the comparison's own unit, for the axis. */
 function tickFor(unit: string, currency: string, rate: number) {
   if (unit === 'multiple') return (v: number) => `${v.toFixed(2)}x`
@@ -65,18 +81,117 @@ function tickFor(unit: string, currency: string, rate: number) {
   return (v: number) => axisMoney(v * rate, currency)
 }
 
-/** PERFORMANCE COMPARISON — the selected period beside YAGO (same dates a
- *  year earlier), PAGO (the equal-length period just before) and MAGO (same
- *  dates a month earlier), on one measure at a time. The selected column is
- *  solid violet, the comparison picked in the switch its tint, the other two
- *  recessive — TPO's comparison card's colouring. Each period's baseline is
- *  its own, so ROAS and Incremental Revenue compare like for like. */
-export function ComparisonCard({ data }: { data: MmmHub }) {
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+/** The month select's "no month" option: the page's own period for that year. */
+const WHOLE = 0
+
+type ComparisonKind = 'yago' | 'pago' | 'mago' | 'ytd'
+const COMPARISONS: Array<{ key: ComparisonKind; label: string; title: string }> = [
+  { key: 'yago', label: 'YAGO', title: 'Year Ago' },
+  { key: 'pago', label: 'PAGO', title: 'Period Ago' },
+  { key: 'mago', label: 'MAGO', title: 'Month Ago' },
+  { key: 'ytd', label: 'YTD', title: 'Year to Date vs the same window last year' },
+]
+
+const iso = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+const lastDay = (y: number, m: number) => new Date(y, m, 0).getDate()
+
+/** The months of `year` the dataset covers, from options.date_range. */
+function monthsIn(year: number, range: { from: string; to: string }): number[] {
+  const [fy, fm] = range.from.split('-').map(Number)
+  const [ty, tm] = range.to.split('-').map(Number)
+  const first = year === fy ? fm : 1
+  const last = year === ty ? tm : 12
+  const out: number[] = []
+  for (let m = first; m <= last; m++) out.push(m)
+  return out
+}
+
+/** PERFORMANCE COMPARISON — one period beside YAGO (same dates a year
+ *  earlier), PAGO (the equal-length period just before) and MAGO (same dates
+ *  a month earlier), on one measure at a time; or, on YTD, January to the
+ *  picked month beside the same window a year earlier.
+ *
+ *  THE CARD PICKS ITS OWN PERIOD, as TPO's does: a Month and a Year select on
+ *  the right of its controls. It opens on the latest month of the page's year
+ *  and is re-seated whenever the page's year changes, so it never contradicts
+ *  the Year pill; "Whole period" hands it back the page's own period. The
+ *  channel, promotion-type and event filters always apply. While the page is
+ *  on a custom date range the card follows that range and its pickers rest.
+ *
+ *  Every figure is the backend's: the card asks /api/mmm/hub for its period
+ *  and reads `comparison`. Each period's baseline is its own, so ROAS and
+ *  Incremental Revenue compare like for like. */
+export function ComparisonCard({
+  data,
+  scope,
+  options,
+  currency,
+}: {
+  data: MmmHub
+  /** The page's scope, as the hub was asked for it. */
+  scope: MmmScopeWire
+  options: MmmFilterOptions | undefined
+  currency: string
+}) {
   const [metricKey, setMetricKey] = useState('revenue')
-  const [kind, setKind] = useState<'yago' | 'pago' | 'mago'>('yago')
-  const cmp = data.comparison
+  const [kind, setKind] = useState<ComparisonKind>('yago')
+  const custom = scope.date_from !== null || scope.date_to !== null
+  const years = options?.years ?? []
+  const range = options?.date_range
+  const pageYear = scope.year ?? (years.length ? Math.max(...years) : null)
+  // Narrower page periods (a quarter, a month, a week) are the page's to
+  // say; the card then opens on them rather than replacing them.
+  const pageNarrowed = scope.quarter !== null || scope.month !== null || scope.week !== null
+
+  // The reader's pick, remembered with the page period it was made under:
+  // any change to the page's year, quarter, month or week discards it, and
+  // the card re-seats on the page's new period.
+  const pagePeriod = `${pageYear}|${scope.quarter}|${scope.month}|${scope.week}`
+  const [picked, setPicked] = useState<{ forPage: string; year: number; month: number } | null>(null)
+  const seatMonth = (y: number) => {
+    if (pageNarrowed) return WHOLE
+    const ms = range ? monthsIn(y, range) : []
+    return ms.length ? ms[ms.length - 1] : WHOLE
+  }
+  const period =
+    picked && picked.forPage === pagePeriod
+      ? picked
+      : pageYear !== null
+        ? { forPage: pagePeriod, year: pageYear, month: seatMonth(pageYear) }
+        : null
+  const months = period && range ? monthsIn(period.year, range) : []
+
+  // The scope the card asks the hub for.
+  const cardScope: MmmScopeWire = (() => {
+    if (custom || !period) return scope
+    if (kind === 'ytd') {
+      const endMonth = period.month === WHOLE ? (months[months.length - 1] ?? 12) : period.month
+      return {
+        ...scope,
+        year: null,
+        quarter: null,
+        month: null,
+        week: null,
+        date_from: iso(period.year, 1, 1),
+        date_to: iso(period.year, endMonth, lastDay(period.year, endMonth)),
+      }
+    }
+    if (period.month === WHOLE) return { ...scope, year: period.year }
+    return { ...scope, year: period.year, quarter: null, month: period.month, week: null }
+  })()
+
+  const sameAsPage = JSON.stringify(cardScope) === JSON.stringify(scope)
+  const own = useMmmHub(cardScope, 'month', currency, !sameAsPage)
+  const source = sameAsPage ? data : (own.data ?? data)
+  const loading = !sameAsPage && (own.isFetching || !own.data)
+
+  const cmp = source.comparison
   const spec = cmp.metrics.find((m) => m.key === metricKey) ?? cmp.metrics[0]
-  const win = cmp.windows.find((w) => w.key === kind)!
+  const ytd = kind === 'ytd'
+  // YTD is a cumulative window, so it is read against its year-ago window.
+  const winKey = ytd ? 'yago' : kind
+  const win = cmp.windows.find((w) => w.key === winKey)!
   const current = cmp.current[spec.key]
   const against = win.values[spec.key]
   const delta = win.delta[spec.key]
@@ -87,17 +202,19 @@ export function ComparisonCard({ data }: { data: MmmHub }) {
         ? 'bg-status-danger/10 text-status-danger'
         : 'bg-ink-primary/[0.06] text-ink-muted'
 
+  const shownWindows = ytd ? [win] : cmp.windows
   const columns = [
-    { key: 'current', label: 'Selected', value: current.value, display: current.display, role: 'current' as const },
-    ...cmp.windows.map((w) => ({
+    { key: 'current', label: ytd ? 'YTD' : 'Selected', value: current.value, display: current.display, role: 'current' as const },
+    ...shownWindows.map((w) => ({
       key: w.key,
-      label: w.label,
+      label: ytd ? 'YTD YAGO' : w.label,
       value: w.available ? (w.values[spec.key]?.value ?? null) : null,
       display: w.available ? (w.values[spec.key]?.display ?? '—') : '—',
-      role: w.key === kind ? ('against' as const) : ('idle' as const),
+      role: w.key === winKey ? ('against' as const) : ('idle' as const),
     })),
   ]
-  const periodOf = (i: number) => (i === 0 ? cmp.period_label : cmp.windows[i - 1].period_label)
+  const periodOf = (i: number) => (i === 0 ? cmp.period_label : shownWindows[i - 1].period_label)
+  const activeTitle = COMPARISONS.find((c) => c.key === kind)!.title
 
   return (
     <Card className="flex h-full flex-col">
@@ -106,11 +223,11 @@ export function ComparisonCard({ data }: { data: MmmHub }) {
           <PanelTitle
             title="Performance Comparison"
             about={[
-              [spec.label, spec.formula],
-              ['YAGO', 'The same dates a year earlier.'],
-              ['PAGO', 'The period of the same length immediately before.'],
-              ['MAGO', 'The same dates a month earlier.'],
-              ['Baseline', 'Re-estimated for each period over that period’s own days.'],
+              [spec.label, SHORT_DEFINITION[spec.key] ?? spec.formula],
+              ['YAGO', 'Same dates, last year.'],
+              ['PAGO', 'The equal-length period just before.'],
+              ['MAGO', 'Same dates, last month.'],
+              ['YTD', 'January to the picked month, vs the same window last year.'],
             ]}
           />
         }
@@ -127,29 +244,79 @@ export function ComparisonCard({ data }: { data: MmmHub }) {
           ariaLabel="Comparison period"
           value={kind}
           onChange={setKind}
-          options={cmp.windows.map((w) => ({ key: w.key, label: w.label, title: w.full }))}
+          options={custom ? COMPARISONS.filter((c) => c.key !== 'ytd') : COMPARISONS}
         />
+        {!custom && period && years.length > 0 && (
+          <span className="inline-flex items-center gap-1.5">
+            <Select
+              aria-label="Month"
+              value={period.month}
+              onChange={(e) => setPicked({ forPage: pagePeriod, year: period.year, month: Number(e.target.value) })}
+            >
+              <option value={WHOLE}>{ytd ? 'Latest' : pageNarrowed ? 'Page period' : 'Full year'}</option>
+              {months.map((m) => (
+                <option key={m} value={m}>
+                  {MONTH_ABBR[m - 1]}
+                </option>
+              ))}
+            </Select>
+            <Select
+              aria-label="Year"
+              value={period.year}
+              onChange={(e) => {
+                const y = Number(e.target.value)
+                const has = range ? monthsIn(y, range) : []
+                const m = period.month === WHOLE || has.includes(period.month) ? period.month : (has[has.length - 1] ?? WHOLE)
+                setPicked({ forPage: pagePeriod, year: y, month: m })
+              }}
+            >
+              {[...years].sort((a, b) => b - a).map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </Select>
+          </span>
+        )}
       </div>
       <CardBody className="flex flex-1 flex-col">
+        <Stale when={loading} className="flex flex-1 flex-col">
         <div className="mb-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-ink-muted">
-          <Swatch fill={FILL.current} label="Selected" />
+          <Swatch fill={FILL.current} label={ytd ? 'Year to date' : 'Selected'} />
           <Swatch fill={FILL.against} label="Compared with" outline />
           <span className="ml-auto truncate">{spec.label}</span>
         </div>
         <ValueColumns
           columns={columns}
-          format={tickFor(spec.unit, data.meta.currency, spec.unit === 'currency' ? data.meta.exchange_rate : 1)}
+          format={tickFor(spec.unit, source.meta.currency, spec.unit === 'currency' ? source.meta.exchange_rate : 1)}
           ariaLabel={`${spec.label}: selected period and comparison periods`}
-          tooltip={(i) => (
-            <>
-              <div className="font-bold text-ink-primary">{columns[i].label}</div>
-              <div className="text-ink-muted">{periodOf(i) || '—'}</div>
-              <TipRow k={spec.label} v={columns[i].display} />
-              {i > 0 && !cmp.windows[i - 1].available && (
-                <div className="mt-1 leading-[1.4] text-ink-muted">{cmp.windows[i - 1].reason}</div>
-              )}
-            </>
-          )}
+          onPick={(i) => {
+            if (i > 0 && !ytd) setKind(shownWindows[i - 1].key)
+          }}
+          tooltip={(i) => {
+            const w = i > 0 ? shownWindows[i - 1] : null
+            return (
+              <>
+                <div className="font-bold text-ink-primary">{w ? (ytd ? 'YTD a year ago' : w.full) : ytd ? 'Year to date' : 'Selected period'}</div>
+                <div className="text-ink-muted">{periodOf(i) || '—'}</div>
+                <TipRow swatch={FILL[columns[i].role]} k={spec.label} v={columns[i].display} />
+                {w ? (
+                  w.available ? (
+                    <>
+                      <TipRow k="Selected vs this" v={w.delta[spec.key]?.display ?? '—'} />
+                      {!ytd && w.key !== kind && <div className="mt-1.5 text-ink-muted">Click to compare against {w.label}.</div>}
+                    </>
+                  ) : (
+                    <div className="mt-1 leading-[1.4] text-ink-muted">{w.reason}</div>
+                  )
+                ) : (
+                  shownWindows.map((cw) => (
+                    <TipRow key={cw.key} k={`vs ${ytd ? 'YTD YAGO' : cw.label}`} v={cw.available ? (cw.delta[spec.key]?.display ?? '—') : '—'} />
+                  ))
+                )}
+              </>
+            )
+          }}
         />
         <div className="mt-2 flex items-end justify-between gap-3 border-t border-border-subtle pt-2.5">
           <div className="grid min-w-0 grid-cols-2 gap-x-4">
@@ -171,12 +338,10 @@ export function ComparisonCard({ data }: { data: MmmHub }) {
             >
               {win.available ? (delta?.display ?? '—') : '—'}
             </span>
-            <div className="mt-0.5 text-xs text-ink-muted">{win.available ? win.full : 'no comparable period'}</div>
+            <div className="mt-0.5 text-xs text-ink-muted">{win.available ? activeTitle.replace(/ vs .*/, '') : 'no comparable period'}</div>
           </div>
         </div>
-        {!win.available && win.reason && (
-          <div className="mt-1.5 text-xs leading-[1.45] text-ink-muted">{win.reason}.</div>
-        )}
+        </Stale>
       </CardBody>
     </Card>
   )
@@ -185,6 +350,11 @@ export function ComparisonCard({ data }: { data: MmmHub }) {
 /** DAYS WITH VS WITHOUT EVENTS — average daily revenue on days with each
  *  event beside the days without it, in the scope. */
 export function EventsCard({ data }: { data: MmmHub }) {
+  const [order, setOrder] = useState<'listed' | 'gap'>('listed')
+  const groups =
+    order === 'gap'
+      ? [...data.events].sort((a, b) => Math.abs(b.difference ?? 0) - Math.abs(a.difference ?? 0))
+      : data.events
   return (
     <Card className="flex h-full flex-col">
       <CardHeader
@@ -192,75 +362,270 @@ export function EventsCard({ data }: { data: MmmHub }) {
           <PanelTitle
             title="Days With vs Without Events"
             about={[
-              ['Average daily revenue', 'Sum of Revenue ÷ number of days, for the days with the event and for the days without it.'],
-              ['Difference', '(With − Without) ÷ Without.'],
-              ['Ad spend', 'Days on which the selected channels spent more than 0.'],
+              ['Bars', 'Average revenue per day, on days with vs without the event.'],
+              ['Difference', 'How much higher (or lower) days with the event are.'],
             ]}
           />
         }
       />
+      <div className="flex flex-wrap items-center gap-2 border-b border-border-subtle px-5 py-2.5">
+        <span className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
+          <span>Order</span>
+          <Segmented
+            ariaLabel="Event order"
+            value={order}
+            onChange={setOrder}
+            options={[
+              { key: 'listed', label: 'As listed' },
+              { key: 'gap', label: 'Biggest gap', title: 'Largest difference first, up or down' },
+            ]}
+          />
+        </span>
+      </div>
       <CardBody className="flex flex-1 flex-col">
         <div className="mb-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-ink-muted">
           <Swatch fill={FILL.current} label="Days with" />
           <Swatch fill={FILL.against} label="Days without" outline />
           <span className="ml-auto">Avg daily revenue</span>
         </div>
-        <PairedColumns groups={data.events} rate={data.meta.exchange_rate} currency={data.meta.currency} />
-        <Caveat>
-          A comparison of averages, not the effect of the event: season and the other events also differ between these
-          days.
-        </Caveat>
+        <PairedColumns groups={groups} rate={data.meta.exchange_rate} currency={data.meta.currency} />
       </CardBody>
     </Card>
   )
 }
 
-type PromoMetric = 'avg_revenue' | 'revenue' | 'days'
-const PROMO_METRICS: Array<{ key: PromoMetric; label: string }> = [
-  { key: 'avg_revenue', label: 'Avg / Day' },
-  { key: 'revenue', label: 'Revenue' },
-  { key: 'days', label: 'Days' },
+type BreakdownMetric = 'revenue' | 'spend' | 'roas' | 'avg'
+const BREAKDOWN_METRICS: Array<{ key: BreakdownMetric; label: string; title: string }> = [
+  { key: 'revenue', label: 'Revenue', title: 'Rank by revenue' },
+  { key: 'spend', label: 'Ad Spend', title: 'Rank by ad spend' },
+  { key: 'roas', label: 'ROAS', title: 'Rank by ROAS' },
+  { key: 'avg', label: 'Avg / Day', title: 'Rank by average revenue per day' },
 ]
+const metricColor = (m: BreakdownMetric) => (m === 'avg' ? MMM_SERIES.revenue : MMM_SERIES[m])
 
-/** REVENUE BY PROMOTION TYPE — one bar per offer, on the measure picked. */
-export function PromotionsCard({ data }: { data: MmmHub }) {
-  const [metric, setMetric] = useState<PromoMetric>('avg_revenue')
-  const rows = [...data.promotions].sort((a, b) => b[metric] - a[metric])
+/** How many rows a ranking shows before "All" is picked. */
+const TOP_N = 10
+type Limit = 'top' | 'all'
+
+/** Sort descending on a metric; a row with no value sinks to the bottom
+ *  rather than being ranked as 0. */
+function rankBy<T>(rows: T[], value: (row: T) => number | null): T[] {
+  return [...rows].sort((a, b) => (value(b) ?? -Infinity) - (value(a) ?? -Infinity))
+}
+
+/** The strip under a ranking card's header: the measure, and — when there are
+ *  more rows than TOP_N — the Top 10 / All switch. */
+function RankControls({
+  label,
+  metric,
+  onMetric,
+  limit,
+  onLimit,
+  count,
+  children,
+  caption = true,
+}: {
+  /** The "Rank by" words before the switch. */
+  caption?: boolean
+  label: string
+  metric: BreakdownMetric
+  onMetric: (m: BreakdownMetric) => void
+  limit: Limit
+  onLimit: (l: Limit) => void
+  count: number
+  children?: React.ReactNode
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b border-border-subtle px-5 py-2.5">
+      <span className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
+        {caption && <span>Rank by</span>}
+        <Segmented ariaLabel={label} value={metric} onChange={onMetric} options={BREAKDOWN_METRICS} />
+      </span>
+      {children}
+      {count > TOP_N && (
+        <span className="ml-auto">
+          <Segmented
+            ariaLabel="Rows shown"
+            value={limit}
+            onChange={onLimit}
+            options={[
+              { key: 'top', label: `Top ${TOP_N}` },
+              { key: 'all', label: `All ${count}` },
+            ]}
+          />
+        </span>
+      )}
+    </div>
+  )
+}
+
+const ALL_FAMILIES = '__all__'
+
+/** CHANNELS — one bar per media channel, ranked on the measure picked. A row
+ *  shows only that measure; the channel's every figure is on hover. The
+ *  family switch narrows the card to one channel family — a card-level view
+ *  filter, as TPO's Mechanic switch is on Channel Performance; it never
+ *  changes the page's scope. */
+export function ChannelCard({ data }: { data: MmmHub }) {
+  const [metric, setMetric] = useState<BreakdownMetric>('spend')
+  const [limit, setLimit] = useState<Limit>('top')
+  const [family, setFamily] = useState(ALL_FAMILIES)
+  const families = [...new Set(data.channels.map((c) => c.family).filter(Boolean))].sort()
+  // A family the new scope no longer holds falls back to all of them, so the
+  // card never sits on an empty selection.
+  const shownFamily = families.includes(family) ? family : ALL_FAMILIES
+  const pool = shownFamily === ALL_FAMILIES ? data.channels : data.channels.filter((c) => c.family === shownFamily)
+  const value = (c: MmmChannel) =>
+    metric === 'avg' ? c.avg_active_day : metric === 'roas' ? c.roas : metric === 'revenue' ? c.revenue : c.spend
+  const ranked = rankBy(pool, value)
+  const rows = limit === 'top' ? ranked.slice(0, TOP_N) : ranked
+  const title = metric === 'spend' ? 'Ad Spend by Channel' : metric === 'revenue' ? 'Revenue by Channel' : metric === 'roas' ? 'ROAS by Channel' : 'Avg Revenue per Active Day by Channel'
+  const currency = data.meta.currency
+
   return (
     <Card className="flex h-full flex-col">
       <CardHeader
         title={
           <PanelTitle
-            title="Revenue by Promotion Type"
+            title={title}
             about={[
-              ['Avg / Day', 'Sum of Revenue ÷ days that offer ran.'],
-              ['Revenue', 'Sum of Revenue on days that offer ran; share is of all revenue in scope.'],
-              ['Days', 'Days that offer ran; share is of all days in scope.'],
+              ['Revenue', 'Total revenue on days the channel was running.'],
+              ['Ad Spend', 'Money spent on the channel.'],
+              ['ROAS', 'Extra revenue for every 1 spent. Above 1.00x pays back.'],
+              ['Avg / Day', 'Revenue per day the channel was running.'],
             ]}
           />
         }
       />
-      <div className="flex flex-wrap items-center gap-2 border-b border-border-subtle px-5 py-2.5">
-        <Segmented ariaLabel="Promotion measure" value={metric} onChange={setMetric} options={PROMO_METRICS} />
-      </div>
+      <RankControls caption={false} label="Channel measure" metric={metric} onMetric={setMetric} limit={limit} onLimit={setLimit} count={pool.length}>
+        {families.length > 1 && (
+          <span className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
+            <span>Family</span>
+            <Select aria-label="Channel family" value={shownFamily} onChange={(e) => setFamily(e.target.value)}>
+              <option value={ALL_FAMILIES}>All families</option>
+              {families.map((f) => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </Select>
+          </span>
+        )}
+      </RankControls>
+      <CardBody className="max-h-[520px] flex-1 overflow-y-auto">
+        {rows.length === 0 ? (
+          <div className="grid min-h-[120px] place-items-center text-sm text-ink-muted">No channels in this selection.</div>
+        ) : (
+          <ShareBars
+            inline
+            color={metricColor(metric)}
+            rows={rows.map((c) => ({
+              key: c.column,
+              label: c.label,
+              value: value(c) ?? 0,
+              display:
+                metric === 'revenue' ? c.revenue_display : metric === 'spend' ? c.spend_display : metric === 'roas' ? c.roas_display : c.avg_active_day_display,
+              // Only the measure picked is on the row, plus — on Ad Spend —
+              // its share of the total, the one share that adds to 100%
+              // (channels' on-air revenue overlaps; ROAS and Avg / Day are
+              // ratios). Everything else is in the hover tooltip.
+              share: metric === 'spend' ? c.share_display : '',
+              details: [
+                ['Family', c.family || '—'],
+                [`Ad spend (${currency})`, c.spend_display, MMM_SERIES.spend],
+                ['Share of ad spend', c.share_display],
+                [`Revenue on air (${currency})`, c.revenue_display, MMM_SERIES.revenue],
+                ['ROAS', c.roas_display, MMM_SERIES.roas],
+                ['Active days', c.active_days.toLocaleString()],
+                ['Avg revenue / active day', c.avg_active_day_display],
+              ],
+            }))}
+          />
+        )}
+      </CardBody>
+    </Card>
+  )
+}
+
+/** PROMOTION TYPES — one bar per offer type, ranked on the measure picked. */
+export function PromotionsCard({ data }: { data: MmmHub }) {
+  const [metric, setMetric] = useState<BreakdownMetric>('revenue')
+  const [limit, setLimit] = useState<Limit>('top')
+  type Promo = MmmHub['promotions'][number]
+  const value = (p: Promo) =>
+    metric === 'avg' ? p.avg_revenue : metric === 'roas' ? p.roas : metric === 'revenue' ? p.revenue : p.spend
+  const ranked = rankBy(data.promotions, value)
+  const rows = limit === 'top' ? ranked.slice(0, TOP_N) : ranked
+  const title =
+    metric === 'revenue' ? 'Revenue by Promotion Type' : metric === 'spend' ? 'Ad Spend by Promotion Type' : metric === 'roas' ? 'ROAS by Promotion Type' : 'Avg Daily Revenue by Promotion Type'
+  const currency = data.meta.currency
+
+  return (
+    <Card className="flex h-full flex-col">
+      <CardHeader
+        title={
+          <PanelTitle
+            title={title}
+            about={[
+              ['Revenue', 'Total revenue on days the promotion ran.'],
+              ['Ad Spend', 'Ad spend on those same days.'],
+              ['ROAS', 'Extra revenue for every 1 spent. Above 1.00x pays back.'],
+              ['Avg / Day', 'Revenue per promotion day.'],
+            ]}
+          />
+        }
+      />
+      <RankControls caption={false} label="Promotion measure" metric={metric} onMetric={setMetric} limit={limit} onLimit={setLimit} count={data.promotions.length} />
       <CardBody className="flex flex-1 flex-col">
         {rows.length === 0 ? (
           <div className="grid min-h-[120px] place-items-center text-sm text-ink-muted">No promotion types in this selection.</div>
         ) : (
-          <ShareBars
-            color={FILL.current}
-            rows={rows.map((p) => ({
+          // Columns, not the channel card's bars: a handful of offer types
+          // read as a comparison of heights, and the plot fills the card to
+          // the height of its neighbour. Only the measure picked is printed;
+          // the rest is in the tooltip.
+          <>
+          <div className="mb-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-xs text-ink-muted">
+            <Swatch fill={metricColor(metric)} label={BREAKDOWN_METRICS.find((m) => m.key === metric)?.label ?? ''} />
+            {metric !== 'roas' && (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: MMM_SERIES.roas }} />
+                ROAS (right axis)
+              </span>
+            )}
+          </div>
+          <RankedColumns
+            color={metricColor(metric)}
+            overlay={
+              metric === 'roas'
+                ? undefined
+                : { color: MMM_SERIES.roas, values: rows.map((p) => p.roas), format: (v) => `${v.toFixed(2)}x` }
+            }
+            format={
+              metric === 'roas'
+                ? tickFor('multiple', currency, 1)
+                : tickFor('currency', currency, data.meta.exchange_rate)
+            }
+            ariaLabel={`${title}, ranked`}
+            items={rows.map((p) => ({
               key: p.type,
               label: p.type,
-              sub: metric === 'days' ? undefined : `${p.days.toLocaleString()} days`,
-              value: p[metric],
+              value: value(p),
               display:
-                metric === 'avg_revenue' ? p.avg_revenue_display : metric === 'revenue' ? p.revenue_display : p.days.toLocaleString(),
-              share: metric === 'days' ? `${p.share_of_days.toFixed(2)}%` : metric === 'revenue' ? `${p.share_of_revenue.toFixed(2)}%` : `${p.share_of_days.toFixed(2)}% of days`,
+                metric === 'revenue' ? p.revenue_display : metric === 'spend' ? p.spend_display : metric === 'roas' ? p.roas_display : p.avg_revenue_display,
+              details: [
+                [`Revenue (${currency})`, p.revenue_display, MMM_SERIES.revenue],
+                ['Share of revenue', `${p.share_of_revenue.toFixed(2)}%`],
+                [`Ad spend (${currency})`, p.spend_display, MMM_SERIES.spend],
+                ['ROAS', p.roas_display, MMM_SERIES.roas],
+                ['Days', p.days.toLocaleString()],
+                ['Share of days', `${p.share_of_days.toFixed(2)}%`],
+                ['Avg revenue / day', p.avg_revenue_display],
+              ],
             }))}
           />
+          </>
         )}
-        <Caveat>Descriptive, not causal: offers do not run on random days.</Caveat>
       </CardBody>
     </Card>
   )

@@ -31,6 +31,7 @@ be lives in one place, so the two connectors cannot drift apart.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -46,6 +47,10 @@ LIST_TIMEOUT = 30.0
 #: The fact table is ~21 MB and a bigger replacement is legitimate. Generous,
 #: because this is a server-to-server transfer with no browser in the middle.
 DOWNLOAD_TIMEOUT = 300.0
+# Larger CSVs are fetched in parallel byte ranges. This overlaps Azure's
+# per-request latency while keeping the total number of in-flight requests low.
+DOWNLOAD_CHUNK_BYTES = 4 * 1024 * 1024
+MAX_PARALLEL_DOWNLOADS = 8
 #: Enough of a CSV to be sure of catching the header row, requested as an HTTP
 #: Range so identifying six files does not download 21 MB of them.
 HEADER_RANGE_BYTES = 256 * 1024
@@ -398,11 +403,49 @@ async def fetch_header(
     return res.content
 
 
-async def fetch_blob(client: httpx.AsyncClient, account: str, sas: str, blob: BlobRef) -> bytes:
-    """A whole blob. Used once identification has already succeeded."""
+async def fetch_blob(
+    client: httpx.AsyncClient,
+    account: str,
+    sas: str,
+    blob: BlobRef,
+    request_slots: asyncio.Semaphore,
+) -> bytes:
+    """Fetch a blob, splitting larger files into parallel Azure byte ranges."""
     url = _url(account, sas, _blob_path(blob))
-    res = await _get(client, url, sas)
-    return res.content
+
+    async def ranged_get(start: int, end: int) -> httpx.Response:
+        async with request_slots:
+            return await _get(
+                client,
+                url,
+                sas,
+                headers={"Range": f"bytes={start}-{end}"},
+            )
+
+    first_end = DOWNLOAD_CHUNK_BYTES - 1
+    first = await ranged_get(0, first_end)
+    content_range = re.fullmatch(
+        r"bytes\s+0-(\d+)/(\d+)", first.headers.get("Content-Range", ""), re.I
+    )
+    # A server that ignores Range returns the whole body (200); small blobs may
+    # also fit in the first range and need no additional requests.
+    if first.status_code != 206 or not content_range:
+        return first.content
+
+    first_last, total = map(int, content_range.groups())
+    if first_last + 1 >= total:
+        return first.content
+    if first_last + 1 != len(first.content):
+        raise AzureError(f"Azure returned an incomplete first range for '{blob.name}'.")
+
+    ranges = [
+        (start, min(start + DOWNLOAD_CHUNK_BYTES - 1, total - 1))
+        for start in range(first_last + 1, total, DOWNLOAD_CHUNK_BYTES)
+    ]
+    parts = await asyncio.gather(*(ranged_get(start, end) for start, end in ranges))
+    if any(len(part.content) != end - start + 1 for part, (start, end) in zip(parts, ranges)):
+        raise AzureError(f"Azure returned an incomplete download for '{blob.name}'.")
+    return first.content + b"".join(part.content for part in parts)
 
 
 async def fetch_all(
@@ -410,18 +453,23 @@ async def fetch_all(
 ) -> list[tuple[str, bytes]]:
     """Download every selected blob, as (filename, bytes) for the installer.
 
-    Sequential rather than concurrent: this is ~21 MB dominated by one large
-    file, so parallelism would buy little while multiplying peak memory by six.
+    Download a small bounded batch concurrently. The six-table install is one
+    blocking request, and sequential transfers leave Azure/network latency
+    idle between blobs. Keeping the batch bounded avoids opening unbounded
+    connections if this helper is ever given more than the standard six files.
     """
-    out: list[tuple[str, bytes]] = []
+    request_slots = asyncio.Semaphore(MAX_PARALLEL_DOWNLOADS)
+
     async with httpx.AsyncClient(timeout=DOWNLOAD_TIMEOUT, follow_redirects=True) as client:
-        for blob in blobs:
-            content = await fetch_blob(client, account, sas, blob)
+        async def download(blob: BlobRef) -> tuple[str, bytes]:
+            content = await fetch_blob(client, account, sas, blob, request_slots)
             if not content:
                 raise AzureError(f"'{blob.name}' is empty in Azure.")
-            # The installer keys off the extension to pick a reader, and writes
-            # under its own canonical name, so the leaf name is all it needs.
-            out.append((blob.name.rsplit("/", 1)[-1], content))
+            return blob.name.rsplit("/", 1)[-1], content
+
+        out = await asyncio.gather(*(download(blob) for blob in blobs))
+    # asyncio.gather preserves the selected order; the installer still receives
+    # the same filename/content pairs as before.
     return out
 
 

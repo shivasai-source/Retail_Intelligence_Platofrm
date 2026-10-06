@@ -63,11 +63,19 @@ function axis(values: number[], floorAtZero = true) {
 
 const TICK_PITCH = 56
 
-export type MmmTrendSeries = 'revenue' | 'spend' | 'baseline' | 'roas'
+/** The legend's toggles. `breakeven` is the dashed 1.00x reference on the
+ *  ROAS axis, as TPO's `target` is the dashed Target ROI. */
+export type MmmTrendSeries = 'revenue' | 'spend' | 'baseline' | 'roas' | 'breakeven'
+
+/** ROAS at which incremental revenue equals ad spend. */
+export const BREAKEVEN_ROAS = 1
+
+const PERIOD_WORD = { day: 'Day', week: 'Week', month: 'Month' } as const
 
 /** Revenue, ad spend and baseline revenue on the money axis (left), ROAS on
  *  the multiple axis (right). The two axes share one set of gridlines. A
- *  bucket with no ROAS (no spend, or no baseline) leaves a gap, never a 0. */
+ *  bucket with no ROAS (no spend, or no baseline) leaves a gap, never a 0.
+ *  The tooltip lists only the series the legend has left on, as TPO's does. */
 export function MmmTrend({
   trend,
   rate,
@@ -76,6 +84,7 @@ export function MmmTrend({
   height = 380,
 }: {
   trend: {
+    granularity?: 'day' | 'week' | 'month'
     labels: string[]
     revenue: number[]
     spend: number[]
@@ -139,6 +148,10 @@ export function MmmTrend({
   const active = hover !== null && hover < n ? hover : null
   const TIP_W = 228
   const tipLeft = active === null ? 0 : tooltipLeft(width, x(active) - step / 2, x(active) + step / 2, TIP_W, 8)
+  const moneyAxis = show('revenue') || show('spend') || show('baseline')
+  const roasAxis = show('roas') || show('breakeven')
+  const roasAt = active === null ? null : trend.roas[active]
+  const periodWord = PERIOD_WORD[trend.granularity ?? 'month']
 
   return (
     <div ref={ref} className="relative w-full">
@@ -148,10 +161,12 @@ export function MmmTrend({
           return (
             <g key={t}>
               <line x1={padL} x2={width - padR} y1={yy} y2={yy} stroke={t === money.lo ? 'var(--border-default)' : 'var(--border-subtle)'} />
-              <text x={padL - 8} y={yy + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
-                {axisMoney(t * rate, currency)}
-              </text>
-              {show('roas') && (
+              {moneyAxis && (
+                <text x={padL - 8} y={yy + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+                  {axisMoney(t * rate, currency)}
+                </text>
+              )}
+              {roasAxis && (
                 <text x={width - padR + 8} y={yy + 3} textAnchor="start" fontSize={10} fill="var(--text-muted)">
                   {(roasLo + roasStep * k).toFixed(2)}x
                 </text>
@@ -159,6 +174,31 @@ export function MmmTrend({
             </g>
           )
         })}
+        {/* Break-even — a reference on the ROAS axis, never a business curve. */}
+        {show('breakeven') && (
+          <>
+            <line
+              x1={padL}
+              x2={width - padR}
+              y1={yRoas(BREAKEVEN_ROAS)}
+              y2={yRoas(BREAKEVEN_ROAS)}
+              stroke={MMM_SERIES.roas}
+              strokeWidth={1.5}
+              strokeDasharray="2 4"
+              opacity={0.7}
+            />
+            <text
+              x={width - padR - 4}
+              y={yRoas(BREAKEVEN_ROAS) - 4}
+              textAnchor="end"
+              fontSize={10}
+              fontWeight={700}
+              fill="var(--text-muted)"
+            >
+              Break-even {BREAKEVEN_ROAS.toFixed(2)}x
+            </text>
+          </>
+        )}
         {active !== null && (
           <line x1={x(active)} x2={x(active)} y1={padT} y2={padT + innerH} stroke="var(--border-strong)" strokeDasharray="3 3" />
         )}
@@ -217,11 +257,25 @@ export function MmmTrend({
           className="pointer-events-none absolute top-2 z-20 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
           style={{ left: tipLeft, width: TIP_W }}
         >
-          <div className="font-bold text-ink-primary">{trend.labels[active]}</div>
-          <TipRow swatch={MMM_SERIES.revenue} k="Revenue" v={trend.revenue_display[active]} />
-          <TipRow swatch={MMM_SERIES.spend} k="Ad spend" v={trend.spend_display[active]} />
-          <TipRow swatch={MMM_SERIES.baseline} k="Baseline revenue" v={trend.baseline_display[active]} />
-          <TipRow swatch={MMM_SERIES.roas} k="ROAS" v={trend.roas_display[active]} />
+          <div className="flex items-center justify-between gap-2 font-bold text-ink-primary">
+            <span className="truncate">
+              {periodWord} {trend.labels[active]}
+            </span>
+            {roasAt !== null && roasAt < BREAKEVEN_ROAS && (
+              <span className="shrink-0 text-[11px] font-semibold text-status-danger">Below break-even</span>
+            )}
+          </div>
+          {show('revenue') && <TipRow swatch={MMM_SERIES.revenue} k="Revenue" v={trend.revenue_display[active]} />}
+          {show('spend') && <TipRow swatch={MMM_SERIES.spend} k="Ad spend" v={trend.spend_display[active]} />}
+          {show('baseline') && <TipRow swatch={MMM_SERIES.baseline} k="Baseline revenue" v={trend.baseline_display[active]} />}
+          {show('roas') &&
+            (roasAt === null ? (
+              <div className="mt-1 text-ink-muted">ROAS — no ad spend or no baseline</div>
+            ) : (
+              <TipRow swatch={MMM_SERIES.roas} k="ROAS" v={trend.roas_display[active]} />
+            ))}
+          {show('breakeven') && <TipRow k="Break-even ROAS" v={`${BREAKEVEN_ROAS.toFixed(2)}x`} />}
+          {!moneyAxis && !roasAxis && <div className="mt-1 text-ink-muted">Every series is hidden.</div>}
           {trend.widened[active] && (
             <div className="mt-1.5 border-t border-border-subtle pt-1.5 leading-[1.4] text-ink-muted">
               Baseline estimated over a wider window: this period lacks one kind of day the formula needs.
@@ -241,6 +295,7 @@ export function ValueColumns({
   format,
   ariaLabel,
   tooltip,
+  onPick,
 }: {
   columns: Array<{
     key: string
@@ -254,6 +309,8 @@ export function ValueColumns({
   format: (v: number) => string
   ariaLabel: string
   tooltip?: (index: number) => React.ReactNode
+  /** Makes a column clickable — the comparison card picks its period this way. */
+  onPick?: (index: number) => void
 }) {
   const { ref, width, height } = useChartSize(520, 240)
   const [hover, setHover] = useState<number | null>(null)
@@ -345,8 +402,10 @@ export function ValueColumns({
                 width={slot}
                 height={height}
                 fill="transparent"
+                className={onPick ? 'cursor-pointer' : undefined}
                 onMouseEnter={() => setHover(i)}
                 onMouseLeave={() => setHover(null)}
+                onClick={onPick ? () => onPick(i) : undefined}
               />
             </g>
           )
@@ -354,8 +413,8 @@ export function ValueColumns({
       </svg>
       {active !== null && tooltip && (
         <div
-          className="pointer-events-none absolute top-0 z-20 w-52 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
-          style={{ left: tooltipLeft(width, padL + slot * active, padL + slot * (active + 1), 208) }}
+          className="pointer-events-none absolute top-0 z-20 w-56 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
+          style={{ left: tooltipLeft(width, padL + slot * active, padL + slot * (active + 1), 224) }}
         >
           {tooltip(active)}
         </div>
@@ -477,33 +536,579 @@ export function PairedColumns({
   )
 }
 
-/** Horizontal share bars — one row per item, the bar scaled to the largest. */
+/** RANKED COLUMNS — one column per item on one axis, in the colour of the
+ *  measure, the measure's value above each column and the item's name below.
+ *  Nothing else is printed: the item's other figures are in the tooltip
+ *  beside the hovered column. Fills the height its card is given, so it sits
+ *  level with a taller neighbour instead of leaving the card's foot empty. */
+export function RankedColumns({
+  items,
+  color,
+  format,
+  ariaLabel,
+  overlay,
+}: {
+  items: Array<{ key: string; label: string; value: number | null; display: string; details: Array<[string, string, string?]> }>
+  color: string
+  /** Axis tick text for a raw value. */
+  format: (v: number) => string
+  ariaLabel: string
+  /** A second measure as a dot on each column, on its own right-hand axis —
+   *  the ROAS over the revenue or spend columns. One value per item. */
+  overlay?: { color: string; values: Array<number | null>; format: (v: number) => string }
+}) {
+  const { ref, width, height } = useChartSize(520, 300)
+  const [hover, setHover] = useState<number | null>(null)
+  const n = items.length
+  const padL = 60
+  const padR = overlay ? 46 : 8
+  const padT = 22
+  const padB = 28
+  const innerW = Math.max(120, width - padL - padR)
+  const innerH = Math.max(80, height - padT - padB)
+  const values = items.map((c) => c.value).filter((v): v is number => v !== null)
+  const { lo, hi, ticks } = axis(values.length ? values : [1])
+  const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
+  const slot = innerW / Math.max(1, n)
+  const barW = Math.max(14, Math.min(44, slot * 0.46))
+  const cx = (i: number) => padL + slot * i + slot / 2
+  const zeroY = y(0)
+  const active = hover !== null && hover < n ? hover : null
+  // Names are cut to the slot so neighbours never collide; the full name is
+  // in the tooltip.
+  const maxChars = Math.max(4, Math.floor((slot - 6) / 6))
+  const fit = (s: string) => (s.length > maxChars ? `${s.slice(0, maxChars - 1)}…` : s)
+  const TIP_W = 224
+
+  // The overlay's axis has as many steps as the left one, so its labels sit
+  // on the same gridlines; it starts at 0 (or below, for a negative value).
+  const oValues = overlay ? overlay.values.filter((v): v is number => v !== null) : []
+  const oDiv = Math.max(1, ticks.length - 1)
+  const oLoRaw = Math.min(0, ...oValues)
+  const oStep = niceStep((Math.max(BREAKEVEN_ROAS, ...oValues) - oLoRaw) / oDiv || 1)
+  const oLo = oLoRaw < 0 ? Math.floor(oLoRaw / oStep) * oStep : 0
+  const oHi = oLo + oStep * oDiv
+  const yO = (v: number) => padT + innerH * (1 - (v - oLo) / (oHi - oLo || 1))
+
+  return (
+    <div ref={ref} className="relative min-h-[260px] w-full flex-1">
+      <svg className="absolute inset-0" width={width} height={height} role="img" aria-label={ariaLabel}>
+        {ticks.map((t, k) => (
+          <g key={t}>
+            <line x1={padL} x2={padL + innerW} y1={y(t)} y2={y(t)} stroke={t === lo ? 'var(--border-default)' : 'var(--border-subtle)'} />
+            <text x={padL - 7} y={y(t) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+              {format(t)}
+            </text>
+            {overlay && (
+              <text x={padL + innerW + 7} y={y(t) + 3} textAnchor="start" fontSize={10} fill="var(--text-muted)">
+                {overlay.format(oLo + oStep * k)}
+              </text>
+            )}
+          </g>
+        ))}
+        {lo < 0 && <line x1={padL} x2={padL + innerW} y1={zeroY} y2={zeroY} stroke="var(--border-strong)" />}
+        {items.map((c, i) => {
+          const isActive = active === i
+          const negative = c.value !== null && c.value < 0
+          return (
+            <g key={c.key}>
+              <rect
+                x={padL + slot * i + 2}
+                y={padT - 14}
+                width={Math.max(0, slot - 4)}
+                height={innerH + 14}
+                rx={6}
+                fill="var(--surface-hover)"
+                opacity={isActive ? 1 : 0}
+                className="transition-opacity duration-150"
+              />
+              {c.value !== null && c.value !== 0 && (
+                <path
+                  d={columnPath(cx(i) - barW / 2, Math.min(y(c.value), zeroY), barW, Math.max(Math.abs(y(c.value) - zeroY), 2), negative)}
+                  fill={negative ? 'var(--status-danger)' : color}
+                  opacity={active === null || isActive ? 1 : 0.45}
+                  className="transition-opacity duration-150"
+                />
+              )}
+              <text
+                x={cx(i)}
+                y={c.value === null ? zeroY - 6 : negative ? y(c.value) + 13 : y(c.value) - 6}
+                textAnchor="middle"
+                fontSize={10.5}
+                fontWeight={700}
+                fill={c.value === null ? 'var(--text-muted)' : 'var(--text-primary)'}
+                opacity={active === null || isActive ? 1 : 0.55}
+              >
+                {c.value === null ? '—' : c.display}
+              </text>
+              <text
+                x={cx(i)}
+                y={height - 9}
+                textAnchor="middle"
+                fontSize={10.5}
+                fontWeight={isActive ? 700 : 600}
+                fill={isActive ? 'var(--text-primary)' : 'var(--text-secondary)'}
+              >
+                {fit(c.label)}
+              </text>
+              {overlay && overlay.values[i] !== null && overlay.values[i] !== undefined && (
+                <circle
+                  cx={cx(i)}
+                  cy={yO(overlay.values[i] as number)}
+                  r={isActive ? 6 : 5}
+                  fill={overlay.color}
+                  stroke="var(--surface-card)"
+                  strokeWidth={2}
+                  opacity={active === null || isActive ? 1 : 0.5}
+                  className="transition-[r,opacity] duration-150"
+                />
+              )}
+              <rect
+                x={padL + slot * i}
+                y={0}
+                width={slot}
+                height={height}
+                fill="transparent"
+                onMouseEnter={() => setHover(i)}
+                onMouseLeave={() => setHover(null)}
+              />
+            </g>
+          )
+        })}
+      </svg>
+      {active !== null && (
+        <div
+          role="tooltip"
+          className="pointer-events-none absolute top-0 z-20 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
+          style={{ left: tooltipLeft(width, padL + slot * active, padL + slot * (active + 1), TIP_W), width: TIP_W }}
+        >
+          <div className="font-bold text-ink-primary">{items[active].label}</div>
+          {items[active].details.map(([k, v, swatch]) => (
+            <TipRow key={k} k={k} v={v} swatch={swatch} />
+          ))}
+        </div>
+      )}
+      <ul className="sr-only">
+        {items.map((c) => (
+          <li key={c.key}>
+            {c.label}: {c.details.map(([k, v]) => `${k} ${v}`).join(', ')}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/** CONTEXT COLUMNS — TPO's Performance Comparison chart: the thirteen months
+ *  ending at the selected one, the selected month solid, the month it is
+ *  compared with tinted and outlined, every other month recessive. Thirteen
+ *  so the year-ago month is the left-most column. Only the two highlighted
+ *  columns carry a value label; every month's figures are in its tooltip,
+ *  and clicking a month selects it. */
+export function ContextColumns({
+  points,
+  format,
+  ariaLabel,
+  onPick,
+}: {
+  points: Array<{
+    key: string
+    month: string
+    /** Printed under the month on the first column and at each January. */
+    year: string | null
+    value: number | null
+    display: string
+    role: 'current' | 'against' | 'idle'
+    title: string
+    details: Array<[string, string, string?]>
+  }>
+  format: (v: number) => string
+  ariaLabel: string
+  onPick?: (index: number) => void
+}) {
+  const { ref, width, height } = useChartSize(560, 250)
+  const [hover, setHover] = useState<number | null>(null)
+  const n = points.length
+  const padL = 60
+  const padR = 8
+  const padT = 20
+  const padB = 34
+  const innerW = Math.max(120, width - padL - padR)
+  const innerH = Math.max(80, height - padT - padB)
+  const values = points.map((p) => p.value).filter((v): v is number => v !== null)
+  const { lo, hi, ticks } = axis(values.length ? values : [1])
+  const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
+  const zeroY = y(0)
+  const slot = innerW / Math.max(1, n)
+  const barW = Math.max(6, Math.min(26, slot * 0.56))
+  const cx = (i: number) => padL + slot * i + slot / 2
+  const active = hover !== null && hover < n ? hover : null
+  const TIP_W = 208
+
+  return (
+    <div ref={ref} className="relative min-h-[200px] w-full flex-1">
+      <svg className="absolute inset-0" width={width} height={height} role="img" aria-label={ariaLabel}>
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={padL} x2={padL + innerW} y1={y(t)} y2={y(t)} stroke={t === lo ? 'var(--border-default)' : 'var(--border-subtle)'} />
+            <text x={padL - 7} y={y(t) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+              {format(t)}
+            </text>
+          </g>
+        ))}
+        {lo < 0 && <line x1={padL} x2={padL + innerW} y1={zeroY} y2={zeroY} stroke="var(--border-strong)" />}
+        {points.map((p, i) => {
+          const isActive = active === i
+          const v = p.value
+          const highlighted = p.role !== 'idle'
+          return (
+            <g key={p.key}>
+              <rect
+                x={padL + slot * i + 1}
+                y={padT - 6}
+                width={Math.max(0, slot - 2)}
+                height={innerH + 12}
+                rx={6}
+                fill="var(--surface-hover)"
+                opacity={isActive ? 1 : 0}
+                className="transition-opacity duration-150"
+              />
+              {v !== null && (
+                <path
+                  d={columnPath(cx(i) - barW / 2, Math.min(y(v), zeroY), barW, Math.max(Math.abs(y(v) - zeroY), 2), v < 0)}
+                  fill={FILL[p.role]}
+                  stroke={p.role === 'against' ? STROKE_AGAINST : 'transparent'}
+                  opacity={active === null || isActive ? 1 : 0.5}
+                  className="transition-opacity duration-150"
+                />
+              )}
+              {highlighted && v !== null && (
+                <text x={cx(i)} y={v < 0 ? y(v) + 13 : y(v) - 6} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--text-primary)">
+                  {p.display}
+                </text>
+              )}
+              <text
+                x={cx(i)}
+                y={height - 19}
+                textAnchor="middle"
+                fontSize={10}
+                fontWeight={highlighted ? 700 : 500}
+                fill={highlighted ? 'var(--text-primary)' : 'var(--text-muted)'}
+              >
+                {p.month}
+              </text>
+              {p.year && (
+                <text x={cx(i)} y={height - 7} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--text-muted)">
+                  {p.year}
+                </text>
+              )}
+              <rect
+                x={padL + slot * i}
+                y={0}
+                width={slot}
+                height={height}
+                fill="transparent"
+                className={onPick ? 'cursor-pointer' : undefined}
+                onMouseEnter={() => setHover(i)}
+                onMouseLeave={() => setHover(null)}
+                onClick={onPick ? () => onPick(i) : undefined}
+              />
+            </g>
+          )
+        })}
+      </svg>
+      {active !== null && (
+        <div
+          role="tooltip"
+          className="pointer-events-none absolute top-0 z-20 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
+          style={{ left: tooltipLeft(width, padL + slot * active, padL + slot * (active + 1), TIP_W), width: TIP_W }}
+        >
+          <div className="font-bold text-ink-primary">{points[active].title}</div>
+          {points[active].details.map(([k, v, swatch]) => (
+            <TipRow key={k} k={k} v={v} swatch={swatch} />
+          ))}
+        </div>
+      )}
+      <ul className="sr-only">
+        {points.map((p) => (
+          <li key={p.key}>
+            {p.title}: {p.details.map(([k, v]) => `${k} ${v}`).join(', ')}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/** RUNNING LINES — YTD as it built up: one line for this year's running
+ *  total and one, dashed, for the same months a year earlier, from January
+ *  to the selected month. The gap between them is the YTD comparison, read
+ *  month by month. */
+export function RunningLines({
+  labels,
+  current,
+  previous,
+  currentName,
+  previousName,
+  format,
+  ariaLabel,
+}: {
+  labels: string[]
+  current: Array<number | null>
+  previous: Array<number | null>
+  currentName: string
+  previousName: string
+  /** Formats a raw (rupee) value for both the axis and the tooltip. */
+  format: (v: number) => string
+  ariaLabel: string
+}) {
+  const { ref, width, height } = useChartSize(560, 250)
+  const [hover, setHover] = useState<number | null>(null)
+  const n = labels.length
+  const padL = 60
+  const padR = 16
+  const padT = 20
+  const padB = 24
+  const innerW = Math.max(120, width - padL - padR)
+  const innerH = Math.max(80, height - padT - padB)
+  const all = [...current, ...previous].filter((v): v is number => v !== null)
+  const { lo, hi, ticks } = axis(all.length ? all : [1])
+  const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
+  const step = innerW / Math.max(1, n)
+  const x = (i: number) => padL + step * i + step / 2
+  const path = (vals: Array<number | null>) =>
+    vals.map((v, i) => (v === null ? null : `${x(i)},${y(v)}`)).filter(Boolean).join(' ')
+  const active = hover !== null && hover < n ? hover : null
+  const TIP_W = 220
+  const PREV = 'color-mix(in srgb, var(--brand-violet) 55%, transparent)'
+
+  return (
+    <div ref={ref} className="relative min-h-[200px] w-full flex-1">
+      <svg className="absolute inset-0" width={width} height={height} role="img" aria-label={ariaLabel}>
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={padL} x2={padL + innerW} y1={y(t)} y2={y(t)} stroke={t === lo ? 'var(--border-default)' : 'var(--border-subtle)'} />
+            <text x={padL - 7} y={y(t) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+              {format(t)}
+            </text>
+          </g>
+        ))}
+        {active !== null && (
+          <line x1={x(active)} x2={x(active)} y1={padT} y2={padT + innerH} stroke="var(--border-strong)" strokeDasharray="3 3" />
+        )}
+        <polyline fill="none" stroke={PREV} strokeWidth={2} strokeDasharray="5 4" strokeLinejoin="round" points={path(previous)} />
+        <polyline fill="none" stroke="var(--brand-violet)" strokeWidth={2} strokeLinejoin="round" points={path(current)} />
+        {current.map((v, i) =>
+          v === null ? null : (
+            <circle key={`c${i}`} cx={x(i)} cy={y(v)} r={active === i || i === n - 1 ? 4 : 2.5} fill="var(--brand-violet)" />
+          ),
+        )}
+        {previous.map((v, i) =>
+          v === null ? null : <circle key={`p${i}`} cx={x(i)} cy={y(v)} r={active === i || i === n - 1 ? 4 : 2.5} fill={PREV} />,
+        )}
+        {labels.map((l, i) => (
+          <text key={l} x={x(i)} y={height - 6} textAnchor="middle" fontSize={10} fontWeight={active === i ? 700 : 500} fill="var(--text-muted)">
+            {l}
+          </text>
+        ))}
+        {labels.map((l, i) => (
+          <rect
+            key={`h${l}`}
+            x={x(i) - step / 2}
+            y={0}
+            width={step}
+            height={height}
+            fill="transparent"
+            onMouseEnter={() => setHover(i)}
+            onMouseLeave={() => setHover(null)}
+          />
+        ))}
+      </svg>
+      {active !== null && (
+        <div
+          role="tooltip"
+          className="pointer-events-none absolute top-0 z-20 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
+          style={{ left: tooltipLeft(width, x(active) - step / 2, x(active) + step / 2, TIP_W, 8), width: TIP_W }}
+        >
+          <div className="font-bold text-ink-primary">Jan – {labels[active]} (to date)</div>
+          <TipRow swatch="var(--brand-violet)" k={currentName} v={current[active] === null ? '—' : format(current[active] as number)} />
+          <TipRow swatch={PREV} k={previousName} v={previous[active] === null ? '—' : format(previous[active] as number)} />
+        </div>
+      )}
+      <ul className="sr-only">
+        {labels.map((l, i) => (
+          <li key={l}>
+            Jan to {l}: {currentName} {current[i] === null ? '—' : format(current[i] as number)}, {previousName}{' '}
+            {previous[i] === null ? '—' : format(previous[i] as number)}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/** The tone a ROAS wears beside a bar: green at or above break-even, red
+ *  below it, muted when there is none — as TPO's ROI wears its tone. */
+export function roasTone(roas: number | null): string {
+  if (roas === null) return 'var(--text-muted)'
+  return roas >= BREAKEVEN_ROAS ? 'var(--status-success)' : 'var(--status-danger)'
+}
+
+export interface ShareBarRow {
+  key: string
+  label: string
+  sub?: string
+  value: number
+  display: string
+  share: string
+  /** A second figure after the value — the ROAS, in its tone — as TPO's
+   *  ranked rows print the ROI beside the ranked metric. */
+  aside?: { text: string; color: string }
+  /** The hover tooltip's rows: [label, value, swatch?]. */
+  details?: Array<[string, string, string?]>
+}
+
+/** Horizontal share bars — one row per item, ranked, the bar scaled to the
+ *  largest, with a tooltip of the row's every figure on hover or focus. */
 export function ShareBars({
   rows,
   color = SERIES.spend,
+  ranked = true,
+  inline = false,
 }: {
-  rows: Array<{ key: string; label: string; sub?: string; value: number; display: string; share: string }>
+  rows: ShareBarRow[]
   color?: string
+  ranked?: boolean
+  /** One line per row — rank, name, bar, value — and only the value: the
+   *  row's other figures live in the hover tooltip. */
+  inline?: boolean
 }) {
-  const max = Math.max(...rows.map((r) => r.value), 1)
-  return (
-    <ul className="flex flex-col gap-2.5">
-      {rows.map((r) => (
-        <li key={r.key}>
-          <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
-            <span className="min-w-0 truncate font-semibold text-ink-primary" title={r.label}>
-              {r.label}
-              {r.sub && <span className="ml-1.5 font-normal text-ink-muted">{r.sub}</span>}
-            </span>
-            <span className="shrink-0 tabular-nums text-ink-secondary">
-              {r.display} <span className="text-ink-muted">· {r.share}</span>
-            </span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-surface-muted">
-            <div className="h-full rounded-full" style={{ width: `${(r.value / max) * 100}%`, background: color }} />
-          </div>
-        </li>
+  const [hover, setHover] = useState<{ index: number; top: number; above: boolean } | null>(null)
+  // ROAS can be negative. Scale by magnitude so a loss remains visible rather
+  // than producing an invalid negative-width bar.
+  const max = Math.max(...rows.map((r) => Math.abs(r.value)), 1)
+  const active = hover !== null && hover.index < rows.length ? hover : null
+  const activeRow = active ? rows[active.index] : null
+
+  const enter = (index: number) => (e: React.SyntheticEvent<HTMLLIElement>) => {
+    const li = e.currentTarget
+    const list = li.parentElement
+    // Below the row in the top half of the list, above it in the bottom
+    // half, so the tooltip stays inside the card and never covers the row.
+    const above = list ? li.offsetTop > list.clientHeight / 2 : false
+    setHover({ index, top: above ? li.offsetTop - 6 : li.offsetTop + li.offsetHeight + 6, above })
+  }
+
+  const tooltip = active && activeRow?.details && (
+    <div
+      role="tooltip"
+      className="pointer-events-none absolute right-0 z-20 w-60 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
+      style={active.above ? { top: active.top, transform: 'translateY(-100%)' } : { top: active.top }}
+    >
+      <div className="font-bold text-ink-primary">{activeRow.label}</div>
+      {activeRow.sub && <div className="text-ink-muted">{activeRow.sub}</div>}
+      {activeRow.details.map(([k, v, swatch]) => (
+        <TipRow key={k} k={k} v={v} swatch={swatch} />
       ))}
-    </ul>
+    </div>
+  )
+
+  if (inline) {
+    return (
+      <div className="relative">
+        <ul className="flex flex-col">
+          {rows.map((r, i) => {
+            const isActive = active?.index === i
+            const pct = (Math.abs(r.value) / max) * 100
+            return (
+              <li
+                key={r.key}
+                tabIndex={r.details ? 0 : undefined}
+                onMouseEnter={enter(i)}
+                onMouseLeave={() => setHover(null)}
+                onFocus={enter(i)}
+                onBlur={() => setHover(null)}
+                className={`grid grid-cols-[1.25rem_minmax(0,9.5rem)_minmax(0,1fr)_auto] items-center gap-x-3 rounded-[var(--r-sm)] px-2 py-[7px] text-sm transition-[background-color,opacity] duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
+                  isActive ? 'bg-surface-hover' : ''
+                } ${active && !isActive ? 'opacity-55' : ''}`}
+              >
+                <span className="text-right tabular-nums text-ink-muted">{ranked ? i + 1 : ''}</span>
+                <span className="truncate font-semibold text-ink-primary" title={r.label}>
+                  {r.label}
+                </span>
+                <span className="h-2.5 overflow-hidden rounded-full bg-surface-muted">
+                  <span
+                    className="block h-full rounded-full transition-[width] duration-300"
+                    style={{
+                      // A sliver keeps a tiny value visible; a zero or missing
+                      // value ("—") draws no bar at all.
+                      width: `${pct > 0 ? Math.max(pct, 1.5) : 0}%`,
+                      background: r.value < 0 ? 'var(--status-danger)' : color,
+                    }}
+                  />
+                </span>
+                <span className="min-w-[5.5rem] text-right font-bold tabular-nums text-ink-primary">
+                  {r.display}
+                  {r.share && <span className="ml-1 text-xs font-medium text-ink-muted">{r.share}</span>}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+        {tooltip}
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative">
+      <ul className="flex flex-col gap-1">
+        {rows.map((r, i) => {
+          const isActive = active?.index === i
+          return (
+            <li
+              key={r.key}
+              tabIndex={r.details ? 0 : undefined}
+              onMouseEnter={enter(i)}
+              onMouseLeave={() => setHover(null)}
+              onFocus={enter(i)}
+              onBlur={() => setHover(null)}
+              className={`rounded-[var(--r-sm)] px-1.5 py-1 transition-[background-color,opacity] duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
+                isActive ? 'bg-surface-hover' : ''
+              } ${active && !isActive ? 'opacity-60' : ''}`}
+            >
+              <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
+                <span className="flex min-w-0 items-baseline gap-1.5">
+                  {ranked && <span className="tabular-nums text-ink-muted">{i + 1}</span>}
+                  <span className="truncate font-semibold text-ink-primary">
+                    {r.label}
+                    {r.sub && <span className="ml-1.5 font-normal text-ink-muted">{r.sub}</span>}
+                  </span>
+                </span>
+                <span className="shrink-0 tabular-nums text-ink-secondary">
+                  <span className="font-bold text-ink-primary">{r.display}</span>
+                  {r.aside && (
+                    <>
+                      {' · '}
+                      <span className="font-semibold" style={{ color: r.aside.color }}>
+                        {r.aside.text}
+                      </span>
+                    </>
+                  )}
+                  <span className="text-ink-muted"> · {r.share}</span>
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-surface-muted">
+                <div
+                  className="h-full rounded-full transition-[width] duration-300"
+                  style={{ width: `${(Math.abs(r.value) / max) * 100}%`, background: r.value < 0 ? 'var(--status-danger)' : color }}
+                />
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+      {tooltip}
+    </div>
   )
 }

@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { Icon } from '../../icons'
 import { Spinner } from '../../components/ui'
 import { useMmmStatus } from '../hooks'
-import { GROUP_PURPOSE } from '../schema'
 import { MMM_ROUTES } from '../nav'
 import { MmmUploadModal } from './MmmUploadModal'
 
@@ -77,38 +76,19 @@ export function RequireMmmDataset({ children }: { children: ReactNode }) {
 
         <div className="p-[16px_24px]">
           <div className="mb-2.5 flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wide text-ink-muted">What the file holds</span>
+            <span className="text-xs font-bold uppercase tracking-wide text-ink-muted">MMM dataset</span>
             <span className="text-sm font-semibold text-ink-muted">
-              {status.present} of {status.total} present
+              {status.complete ? 1 : 0} of 1 file present
             </span>
           </div>
-          <div className="flex flex-col gap-1.5">
-            {status.files.map((g) => (
-              <div key={g.key} className="flex items-center gap-2.5 rounded-[var(--r-md)] bg-surface-muted p-[8px_12px]">
-                <span
-                  className={`grid h-4 w-4 shrink-0 place-items-center rounded-full ${
-                    g.present ? 'bg-[#047857] text-white' : 'border border-border-strong'
-                  } [&_svg]:h-2.5 [&_svg]:w-2.5`}
-                >
-                  {g.present && <Icon name="check" />}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className={`truncate text-base ${g.present ? 'font-semibold' : 'text-ink-muted'}`}>
-                      {g.label}
-                    </span>
-                    <span className="shrink-0 text-2xs font-semibold text-ink-muted">
-                      {g.required ? 'Required' : 'Optional'}
-                    </span>
-                  </div>
-                  {!g.present && (
-                    <div className="mt-px truncate text-2xs text-ink-muted" title={GROUP_PURPOSE[g.key]}>
-                      {GROUP_PURPOSE[g.key]}
-                    </div>
-                  )}
-                </div>
+          <div className="flex items-center gap-2.5 rounded-[var(--r-md)] bg-surface-muted p-[10px_12px]">
+            <span className="h-4 w-4 shrink-0 rounded-full border border-border-strong" />
+            <div className="min-w-0 flex-1">
+              <div className="text-base text-ink-muted">One daily MMM file</div>
+              <div className="mt-px text-2xs text-ink-muted">
+                Date, Revenue and at least one media column ending in _Spend.
               </div>
-            ))}
+            </div>
           </div>
         </div>
 

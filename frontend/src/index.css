@@ -183,9 +183,21 @@ h4 { font-size: 15px; line-height: 1.4; }
    nothing and the drawer appeared without an entrance. */
 @keyframes analystSlideIn { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes analystDot { 0%, 80%, 100% { transform: translateY(0); opacity: 0.35; } 40% { transform: translateY(-4px); opacity: 1; } }
+@keyframes insightsRingSpin { to { transform: rotate(360deg); } }
+@keyframes insightsPulse { 0%, 100% { transform: scale(0.9); opacity: 0.08; } 50% { transform: scale(1.14); opacity: 0.2; } }
+@keyframes insightsLoadEnter { from { transform: translateY(8px) scale(0.985); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
 .analyst-backdrop { animation: fadeIn 180ms var(--ease-out) both; }
 .analyst-panel    { animation: analystSlideIn 260ms var(--ease-out) both; }
 .analyst-turn     { animation: fadeInUp 240ms var(--ease-out) both; }
+.insights-loading-ring { animation: insightsRingSpin 1.25s linear infinite; }
+.insights-loading-preview { filter: blur(4px); opacity: 0.42; pointer-events: none; user-select: none; }
+.insights-loading-overlay { background: radial-gradient(circle at 50% 47%, color-mix(in srgb, var(--surface-card) 84%, transparent) 0%, color-mix(in srgb, var(--surface-page) 58%, transparent) 52%, color-mix(in srgb, var(--surface-page) 82%, transparent) 100%); backdrop-filter: blur(2px); }
+.insights-loading-card { width: min(100%, 392px); border: 1px solid color-mix(in srgb, var(--brand-violet) 12%, var(--border-subtle)); border-radius: var(--r-xl); background: color-mix(in srgb, var(--surface-card) 92%, transparent); padding: 36px 30px 32px; box-shadow: 0 20px 54px rgba(35, 29, 74, 0.10), 0 2px 8px rgba(35, 29, 74, 0.05); animation: insightsLoadEnter 440ms var(--ease-out) both; }
+.insights-loading-orbit { transform-origin: 60px 60px; animation: insightsRingSpin 3.4s linear infinite; }
+.insights-loading-pulse { transform-origin: 60px 60px; animation: insightsPulse 2.2s ease-in-out infinite; }
+.insights-loading-dot { display: block; width: 5px; height: 5px; border-radius: 9999px; background: var(--brand-violet); animation: analystDot 1.35s ease-in-out infinite; }
+.insights-loading-dot:nth-child(2) { animation-delay: 0.14s; }
+.insights-loading-dot:nth-child(3) { animation-delay: 0.28s; }
 .analyst-dots i {
   display: block; width: 7px; height: 7px; border-radius: 9999px;
   background: var(--brand-violet);
@@ -194,7 +206,7 @@ h4 { font-size: 15px; line-height: 1.4; }
 .analyst-dots i:nth-child(2) { animation-delay: 0.15s; }
 .analyst-dots i:nth-child(3) { animation-delay: 0.3s; }
 @media (prefers-reduced-motion: reduce) {
-  .analyst-backdrop, .analyst-panel, .analyst-turn, .analyst-dots i { animation: none; }
+  .analyst-backdrop, .analyst-panel, .analyst-turn, .analyst-dots i, .insights-loading-ring, .insights-loading-card, .insights-loading-orbit, .insights-loading-pulse, .insights-loading-dot { animation: none; }
 }
 
 .fade-in    { animation: fadeIn 220ms var(--ease-out) both; }

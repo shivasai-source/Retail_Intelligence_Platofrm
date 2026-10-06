@@ -274,11 +274,20 @@ def hub(scope: Scope, granularity: str = "month", currency: str = "INR") -> dict
     channels = []
     for col in ctx.media:
         total = float(rows[col].sum())
-        active = int((rows[col] > 0).sum())
+        active_rows = rows[col] > 0
+        active = int(active_rows.sum())
+        # Revenue is measured on the days this channel was on air. Channels can
+        # overlap, so it is exposure context rather than attributed revenue.
+        revenue = float(rows.loc[active_rows, "Revenue"].sum())
+        channel_est = B.Engine(frame, [col]).estimate(pmask)
+        baseline = channel_est.per_day * active if channel_est.available else None
+        roas = (revenue - baseline) / total if baseline is not None and total > 0 else None
         share = round(total / spend_total * 100, 2) if spend_total else 0.0
         channels.append({
             "column": col, "label": schema.channel_label(col), "family": schema.family_of(col),
             "spend": round(total, 2), "spend_display": money(total),
+            "revenue": _r(revenue), "revenue_display": money(revenue),
+            "roas": _r(roas), "roas_display": F.multiple(roas),
             "share": share, "share_display": F.percent(share), "active_days": active,
             "avg_active_day": round(total / active, 2) if active else None,
             "avg_active_day_display": money(total / active) if active else "—",
@@ -299,15 +308,26 @@ def hub(scope: Scope, granularity: str = "month", currency: str = "INR") -> dict
     revenue_total = current["values"]["revenue"]
     days = current["days"]
     if "Promotion_Type" in rows and days:
-        grouped = rows.groupby("Promotion_Type")["Revenue"].agg(["count", "sum", "mean"])
-        for name, r in grouped.sort_values("mean", ascending=False).iterrows():
+        # Promotion type is a daily field. Revenue and selected-media spend
+        # therefore share the same set of days; the baseline is scaled to that
+        # window before ROAS is formed.
+        by_promotion = rows.assign(_selected_spend=rows[ctx.media].sum(axis=1))
+        grouped = by_promotion.groupby("Promotion_Type").agg(
+            days=("Revenue", "count"), revenue=("Revenue", "sum"),
+            avg_revenue=("Revenue", "mean"), spend=("_selected_spend", "sum"),
+        )
+        for name, r in grouped.sort_values("avg_revenue", ascending=False).iterrows():
+            baseline = est.per_day * int(r["days"]) if est.available else None
+            roas = (float(r["revenue"]) - baseline) / float(r["spend"]) if baseline is not None and r["spend"] > 0 else None
             promotions.append({
-                "type": str(name), "days": int(r["count"]),
-                "share_of_days": round(r["count"] / days * 100, 2),
-                "revenue": round(float(r["sum"]), 2), "revenue_display": money(float(r["sum"])),
-                "share_of_revenue": round(r["sum"] / revenue_total * 100, 2) if revenue_total else 0.0,
-                "avg_revenue": round(float(r["mean"]), 2),
-                "avg_revenue_display": money(float(r["mean"])),
+                "type": str(name), "days": int(r["days"]),
+                "share_of_days": round(r["days"] / days * 100, 2),
+                "revenue": round(float(r["revenue"]), 2), "revenue_display": money(float(r["revenue"])),
+                "share_of_revenue": round(r["revenue"] / revenue_total * 100, 2) if revenue_total else 0.0,
+                "avg_revenue": round(float(r["avg_revenue"]), 2),
+                "avg_revenue_display": money(float(r["avg_revenue"])),
+                "spend": _r(float(r["spend"])), "spend_display": money(float(r["spend"])),
+                "roas": _r(roas), "roas_display": F.multiple(roas),
             })
 
     # --- days with vs without events -----------------------------------------

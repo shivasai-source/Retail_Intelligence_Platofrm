@@ -151,6 +151,10 @@ export function CommandCenter() {
   /** The Analyst drawer. Page state rather than global: it is opened from this
    *  page's header and closes with it, so nothing else needs to know. */
   const [analystOpen, setAnalystOpen] = useState(false)
+  // A short landing transition makes arrival feel intentional even when React
+  // Query already has this screen's data in memory. It is presentation state
+  // only; it neither delays nor changes any request, filter or KPI.
+  const [showLandingTransition, setShowLandingTransition] = useState(true)
   const { show } = useToast()
   const live = useLiveStatus()
   const queryClient = useQueryClient()
@@ -195,6 +199,13 @@ export function CommandCenter() {
     initialise(Math.max(...(completed.length ? completed : years)))
   }, [options.data?.years, initialise])
 
+  useEffect(() => {
+    const dataIsReady = initialised && !options.isLoading && !kpis.isLoading
+    if (!dataIsReady) return
+    const timer = window.setTimeout(() => setShowLandingTransition(false), 700)
+    return () => window.clearTimeout(timer)
+  }, [initialised, options.isLoading, kpis.isLoading])
+
   const crumbs = [{ label: 'TPO Intelligence' }, { label: 'Insights Hub' }]
 
   const refreshing = kpis.isFetching || trend.isFetching || mix.isFetching
@@ -212,15 +223,26 @@ export function CommandCenter() {
   // `initialised` is part of the condition, not just a nicety: the data queries
   // are disabled until the default year is known, so `kpis.isLoading` is false
   // in that window and the page would fall through to the error branch.
-  if (!initialised || options.isLoading || kpis.isLoading) {
+  if (!initialised || options.isLoading || kpis.isLoading || showLandingTransition) {
     return (
       <AppShell activeKey="command" crumbs={crumbs}>
-        <div className="relative">
+        <div className="relative min-h-[520px]">
           <div className="cc-ambient" aria-hidden="true" />
+          <div className="insights-loading-preview">
           <div className="flex items-end justify-between gap-4">
             <div>
               <h1 className="text-2xl font-extrabold leading-[1.1] tracking-[-0.025em]">TPO Insights Hub</h1>
-              <p className="mt-1.5 text-base text-ink-muted">Loading the latest promotion performance…</p>
+              <div className="mt-2 flex items-center gap-2.5 text-sm font-medium text-ink-muted">
+                <svg className="insights-loading-ring h-[18px] w-[18px] shrink-0 text-brand-violet" viewBox="0 0 24 24" aria-hidden="true">
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const angle = (i * Math.PI) / 6
+                    const x = 12 + Math.cos(angle) * 9
+                    const y = 12 + Math.sin(angle) * 9
+                    return <circle key={i} cx={x} cy={y} r="1.35" fill="currentColor" opacity={0.25 + (i / 12) * 0.7} />
+                  })}
+                </svg>
+                <span>Preparing your promotion insights…</span>
+              </div>
             </div>
           </div>
           <div className="mt-[14px]">
@@ -241,7 +263,31 @@ export function CommandCenter() {
               </div>
             )}
           </div>
-          <span className="sr-only" role="status">Loading Insights Hub</span>
+          </div>
+          <div className="insights-loading-overlay absolute inset-0 z-10 grid place-items-center px-5" role="status" aria-live="polite">
+            <div className="insights-loading-card text-center">
+              <svg className="mx-auto h-28 w-28 text-brand-violet" viewBox="0 0 120 120" aria-hidden="true">
+                <g className="insights-loading-orbit">
+                  {Array.from({ length: 16 }, (_, i) => {
+                    const angle = (i * Math.PI) / 8
+                    const x = 60 + Math.cos(angle) * 48
+                    const y = 60 + Math.sin(angle) * 48
+                    return <circle key={i} cx={x} cy={y} r={i % 4 === 0 ? 3.4 : 2.2} fill="currentColor" opacity={0.2 + (i / 16) * 0.72} />
+                  })}
+                </g>
+                <circle className="insights-loading-pulse" cx="60" cy="60" r="31" fill="currentColor" opacity="0.12" />
+                <circle cx="60" cy="60" r="24" fill="var(--surface-card)" stroke="currentColor" strokeWidth="1.5" opacity="0.98" />
+                <path d="M47 68V59M60 68V50M73 68V55" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+              </svg>
+              <p className="mt-5 text-lg font-bold tracking-[-0.015em] text-ink-primary">Preparing your insights</p>
+              <p className="mt-1.5 text-sm text-ink-muted">Organising promotion performance and key signals</p>
+              <div className="mx-auto mt-5 flex w-fit items-center gap-1.5" aria-hidden="true">
+                <i className="insights-loading-dot" />
+                <i className="insights-loading-dot" />
+                <i className="insights-loading-dot" />
+              </div>
+            </div>
+          </div>
         </div>
       </AppShell>
     )

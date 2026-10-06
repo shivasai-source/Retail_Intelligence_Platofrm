@@ -90,9 +90,9 @@ export function MmmConnections() {
 
       <DatasetStrip
         complete={complete}
-        present={status?.present ?? 0}
-        total={status?.total ?? 0}
-        unit="column groups"
+        present={status?.complete ? 1 : 0}
+        total={status ? 1 : 0}
+        unit="file"
         headline={
           complete
             ? status?.source_name
