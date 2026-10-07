@@ -6,7 +6,7 @@ import { fmtSize } from '../../lib/portalConnectors'
 import { readHeader } from '../../lib/starSchema'
 import { ApiError } from '../../lib/api'
 import { useMmmInspect, useMmmPreview, useMmmReset, useMmmStatus, useMmmUpload } from '../hooks'
-import { checkHeader, MEDIA_CHANNELS, type MmmHeaderCheck } from '../schema'
+import { checkHeader, columnsIn, MEDIA_CHANNELS, type MmmHeaderCheck } from '../schema'
 import { MmmDataRequirements } from './MmmDataRequirements'
 
 // MMM — UPLOAD. The Excel / Shared Drives connector for MMM, laid out like
@@ -72,6 +72,10 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
           file,
           check: {
             media: r.media_columns,
+            rollups: r.rollup_columns ?? [],
+            promo: columnsIn('promo')
+              .map((c) => c.name)
+              .filter((n) => !r.missing_optional.includes(n)),
             missingRequired: r.missing_required,
             missingOptional: r.missing_optional.filter((c) => !c.endsWith('_Spend')),
             ignored: r.ignored,
@@ -258,39 +262,13 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
                   <div className="mt-2 pl-[26px] text-xs text-[#B91C1C]">{picked.checkError}</div>
                 )}
 
-                {check && (
-                  <ul className="mt-2.5 flex flex-col gap-1.5 border-t border-border-subtle pt-2.5 text-xs leading-[1.5]">
-                    <CheckLine
-                      ok={check.missingRequired.length === 0}
-                      text={
-                        check.missingRequired.length === 0
-                          ? 'Date and Revenue found'
-                          : `Missing required: ${check.missingRequired.join(', ')}`
-                      }
-                    />
-                    <CheckLine
-                      ok={check.media.length > 0}
-                      text={
-                        check.media.length
-                          ? `${referenceFound} of ${MEDIA_CHANNELS.length} reference channels found` +
-                            (extraChannels ? ` · ${extraChannels} more _Spend column${extraChannels === 1 ? '' : 's'} read as extra channels` : '')
-                          : 'No media-spend column — at least one column ending in _Spend is required'
-                      }
-                    />
-                    {check.missingOptional.length > 0 && (
-                      <CheckLine
-                        ok
-                        muted
-                        text={`Optional, not in this file: ${check.missingOptional.join(', ')}`}
-                      />
-                    )}
-                    {check.ignored.length > 0 && (
-                      <CheckLine ok muted text={`Not read by MMM, ignored: ${check.ignored.join(', ')}`} />
-                    )}
-                  </ul>
-                )}
               </div>
             )}
+
+            {/* WHAT THE FILE HOLDS, group by group — the rows TPO's dialog
+                draws for its six files: a tick or a flag, the group, and in
+                a line what was found or what is missing. */}
+            {check && <GroupChecklist check={check} referenceFound={referenceFound} extraChannels={extraChannels} />}
           </>
         )}
 
@@ -342,15 +320,85 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-function CheckLine({ ok, text, muted = false }: { ok: boolean; text: string; muted?: boolean }) {
+/** One row per column group, as TPO's upload dialog lists its six tables. */
+function GroupChecklist({
+  check,
+  referenceFound,
+  extraChannels,
+}: {
+  check: MmmHeaderCheck
+  referenceFound: number
+  extraChannels: number
+}) {
+  const promoAll = columnsIn('promo').map((c) => c.name)
+  const flags = ['Festival_Flag', 'Seasonal_Flag', 'Promotion_Flag']
+  const missingFlags = flags.filter((f) => !check.promo.includes(f))
+  const calendarMissing = columnsIn('calendar').filter((c) => check.missingOptional.includes(c.name)).length
+  const rows: Array<{ key: string; state: 'ok' | 'warn' | 'bad' | 'none'; title: string; detail: string; count?: string }> = [
+    {
+      key: 'core',
+      state: check.missingRequired.length ? 'bad' : 'ok',
+      title: 'Date & revenue',
+      detail: check.missingRequired.length ? `Missing ${check.missingRequired.join(', ')} — required` : 'Date and Revenue found',
+      count: `${2 - check.missingRequired.length}/2`,
+    },
+    {
+      key: 'media',
+      state: check.media.length ? 'ok' : 'bad',
+      title: 'Media spend',
+      detail: check.media.length
+        ? `${referenceFound} of ${MEDIA_CHANNELS.length} reference channels` +
+          (extraChannels ? ` · ${extraChannels} more _Spend column${extraChannels === 1 ? '' : 's'} read as channels` : '')
+        : 'No _Spend column — at least one channel is required',
+      count: `${check.media.length} channels`,
+    },
+    {
+      key: 'rollup',
+      state: check.rollups.length ? 'ok' : 'none',
+      title: 'Channel totals',
+      detail: check.rollups.length
+        ? 'Checked against the sub-channels — never counted twice'
+        : 'Optional — not in this file',
+      count: check.rollups.length ? `${check.rollups.length} found` : undefined,
+    },
+    {
+      key: 'promo',
+      state: check.promo.length === promoAll.length ? 'ok' : missingFlags.length ? 'warn' : 'none',
+      title: 'Promotions & events',
+      detail:
+        check.promo.length === promoAll.length
+          ? 'Festival, Seasonal and Promotion flags, discount and offer'
+          : missingFlags.length
+            ? `Missing ${missingFlags.join(', ')} — the baseline needs all three flags`
+            : `Missing ${promoAll.filter((c) => !check.promo.includes(c)).join(', ')}`,
+      count: `${check.promo.length}/${promoAll.length}`,
+    },
+    {
+      key: 'calendar',
+      state: 'ok',
+      title: 'Calendar fields',
+      detail: calendarMissing ? `${calendarMissing} worked out from Date` : 'Month, Quarter, Week and Year found',
+      count: `${4 - calendarMissing}/4`,
+    },
+  ]
+  const tone = { ok: 'text-[#047857]', warn: 'text-[#B45309]', bad: 'text-[#B91C1C]', none: 'text-ink-muted' } as const
+  const icon = { ok: 'check', warn: 'info', bad: 'x', none: 'info' } as const
   return (
-    <li className="flex items-start gap-1.5">
-      <Icon
-        name={ok ? (muted ? 'info' : 'check') : 'x'}
-        className={`mt-px h-3.5 w-3.5 shrink-0 ${muted ? 'text-ink-muted' : ok ? 'text-[#047857]' : 'text-[#B91C1C]'}`}
-      />
-      <span className={muted ? 'text-ink-muted' : ok ? 'text-ink-secondary' : 'text-[#B91C1C]'}>{text}</span>
-    </li>
+    <div className="mt-2.5 flex flex-col gap-2">
+      {rows.map((r) => (
+        <div key={r.key} className="flex items-center gap-2.5 rounded-[var(--r-md)] bg-surface-muted p-[9px_12px]">
+          <Icon name={icon[r.state]} className={`h-4 w-4 shrink-0 ${tone[r.state]}`} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-base font-semibold">{r.title}</div>
+            <div className={`mt-px text-xs leading-[1.45] ${r.state === 'ok' ? 'text-ink-muted' : tone[r.state]}`}>{r.detail}</div>
+          </div>
+          {r.count && <span className="shrink-0 text-xs text-ink-muted">{r.count}</span>}
+        </div>
+      ))}
+      {check.ignored.length > 0 && (
+        <div className="px-1 text-xs leading-[1.5] text-ink-muted">Not read by MMM, ignored: {check.ignored.join(', ')}</div>
+      )}
+    </div>
   )
 }
 

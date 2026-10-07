@@ -6,7 +6,7 @@ but over media flighting instead of promotions:
 
     matrix(year)            channel x month: spend, active days, an intensity
                             level for the heat shading; and per month the
-                            revenue, total spend and promotion/holiday days.
+                            revenue, total spend and promotion/festival days.
     month_detail(year, m)   every day of that month: revenue, spend, the
                             channels that ran, and the day's flags.
 """
@@ -85,8 +85,8 @@ def matrix(year: int, currency: str = "INR") -> dict[str, Any]:
             "spend_display": F.money(total_spend, currency) if has else "",
             "media_days": int((part[media].sum(axis=1) > 0).sum()) if has else 0,
             "promo_days": int(part["Promotion_Flag"].sum()) if has and "Promotion_Flag" in part else 0,
-            "holidays": int(part["Holiday_Flag"].sum()) if has and "Holiday_Flag" in part else 0,
-            "trending_days": int(part["Trending_Flag"].sum()) if has and "Trending_Flag" in part else 0,
+            "festival_days": int(part["Festival_Flag"].sum()) if has and "Festival_Flag" in part else 0,
+            "seasonal_days": int(part["Seasonal_Flag"].sum()) if has and "Seasonal_Flag" in part else 0,
         })
 
     return {"year": year, "years": years, "currency": currency,
@@ -118,8 +118,8 @@ def month_detail(year: int, month: int, currency: str = "INR") -> dict[str, Any]
             "spend_display": F.money(total, currency) if total else "—",
             "channels": [{"label": schema.channel_label(c), "spend_display": F.money(v, currency)}
                          for c, v in on],
-            "holiday": bool(r.get("Holiday_Flag", 0) == 1),
-            "trending": bool(r.get("Trending_Flag", 0) == 1),
+            "festival": bool(r.get("Festival_Flag", 0) == 1),
+            "seasonal": bool(r.get("Seasonal_Flag", 0) == 1),
             "promotion": bool(r.get("Promotion_Flag", 0) == 1),
             "promotion_type": str(r["Promotion_Type"]) if "Promotion_Type" in r else "",
         })

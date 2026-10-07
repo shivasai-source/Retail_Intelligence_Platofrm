@@ -59,7 +59,7 @@ def env(tmp_path, monkeypatch, tables):
     remote = {name: content for name, content in tables.items()}
     remote[config.FACT_FILE] = _head(tables[config.FACT_FILE], 1000)
 
-    async def fake_fetch_all(account, sas, refs):
+    async def fake_fetch_all(account, sas, refs, progress=None):
         assert (account, sas) == ("acct", "sv=secret-sas")
         return [(r.name, remote[r.name]) for r in refs]
 
@@ -145,7 +145,7 @@ def test_sync_reads_each_file_from_the_container_it_was_picked_in(env, monkeypat
     remote.update({("not-picked", n): b"never,read\n" for n in FILES})
     fetched: list[tuple[str, str]] = []
 
-    async def fake_fetch_all(account, sas, refs):
+    async def fake_fetch_all(account, sas, refs, progress=None):
         fetched.extend((r.container, r.name) for r in refs)
         return [(r.name, remote[(r.container, r.name)]) for r in refs]
 
@@ -169,3 +169,17 @@ def test_reset_forgets_the_source(env):
     assert client.get("/api/datasets/source").json()["syncable"] is False
     r = client.post("/api/datasets/source/sync")
     assert r.status_code == 400 and "no connected source" in r.json()["detail"]
+
+
+def test_azure_install_reports_its_progress(env, tables):
+    """The connector's bar polls GET /azure/progress/{id}; once the install
+    returns, that id reads 'done'. An unknown id is a 404, not an error page."""
+    client = env["client"]
+    body = {"account": "acct", "sas": "sv=secret-sas", "progress_id": "run-1",
+            "blobs": [{"container": "sales", "name": n} for n in FILES]}
+    r = client.post("/api/datasets/azure/install", json=body)
+    assert r.status_code == 200, r.text
+    progress = client.get("/api/datasets/azure/progress/run-1")
+    assert progress.status_code == 200
+    assert progress.json()["stage"] == "done"
+    assert client.get("/api/datasets/azure/progress/no-such-run").status_code == 404

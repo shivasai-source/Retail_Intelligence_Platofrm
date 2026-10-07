@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from app import azure_blob, databricks_catalog, source_sync, star_dataset
@@ -85,7 +86,9 @@ async def upload_datasets(
     star_result: dict[str, Any] | None = None
     if star_items or unrecognised:
         try:
-            star_result = star_dataset.install(star_items, unrecognised)
+            # Writing and reloading the tables is blocking work; off the event
+            # loop, so the rest of the API keeps answering while it runs.
+            star_result = await run_in_threadpool(star_dataset.install, star_items, unrecognised)
             # Files from someone's machine cannot be re-read, so there is no
             # longer a source to sync from.
             source_sync.clear()
@@ -222,6 +225,9 @@ class AzureBlobSel(BaseModel):
 
 class AzureSelectionReq(AzureCredsReq):
     blobs: list[AzureBlobSel] = []
+    #: Chosen by the client so it can poll GET /azure/progress/{id} while the
+    #: install runs. Optional: '' installs without progress tracking.
+    progress_id: str = ""
 
 
 def _refs(req: AzureSelectionReq) -> list[BlobRef]:
@@ -301,27 +307,54 @@ async def azure_install(
             "before loading a new set.",
         )
     refs = _refs(req)
+    progress = azure_blob.start_progress(req.progress_id)
     try:
-        downloaded = await azure_blob.fetch_all(req.account, req.sas, refs)
+        downloaded = await azure_blob.fetch_all(req.account, req.sas, refs, progress=progress)
     except AzureError as e:
+        if progress:
+            progress.set_stage("failed")
         raise HTTPException(400, str(e)) from e
 
-    items: list[star_dataset.Classified] = []
-    unrecognised: list[str] = []
-    for name, content in downloaded:
-        classified = star_dataset.classify(name, content)
-        if classified is None:
-            unrecognised.append(name)
-        else:
-            items.append(classified)
+    if progress:
+        progress.set_stage("installing")
 
-    try:
+    def install_downloaded() -> dict[str, Any]:
+        items: list[star_dataset.Classified] = []
+        unrecognised: list[str] = []
+        for name, content in downloaded:
+            classified = star_dataset.classify(name, content)
+            if classified is None:
+                unrecognised.append(name)
+            else:
+                items.append(classified)
         result = star_dataset.install(items, unrecognised)
+        # Remembered so the Live pill can pull the same blobs again later.
+        source_sync.save_azure(req.account, req.sas, refs, result.get("rows"))
+        return result
+
+    # Parsing, writing and re-reading 35 MB of tables is blocking work. Run on
+    # the event loop it froze the whole server for its duration — every other
+    # request, the progress poll included, waited behind it.
+    try:
+        result = await run_in_threadpool(install_downloaded)
     except StarDatasetError as e:
+        if progress:
+            progress.set_stage("failed")
         raise HTTPException(400, str(e)) from e
-    # Remembered so the Live pill can pull the same blobs again later.
-    source_sync.save_azure(req.account, req.sas, refs, result.get("rows"))
+    if progress:
+        progress.set_stage("done")
     return result
+
+
+@router.get("/azure/progress/{progress_id}")
+def azure_progress(progress_id: str, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    """How far an Azure install has got: stage ('downloading' → 'installing'
+    → 'done' / 'failed') and bytes downloaded of the total. Polled by the
+    connector's progress bar; the install itself is POST /azure/install."""
+    found = azure_blob.read_progress(progress_id)
+    if found is None:
+        raise HTTPException(404, "No install with this progress id.")
+    return found
 
 
 # ==================================================== Databricks Unity Catalog ==
@@ -461,7 +494,8 @@ async def dbx_install(
             items.append(classified)
 
     try:
-        result = star_dataset.install(items, unrecognised)
+        # Blocking file and CPU work — off the event loop, as the Azure install.
+        result = await run_in_threadpool(star_dataset.install, items, unrecognised)
     except StarDatasetError as e:
         raise HTTPException(400, str(e)) from e
     # Remembered so the Live pill can export the same tables again later.

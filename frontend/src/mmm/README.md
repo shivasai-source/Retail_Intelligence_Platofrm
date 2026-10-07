@@ -43,7 +43,7 @@ One daily file, matched on its column headers (reference: `MMM_Final_Daily_Datas
 33 columns). **Required:** `Date`, `Revenue`, and at least one `*_Spend` column.
 Everything else is optional; `Month`, `Quarter`, `Week_of_Year` and `Year` are derived
 from `Date` when missing. Uploading a new file replaces the loaded one. MMM's file is
-stored apart from TPO's `Data/` folder (`backend/.store/mmm/`, or `$MMM_DATA_DIR`).
+stored in its own subfolder of `Data/` (`Data/mmm/`, or `$MMM_DATA_DIR`), apart from TPO's six star files.
 
 ## What the figures are
 

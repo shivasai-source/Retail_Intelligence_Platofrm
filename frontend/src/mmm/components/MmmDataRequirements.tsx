@@ -18,15 +18,16 @@ import {
 // same layout and type scale: a list on the left (the four column groups of
 // the daily file, then the formatting rules) and the chosen one on the right.
 //
-// TPO's guide describes six files; MMM's describes ONE file in four groups,
+// TPO's guide describes six files; MMM's describes ONE file in five groups,
 // so the template and "Copy headers" act on the whole file — one template with
-// all 33 columns and three real rows from the reference dataset — rather than
-// per group. Opened from the Data Connections page ("What do I upload?", and
+// every column and three real rows from the reference dataset — rather than
+// per group. They sit at the head of the content pane, where TPO puts them. Opened from the Data Connections page ("What do I upload?", and
 // on its own while nothing is loaded) and from inside the upload dialog.
 
 const GROUP_ICON: Record<MmmGroup, IconName> = {
   core: 'barChart',
   media: 'layers',
+  rollup: 'wallet',
   promo: 'tag',
   calendar: 'calendar',
 }
@@ -50,16 +51,6 @@ export function MmmDataRequirements({
 }) {
   const [section, setSection] = useState<Section>('core')
   const [dontShow, setDontShow] = useState(false)
-  const { show } = useToast()
-
-  const copyHeaders = async () => {
-    try {
-      await navigator.clipboard.writeText(MMM_COLUMNS.map((c) => c.name).join(','))
-      show('All 33 column headers copied — paste them into row 1 of your file.', { duration: 3000 })
-    } catch {
-      show("Couldn't copy — download the template instead.", { duration: 3500 })
-    }
-  }
 
   return (
     <Modal open onClose={onClose} maxWidthClassName="max-w-[min(1000px,94vw)]">
@@ -75,19 +66,11 @@ export function MmmDataRequirements({
           <div className="min-w-0">
             <h3 className="text-[19px] font-bold">Data requirements</h3>
             <p className="mt-0.5 text-[14px] text-ink-muted">
-              One daily file — what its {MMM_COLUMNS.length} columns must contain.
+              What the daily file’s {MMM_COLUMNS.length} columns must contain.
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button variant="secondary" onClick={copyHeaders} className="@max-[760px]:hidden">
-            <Icon name="file" /> Copy headers
-          </Button>
-          <Button variant="violet-soft" onClick={() => downloadCsv(mmmTemplate(), 'MMM_template_daily')}>
-            <Icon name="download" /> Download template
-          </Button>
-          <IconButton icon="x" title="Close" onClick={onClose} />
-        </div>
+        <IconButton icon="x" title="Close" onClick={onClose} />
       </div>
 
       <div className="grid h-[min(64vh,580px)] grid-cols-[250px_1fr] @max-[760px]:h-auto @max-[760px]:grid-cols-1">
@@ -107,7 +90,9 @@ export function MmmDataRequirements({
                 sub={
                   group === 'media'
                     ? `${cols.length} channels · at least 1 required`
-                    : required
+                    : group === 'rollup'
+                      ? `${cols.length} columns · optional · checked`
+                      : required
                       ? `${cols.length} columns · required`
                       : `${cols.length} columns · optional`
                 }
@@ -216,10 +201,33 @@ function NavItem({
 
 function GroupPane({ group }: { group: MmmGroup }) {
   const columns = columnsIn(group)
+  const { show } = useToast()
+
+  const copyHeaders = async () => {
+    try {
+      await navigator.clipboard.writeText(MMM_COLUMNS.map((c) => c.name).join(','))
+      show(`All ${MMM_COLUMNS.length} column headers copied — paste them into row 1 of your file.`, { duration: 3000 })
+    } catch {
+      show("Couldn't copy — download the template instead.", { duration: 3500 })
+    }
+  }
+
   return (
     <>
-      <h4 className="text-[18px] font-bold text-ink-primary">{GROUP_LABELS[group]}</h4>
-      <p className="mt-1 text-[14px] leading-[1.55] text-ink-secondary">{GROUP_PURPOSE[group]}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h4 className="text-[18px] font-bold text-ink-primary">{GROUP_LABELS[group]}</h4>
+          <p className="mt-1 text-[14px] leading-[1.55] text-ink-secondary">{GROUP_PURPOSE[group]}</p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <Button variant="secondary" onClick={copyHeaders}>
+            <Icon name="file" /> Copy headers
+          </Button>
+          <Button variant="violet-soft" onClick={() => downloadCsv(mmmTemplate(), 'MMM_template_daily')}>
+            <Icon name="download" /> Download template
+          </Button>
+        </div>
+      </div>
 
       <table className="mt-5 w-full border-collapse">
         <thead>

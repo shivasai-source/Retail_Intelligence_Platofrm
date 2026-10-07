@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import parse_qs, quote
@@ -44,13 +45,22 @@ import httpx
 #: known files, not for browsing a data lake, so one page is plenty — the
 #: response says whether more exist and the UI tells the user to use a prefix.
 LIST_TIMEOUT = 30.0
-#: The fact table is ~21 MB and a bigger replacement is legitimate. Generous,
-#: because this is a server-to-server transfer with no browser in the middle.
-DOWNLOAD_TIMEOUT = 300.0
+#: Per REQUEST, not per file: every download is split into 4 MB ranges, so a
+#: healthy range finishes in seconds. A connection that goes quiet for a minute
+#: is stalled, not slow — it is abandoned and retried (see `_get_range`). The
+#: old single 300 s read timeout let one stalled range hold the whole install
+#: for five minutes while the progress bar sat at its ceiling.
+DOWNLOAD_TIMEOUT = httpx.Timeout(60.0, connect=15.0)
 # Larger CSVs are fetched in parallel byte ranges. This overlaps Azure's
 # per-request latency while keeping the total number of in-flight requests low.
 DOWNLOAD_CHUNK_BYTES = 4 * 1024 * 1024
 MAX_PARALLEL_DOWNLOADS = 8
+#: Attempts per range, and the first back-off. Azure answers a busy account
+#: with 503 ServerBusy / 429 and expects the client to retry; a dropped
+#: connection or a stall is retried the same way.
+RANGE_ATTEMPTS = 4
+RANGE_BACKOFF = 1.0
+_RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 #: Enough of a CSV to be sure of catching the header row, requested as an HTTP
 #: Range so identifying six files does not download 21 MB of them.
 HEADER_RANGE_BYTES = 256 * 1024
@@ -403,24 +413,56 @@ async def fetch_header(
     return res.content
 
 
+async def _get_range(
+    client: httpx.AsyncClient, url: str, sas: str, start: int, end: int, name: str
+) -> httpx.Response:
+    """One byte range, retried with back-off on a stall, a dropped connection
+    or a busy/throttled answer from Azure. Anything else (403, 404 …) is the
+    caller's problem to report at once — retrying a refused SAS changes nothing."""
+    delay = RANGE_BACKOFF
+    for attempt in range(1, RANGE_ATTEMPTS + 1):
+        last = attempt == RANGE_ATTEMPTS
+        try:
+            res = await client.get(url, headers={"Range": f"bytes={start}-{end}"})
+        except httpx.TimeoutException as e:
+            if last:
+                raise AzureError(
+                    f"Azure stopped sending '{name}' (no data for {DOWNLOAD_TIMEOUT.read:.0f} s, "
+                    f"{RANGE_ATTEMPTS} attempts). Check this machine's connection and try again."
+                ) from e
+        except httpx.RequestError as e:
+            if last:
+                raise AzureError(
+                    "Couldn't reach Azure — check the storage account name and this "
+                    f"machine's network access. Detail: {_redact(str(e), sas)}"
+                ) from e
+        else:
+            if res.status_code < 400:
+                return res
+            if res.status_code not in _RETRY_STATUSES or last:
+                raise AzureError(_explain(res.status_code, res.text, sas))
+        await asyncio.sleep(delay)
+        delay *= 2
+    raise AssertionError("unreachable")
+
+
 async def fetch_blob(
     client: httpx.AsyncClient,
     account: str,
     sas: str,
     blob: BlobRef,
     request_slots: asyncio.Semaphore,
+    progress: DownloadProgress | None = None,
 ) -> bytes:
     """Fetch a blob, splitting larger files into parallel Azure byte ranges."""
     url = _url(account, sas, _blob_path(blob))
 
     async def ranged_get(start: int, end: int) -> httpx.Response:
         async with request_slots:
-            return await _get(
-                client,
-                url,
-                sas,
-                headers={"Range": f"bytes={start}-{end}"},
-            )
+            res = await _get_range(client, url, sas, start, end, blob.name)
+        if progress is not None:
+            progress.add_done(len(res.content))
+        return res
 
     first_end = DOWNLOAD_CHUNK_BYTES - 1
     first = await ranged_get(0, first_end)
@@ -430,9 +472,13 @@ async def fetch_blob(
     # A server that ignores Range returns the whole body (200); small blobs may
     # also fit in the first range and need no additional requests.
     if first.status_code != 206 or not content_range:
+        if progress is not None:
+            progress.add_total(len(first.content))
         return first.content
 
     first_last, total = map(int, content_range.groups())
+    if progress is not None:
+        progress.add_total(total)
     if first_last + 1 >= total:
         return first.content
     if first_last + 1 != len(first.content):
@@ -448,8 +494,61 @@ async def fetch_blob(
     return first.content + b"".join(part.content for part in parts)
 
 
+class DownloadProgress:
+    """Bytes downloaded so far and bytes expected, for one install.
+
+    `total` grows as each blob's first range reveals its size (all first ranges
+    start together, so it is complete within the first second). Read by the
+    progress endpoint while the download runs; asyncio is single-threaded, so
+    the counters need no lock."""
+
+    def __init__(self) -> None:
+        self.stage = "downloading"
+        self.done = 0
+        self.total = 0
+        self.updated = time.monotonic()
+
+    def add_done(self, n: int) -> None:
+        self.done += n
+        self.updated = time.monotonic()
+
+    def add_total(self, n: int) -> None:
+        self.total += n
+        self.updated = time.monotonic()
+
+    def set_stage(self, stage: str) -> None:
+        self.stage = stage
+        self.updated = time.monotonic()
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"stage": self.stage, "bytes_done": self.done, "bytes_total": self.total}
+
+
+#: In-flight installs by the client's progress id. Entries are dropped an hour
+#: after their last update, so an abandoned install cannot grow this forever.
+_PROGRESS: dict[str, DownloadProgress] = {}
+_PROGRESS_TTL = 3600.0
+
+
+def start_progress(progress_id: str) -> DownloadProgress | None:
+    """Register a progress record for `progress_id` ('' = not tracked)."""
+    now = time.monotonic()
+    for key in [k for k, p in _PROGRESS.items() if now - p.updated > _PROGRESS_TTL]:
+        _PROGRESS.pop(key, None)
+    if not progress_id:
+        return None
+    record = DownloadProgress()
+    _PROGRESS[progress_id] = record
+    return record
+
+
+def read_progress(progress_id: str) -> dict[str, Any] | None:
+    record = _PROGRESS.get(progress_id)
+    return record.as_dict() if record else None
+
+
 async def fetch_all(
-    account: str, sas: str, blobs: list[BlobRef]
+    account: str, sas: str, blobs: list[BlobRef], progress: DownloadProgress | None = None
 ) -> list[tuple[str, bytes]]:
     """Download every selected blob, as (filename, bytes) for the installer.
 
@@ -462,7 +561,7 @@ async def fetch_all(
 
     async with httpx.AsyncClient(timeout=DOWNLOAD_TIMEOUT, follow_redirects=True) as client:
         async def download(blob: BlobRef) -> tuple[str, bytes]:
-            content = await fetch_blob(client, account, sas, blob, request_slots)
+            content = await fetch_blob(client, account, sas, blob, request_slots, progress)
             if not content:
                 raise AzureError(f"'{blob.name}' is empty in Azure.")
             return blob.name.rsplit("/", 1)[-1], content

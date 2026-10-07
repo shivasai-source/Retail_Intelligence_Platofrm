@@ -12,6 +12,7 @@ import {
   useAzureBlobs,
   useAzureInspect,
   useAzureInstall,
+  useAzureInstallProgress,
 } from '../../../hooks/useDatasets'
 import type { AzureBlobSel } from '../../../hooks/useDatasets'
 import { STAR_ROLE_LABELS } from '../../../lib/starSchema'
@@ -70,6 +71,26 @@ export function AzureDatasetModal({
   const listBlobs = useAzureBlobs()
   const inspect = useAzureInspect()
   const install = useAzureInstall()
+  // Each install run gets its own id, so the bar polls that run's progress.
+  const [progressId, setProgressId] = useState<string | null>(null)
+  const progress = useAzureInstallProgress(progressId, install.isPending)
+  const measured = (() => {
+    const p = progress.data
+    if (!install.isPending || !p) return null
+    const mb = (n: number) => `${(n / (1024 * 1024)).toFixed(1)} MB`
+    if (p.stage === 'downloading' && p.bytes_total > 0) {
+      // The download is the long part; the install after it takes seconds.
+      return {
+        fraction: 0.9 * (p.bytes_done / p.bytes_total),
+        label: 'Downloading from Azure',
+        detail: `${mb(p.bytes_done)} of ${mb(p.bytes_total)}`,
+      }
+    }
+    if (p.stage === 'installing') {
+      return { fraction: 0.95, label: 'Installing the 6 tables', detail: 'Writing and reloading the data…' }
+    }
+    return null
+  })()
 
   const locked = status.data?.locked ?? false
   const creds = { account: account.trim(), sas: sas.trim() }
@@ -134,8 +155,13 @@ export function AzureDatasetModal({
 
   const runInstall = () => {
     setError('')
+    const id =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    setProgressId(id)
     install.mutate(
-      { ...creds, blobs: picked },
+      { ...creds, blobs: picked, progress_id: id },
       {
         onSuccess: (res) => {
           const rows = res.rows
@@ -478,6 +504,7 @@ export function AzureDatasetModal({
               estimateMs={60_000}
               label="Downloading from Azure"
               note="The six blobs are downloaded and written to the data folder. The fact table is the big one."
+              measured={measured}
             />
 
             {inspection?.ready && (

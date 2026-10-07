@@ -1,24 +1,56 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Button, Dropdown } from '../../components/ui'
-import { MultiSelect, SelectionChips, type MultiOption } from '../../components/command/MultiSelect'
 import { Icon } from '../../icons'
-import { isCustomRange, useMmmView, type MmmListKey } from '../store'
+import { isCustomRange, useMmmView } from '../store'
 import type { MmmFilterOptions } from '../types'
 import { MmmCurrencyToggle } from './MmmToolbar'
 
-/** THE MMM INSIGHTS HUB FILTER BAR, built the way TPO's is
- *  (components/command/FilterBar.tsx): the Year pill and the Channel
- *  multi-select on the bar, everything else in the More Filters panel beneath
- *  it, and the ₹ INR / $ USD switch at the end. Same Button sizes, the same
- *  MultiSelect and chips, the same panel surface. State is ../store.ts, shared
- *  with every MMM page.
+/** THE MMM INSIGHTS HUB FILTER BAR — kept short, by request: Year,
+ *  Quarter and Month pills, a Date range button that opens the custom
+ *  From / To panel, and the ₹ INR / $ USD switch. (Channel, Week, Promotion
+ *  Type and Event Day were removed as clutter on 2026-10-07; the page's scope
+ *  ignores them — see MmmInsights.)
  *
- *  A CUSTOM RANGE REPLACES THE CALENDAR FILTERS. While From or To is set, the
- *  Year pill reads "Custom range" and Quarter, Month and Week are disabled. A
- *  range that also obeyed them could select nothing and would not say why. */
+ *  A CUSTOM RANGE REPLACES THE CALENDAR. While From or To is set, the Year
+ *  pill reads "Custom range" and Quarter and Month rest; picking any of the
+ *  three ends the range. A month outside the picked quarter is cleared. */
+
+const QUARTER_OF_MONTH = (m: number) => Math.ceil(m / 3)
+
+/** A pill dropdown over a numeric period, "All …" clearing it. */
+function PeriodPill({
+  allLabel,
+  value,
+  options,
+  onChange,
+  muted,
+}: {
+  allLabel: string
+  value: number | null
+  options: Array<{ code: number; name: string }>
+  onChange: (value: number | null) => void
+  /** Shown as "All …" while a custom range overrides it. */
+  muted: boolean
+}) {
+  const selected = muted || value === null ? allLabel : (options.find((o) => o.code === value)?.name ?? allLabel)
+  return (
+    <Dropdown
+      selected={selected}
+      options={[{ label: allLabel }, ...options.map((o) => ({ label: o.name }))]}
+      onSelect={(picked) => onChange(picked === allLabel ? null : (options.find((o) => o.name === picked)?.code ?? null))}
+      trigger={
+        <Button variant="secondary" size="pill" className={`cursor-pointer ${muted ? 'opacity-60' : ''}`}>
+          <Icon name="filter" />
+          <span>{selected}</span>
+          <Icon name="chevronDown" />
+        </Button>
+      }
+    />
+  )
+}
 
 const ALL_YEARS = 'All Years'
-const PANEL_MAX_W = 680
+const PANEL_MAX_W = 460
 const PANEL_GUTTER = 16
 
 /** Placed by measurement against <main>, as TPO's panel is: as wide as the
@@ -53,84 +85,6 @@ function usePanelPlacement(open: boolean) {
     }
   }, [open])
   return { anchorRef, place }
-}
-
-/** Single-select over a numeric dimension; "All …" clears it. */
-function NumberSelect({
-  allLabel,
-  value,
-  options,
-  onChange,
-  disabled = false,
-}: {
-  allLabel: string
-  value: number | null
-  options: Array<{ code: number; name: string }>
-  onChange: (value: number | null) => void
-  disabled?: boolean
-}) {
-  const selected = value === null ? allLabel : (options.find((o) => o.code === value)?.name ?? String(value))
-  const trigger = (
-    <Button variant="secondary" size="sm" className="w-full cursor-pointer justify-between" disabled={disabled}>
-      <Icon name="filter" />
-      <span className="flex-1 truncate text-left">{selected}</span>
-      <Icon name="chevronDown" />
-    </Button>
-  )
-  if (disabled) return trigger
-  return (
-    <Dropdown
-      selected={selected}
-      options={[{ label: allLabel }, ...options.map((o) => ({ label: o.name }))]}
-      onSelect={(picked) => onChange(picked === allLabel ? null : (options.find((o) => o.name === picked)?.code ?? null))}
-      trigger={trigger}
-    />
-  )
-}
-
-/** Multi-select over a list dimension, chips in the trigger, as TPO's
- *  FilterMulti draws them. */
-function ListSelect({
-  label,
-  allLabel,
-  dimension,
-  options,
-  size = 'sm',
-}: {
-  label: string
-  allLabel: string
-  dimension: MmmListKey
-  options: MultiOption[]
-  size?: 'sm' | 'pill'
-}) {
-  const selected = useMmmView((s) => s[dimension])
-  const toggle = useMmmView((s) => s.toggle)
-  const set = useMmmView((s) => s.set)
-  return (
-    <MultiSelect
-      label={label}
-      options={options}
-      selected={selected}
-      allLabel={allLabel}
-      onToggle={(code) => toggle(dimension, code)}
-      onClear={() => set(dimension, [])}
-      trigger={
-        <Button
-          variant="secondary"
-          size={size}
-          className={`cursor-pointer ${size === 'sm' ? 'w-full justify-between' : ''}`}
-        >
-          <Icon name="filter" />
-          {selected.length === 0 ? (
-            <span className={size === 'sm' ? 'flex-1 truncate text-left' : ''}>{allLabel}</span>
-          ) : (
-            <SelectionChips options={options} selected={selected} onRemove={(code) => toggle(dimension, code)} />
-          )}
-          <Icon name="chevronDown" />
-        </Button>
-      }
-    />
-  )
 }
 
 /** A native date input in the panel's control size. Native, so the keyboard,
@@ -173,8 +127,6 @@ export function MmmFilterBar({ options, year }: { options: MmmFilterOptions | un
 
   useEffect(() => {
     if (!expanded) return
-    // Escape only: the menus inside portal to <body>, so a click-outside
-    // handler would close the panel under a selection being made (as TPO's).
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') toggleExpanded()
     }
@@ -186,13 +138,11 @@ export function MmmFilterBar({ options, year }: { options: MmmFilterOptions | un
 
   const yearLabel = custom ? 'Custom range' : year === null ? ALL_YEARS : String(year)
   const sortedYears = [...options.years].sort((a, b) => b - a)
-  const channels: MultiOption[] = options.channels.map((c) => ({ code: c.code, name: c.name }))
-  const activeCount = [
-    view.quarter, view.month, view.week, view.dateFrom ?? view.dateTo,
-  ].filter((v) => v !== null).length
-    + (view.promotionTypes.length > 0 ? 1 : 0)
-    + (view.events.length > 0 ? 1 : 0)
   const { from: minDate, to: maxDate } = options.date_range
+  const clearRange = () => {
+    view.set('dateFrom', null)
+    view.set('dateTo', null)
+  }
 
   return (
     <div className="flex flex-nowrap items-center gap-x-1.5 gap-y-2 @max-[1080px]:flex-wrap" role="group" aria-label="MMM Insights Hub filters">
@@ -200,10 +150,8 @@ export function MmmFilterBar({ options, year }: { options: MmmFilterOptions | un
         selected={yearLabel}
         options={[{ label: ALL_YEARS }, ...sortedYears.map((y) => ({ label: String(y) }))]}
         onSelect={(picked) => {
-          // Picking a year ends a custom range: the reader has gone back to
-          // calendar periods.
-          view.set('dateFrom', null)
-          view.set('dateTo', null)
+          // Picking a year ends a custom range.
+          clearRange()
           view.setYear(picked === ALL_YEARS ? null : Number(picked))
         }}
         trigger={
@@ -215,79 +163,68 @@ export function MmmFilterBar({ options, year }: { options: MmmFilterOptions | un
         }
       />
 
-      <ListSelect label="Channel" allLabel="All Channels" dimension="channels" options={channels} size="pill" />
+      <PeriodPill
+        allLabel="All Quarters"
+        value={view.quarter}
+        options={options.quarters}
+        muted={custom}
+        onChange={(q) => {
+          clearRange()
+          view.set('quarter', q)
+          // A month outside the new quarter would select nothing.
+          if (q !== null && view.month !== null && QUARTER_OF_MONTH(view.month) !== q) view.set('month', null)
+        }}
+      />
+      <PeriodPill
+        allLabel="All Months"
+        value={view.month}
+        options={view.quarter && !custom ? options.months.filter((m) => QUARTER_OF_MONTH(m.code) === view.quarter) : options.months}
+        muted={custom}
+        onChange={(m) => {
+          clearRange()
+          view.set('month', m)
+        }}
+      />
 
       <div ref={anchorRef} className="relative">
         <Button
-          variant={view.expanded ? 'primary' : 'secondary'}
+          variant={view.expanded || custom ? 'primary' : 'secondary'}
           size="pill"
           className="cursor-pointer"
           onClick={view.toggleExpanded}
           aria-expanded={view.expanded}
-          aria-controls={view.expanded ? 'mmm-more-filters' : undefined}
+          aria-controls={view.expanded ? 'mmm-date-range' : undefined}
         >
-          <Icon name="filter" />
-          <span>More Filters{activeCount > 0 ? ` (${activeCount})` : ''}</span>
+          <Icon name="calendar" />
+          <span>{custom ? `${fmtIso(view.dateFrom ?? minDate)} – ${fmtIso(view.dateTo ?? maxDate)}` : 'Date range'}</span>
           <Icon name="chevronDown" className={view.expanded ? 'rotate-180 transition-transform' : 'transition-transform'} />
         </Button>
         {view.expanded && (
           <div
-            id="mmm-more-filters"
+            id="mmm-date-range"
             role="region"
-            aria-label="Additional filters"
-            style={place ? { left: place.left, width: place.width } : { visibility: 'hidden' }}
-            className="panel-enter cc-filter-surface absolute top-full z-30 mt-2 max-h-[min(70vh,560px)] overflow-y-auto rounded-[var(--r-lg)] border border-border-subtle p-4 shadow-[var(--shadow-lg)]"
+            aria-label="Custom date range"
+            style={place ? { left: place.left, width: Math.min(place.width, 460) } : { visibility: 'hidden' }}
+            className="panel-enter cc-filter-surface absolute top-full z-30 mt-2 rounded-[var(--r-lg)] border border-border-subtle p-4 shadow-[var(--shadow-lg)]"
           >
             <div className="mb-3 flex items-center justify-between gap-3">
-              <span className="text-base font-bold text-ink-primary">Additional Filters</span>
-              <Button variant="ghost" size="sm" className="cursor-pointer !text-brand-violet" onClick={view.reset} aria-label="Clear all filters">
-                <Icon name="x" />
-                Clear all
-              </Button>
+              <span className="text-base font-bold text-ink-primary">Custom date range</span>
+              {custom && (
+                <Button variant="ghost" size="sm" className="cursor-pointer !text-brand-violet" onClick={clearRange}>
+                  <Icon name="x" />
+                  Clear range
+                </Button>
+              )}
             </div>
-
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2 @max-[640px]:grid-cols-1">
-              <NumberSelect allLabel="All Quarters" value={view.quarter} options={options.quarters}
-                onChange={(v) => view.set('quarter', v)} disabled={custom} />
-              <NumberSelect allLabel="All Months" value={view.month} options={options.months}
-                onChange={(v) => view.set('month', v)} disabled={custom} />
-              <NumberSelect allLabel="All Weeks" value={view.week}
-                options={options.weeks.map((w) => ({ code: w, name: `Week ${w}` }))}
-                onChange={(v) => view.set('week', v)} disabled={custom} />
-              <ListSelect label="Promotion Type" allLabel="All Promotion Types" dimension="promotionTypes"
-                options={options.promotion_types.map((p) => ({ code: p, name: p }))} />
-              <ListSelect label="Event Day" allLabel="All Days" dimension="events"
-                options={options.events.map((e) => ({ code: e.code, name: e.name }))} />
+            <div className="grid grid-cols-2 gap-2 @max-[640px]:grid-cols-1">
+              <DateField label="From" value={view.dateFrom} min={minDate} max={view.dateTo ?? maxDate}
+                onChange={(v) => view.set('dateFrom', v)} />
+              <DateField label="To" value={view.dateTo} min={view.dateFrom ?? minDate} max={maxDate}
+                onChange={(v) => view.set('dateTo', v)} />
             </div>
-
-            <div className="mt-3 border-t border-border-subtle pt-3">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <span className="text-sm font-semibold text-ink-primary">Custom date range</span>
-                {custom && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="cursor-pointer"
-                    onClick={() => {
-                      view.set('dateFrom', null)
-                      view.set('dateTo', null)
-                    }}
-                  >
-                    <Icon name="x" />
-                    Clear range
-                  </Button>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-2 @max-[640px]:grid-cols-1">
-                <DateField label="From" value={view.dateFrom} min={minDate} max={view.dateTo ?? maxDate}
-                  onChange={(v) => view.set('dateFrom', v)} />
-                <DateField label="To" value={view.dateTo} min={view.dateFrom ?? minDate} max={maxDate}
-                  onChange={(v) => view.set('dateTo', v)} />
-              </div>
-              <p className="mt-2 text-xs leading-[1.5] text-ink-muted">
-                A date range replaces Year, Quarter, Month and Week. Data runs from {fmtIso(minDate)} to {fmtIso(maxDate)}.
-              </p>
-            </div>
+            <p className="mt-2 text-xs leading-[1.5] text-ink-muted">
+              Replaces the year, quarter and month. Data runs from {fmtIso(minDate)} to {fmtIso(maxDate)}.
+            </p>
           </div>
         )}
       </div>

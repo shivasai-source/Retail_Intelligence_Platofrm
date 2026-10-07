@@ -8,7 +8,7 @@ Every MMM page posts the same filters, and they mean the same thing everywhere.
                                      REPLACES year/quarter/month/week.
     DAY (narrows the days WITHIN the period):
         promotion_types              Promotion_Type, any of
-        events                       holiday / trending / promotion / none
+        events                       festival / seasonal / promotion / none
                                      (none = no flag set), any of
     MEDIA:
         channels                     which *_Spend columns count as ad spend.
@@ -32,11 +32,14 @@ import numpy as np
 import pandas as pd
 
 EVENTS: dict[str, str] = {
-    "holiday": "Holiday",
-    "trending": "Trending",
+    "festival": "Festival",
+    "seasonal": "Seasonal",
     "promotion": "Promotion",
     "none": "No event",
 }
+#: The codes before Holiday/Trending became Festival/Seasonal, still read so
+#: a saved report scope keeps working.
+EVENT_ALIASES: dict[str, str] = {"holiday": "festival", "trending": "seasonal"}
 
 
 @dataclass(frozen=True)
@@ -79,6 +82,7 @@ class Scope:
         start, end = _date(date_from, "date_from"), _date(date_to, "date_to")
         if start and end and start > end:
             raise ValueError("date_from is after date_to.")
+        events = tuple(EVENT_ALIASES.get(e, e) for e in (events or ()))
         bad = sorted(set(events or ()) - set(EVENTS))
         if bad:
             raise ValueError(f"Unknown event(s): {', '.join(bad)}. Use {', '.join(EVENTS)}.")
@@ -157,7 +161,7 @@ def day_mask(frame: pd.DataFrame, scope: Scope) -> np.ndarray:
         mask &= frame["Promotion_Type"].isin(scope.promotion_types)
     if scope.events:
         hit = pd.Series(False, index=frame.index)
-        cols = {"holiday": "Holiday_Flag", "trending": "Trending_Flag",
+        cols = {"festival": "Festival_Flag", "seasonal": "Seasonal_Flag",
                 "promotion": "Promotion_Flag"}
         present = [c for c in cols.values() if c in frame]
         for event in scope.events:

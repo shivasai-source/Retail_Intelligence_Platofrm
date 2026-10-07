@@ -33,6 +33,7 @@ import numpy as np
 import pandas as pd
 
 from app.mmm import baseline as B
+from app.mmm import decomposition as D
 from app.mmm import loader, schema
 from app.mmm.scope import (COMPARISONS, EVENTS, Scope, comparison_window, day_mask,
                            period_mask, span_label, spend_columns)
@@ -49,6 +50,7 @@ MONTH_NAMES = ("January", "February", "March", "April", "May", "June", "July",
 def clear_cache() -> None:
     hub.cache_clear()
     filters.cache_clear()
+    D.fit.cache_clear()
 
 
 # --- metrics --------------------------------------------------------------------
@@ -71,14 +73,14 @@ METRICS: tuple[dict[str, Any], ...] = (
     {"key": "incremental", "label": "Incremental Revenue", "unit": "currency", "better": "up",
      "formula": "Total Revenue − Baseline Revenue."},
     {"key": "baseline_per_day", "label": "Avg Daily Baseline", "unit": "currency", "better": "up",
-     "formula": "R − Z, where Z = X − Y. X: ad spend with all three event flags; Y: no ad "
-                "spend with all three flags; R: ad spend with no flags. Each an average "
-                "daily revenue."},
+     "formula": "R − Z, where Z = X − Y. X: ad spend with Festival, Seasonal and Promotion "
+                "all 1; Y: no ad spend with all three 1; R: ad spend with none. Each an "
+                "average daily revenue."},
     {"key": "avg_daily_revenue", "label": "Avg Daily Revenue", "unit": "currency", "better": "up",
      "formula": "Total Revenue ÷ days in scope."},
     {"key": "ad_lift", "label": "Ad Revenue Lift / Day", "unit": "currency", "better": "up",
-     "formula": "Z = X − Y: average daily revenue on days with ad spend and all three "
-                "event flags, minus the same on days with no ad spend."},
+     "formula": "Z = X − Y: average daily revenue on days with ad spend and Festival, "
+                "Seasonal and Promotion all 1, minus the same on days with no ad spend."},
     {"key": "media_days", "label": "Days With Ad Spend", "unit": "count", "better": "up",
      "formula": "Days on which the selected channels spent more than 0."},
 )
@@ -116,6 +118,23 @@ def _good(metric: dict[str, Any], delta: float | None) -> bool | None:
 # --- the measure of one set of days ------------------------------------------
 
 
+def _attributed(rows: pd.DataFrame, media_all: list[str]) -> pd.Series:
+    """Revenue per channel column: each day's revenue shared among ALL the
+    channels on air that day, in proportion to what each spent that day.
+
+    Always shared among every channel, never only the selected ones — a
+    channel filter then sums the selected channels' part. Sharing among the
+    selection alone would hand a lone selected channel all of every ad day's
+    revenue. Every rupee is counted once, so the parts add to the revenue of
+    the days with ad spend. Descriptive, not causal."""
+    day_spend = rows[media_all].sum(axis=1)
+    ad_day = day_spend > 0
+    if not ad_day.any():
+        return pd.Series(0.0, index=media_all)
+    weights = rows.loc[ad_day, media_all].div(day_spend[ad_day], axis=0)
+    return weights.mul(rows.loc[ad_day, "Revenue"], axis=0).sum()
+
+
 class _Ctx:
     """Everything the measures of one request share."""
 
@@ -128,6 +147,8 @@ class _Ctx:
         self.revenue = self.frame["Revenue"].to_numpy(dtype=float)
         self.dates = self.frame["Date"]
         self.day = day_mask(self.frame, scope)
+        #: A channel filter is on: the Revenue KPI reads attributed revenue.
+        self.filtered = bool(scope.channels)
         self.first, self.last = self.dates.iloc[0], self.dates.iloc[-1]
 
 
@@ -141,7 +162,10 @@ def _measure(ctx: _Ctx, pmask: np.ndarray) -> dict[str, Any]:
     est = ctx.engine.estimate(pmask)
     base = est.per_day * days if est.available and days else None
     incremental = revenue - base if base is not None else None
+    attributed = (float(_attributed(ctx.frame[rows], ctx.media_all)[ctx.media].sum())
+                  if ctx.filtered and days else None)
     return {
+        "revenue_attributed": attributed,
         "values": {
             "revenue": revenue,
             "spend": spend,
@@ -216,6 +240,7 @@ def hub(scope: Scope, granularity: str = "month", currency: str = "INR") -> dict
 
     # --- comparisons ----------------------------------------------------------
     windows: dict[str, dict[str, Any]] = {}
+    attributed_then: dict[str, float | None] = {}
     for kind, full in COMPARISONS.items():
         entry: dict[str, Any] = {"key": kind, "label": kind.upper(), "full": full,
                                  "available": False, "reason": "", "period_label": "",
@@ -234,6 +259,7 @@ def hub(scope: Scope, granularity: str = "month", currency: str = "INR") -> dict
                     entry["reason"] = f"No days match these filters in {entry['period_label']}"
                 else:
                     entry["available"] = True
+                    attributed_then[kind] = then["revenue_attributed"]
                     for m in METRICS:
                         fmt = _fmt(m["unit"], currency)
                         v = then["values"][m["key"]]
@@ -250,9 +276,23 @@ def hub(scope: Scope, granularity: str = "month", currency: str = "INR") -> dict
         v = current["values"][m["key"]]
         prev = yago["values"].get(m["key"]) if yago["available"] else None
         delta = yago["delta"].get(m["key"]) if yago["available"] else None
+        label, help_text, attributed_kpi = m["label"], m["formula"], False
+        if m["key"] == "revenue" and ctx.filtered:
+            # Revenue is one figure per day, not per channel, so a channel
+            # filter cannot select it: the card shows the selection's
+            # ATTRIBUTED revenue instead, and says so in its label.
+            attributed_kpi = True
+            v = current["revenue_attributed"]
+            names = [schema.channel_label(c) for c in ctx.media]
+            label = f"Revenue · {names[0] if len(names) == 1 else f'{len(names)} channels'} (attributed)"
+            help_text = "Each day's revenue shared across the channels running that day by spend; the selected channels' part."
+            before = attributed_then.get("yago") if yago["available"] else None
+            d, d_display, _basis = _delta("currency", v, before)
+            prev = {"value": _r(before)} if before is not None else None
+            delta = {"value": d, "display": d_display}
         unavailable = v is None
         kpis.append({
-            "key": m["key"], "label": m["label"], "kind": m["unit"],
+            "key": m["key"], "label": label, "kind": m["unit"],
             "value": _r(v), "display": fmt(v),
             "previous": prev["value"] if prev else None,
             "delta": delta["value"] if delta else None,
@@ -260,7 +300,8 @@ def hub(scope: Scope, granularity: str = "month", currency: str = "INR") -> dict
             "comparison": f"vs {yago['period_label']}" if delta and delta["value"] is not None else "",
             "available": not unavailable,
             "unavailable_reason": (est.reason or "No ad spend in scope") if unavailable else "",
-            "help": m["formula"],
+            "help": help_text,
+            "attributed": attributed_kpi,
         })
 
     # --- trend ----------------------------------------------------------------
@@ -271,7 +312,19 @@ def hub(scope: Scope, granularity: str = "month", currency: str = "INR") -> dict
 
     # --- channels -------------------------------------------------------------
     spend_total = current["values"]["spend"]
+    # ATTRIBUTED REVENUE: each day's revenue shared among the channels on
+    # air that day, in proportion to what each spent that day. Every rupee is
+    # counted once, so channels (and families) are parts of one whole — the
+    # revenue of the days with ad spend — which a share or a pie can show.
+    # "Revenue on active days" (below) counts a day once per channel and
+    # cannot. Descriptive, not causal.
+    attributed = _attributed(rows, ctx.media_all)[ctx.media]
+    attributed_total = float(attributed.sum())
     channels = []
+    # Each day's event combination, for the channels' active-day mix (the
+    # same labels the trend's tooltip uses).
+    day_mix = _event_mix_labels(ctx.frame)[rows_mask]
+    period_days = int(rows_mask.sum())
     for col in ctx.media:
         total = float(rows[col].sum())
         active_rows = rows[col] > 0
@@ -287,21 +340,52 @@ def hub(scope: Scope, granularity: str = "month", currency: str = "INR") -> dict
             "column": col, "label": schema.channel_label(col), "family": schema.family_of(col),
             "spend": round(total, 2), "spend_display": money(total),
             "revenue": _r(revenue), "revenue_display": money(revenue),
+            "revenue_attributed": _r(float(attributed.get(col, 0.0))),
+            "revenue_attributed_display": money(float(attributed.get(col, 0.0))),
+            "revenue_attributed_share": round(float(attributed.get(col, 0.0)) / attributed_total * 100, 2) if attributed_total else 0.0,
             "roas": _r(roas), "roas_display": F.multiple(roas),
             "share": share, "share_display": F.percent(share), "active_days": active,
             "avg_active_day": round(total / active, 2) if active else None,
             "avg_active_day_display": money(total / active) if active else "—",
+            # What else was on when this channel ran: every combination of
+            # Festival / Seasonal / promotion type over its active days.
+            "period_days": period_days,
+            "events": _event_mix(day_mix[active_rows.to_numpy()], active),
         })
     channels.sort(key=lambda c: c["spend"], reverse=True)
-    families: dict[str, float] = {}
+    # The channel families, measured the way each channel is: revenue on the
+    # days ANY of its sub-channels was on air, and ROAS against the baseline
+    # of the family's own ad days. The Channel card opens on these and drills
+    # into the sub-channels.
+    members_of: dict[str, list[str]] = {}
     for c in channels:
-        families[c["family"]] = families.get(c["family"], 0.0) + c["spend"]
-    family_rows = [
-        {"family": name, "spend": round(v, 2), "spend_display": money(v),
-         "share": round(v / spend_total * 100, 2) if spend_total else 0.0,
-         "share_display": F.percent(v / spend_total * 100 if spend_total else 0.0)}
-        for name, v in sorted(families.items(), key=lambda kv: kv[1], reverse=True)
-    ]
+        members_of.setdefault(c["family"], []).append(c["column"])
+    family_rows = []
+    for name, members in members_of.items():
+        total = float(rows[members].sum().sum())
+        active_rows = rows[members].sum(axis=1) > 0
+        active = int(active_rows.sum())
+        revenue = float(rows.loc[active_rows, "Revenue"].sum())
+        family_est = B.Engine(frame, members).estimate(pmask)
+        baseline = family_est.per_day * active if family_est.available else None
+        roas = (revenue - baseline) / total if baseline is not None and total > 0 else None
+        share = round(total / spend_total * 100, 2) if spend_total else 0.0
+        family_rows.append({
+            "family": name, "spend": round(total, 2), "spend_display": money(total),
+            "share": share, "share_display": F.percent(share),
+            "revenue": _r(revenue), "revenue_display": money(revenue),
+            "revenue_attributed": _r(float(attributed[members].sum())),
+            "revenue_attributed_display": money(float(attributed[members].sum())),
+            "revenue_attributed_share": round(float(attributed[members].sum()) / attributed_total * 100, 2) if attributed_total else 0.0,
+            "roas": _r(roas), "roas_display": F.multiple(roas),
+            "active_days": active, "channels": len(members),
+            "period_days": period_days,
+            "events": _event_mix(day_mix[active_rows.to_numpy()], active),
+        })
+    family_rows.sort(key=lambda f: f["spend"], reverse=True)
+
+    decomposition = D.decompose(rows, ctx.media, current["values"]["baseline"], channels,
+                                money, F.percent)
 
     # --- promotions -----------------------------------------------------------
     promotions = []
@@ -334,7 +418,7 @@ def hub(scope: Scope, granularity: str = "month", currency: str = "INR") -> dict
     events = []
     on_air = ctx.spend_day[rows_mask] > 0
     tests: list[tuple[str, str, np.ndarray]] = [("ad_spend", "Ad spend", on_air)]
-    for flag, label in (("Holiday_Flag", "Holiday"), ("Trending_Flag", "Trending"),
+    for flag, label in (("Festival_Flag", "Festival"), ("Seasonal_Flag", "Seasonal"),
                         ("Promotion_Flag", "Promotion")):
         if flag in rows:
             tests.append((flag, label, (rows[flag] == 1).to_numpy()))
@@ -391,6 +475,9 @@ def hub(scope: Scope, granularity: str = "month", currency: str = "INR") -> dict
         },
         "channels": channels,
         "families": family_rows,
+        "revenue_attributed_total": _r(attributed_total),
+        "revenue_attributed_total_display": money(attributed_total),
+        "decomposition": decomposition,
         "promotions": promotions,
         "events": events,
     }
@@ -417,10 +504,12 @@ def _trend(ctx: _Ctx, pmask: np.ndarray, rows_mask: np.ndarray, gran: str,
         fmt = "%b %Y"
     bucket_arr = bucket.to_numpy()
     keys = pd.unique(bucket_arr[rows_mask])
+    mix = _event_mix_labels(ctx.frame)
 
     out: dict[str, list[Any]] = {k: [] for k in (
         "labels", "revenue", "spend", "baseline", "roas",
-        "revenue_display", "spend_display", "baseline_display", "roas_display", "widened")}
+        "revenue_display", "spend_display", "baseline_display", "roas_display", "widened",
+        "days", "ad_days", "events")}
     for key in sorted(keys):
         in_bucket = bucket_arr == key
         rows = rows_mask & in_bucket
@@ -440,4 +529,54 @@ def _trend(ctx: _Ctx, pmask: np.ndarray, rows_mask: np.ndarray, gran: str,
         out["baseline_display"].append(money(base))
         out["roas_display"].append(F.multiple(roas))
         out["widened"].append(est.widened)
+        # The event mix is read over the AD DAYS only: the chart is about ad
+        # spend and its return, so the question is what else was on when the
+        # ads ran. "Ad spend only" is an ad day with no festival, seasonal
+        # peak or promotion.
+        ad_rows = rows & (ctx.spend_day > 0)
+        ad_days = int(ad_rows.sum())
+        out["days"].append(days)
+        out["ad_days"].append(ad_days)
+        out["events"].append(_event_mix(mix[ad_rows], ad_days))
     return {"granularity": gran, **out}
+
+
+#: The label of an ad day with none of the three events.
+NO_EVENTS = "Ad spend only"
+
+
+def _event_mix_labels(frame: pd.DataFrame) -> np.ndarray:
+    """Each day's combination of events, as one label: Festival, Seasonal
+    and the promotion that ran (by its type, e.g. "10% Discount"), joined
+    with " + " in that order — or "Ad spend only" when none was on (the mix
+    is read over ad days, so such a day had ads and nothing else)."""
+    n = len(frame)
+    fest = frame["Festival_Flag"].to_numpy() == 1 if "Festival_Flag" in frame else np.zeros(n, bool)
+    seas = frame["Seasonal_Flag"].to_numpy() == 1 if "Seasonal_Flag" in frame else np.zeros(n, bool)
+    promo = frame["Promotion_Flag"].to_numpy() == 1 if "Promotion_Flag" in frame else np.zeros(n, bool)
+    types = (frame["Promotion_Type"].astype(str).to_numpy() if "Promotion_Type" in frame
+             else np.full(n, "Promotion", dtype=object))
+    labels = np.empty(n, dtype=object)
+    for i in range(n):
+        parts = []
+        if fest[i]:
+            parts.append("Festival")
+        if seas[i]:
+            parts.append("Seasonal")
+        if promo[i]:
+            kind = types[i]
+            parts.append(kind if kind and kind not in ("No Offer", "nan") else "Promotion")
+        labels[i] = " + ".join(parts) if parts else NO_EVENTS
+    return labels
+
+
+def _event_mix(labels: np.ndarray, days: int) -> list[dict[str, Any]]:
+    """How many of a period's ad days each combination covered, largest
+    first, with "Ad spend only" last; the percentages are of the ad days."""
+    if not days:
+        return []
+    counts = pd.Series(labels).value_counts()
+    rows = [{"label": str(k), "days": int(v), "pct": round(int(v) / days * 100, 2)}
+            for k, v in counts.items()]
+    rows.sort(key=lambda r: (r["label"] == NO_EVENTS, -r["days"], r["label"]))
+    return rows

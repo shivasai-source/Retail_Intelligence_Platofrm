@@ -10,7 +10,13 @@ Everything else is OPTIONAL and matched by name when present:
     - the 22 reference spend channels (any extra `*_Spend` column is accepted
       as a further channel, so a client with a channel we have not listed is
       not turned away);
-    - the promotion and event fields;
+    - the CHANNEL TOTALS — one `Channel_<family>_Spend` column per channel
+      family and `Total_Spend` — which are sums of the sub-channels. They are
+      recognised so they are never mistaken for further channels (that would
+      count the same rupee twice), checked against the sub-channels, and not
+      stored: every figure is computed from the sub-channels themselves;
+    - the promotion and event fields — Festival_Flag and Seasonal_Flag (the
+      older Holiday_Flag and Trending_Flag are read as these);
     - the calendar fields, which are DERIVED from Date when missing, since
       they carry nothing Date does not.
 
@@ -23,7 +29,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-Group = Literal["core", "media", "promo", "calendar"]
+Group = Literal["core", "media", "rollup", "promo", "calendar"]
 ColumnType = Literal["date", "currency", "flag", "percent", "text", "integer"]
 
 
@@ -40,6 +46,7 @@ class ColumnSpec:
 GROUP_LABELS: dict[Group, str] = {
     "core": "Date & revenue",
     "media": "Media spend",
+    "rollup": "Channel totals",
     "promo": "Promotions & events",
     "calendar": "Calendar fields",
 }
@@ -76,6 +83,38 @@ MEDIA_CHANNELS: tuple[tuple[str, str], ...] = (
 SPEND_SUFFIX = "_spend"
 OTHER_FAMILY = "Other Media"
 
+#: The channel totals: one per family, then the grand total. Sums of the
+#: sub-channels — recognised and checked, never counted as a channel.
+CHANNEL_TOTALS: tuple[tuple[str, str], ...] = (
+    ("Channel_Broadcast_Video_Spend", "Broadcast & Video"),
+    ("Channel_Social_Video_Platforms_Spend", "Social & Video Platforms"),
+    ("Channel_Search_Programmatic_Spend", "Search & Programmatic"),
+    ("Channel_Out_of_Home_Spend", "Out of Home"),
+    ("Channel_Print_Spend", "Print"),
+    ("Channel_Commerce_Retail_Media_Spend", "Commerce & Retail Media"),
+    ("Channel_Influencer_Content_Spend", "Influencer & Content"),
+)
+TOTAL_SPEND = "Total_Spend"
+_ROLLUP_EXAMPLES = {
+    "Broadcast & Video": "280460",
+    "Social & Video Platforms": "2171308",
+    "Search & Programmatic": "2652117",
+    "Out of Home": "3299010",
+    "Print": "2128133",
+    "Commerce & Retail Media": "740600",
+    "Influencer & Content": "0",
+}
+_ROLLUP_PREFIX = "channel_"
+
+
+def is_rollup(column: str) -> bool:
+    """A channel total or Total_Spend — any `Channel_*_Spend`, listed or not."""
+    name = column.strip().lower()
+    return name == TOTAL_SPEND.lower() or (
+        name.startswith(_ROLLUP_PREFIX) and name.endswith(SPEND_SUFFIX)
+        and len(name) > len(_ROLLUP_PREFIX) + len(SPEND_SUFFIX)
+    )
+
 _SPEND_EXAMPLES = {
     "TV_Spend": "2981128", "OTT_Spend": "691790", "Meta_Ads_Spend": "1494598",
     "Google_Ads_Spend": "0", "YouTube_Ads_Spend": "406139",
@@ -102,10 +141,21 @@ COLUMNS: tuple[ColumnSpec, ...] = (
                    _SPEND_EXAMPLES.get(col, "0"))
         for col, _family in MEDIA_CHANNELS
     ),
-    ColumnSpec("Holiday_Flag", "promo", "flag", False,
-               "1 if the day is a holiday, otherwise 0.", "1"),
-    ColumnSpec("Trending_Flag", "promo", "flag", False,
-               "1 if the brand or category was trending that day, otherwise 0.", "0"),
+    *(
+        ColumnSpec(col, "rollup", "currency", False,
+                   f"{family} channel spend for the day: the sum of its sub-channels. "
+                   "Checked against them, which MMM computes from.", _ROLLUP_EXAMPLES.get(family, "0"))
+        for col, family in CHANNEL_TOTALS
+    ),
+    ColumnSpec(TOTAL_SPEND, "rollup", "currency", False,
+               "All media spend for the day: the sum of every sub-channel. Checked "
+               "against them, which MMM computes from.", "11450623"),
+    ColumnSpec("Festival_Flag", "promo", "flag", False,
+               "1 if the day falls in a festival period, otherwise 0. (Holiday_Flag is "
+               "also read.)", "1"),
+    ColumnSpec("Seasonal_Flag", "promo", "flag", False,
+               "1 if the day is in a seasonal demand peak, otherwise 0. (Trending_Flag "
+               "is also read.)", "0"),
     ColumnSpec("Promotion_Flag", "promo", "flag", False,
                "1 if a consumer promotion was live that day, otherwise 0.", "1"),
     ColumnSpec("Discount_Percentage", "promo", "percent", False,
@@ -124,9 +174,12 @@ COLUMNS: tuple[ColumnSpec, ...] = (
 )
 
 BY_NAME: dict[str, ColumnSpec] = {c.name.lower(): c for c in COLUMNS}
+#: Earlier names for the event flags, read as the current ones.
+ALIASES: dict[str, str] = {"holiday_flag": "Festival_Flag", "trending_flag": "Seasonal_Flag"}
 REQUIRED: tuple[str, ...] = tuple(c.name for c in COLUMNS if c.required)
 FAMILY: dict[str, str] = dict(MEDIA_CHANNELS)
-FLAGS: tuple[str, ...] = ("Holiday_Flag", "Trending_Flag", "Promotion_Flag")
+FLAGS: tuple[str, ...] = ("Festival_Flag", "Seasonal_Flag", "Promotion_Flag")
+ROLLUP_FAMILY: dict[str, str] = dict(CHANNEL_TOTALS)
 CALENDAR: tuple[str, ...] = ("Month", "Quarter", "Week_of_Year", "Year")
 
 
@@ -138,11 +191,13 @@ class HeaderMatch:
     rename: dict[str, str]
     #: Canonical names of the spend columns, reference channels first.
     media: tuple[str, ...]
+    #: Channel totals present (Channel_*_Spend, Total_Spend). Never media.
     missing_required: tuple[str, ...]
     #: Optional reference columns that were not found.
     missing_optional: tuple[str, ...]
     #: Columns MMM does not read. Kept out of the installed file.
     ignored: tuple[str, ...]
+    rollups: tuple[str, ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -160,12 +215,13 @@ def match_header(header: list[str]) -> HeaderMatch:
     rename: dict[str, str] = {}
     media: list[str] = []
     extra_media: list[str] = []
+    rollups: list[str] = []
     ignored: list[str] = []
     for raw in header:
         name = str(raw).strip()
         if not name:
             continue
-        spec = BY_NAME.get(name.lower())
+        spec = BY_NAME.get(name.lower()) or BY_NAME.get(ALIASES.get(name.lower(), "").lower())
         if spec is not None:
             if spec.name in rename.values():
                 ignored.append(name)  # a duplicate header: first one wins
@@ -173,6 +229,12 @@ def match_header(header: list[str]) -> HeaderMatch:
             rename[name] = spec.name
             if spec.group == "media":
                 media.append(spec.name)
+            elif spec.group == "rollup":
+                rollups.append(spec.name)
+        elif is_rollup(name):
+            # An unlisted Channel_*_Spend: still a total, never a channel.
+            rename[name] = name
+            rollups.append(name)
         elif name.lower().endswith(SPEND_SUFFIX) and len(name) > len(SPEND_SUFFIX):
             rename[name] = name
             extra_media.append(name)
@@ -186,8 +248,11 @@ def match_header(header: list[str]) -> HeaderMatch:
         rename=rename,
         media=tuple(media + extra_media),
         missing_required=tuple(c for c in REQUIRED if c not in found),
-        missing_optional=tuple(c.name for c in COLUMNS if not c.required and c.name not in found),
+        # Channel totals are a convenience, so their absence is not reported.
+        missing_optional=tuple(c.name for c in COLUMNS
+                               if not c.required and c.group != "rollup" and c.name not in found),
         ignored=tuple(ignored),
+        rollups=tuple(rollups),
     )
 
 

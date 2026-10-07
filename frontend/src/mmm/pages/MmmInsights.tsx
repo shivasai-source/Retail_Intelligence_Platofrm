@@ -12,7 +12,7 @@ import { MmmAddKpiMenu } from '../components/MmmAddKpiMenu'
 import { MmmFilterBar } from '../components/MmmFilterBar'
 import { resolveYear } from '../components/MmmToolbar'
 import { BREAKEVEN_ROAS, MMM_SERIES, MmmTrend, type MmmTrendSeries } from '../components/charts'
-import { ChannelCard, ComparisonCard, EventsCard, PromotionsCard } from '../components/MmmPanels'
+import { ChannelCard, ComparisonCard, DecompositionCard, EventsCard, PromotionsCard } from '../components/MmmPanels'
 import { useMmmFilterOptions, useMmmHub } from '../hooks'
 import { MMM_ADDABLE_KPIS, MMM_HERO_KPIS, readAddedMmmKpis, writeAddedMmmKpis } from '../kpiDeck'
 import { MMM_ROUTES } from '../nav'
@@ -46,11 +46,30 @@ const KPI_STYLE: Record<string, { icon: IconName; tint: string; accent: string }
 }
 const FALLBACK_STYLE = { icon: 'gauge' as IconName, tint: 'lavender', accent: 'var(--brand-violet)' }
 
+/** The ⓘ on each tile, as TPO writes its own: one line, the formula in terms
+ *  of the other KPIs ("Incremental Sales ÷ Trade Spend"). The backend's `help`
+ *  is the full derivation; it stays the fallback for a KPI not listed here. */
+const KPI_FORMULA: Record<string, string> = {
+  revenue: 'Σ Revenue over the days in scope',
+  spend: 'Σ sub-channel spend (all channels = Total_Spend)',
+  roas: 'Incremental Revenue ÷ Total Ad Spend',
+  baseline: 'Avg Daily Baseline × days in scope',
+  incremental: 'Total Revenue − Baseline Revenue',
+  baseline_per_day: 'Baseline Revenue ÷ days in scope',
+  avg_daily_revenue: 'Total Revenue ÷ days in scope',
+  ad_lift: 'Revenue/day with ads − without, on Festival + Seasonal + Promo days',
+  media_days: 'Count of days with Ad Spend > 0',
+}
+
 /** Ad spend, like TPO's Trade Spend, is not better for rising. */
 const LOWER_IS_BETTER = new Set(['spend'])
 
+/** The trend draws ad spend, ROAS and break-even only; revenue and the
+ *  baseline are told by the Revenue Decomposition beside it. */
+const TREND_SHOWN_ONLY = (hidden: ReadonlySet<MmmTrendSeries>): ReadonlySet<MmmTrendSeries> =>
+  new Set<MmmTrendSeries>([...hidden, 'revenue', 'baseline'])
+
 const GRANULARITIES = [
-  { label: 'Daily', value: 'day' as const },
   { label: 'Weekly', value: 'week' as const },
   { label: 'Monthly', value: 'month' as const },
 ]
@@ -71,7 +90,7 @@ function KpiTile({ kpi, index, className }: { kpi: MmmKpi | undefined; index: nu
       tint={style.tint}
       accent={style.accent}
       delayMs={index * 60}
-      info={{ name: kpi.label, formula: kpi.help, meaning: '' }}
+      info={{ name: kpi.label, formula: (kpi.attributed ? undefined : KPI_FORMULA[kpi.key]) ?? kpi.help, meaning: '' }}
       lowerIsBetter={LOWER_IS_BETTER.has(kpi.key)}
     />
   )
@@ -91,11 +110,23 @@ export function MmmInsights() {
     setAddedState(ordered)
   }
 
-  // Opens on the latest year in the data, as before: until the reader picks
-  // one, the year is the last in the file. The hub is not asked anything until
-  // that is known, so it never fetches "all years" first.
-  const year = resolveYear(view.year, options.data?.years)
-  const scope = toWire(view, isCustomRange(view) ? null : year)
+  // As TPO's Insights Hub: until the reader picks a year, open on the most
+  // recent COMPLETED year in the data — never the year still in progress,
+  // whose part-year totals would sit beside a full year on every YAGO
+  // delta. Only a dataset holding nothing but the running year opens on it.
+  // The hub is not asked anything until that is known, so it never fetches
+  // "all years" first.
+  const allYears = options.data?.years
+  const completed = allYears?.filter((y) => y < new Date().getFullYear())
+  const year = resolveYear(view.year, completed?.length ? completed : allYears)
+  // The hub's scope is year · quarter · month, or a custom date range —
+  // nothing else. The channel, week, promotion-type and event filters were
+  // removed from the bar, so they are cleared here too: a value left in the
+  // shared store must not narrow the page with no control to undo it.
+  const scope = toWire(
+    { ...view, week: null, channels: [], promotionTypes: [], events: [] },
+    isCustomRange(view) ? null : year,
+  )
   const hub = useMmmHub(scope, granularity, currency, options.isSuccess)
   const data = hub.data
   const refreshing = hub.isFetching
@@ -120,7 +151,7 @@ export function MmmInsights() {
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <div className="min-w-0">
             <h1 className="text-2xl font-extrabold leading-[1.1] tracking-[-0.025em]">MMM Insights Hub</h1>
-            <p className="mt-1.5 text-base text-ink-muted">
+            <p className="mt-1.5 text-md text-ink-muted">
               Where marketing investment meets its return
               <span className="text-ink-disabled"> · </span>
               {data?.meta.period_label ?? 'Loading…'}
@@ -194,7 +225,7 @@ export function MmmInsights() {
       ) : data.meta.days === 0 ? (
         <Card className="mt-[14px]">
           <EmptyState
-            hint="No days in this period match the promotion type or event filter. Try removing one."
+            hint="This date range has no days of data. Pick another year or range."
             onClear={view.reset}
           />
         </Card>
@@ -217,17 +248,17 @@ export function MmmInsights() {
             )}
           </div>
 
-          {/* The trend has the row to itself, as TPO's does. */}
-          <div className="mt-[14px]">
-            <Card>
+          {/* SPEND AND RETURN, AND WHAT THE REVENUE IS MADE OF. The trend is the
+              ad-spend story only — spend, its return and break-even — and the
+              decomposition beside it answers where the revenue came from. */}
+          <div className="mt-[14px] grid grid-cols-2 gap-4 @max-[1000px]:grid-cols-1">
+            <Card className="flex h-full flex-col">
               <CardHeader
                 title={
                   <span className="flex items-center gap-1.5">
-                    Ad Spend vs Revenue Trend
-                    <InfoPopover label="About Ad Spend vs Revenue Trend" title="Ad Spend vs Revenue Trend">
-                      <InfoBlock label="Revenue">Total sales in each period.</InfoBlock>
-                      <InfoBlock label="Ad Spend">Total spent on ads in each period.</InfoBlock>
-                      <InfoBlock label="Baseline">Sales you would have made with no ads.</InfoBlock>
+                    Ad Spend &amp; ROAS Trend
+                    <InfoPopover label="About Ad Spend & ROAS Trend" title="Ad Spend & ROAS Trend">
+                      <InfoBlock label="Ad Spend">Total spent on ads in each period (left axis).</InfoBlock>
                       <InfoBlock label="ROAS">Extra revenue for every 1 spent (right axis).</InfoBlock>
                       <InfoBlock label="Break-even">1.00x — ads paid for themselves.</InfoBlock>
                       <InfoBlock label="Tip">Click a legend item to hide or show a line.</InfoBlock>
@@ -250,25 +281,13 @@ export function MmmInsights() {
                   />
                 }
               />
-              <CardBody>
+              <CardBody className="flex flex-1 flex-col">
                 <div className="mb-2 flex flex-wrap items-center gap-4 pb-2">
-                  <LegendItem
-                    swatch={<span className="h-0.5 w-[18px] rounded-sm" style={{ background: MMM_SERIES.revenue }} />}
-                    label={`Revenue (${data.meta.currency})`}
-                    on={!trendHidden.has('revenue')}
-                    onToggle={() => toggleTrend('revenue')}
-                  />
                   <LegendItem
                     swatch={<span className="h-0.5 w-[18px] rounded-sm" style={{ background: MMM_SERIES.spend }} />}
                     label={`Ad Spend (${data.meta.currency})`}
                     on={!trendHidden.has('spend')}
                     onToggle={() => toggleTrend('spend')}
-                  />
-                  <LegendItem
-                    swatch={<span className="h-0 w-[18px] border-t-2 border-dashed border-ink-muted" />}
-                    label={`Baseline (${data.meta.currency})`}
-                    on={!trendHidden.has('baseline')}
-                    onToggle={() => toggleTrend('baseline')}
                   />
                   <LegendItem
                     swatch={<span className="h-0.5 w-[18px] rounded-sm" style={{ background: SERIES.roi }} />}
@@ -282,13 +301,17 @@ export function MmmInsights() {
                     on={!trendHidden.has('breakeven')}
                     onToggle={() => toggleTrend('breakeven')}
                   />
-                  {granularity === 'day' && shownGranularity !== 'day' && (
-                    <span className="ml-auto text-xs text-ink-muted">Daily is offered for ranges up to 400 days; showing weekly.</span>
-                  )}
                 </div>
-                <MmmTrend trend={data.trend} rate={data.meta.exchange_rate} currency={data.meta.currency} hidden={trendHidden} height={400} />
+                <MmmTrend
+                  trend={data.trend}
+                  rate={data.meta.exchange_rate}
+                  currency={data.meta.currency}
+                  hidden={TREND_SHOWN_ONLY(trendHidden)}
+                  height={330}
+                />
               </CardBody>
             </Card>
+            <DecompositionCard data={data} />
           </div>
 
           <div className="mt-[14px] grid grid-cols-2 gap-4 @max-[1000px]:grid-cols-1">

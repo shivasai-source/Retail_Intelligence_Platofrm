@@ -37,6 +37,7 @@ export function InstallProgress({
   estimateMs,
   label,
   note,
+  measured,
 }: {
   /** True while the request is in flight. Resets the clock on each new run. */
   active: boolean
@@ -48,6 +49,10 @@ export function InstallProgress({
   label: string
   /** Optional second line — why it takes as long as it does. */
   note?: string
+  /** REAL progress, when the server reports it (the Azure install does). It
+   *  replaces the time-based estimate: the bar shows `fraction`, the label
+   *  says which stage is running, and `detail` takes the "~left" slot. */
+  measured?: { fraction: number; label: string; detail: string } | null
 }) {
   const [elapsed, setElapsed] = useState(0)
   const startedAt = useRef<number | null>(null)
@@ -69,8 +74,11 @@ export function InstallProgress({
 
   if (!active && !done) return null
 
-  const fraction = done ? 1 : eased(elapsed, estimateMs)
+  // A measured figure is held under 100% until the request has actually
+  // returned, so "100%" always means finished.
+  const fraction = done ? 1 : measured ? Math.min(measured.fraction, 0.99) : eased(elapsed, estimateMs)
   const pct = Math.round(fraction * 100)
+  const shownLabel = measured && !done ? measured.label : label
   const remaining = estimateMs - elapsed
 
   return (
@@ -79,7 +87,7 @@ export function InstallProgress({
         <span className="text-brand-violet [&_svg]:h-[15px] [&_svg]:w-[15px]">
           <Icon name={done ? 'checkCircle' : 'download'} />
         </span>
-        <span className="min-w-0 flex-1 truncate text-sm font-bold">{done ? 'Loaded' : label}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-bold">{done ? 'Loaded' : shownLabel}</span>
         <span className="shrink-0 text-sm font-bold tabular-nums text-brand-violet">{pct}%</span>
       </div>
 
@@ -88,7 +96,7 @@ export function InstallProgress({
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label={label}
+        aria-label={shownLabel}
         className="h-1.5 w-full overflow-hidden rounded-[999px] bg-border-strong"
       >
         <div
@@ -101,7 +109,11 @@ export function InstallProgress({
         <span className="tabular-nums">{fmtDuration(elapsed)} elapsed</span>
         {!done && (
           <span className="tabular-nums">
-            {remaining > 0 ? `~${fmtDuration(remaining)} left (estimate)` : 'taking longer than usual…'}
+            {measured
+              ? measured.detail
+              : remaining > 0
+                ? `~${fmtDuration(remaining)} left (estimate)`
+                : 'taking longer than usual…'}
           </span>
         )}
       </div>

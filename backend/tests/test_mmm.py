@@ -30,7 +30,7 @@ REFERENCE_HEADER = [c.name for c in schema.COLUMNS]
 
 def daily_csv(days: int = 800, *, header: list[str] | None = None,
               start: date = date(2024, 1, 1), mutate=None) -> bytes:
-    """A reference-shaped file: alternate days dark, every 7th day a holiday."""
+    """A reference-shaped file: alternate days dark, every 7th day a festival day."""
     cols = header or REFERENCE_HEADER
     out = io.StringIO()
     writer = csv.writer(out)
@@ -40,7 +40,7 @@ def daily_csv(days: int = 800, *, header: list[str] | None = None,
         on = i % 2 == 0
         row = {
             "Date": d.strftime("%d-%m-%Y"), "Revenue": str(1_000_000 + i * 10),
-            "Holiday_Flag": "1" if i % 7 == 0 else "0", "Trending_Flag": "0",
+            "Festival_Flag": "1" if i % 7 == 0 else "0", "Seasonal_Flag": "0",
             "Promotion_Flag": "1" if i % 3 == 0 else "0",
             "Discount_Percentage": "10" if i % 3 == 0 else "0",
             "Promotion_Type": "10% Discount" if i % 3 == 0 else "No Offer",
@@ -74,10 +74,43 @@ def upload(content: bytes, name: str = "MMM_Final_Daily_Dataset.csv"):
 # --- the contract -------------------------------------------------------------
 
 
-def test_the_contract_lists_the_reference_files_33_columns():
-    assert len(schema.COLUMNS) == 33
+def test_the_contract_lists_the_reference_files_41_columns():
+    # 33 reference columns + 7 channel totals + Total_Spend.
+    assert len(schema.COLUMNS) == 41
     assert schema.REQUIRED == ("Date", "Revenue")
     assert len(schema.MEDIA_CHANNELS) == 22
+    assert len(schema.CHANNEL_TOTALS) == 7
+
+
+def test_channel_totals_are_recognised_and_never_counted_as_channels():
+    match = schema.match_header(["Date", "Revenue", "TV_Spend", "OTT_Spend",
+                                 "Channel_Broadcast_Video_Spend", "Channel_Radio_Spend", "Total_Spend"])
+    assert match.media == ("TV_Spend", "OTT_Spend")
+    assert set(match.rollups) == {"Channel_Broadcast_Video_Spend", "Channel_Radio_Spend", "Total_Spend"}
+    assert "Total_Spend" not in match.missing_optional
+
+
+def test_old_flag_names_are_read_as_festival_and_seasonal():
+    match = schema.match_header(["Date", "Revenue", "TV_Spend", "Holiday_Flag", "trending_flag"])
+    assert match.rename["Holiday_Flag"] == "Festival_Flag"
+    assert match.rename["trending_flag"] == "Seasonal_Flag"
+
+
+def test_spend_totals_are_checked_but_not_stored(tmp_path):
+    rows = ["Date,Revenue,TV_Spend,OTT_Spend,Channel_Broadcast_Video_Spend,Total_Spend",
+            "01-01-2024,1000,100,50,150,150",
+            "02-01-2024,1000,100,50,150,999"]  # the second day's total is wrong
+    r = upload(("\n".join(rows) + "\n").encode(), "totals.csv")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["media_columns"] == ["TV_Spend", "OTT_Spend"]
+    assert any("Total_Spend differs" in w for w in body["warnings"])
+    assert not any("Channel_Broadcast_Video_Spend differs" in w for w in body["warnings"])
+    stored = (tmp_path / "mmm" / "mmm_daily.csv").read_text(encoding="utf-8").splitlines()[0]
+    assert "Total_Spend" not in stored and "Channel_" not in stored
+    hub = client.get("/api/mmm/hub", params={"year": 2024}).json()
+    spend = next(k for k in hub["kpis"] if k["key"] == "spend")
+    assert spend["value"] == 300  # (100 + 50) × 2 — the totals are never added again
 
 
 def test_header_matching_is_case_insensitive_and_keeps_unknown_spend_channels():
@@ -163,10 +196,36 @@ def test_a_new_upload_replaces_the_old_one_and_reset_clears_it():
     assert client.get("/api/mmm/hub").status_code == 503
 
 
-def test_mmm_never_writes_into_tpo_data_folder(tmp_path):
+def test_mmm_writes_only_into_its_own_folder(tmp_path):
     upload(daily_csv(10))
     assert (tmp_path / "mmm" / "mmm_daily.csv").exists()
     assert not any(p.name.startswith("mmm") for p in (tmp_path.parent).glob("Data/*"))
+
+
+def test_default_folder_is_data_mmm_and_legacy_store_is_moved_once(tmp_path, monkeypatch):
+    """Without MMM_DATA_DIR the dataset lives in <repo>/Data/mmm/, and one
+    left in the old backend/.store/mmm/ is MOVED there — so an MMM reset
+    afterwards cannot be undone by adopting the old copy again."""
+    from app.mmm import config as mmm_config
+
+    monkeypatch.delenv("MMM_DATA_DIR", raising=False)
+    repo = tmp_path / "repo"
+    legacy = tmp_path / "legacy"
+    legacy.mkdir()
+    (legacy / "mmm_daily.csv").write_text("Date,Revenue\n", encoding="utf-8")
+    (legacy / "mmm_source.txt").write_text("old.csv", encoding="utf-8")
+    monkeypatch.setattr(mmm_config, "_REPO_ROOT", repo)
+    monkeypatch.setattr(mmm_config, "_LEGACY_DIR", legacy)
+
+    folder = mmm_config.data_dir()
+    assert folder == repo / "Data" / "mmm"
+    assert (folder / "mmm_daily.csv").read_text(encoding="utf-8") == "Date,Revenue\n"
+    assert (folder / "mmm_source.txt").read_text(encoding="utf-8") == "old.csv"
+    assert not (legacy / "mmm_daily.csv").exists()
+
+    # A reset empties the folder; asking again must not resurrect anything.
+    (folder / "mmm_daily.csv").unlink()
+    assert not (mmm_config.data_dir() / "mmm_daily.csv").exists()
 
 
 def test_inspect_reads_headers_without_installing():
@@ -191,7 +250,7 @@ def test_hub_compares_a_partial_year_like_for_like():
     assert body["channels"][0]["share"] == pytest.approx(100 / 22, abs=0.01)
     ads = next(e for e in body["events"] if e["key"] == "ad_spend")
     assert ads["without_days"] == 35
-    # Trending_Flag is never 1 in this file, so there are no X or Y days and
+    # Seasonal_Flag is never 1 in this file, so there are no X or Y days and
     # no baseline -- reported as unavailable, never as zero.
     assert body["baseline"]["available"] is False
     roas = next(k for k in body["kpis"] if k["key"] == "roas")
@@ -251,7 +310,7 @@ def _frame(kinds: str, start: str = "2025-01-01") -> pd.DataFrame:
         rows.append({
             "Date": pd.Timestamp(start) + pd.Timedelta(days=i), "Revenue": revenue[k],
             "TV_Spend": 0.0 if k == "Y" or (k == "." and i % 2) else 10.0,
-            "Holiday_Flag": flags, "Trending_Flag": flags,
+            "Festival_Flag": flags, "Seasonal_Flag": flags,
             "Promotion_Flag": 1 if k in "XY" or (k == "." and i % 2 == 0) else 0,
         })
     return pd.DataFrame(rows)
@@ -282,9 +341,9 @@ def test_no_baseline_without_every_kind_of_day_or_without_flags():
     frame = _frame("XXRR....")
     est = baseline.Engine(frame, ["TV_Spend"]).estimate(np.ones(len(frame), dtype=bool))
     assert est.available is False and "Y" in est.reason
-    est = baseline.Engine(frame.drop(columns=["Trending_Flag"]), ["TV_Spend"]).estimate(
+    est = baseline.Engine(frame.drop(columns=["Seasonal_Flag"]), ["TV_Spend"]).estimate(
         np.ones(len(frame), dtype=bool))
-    assert est.available is False and "Trending_Flag" in est.reason
+    assert est.available is False and "Seasonal_Flag" in est.reason
 
 
 def _designed_csv() -> bytes:
@@ -295,9 +354,9 @@ def _designed_csv() -> bytes:
         on = kind in "XR" or (kind == "." and i % 8 == 3)
         flag = "1" if kind in "XY" else "0"
         row["Revenue"] = {"X": "150", "Y": "120", "R": "110", ".": "100"}[kind]
-        row["Holiday_Flag"] = row["Trending_Flag"] = row["Promotion_Flag"] = flag
+        row["Festival_Flag"] = row["Seasonal_Flag"] = row["Promotion_Flag"] = flag
         if kind == ".":
-            row["Holiday_Flag"] = "1"  # one flag of three: neither X, Y nor R
+            row["Festival_Flag"] = "1"  # one flag of three: neither X, Y nor R
         row["Promotion_Type"] = "10% Discount" if kind in "XY" else "No Offer"
         for col, _ in schema.MEDIA_CHANNELS:
             row[col] = "10" if on else "0"
@@ -369,7 +428,7 @@ def test_filters_lists_every_option():
     assert body["years"] == [2024, 2025, 2026]
     assert len(body["channels"]) == 22
     assert body["promotion_types"] == ["10% Discount", "No Offer"]
-    assert [e["code"] for e in body["events"]] == ["holiday", "trending", "promotion", "none"]
+    assert [e["code"] for e in body["events"]] == ["festival", "seasonal", "promotion", "none"]
 
 
 def test_the_report_carries_the_filters():
@@ -382,3 +441,84 @@ def test_the_report_carries_the_filters():
     bad = client.post("/api/reports", json={
         "module": "mmm-insights", "scope": {}, "options": {"filters": {"yaer": 2025}}})
     assert bad.status_code in (400, 422)
+
+
+def test_decomposition_adds_up_and_shares_the_kpi_baseline():
+    upload(daily_csv(800))
+    hub = client.get("/api/mmm/hub", params={"year": 2024}).json()
+    d = hub["decomposition"]
+    assert d["available"]
+    assert abs(sum(s["value"] for s in d["slices"]) - d["total"]) < 1
+    kpi = {k["key"]: k for k in hub["kpis"]}
+    assert abs(d["total"] - kpi["revenue"]["value"]) < 1
+    base = d["slices"][0]
+    assert base["key"] == "baseline"
+    if kpi["baseline"]["value"] is not None and kpi["baseline"]["value"] <= d["total"]:
+        assert abs(base["value"] - kpi["baseline"]["value"]) < 1
+    # Only the selected channels can carry a media slice.
+    one = client.get("/api/mmm/hub", params={"year": 2024, "channel": "TV_Spend"}).json()["decomposition"]
+    media = [s for s in one["slices"] if s["kind"] == "media"]
+    assert all(m["label"] == schema.family_of("TV_Spend") for m in media)
+
+
+def test_families_carry_revenue_and_roas_for_the_drill_down():
+    upload(daily_csv(800))
+    hub = client.get("/api/mmm/hub", params={"year": 2024}).json()
+    fam = {f["family"]: f for f in hub["families"]}
+    for f in fam.values():
+        assert {"revenue", "roas", "active_days", "channels"} <= set(f)
+    assert abs(sum(f["spend"] for f in fam.values()) - sum(c["spend"] for c in hub["channels"])) < 1
+
+
+def test_attributed_revenue_is_a_whole_the_pie_can_divide():
+    upload(daily_csv(800))
+    hub = client.get("/api/mmm/hub", params={"year": 2024}).json()
+    total = hub["revenue_attributed_total"]
+    assert abs(sum(c["revenue_attributed"] for c in hub["channels"]) - total) < 1
+    assert abs(sum(f["revenue_attributed"] for f in hub["families"]) - total) < 1
+    assert abs(sum(f["revenue_attributed_share"] for f in hub["families"]) - 100) < 0.1
+    # The whole is the revenue of the days with ad spend — never more.
+    assert total <= next(k for k in hub["kpis"] if k["key"] == "revenue")["value"] + 1
+
+
+def test_revenue_kpi_reads_attributed_revenue_under_a_channel_filter():
+    upload(daily_csv(800))
+    every = client.get("/api/mmm/hub", params={"year": 2024}).json()
+    tv_only = client.get("/api/mmm/hub", params={"year": 2024, "channel": "TV_Spend"}).json()
+    k_all = next(k for k in every["kpis"] if k["key"] == "revenue")
+    k_tv = next(k for k in tv_only["kpis"] if k["key"] == "revenue")
+    assert k_all["attributed"] is False and k_all["label"] == "Total Revenue"
+    assert k_tv["attributed"] is True and "(attributed)" in k_tv["label"]
+    # The selection's part of the all-channel attribution — never all of it.
+    tv_part = next(c for c in every["channels"] if c["column"] == "TV_Spend")["revenue_attributed"]
+    assert abs(k_tv["value"] - tv_part) < 1
+    assert k_tv["value"] < k_all["value"]
+
+
+def test_channels_carry_the_event_mix_of_their_active_days():
+    upload(daily_csv(800))
+    hub = client.get("/api/mmm/hub", params={"year": 2024}).json()
+    for row in hub["channels"] + hub["families"]:
+        assert row["active_days"] <= row["period_days"]
+        # Every active day in exactly one combination.
+        assert sum(e["days"] for e in row["events"]) == row["active_days"]
+        if row["active_days"]:
+            assert abs(sum(e["pct"] for e in row["events"]) - 100) < 0.1
+        labels = [e["label"] for e in row["events"]]
+        if "Ad spend only" in labels:
+            assert labels[-1] == "Ad spend only"
+
+
+def test_trend_buckets_carry_their_event_mix():
+    upload(daily_csv(800))
+    trend = client.get("/api/mmm/hub", params={"year": 2024}).json()["trend"]
+    assert len(trend["events"]) == len(trend["labels"]) == len(trend["ad_days"])
+    for days, ad_days, mix in zip(trend["days"], trend["ad_days"], trend["events"]):
+        assert ad_days <= days
+        # Every AD day in exactly one combination; days without ads are out.
+        assert sum(e["days"] for e in mix) == ad_days
+        if ad_days:
+            assert abs(sum(e["pct"] for e in mix) - 100) < 0.1
+        labels = [e["label"] for e in mix]
+        if "Ad spend only" in labels:
+            assert labels[-1] == "Ad spend only"

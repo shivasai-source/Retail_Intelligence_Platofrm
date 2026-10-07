@@ -102,7 +102,7 @@ def hub(
     date_to: str | None = Query(None, description="YYYY-MM-DD"),
     channel: list[str] = Query([], description="*_Spend column; repeat for several"),
     promotion_type: list[str] = Query([]),
-    event: list[str] = Query([], description="holiday, trending, promotion or none"),
+    event: list[str] = Query([], description="festival, seasonal, promotion or none"),
     granularity: str = Query("month"),
     currency: str = Query("INR"),
     user: dict[str, Any] = Depends(current_user),

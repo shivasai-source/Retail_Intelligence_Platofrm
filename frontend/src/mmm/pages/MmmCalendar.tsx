@@ -16,8 +16,8 @@ import type { MmmCalendar as CalendarData } from '../types'
 //   THE GRID   channel x month for one year, shaded by spend: off air, then
 //              four steps — the quartiles of that year's non-zero
 //              channel-months (GET /api/mmm/calendar). Above it, each month's
-//              revenue and spend, and how many promotion days, holidays and
-//              trending days it held.
+//              revenue and spend, and how many promotion days, festival days and
+//              seasonal days it held.
 //   THE DETAIL a month, day by day: revenue, media spend, the channels that
 //              ran and the day's flags (GET /api/mmm/calendar/month).
 
@@ -43,7 +43,7 @@ export function MmmCalendar() {
         <div>
           <h1 className="text-2xl font-extrabold tracking-[-0.02em]">Media Calendar</h1>
           <p className="mt-1.5 text-base text-ink-muted">
-            When each channel was on air, month by month{data ? ` · ${data.year}` : ''}
+            When each channel was active, month by month{data ? ` · ${data.year}` : ''}
           </p>
         </div>
         <MmmToolbar years={data?.years ?? []} year={year} allowAll={false} />
@@ -134,7 +134,7 @@ function FlightGrid({
               {m.has_data && (
                 <div className="flex justify-center gap-1 text-[10px] tabular-nums text-ink-muted">
                   <span title="Promotion days">P{m.promo_days}</span>
-                  <span title="Holidays">H{m.holidays}</span>
+                  <span title="Festival days">F{m.festival_days}</span>
                 </div>
               )}
             </th>
@@ -202,7 +202,7 @@ function Legend() {
           {label}
         </span>
       ))}
-      <span className="ml-auto">Nd = days on air · P = promotion days · H = holidays</span>
+      <span className="ml-auto">Nd = active days · P = promotion days · F = festival days</span>
     </div>
   )
 }
@@ -236,8 +236,8 @@ function MonthDetail({ year, month, currency }: { year: number; month: number | 
                   <span className="text-sm tabular-nums text-ink-secondary">{day.revenue_display}</span>
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-1">
-                  {day.holiday && <Tag tone="violet">Holiday</Tag>}
-                  {day.trending && <Tag tone="teal">Trending</Tag>}
+                  {day.festival && <Tag tone="violet">Festival</Tag>}
+                  {day.seasonal && <Tag tone="teal">Seasonal</Tag>}
                   {day.promotion && <Tag tone="amber">{day.promotion_type || 'Promotion'}</Tag>}
                   <span className="ml-auto text-xs tabular-nums text-ink-muted">
                     {day.spend ? `${day.spend_display} media · ${day.channels.length} ch` : 'No media'}

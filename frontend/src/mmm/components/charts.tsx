@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useChartWidth } from '../../components/charts/useChartWidth'
 import { columnPath, tooltipLeft, TipRow, useChartSize } from '../../components/command/ChartSections'
 import { SERIES } from '../../components/command/series'
@@ -61,7 +62,30 @@ function axis(values: number[], floorAtZero = true) {
   return { lo, hi, ticks }
 }
 
+/** `axis`, with room above the tallest column for the value label printed
+ *  over it: a peak within ~12% of the axis top had its label sitting on the
+ *  top gridline's own tick. */
+function axisWithLabelRoom(values: number[]) {
+  const peak = Math.max(0, ...values)
+  return axis(peak > 0 ? [...values, peak * 1.12] : values)
+}
+
 const TICK_PITCH = 56
+
+/** X-axis ticks every `every` labels, printing the year only on the first
+ *  tick and where it changes — "Jan 2025, Feb, Mar … Jan 2026", as TPO's
+ *  trend does. Tooltips keep the full label. */
+function yearAwareTicks(labels: string[], every: number): Array<{ i: number; text: string }> {
+  const out: Array<{ i: number; text: string }> = []
+  let lastYear: string | null = null
+  for (let i = 0; i < labels.length; i += every) {
+    const label = labels[i]
+    const year = label.match(/\b(\d{4})\b/)?.[1] ?? null
+    out.push({ i, text: year && year === lastYear ? label.replace(/\s*\b\d{4}\b/, '').trim() : label })
+    lastYear = year
+  }
+  return out
+}
 
 /** The legend's toggles. `breakeven` is the dashed 1.00x reference on the
  *  ROAS axis, as TPO's `target` is the dashed Target ROI. */
@@ -95,6 +119,9 @@ export function MmmTrend({
     baseline_display: string[]
     roas_display: string[]
     widened: boolean[]
+    days?: number[]
+    ad_days?: number[]
+    events?: Array<Array<{ label: string; days: number; pct: number }>>
   }
   rate: number
   currency: string
@@ -126,9 +153,15 @@ export function MmmTrend({
   const roasValues = trend.roas.filter((v): v is number => v !== null)
   const roasLoRaw = Math.min(0, ...roasValues)
   const roasHiRaw = Math.max(1, ...roasValues)
-  const roasStep = niceStep((roasHiRaw - roasLoRaw) / (money.ticks.length - 1) || 1)
-  const roasLo = roasLoRaw < 0 ? Math.floor(roasLoRaw / roasStep) * roasStep : 0
-  const roasHi = roasLo + roasStep * (money.ticks.length - 1)
+  const roasDivs = Math.max(1, money.ticks.length - 1)
+  const roasFloor = (step: number) => (roasLoRaw < 0 ? Math.floor(roasLoRaw / step) * step : 0)
+  let roasStep = niceStep((roasHiRaw - roasLoRaw) / roasDivs || 1)
+  // Flooring a negative minimum to a whole step can leave the top of the
+  // axis below the highest ROAS, and the line ran off the plot. Widen the
+  // step until the axis holds every value.
+  while (roasFloor(roasStep) + roasStep * roasDivs < roasHiRaw - 1e-9) roasStep = niceStep(roasStep * 1.001)
+  const roasLo = roasFloor(roasStep)
+  const roasHi = roasLo + roasStep * roasDivs
   const yRoas = (v: number) => padT + innerH * (1 - (v - roasLo) / (roasHi - roasLo || 1))
 
   const line = (values: Array<number | null>, y: (v: number) => number) => {
@@ -145,8 +178,11 @@ export function MmmTrend({
   }
 
   const every = Math.max(1, Math.ceil(TICK_PITCH / step))
+  const xTicks = yearAwareTicks(trend.labels, every)
   const active = hover !== null && hover < n ? hover : null
-  const TIP_W = 228
+  // Wider when the period's event mix is listed, so a combination such as
+  // "Festival + Seasonal + 10% Discount" stays on one line.
+  const TIP_W = trend.events ? 300 : 228
   const tipLeft = active === null ? 0 : tooltipLeft(width, x(active) - step / 2, x(active) + step / 2, TIP_W, 8)
   const moneyAxis = show('revenue') || show('spend') || show('baseline')
   const roasAxis = show('roas') || show('breakeven')
@@ -232,13 +268,11 @@ export function MmmTrend({
             )}
           </>
         )}
-        {trend.labels.map((l, i) =>
-          i % every === 0 ? (
-            <text key={l} x={x(i)} y={height - 6} textAnchor="middle" fontSize={10} fill="var(--text-muted)">
-              {l}
-            </text>
-          ) : null,
-        )}
+        {xTicks.map((t) => (
+          <text key={t.i} x={x(t.i)} y={height - 6} textAnchor="middle" fontSize={10} fill="var(--text-muted)">
+            {t.text}
+          </text>
+        ))}
         {trend.labels.map((l, i) => (
           <rect
             key={`h${l}`}
@@ -276,6 +310,9 @@ export function MmmTrend({
             ))}
           {show('breakeven') && <TipRow k="Break-even ROAS" v={`${BREAKEVEN_ROAS.toFixed(2)}x`} />}
           {!moneyAxis && !roasAxis && <div className="mt-1 text-ink-muted">Every series is hidden.</div>}
+          {trend.events && trend.ad_days && (
+            <EventMix title="Ad spend days" days={trend.ad_days[active]} of={trend.days?.[active]} events={trend.events[active]} />
+          )}
           {trend.widened[active] && (
             <div className="mt-1.5 border-t border-border-subtle pt-1.5 leading-[1.4] text-ink-muted">
               Baseline estimated over a wider window: this period lacks one kind of day the formula needs.
@@ -321,7 +358,7 @@ export function ValueColumns({
   const innerW = Math.max(120, width - padL - padR)
   const innerH = Math.max(80, height - padT - padB)
   const values = columns.map((c) => c.value).filter((v): v is number => v !== null)
-  const { lo, hi, ticks } = axis(values.length ? values : [1])
+  const { lo, hi, ticks } = axisWithLabelRoom(values.length ? values : [1])
   const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
   const slot = innerW / Math.max(1, columns.length)
   const barW = Math.max(10, Math.min(56, slot * 0.5))
@@ -546,28 +583,33 @@ export function RankedColumns({
   color,
   format,
   ariaLabel,
-  overlay,
 }: {
-  items: Array<{ key: string; label: string; value: number | null; display: string; details: Array<[string, string, string?]> }>
+  items: Array<{
+    key: string
+    label: string
+    value: number | null
+    display: string
+    /** A second figure under the name — the ROAS, in its tone — as TPO's
+     *  Sales by Region prints the ROI under each region. */
+    sub?: { text: string; color: string }
+    details: Array<[string, string, string?]>
+  }>
   color: string
   /** Axis tick text for a raw value. */
   format: (v: number) => string
   ariaLabel: string
-  /** A second measure as a dot on each column, on its own right-hand axis —
-   *  the ROAS over the revenue or spend columns. One value per item. */
-  overlay?: { color: string; values: Array<number | null>; format: (v: number) => string }
 }) {
   const { ref, width, height } = useChartSize(520, 300)
   const [hover, setHover] = useState<number | null>(null)
   const n = items.length
   const padL = 60
-  const padR = overlay ? 46 : 8
+  const padR = 8
   const padT = 22
-  const padB = 28
+  const padB = items.some((c) => c.sub) ? 42 : 28
   const innerW = Math.max(120, width - padL - padR)
   const innerH = Math.max(80, height - padT - padB)
   const values = items.map((c) => c.value).filter((v): v is number => v !== null)
-  const { lo, hi, ticks } = axis(values.length ? values : [1])
+  const { lo, hi, ticks } = axisWithLabelRoom(values.length ? values : [1])
   const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
   const slot = innerW / Math.max(1, n)
   const barW = Math.max(14, Math.min(44, slot * 0.46))
@@ -580,30 +622,16 @@ export function RankedColumns({
   const fit = (s: string) => (s.length > maxChars ? `${s.slice(0, maxChars - 1)}…` : s)
   const TIP_W = 224
 
-  // The overlay's axis has as many steps as the left one, so its labels sit
-  // on the same gridlines; it starts at 0 (or below, for a negative value).
-  const oValues = overlay ? overlay.values.filter((v): v is number => v !== null) : []
-  const oDiv = Math.max(1, ticks.length - 1)
-  const oLoRaw = Math.min(0, ...oValues)
-  const oStep = niceStep((Math.max(BREAKEVEN_ROAS, ...oValues) - oLoRaw) / oDiv || 1)
-  const oLo = oLoRaw < 0 ? Math.floor(oLoRaw / oStep) * oStep : 0
-  const oHi = oLo + oStep * oDiv
-  const yO = (v: number) => padT + innerH * (1 - (v - oLo) / (oHi - oLo || 1))
 
   return (
     <div ref={ref} className="relative min-h-[260px] w-full flex-1">
       <svg className="absolute inset-0" width={width} height={height} role="img" aria-label={ariaLabel}>
-        {ticks.map((t, k) => (
+        {ticks.map((t) => (
           <g key={t}>
             <line x1={padL} x2={padL + innerW} y1={y(t)} y2={y(t)} stroke={t === lo ? 'var(--border-default)' : 'var(--border-subtle)'} />
             <text x={padL - 7} y={y(t) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
               {format(t)}
             </text>
-            {overlay && (
-              <text x={padL + innerW + 7} y={y(t) + 3} textAnchor="start" fontSize={10} fill="var(--text-muted)">
-                {overlay.format(oLo + oStep * k)}
-              </text>
-            )}
           </g>
         ))}
         {lo < 0 && <line x1={padL} x2={padL + innerW} y1={zeroY} y2={zeroY} stroke="var(--border-strong)" />}
@@ -643,7 +671,7 @@ export function RankedColumns({
               </text>
               <text
                 x={cx(i)}
-                y={height - 9}
+                y={height - (c.sub ? 23 : 9)}
                 textAnchor="middle"
                 fontSize={10.5}
                 fontWeight={isActive ? 700 : 600}
@@ -651,17 +679,10 @@ export function RankedColumns({
               >
                 {fit(c.label)}
               </text>
-              {overlay && overlay.values[i] !== null && overlay.values[i] !== undefined && (
-                <circle
-                  cx={cx(i)}
-                  cy={yO(overlay.values[i] as number)}
-                  r={isActive ? 6 : 5}
-                  fill={overlay.color}
-                  stroke="var(--surface-card)"
-                  strokeWidth={2}
-                  opacity={active === null || isActive ? 1 : 0.5}
-                  className="transition-[r,opacity] duration-150"
-                />
+              {c.sub && (
+                <text x={cx(i)} y={height - 8} textAnchor="middle" fontSize={10} fontWeight={700} fill={c.sub.color}>
+                  {c.sub.text}
+                </text>
               )}
               <rect
                 x={padL + slot * i}
@@ -736,7 +757,7 @@ export function ContextColumns({
   const innerW = Math.max(120, width - padL - padR)
   const innerH = Math.max(80, height - padT - padB)
   const values = points.map((p) => p.value).filter((v): v is number => v !== null)
-  const { lo, hi, ticks } = axis(values.length ? values : [1])
+  const { lo, hi, ticks } = axisWithLabelRoom(values.length ? values : [1])
   const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
   const zeroY = y(0)
   const slot = innerW / Math.max(1, n)
@@ -783,7 +804,16 @@ export function ContextColumns({
                 />
               )}
               {highlighted && v !== null && (
-                <text x={cx(i)} y={v < 0 ? y(v) + 13 : y(v) - 6} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--text-primary)">
+                // The first and last columns align their label inward, so it
+                // never overhangs the plot onto the axis labels.
+                <text
+                  x={i === 0 ? cx(i) - barW / 2 : i === n - 1 ? cx(i) + barW / 2 : cx(i)}
+                  y={v < 0 ? y(v) + 13 : y(v) - 6}
+                  textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
+                  fontSize={10}
+                  fontWeight={700}
+                  fill="var(--text-primary)"
+                >
                   {p.display}
                 </text>
               )}
@@ -880,7 +910,7 @@ export function RunningLines({
     vals.map((v, i) => (v === null ? null : `${x(i)},${y(v)}`)).filter(Boolean).join(' ')
   const active = hover !== null && hover < n ? hover : null
   const TIP_W = 220
-  const PREV = 'color-mix(in srgb, var(--brand-violet) 55%, transparent)'
+  const PREV = 'var(--text-muted)'
 
   return (
     <div ref={ref} className="relative min-h-[200px] w-full flex-1">
@@ -947,6 +977,588 @@ export function RunningLines({
   )
 }
 
+/** THE FIVE DRIVERS of the decomposition, in ring order, each with a hue of
+ *  its own. Ad Spend wears the page's spend orange (the trend's Ad Spend
+ *  line); the baseline a slate that reads on the card without shouting.
+ *  Theme tokens, so dark mode follows. */
+export const DRIVERS = [
+  { key: 'baseline', label: 'Baseline', color: 'color-mix(in srgb, var(--text-secondary) 38%, var(--surface-card))' },
+  { key: 'festival', label: 'Festival', color: 'var(--brand-violet)' },
+  { key: 'seasonal', label: 'Seasonal', color: 'var(--tint-teal-icon)' },
+  { key: 'promotion', label: 'Promotion', color: 'var(--tint-rose-icon)' },
+  { key: 'media', label: 'Ad Spend', color: SERIES.spend },
+] as const
+export type DriverKey = (typeof DRIVERS)[number]['key']
+
+/** One ring segment from angle a0 to a1 (radians, 0 = 12 o'clock). */
+function arcPath(cx: number, cy: number, r0: number, r1: number, a0: number, a1: number): string {
+  const sweep = a1 - a0
+  if (sweep >= Math.PI * 2 - 1e-6) {
+    // A full ring: two halves, since one arc cannot start and end at a point.
+    return `${arcPath(cx, cy, r0, r1, a0, a0 + Math.PI)} ${arcPath(cx, cy, r0, r1, a0 + Math.PI, a1)}`
+  }
+  const p = (r: number, a: number) => `${cx + r * Math.sin(a)},${cy - r * Math.cos(a)}`
+  const large = sweep > Math.PI ? 1 : 0
+  return `M${p(r1, a0)} A${r1},${r1} 0 ${large} 1 ${p(r1, a1)} L${p(r0, a1)} A${r0},${r0} 0 ${large} 0 ${p(r0, a0)} Z`
+}
+
+interface DonutSlice {
+  key: string
+  kind: 'baseline' | 'event' | 'media'
+  label: string
+  value: number
+  display: string
+  share: number
+  share_display: string
+  members: Array<{ label: string; value: number; display: string }>
+}
+
+const pctText = (p: number) => `${p.toFixed(2)}%`
+
+/** REVENUE DECOMPOSITION DONUT — the heart of the hub. Three levels:
+ *
+ *  DRIVERS   Baseline, Festival, Seasonal, Promotion and Ad Spend on one ring,
+ *            total revenue in the centre. Selection is the card's chips;
+ *            only Ad Spend (row or slice, marked ›) opens a level down.
+ *  CHANNELS  Ad Spend's contribution as a ring of its channels. Each channel
+ *            (row or slice, marked ›) opens; hovering a row previews its
+ *            sub-channels on the ring.
+ *  SUB-CHANNELS  One channel's contribution as a ring of its sub-channels,
+ *            in shades of the channel's colour, with its own legend.
+ *
+ *  NOTHING MOVES ON HOVER, SELECTION OR NAVIGATION: the summary has a fixed
+ *  height and the legend rows a fixed size. A slice too thin to see gets a
+ *  minimum width on the ring; its true figure is always the legend's. */
+export function DecompositionDonut({
+  slices,
+  totalDisplay,
+  selected,
+  drilled,
+  onDrill,
+  format,
+}: {
+  slices: DonutSlice[]
+  totalDisplay: string
+  selected: ReadonlySet<DriverKey>
+  /** Ad Spend opened (the channels level or below). */
+  drilled: boolean
+  onDrill: (open: boolean) => void
+  /** Formats a summed raw amount. */
+  format: (v: number) => string
+}) {
+  const { ref, width, height } = useChartSize(560, 300)
+  const [hoverKey, setHover] = useState<string | null>(null)
+  // Channels level: the channel whose row is hovered (previewed on the ring)
+  // and the channel opened (the sub-channels level).
+  const [previewKey, setPreview] = useState<string | null>(null)
+  const [channelKey, setChannel] = useState<string | null>(null)
+
+  const revenue = slices.reduce((t, sl) => t + sl.value, 0) || 1
+  const valueOf = (k: DriverKey) =>
+    slices.filter((sl) => (k === 'media' ? sl.kind === 'media' : sl.key === k)).reduce((t, sl) => t + sl.value, 0)
+  const channels = slices.filter((sl) => sl.kind === 'media' && sl.value > 0)
+  const adTotal = valueOf('media')
+  const open = drilled && channels.length > 0
+
+  type Seg = { key: string; label: string; value: number; display: string; color: string; pct: number; pctRevenue: number; members: DonutSlice['members'] }
+  const channelSegs: Seg[] = channels.map((ch, i) => ({
+    key: ch.key,
+    label: ch.label,
+    value: ch.value,
+    display: ch.display,
+    color: PART_COLORS[i % PART_COLORS.length],
+    pct: (ch.value / (adTotal || 1)) * 100,
+    pctRevenue: (ch.value / revenue) * 100,
+    members: ch.members,
+  }))
+  /** A channel's sub-channels, in shades of its colour. */
+  const subSegs = (ch: Seg): Seg[] => {
+    const whole = ch.members.reduce((t, m) => t + m.value, 0) || 1
+    const shades = [100, 72, 50, 32, 20]
+    return ch.members.map((m, i) => ({
+      key: `${ch.key}:${m.label}`,
+      label: m.label,
+      value: m.value,
+      display: m.display,
+      color: `color-mix(in srgb, ${ch.color} ${shades[i % shades.length]}%, var(--surface-card))`,
+      pct: (m.value / whole) * 100,
+      pctRevenue: (m.value / revenue) * 100,
+      members: [],
+    }))
+  }
+  const channel = open ? (channelSegs.find((ch) => ch.key === channelKey && ch.members.length > 0) ?? null) : null
+  const level: 'drivers' | 'channels' | 'sub' = !open ? 'drivers' : channel ? 'sub' : 'channels'
+
+  const driverSegs: Seg[] = DRIVERS.map((d) => {
+    const value = valueOf(d.key)
+    const own = slices.find((sl) => sl.key === d.key)
+    return {
+      key: d.key as string,
+      label: d.label,
+      value,
+      display: own?.display ?? format(value),
+      color: d.color as string,
+      pct: (value / revenue) * 100,
+      pctRevenue: (value / revenue) * 100,
+      members: [],
+    }
+  }).filter((d) => d.value > 0)
+
+  /** The legend's parts at this level. */
+  const segments: Seg[] = level === 'drivers' ? driverSegs : level === 'channels' ? channelSegs : subSegs(channel!)
+  const hover = segments.some((sg) => sg.key === hoverKey) ? hoverKey : null
+  const preview = level === 'channels' ? (channelSegs.find((ch) => ch.key === previewKey && ch.members.length > 0) ?? null) : null
+  /** The ring's parts: the legend's, or a hovered channel's sub-channels. */
+  const ringParts = preview ? subSegs(preview) : segments
+
+  // The ring: a part under ~1.2% is drawn at that width so it can be seen
+  // and pointed at; the sweep is renormalised to a full circle.
+  const MIN = 0.075
+  const raw = ringParts.map((sg) => Math.max((sg.pct / 100) * Math.PI * 2, MIN))
+  const scale = (Math.PI * 2) / (raw.reduce((x, y) => x + y, 0) || 1)
+  let angle = 0
+  const arcs = ringParts.map((sg, i) => {
+    const a0 = angle
+    angle += raw[i] * scale
+    return { ...sg, a0, a1: angle }
+  })
+
+  const stacked = width < 480
+  // Below the drivers the legend gets more width for the longer names.
+  const size = Math.max(180, Math.min(stacked ? width - 20 : width * (open ? 0.33 : 0.4), height - 10, open ? 240 : 270))
+  const c = size / 2
+  const r1 = c - 8
+  const r0 = r1 * 0.62
+  const anySelected = level === 'drivers' && selected.size > 0
+  const isOn = (k: string) => hover === k || (level === 'drivers' && selected.has(k as DriverKey))
+  const isDim = (k: string) => (hover !== null || anySelected) && !isOn(k)
+
+  const picked = level === 'drivers' ? segments.filter((sg) => selected.has(sg.key as DriverKey)) : []
+  const pickedValue = picked.reduce((t, sg) => t + sg.value, 0)
+  const hovered = preview ? null : hover ? (ringParts.find((sg) => sg.key === hover) ?? null) : null
+
+  /** Only what opens a level is clickable: Ad Spend, then each channel. */
+  const opens = (key: string) => (level === 'drivers' && key === 'media') || level === 'channels'
+  const openSeg = (key: string) => {
+    if (level === 'drivers' && key === 'media') {
+      setChannel(null)
+      onDrill(true)
+    } else if (level === 'channels') {
+      setPreview(null)
+      setHover(null)
+      setChannel(key)
+    }
+  }
+
+  // The centre: what is hovered or previewed, else what the level is about.
+  const centre = preview
+    ? { value: preview.display, label: preview.label, sub: `${preview.members.length} sub-channel${preview.members.length === 1 ? '' : 's'}` }
+    : hovered
+      ? { value: hovered.display, label: hovered.label, sub: `${pctText(hovered.pct)} of ${level === 'drivers' ? 'revenue' : level === 'channels' ? 'Ad Spend' : channel!.label}` }
+      : level === 'sub'
+        ? { value: channel!.display, label: channel!.label, sub: `${pctText(channel!.pct)} of Ad Spend` }
+        : level === 'channels'
+          ? { value: format(adTotal), label: 'Ad Spend', sub: `${pctText((adTotal / revenue) * 100)} of revenue` }
+          : { value: totalDisplay, label: 'Total revenue', sub: '' }
+
+  const back = (label: string, onClick: () => void) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex cursor-pointer items-center gap-1 rounded-[var(--r-sm)] text-sm font-semibold text-brand-violet hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden="true">
+        <path d="m15 18-6-6 6-6" />
+      </svg>
+      {label}
+    </button>
+  )
+
+  return (
+    <div ref={ref} className={`relative flex min-h-[280px] w-full flex-1 gap-6 ${stacked ? 'flex-col items-center' : 'items-center'}`}>
+      <div className="relative shrink-0" style={{ width: size, height: size }}>
+        <svg
+          width={size}
+          height={size}
+          role="img"
+          aria-label={level === 'drivers' ? 'Revenue by driver' : level === 'channels' ? 'Ad Spend contribution by channel' : `${channel!.label} by sub-channel`}
+          className="overflow-visible"
+        >
+          {arcs.map((a) => {
+            const clickable = !preview && opens(a.key)
+            return (
+              <path
+                key={a.key}
+                d={arcPath(c, c, !preview && isOn(a.key) ? r0 - 2 : r0, !preview && isOn(a.key) ? r1 + 6 : r1, a.a0, a.a1)}
+                fill={a.color}
+                stroke="var(--surface-card)"
+                strokeWidth={2}
+                opacity={!preview && isDim(a.key) ? 0.25 : 1}
+                className={`transition-opacity duration-200 ${clickable ? 'cursor-pointer' : ''}`}
+                onMouseEnter={() => (preview ? undefined : setHover(a.key))}
+                onMouseLeave={() => setHover(null)}
+                onClick={clickable ? () => openSeg(a.key) : undefined}
+              >
+                <title>{`${a.label}: ${a.display}`}</title>
+              </path>
+            )
+          })}
+        </svg>
+        {/* The centre in HTML, in TPO's donut type (components/charts/DonutBreakdown). */}
+        <div className="pointer-events-none absolute inset-0 grid place-items-center">
+          <div className="max-w-[62%] text-center">
+            <div className="text-xl font-extrabold tabular-nums text-ink-primary">{centre.value}</div>
+            <div className="mt-0.5 text-sm font-semibold leading-tight text-ink-muted">{centre.label}</div>
+            {centre.sub && <div className="text-sm tabular-nums text-ink-muted">{centre.sub}</div>}
+          </div>
+        </div>
+      </div>
+
+      <div className={`relative min-w-0 ${stacked ? 'w-full' : 'flex-1'}`}>
+        {/* THE SUMMARY — fixed height, so nothing moves. */}
+        <div className="mb-3 flex h-[72px] flex-col justify-center rounded-[var(--r-md)] bg-surface-muted px-4">
+          {level === 'sub' ? (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                {back('Ad Spend', () => setChannel(null))}
+                <span className="text-xl font-extrabold tabular-nums text-ink-primary">{channel!.display}</span>
+              </div>
+              <div className="mt-0.5 flex items-baseline justify-between gap-3 text-sm text-ink-muted">
+                <span className="truncate">{channel!.label} · by sub-channel</span>
+                <span className="shrink-0 tabular-nums">{pctText(channel!.pct)} of Ad Spend</span>
+              </div>
+            </>
+          ) : level === 'channels' ? (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                {back('All drivers', () => onDrill(false))}
+                <span className="text-xl font-extrabold tabular-nums text-ink-primary">{format(adTotal)}</span>
+              </div>
+              <div className="mt-0.5 flex items-baseline justify-between gap-3 text-sm text-ink-muted">
+                <span className="truncate">Ad Spend · by channel</span>
+                <span className="shrink-0 tabular-nums">{pctText((adTotal / revenue) * 100)} of {totalDisplay}</span>
+              </div>
+            </>
+          ) : anySelected ? (
+            <>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-xl font-extrabold tabular-nums text-ink-primary">{format(pickedValue)}</span>
+                <span className="text-md font-bold tabular-nums text-brand-violet">{pctText((pickedValue / revenue) * 100)}</span>
+              </div>
+              <div className="mt-0.5 flex items-baseline justify-between gap-3 text-sm text-ink-muted">
+                <span className="truncate">From {picked.map((sg) => sg.label).join(' + ')}</span>
+                <span className="shrink-0 tabular-nums">of {totalDisplay}</span>
+              </div>
+            </>
+          ) : (
+            // Nothing selected: the decomposition's headline — what the
+            // events and ads added above the baseline (the ring's centre
+            // already states total revenue).
+            <>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-xl font-extrabold tabular-nums text-ink-primary">{format(revenue - valueOf('baseline'))}</span>
+                <span className="text-md font-bold tabular-nums text-brand-violet">{pctText(((revenue - valueOf('baseline')) / revenue) * 100)}</span>
+              </div>
+              <div className="mt-0.5 flex items-baseline justify-between gap-3 text-sm text-ink-muted">
+                <span className="truncate">Above baseline · events and ads</span>
+                <span className="shrink-0 tabular-nums">of {totalDisplay}</span>
+              </div>
+            </>
+          )}
+        </div>
+
+        <ul className="flex flex-col">
+          {segments.map((sg) => {
+            const clickable = opens(sg.key)
+            const Row = clickable ? 'button' : 'div'
+            return (
+              <li key={sg.key}>
+                <Row
+                  {...(clickable
+                    ? { type: 'button' as const, onClick: () => openSeg(sg.key), title: level === 'drivers' ? 'Open Ad Spend by channel' : `Open ${sg.label} by sub-channel` }
+                    : {})}
+                  onMouseEnter={() => {
+                    setHover(sg.key)
+                    if (level === 'channels') setPreview(sg.key)
+                  }}
+                  onMouseLeave={() => {
+                    setHover(null)
+                    setPreview(null)
+                  }}
+                  className={`grid h-10 w-full items-center gap-x-2 rounded-[var(--r-md)] px-2.5 text-left transition-[background-color,opacity] duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
+                    level === 'drivers' ? 'grid-cols-[12px_minmax(0,1fr)_7rem_4.2rem] text-md' : 'grid-cols-[12px_minmax(0,1fr)_5.4rem_3.7rem] text-base'
+                  } ${clickable ? 'cursor-pointer' : 'cursor-default'} ${isOn(sg.key) ? 'bg-surface-hover' : ''} ${isDim(sg.key) ? 'opacity-50' : ''}`}
+                >
+                  <span className="h-3 w-3 rounded-full" style={{ background: sg.color }} />
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className={`truncate ${level === 'drivers' && selected.has(sg.key as DriverKey) ? 'font-semibold text-ink-primary' : 'text-ink-secondary'}`}>
+                      {sg.label}
+                    </span>
+                    {clickable && (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5 shrink-0 text-brand-violet" aria-hidden="true">
+                        <path d="m9 18 6-6-6-6" />
+                      </svg>
+                    )}
+                  </span>
+                  <span className="text-right font-semibold tabular-nums text-ink-primary">{sg.display}</span>
+                  <span className="text-right text-base tabular-nums text-ink-muted">{pctText(sg.pct)}</span>
+                </Row>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+    </div>
+  )
+}
+
+/** A categorical palette for parts of a whole — channels, sub-channels —
+ *  ordered so neighbouring slices stay apart. */
+export const PART_COLORS = [
+  SERIES.spend,
+  'var(--brand-blue)',
+  'var(--tint-teal-icon)',
+  'var(--tint-coral-icon)',
+  'var(--tint-lemon-icon)',
+  'var(--brand-violet)',
+  'var(--tint-mint-icon)',
+  'var(--tint-sky-icon)',
+]
+
+/** SHARE DONUT — parts of a whole as a ring with a legend, built like the
+ *  Revenue Decomposition beside it: total in the centre, the hovered part
+ *  named there instead, fixed legend rows, and every part's figures in a
+ *  floating tooltip so nothing moves. `onPick` makes slices and rows open
+ *  something (the Channel card drills into a channel). */
+export function ShareDonut({
+  items,
+  totalDisplay,
+  totalLabel,
+  onPick,
+  hint,
+}: {
+  items: Array<{
+    key: string
+    label: string
+    value: number
+    display: string
+    details: Array<[string, string, string?]>
+    mix?: { days: number; of: number; events: Array<{ label: string; days: number; pct: number }> }
+  }>
+  totalDisplay: string
+  totalLabel: string
+  onPick?: (key: string) => void
+  hint?: string
+}) {
+  const { ref, width, height } = useChartSize(560, 300)
+  const [hoverKey, setHover] = useState<string | null>(null)
+  const [tipState, setTip] = useState<{ key: string; anchor: TipAnchor } | null>(null)
+  const rowRefs = useRef(new Map<string, HTMLLIElement>())
+  const legendRef = useRef<HTMLDivElement>(null)
+  // A slice and its legend row open the same tooltip, beside the row.
+  const point = (key: string) => {
+    setHover(key)
+    const li = rowRefs.current.get(key)
+    if (li && legendRef.current) setTip({ key, anchor: anchorOf(li, legendRef.current) })
+  }
+  const leave = () => {
+    setHover(null)
+    setTip(null)
+  }
+  // Hover counts only while it points at a part on screen: a click that
+  // drills in replaces the parts under a still pointer, which would
+  // otherwise leave every new part faded.
+  const hover = items.some((it) => it.key === hoverKey) ? hoverKey : null
+  const tip = tipState && items.some((it) => it.key === tipState.key) ? tipState : null
+  const total = items.reduce((t, it) => t + Math.max(it.value, 0), 0) || 1
+  const parts = items.map((it, i) => ({ ...it, pct: (Math.max(it.value, 0) / total) * 100, color: PART_COLORS[i % PART_COLORS.length] }))
+
+  const MIN = 0.06
+  const raw = parts.map((p) => Math.max((p.pct / 100) * Math.PI * 2, p.value > 0 ? MIN : 0))
+  const scale = (Math.PI * 2) / (raw.reduce((a, b) => a + b, 0) || 1)
+  let angle = 0
+  const arcs = parts.map((p, i) => {
+    const a0 = angle
+    angle += raw[i] * scale
+    return { ...p, a0, a1: angle }
+  })
+
+  const stacked = width < 480
+  const size = Math.max(180, Math.min(stacked ? width - 20 : width * 0.36, height - 10, 240))
+  const c = size / 2
+  const r1 = c - 8
+  const r0 = r1 * 0.62
+  const hovered = hover ? parts.find((p) => p.key === hover) : null
+  const tipItem = tip ? parts.find((p) => p.key === tip.key) : null
+
+  return (
+    <div ref={ref} className={`relative flex min-h-[280px] w-full flex-1 gap-4 ${stacked ? 'flex-col items-center' : 'items-center'}`}>
+      <div className="relative shrink-0" style={{ width: size, height: size }}>
+        <svg width={size} height={size} role="img" aria-label={`${totalLabel} by part`} className="overflow-visible">
+          {arcs.map((a) => (
+            <path
+              key={a.key}
+              d={arcPath(c, c, hover === a.key ? r0 - 2 : r0, hover === a.key ? r1 + 6 : r1, a.a0, a.a1)}
+              fill={a.color}
+              stroke="var(--surface-card)"
+              strokeWidth={2}
+              opacity={hover !== null && hover !== a.key ? 0.3 : 1}
+              className={`transition-opacity duration-200 ${onPick ? 'cursor-pointer' : ''}`}
+              onMouseEnter={() => point(a.key)}
+              onMouseLeave={leave}
+              onClick={onPick ? () => onPick(a.key) : undefined}
+            >
+            </path>
+          ))}
+        </svg>
+        <div className="pointer-events-none absolute inset-0 grid place-items-center">
+          <div className="max-w-[60%] text-center">
+            <div className="text-xl font-extrabold tabular-nums text-ink-primary">{hovered ? hovered.display : totalDisplay}</div>
+            <div className="mt-0.5 text-sm font-semibold leading-tight text-ink-muted">{hovered ? hovered.label : totalLabel}</div>
+            {hovered && <div className="text-sm tabular-nums text-ink-muted">{hovered.pct.toFixed(2)}%</div>}
+          </div>
+        </div>
+      </div>
+
+      <div ref={legendRef} className={`relative min-w-0 ${stacked ? 'w-full' : 'flex-1'}`}>
+        <ul className="flex flex-col">
+          {parts.map((p) => {
+            const on = hover === p.key
+            return (
+              <li
+                key={p.key}
+                ref={(el) => {
+                  if (el) rowRefs.current.set(p.key, el)
+                  else rowRefs.current.delete(p.key)
+                }}
+              >
+                <button
+                  type="button"
+                  onMouseEnter={() => point(p.key)}
+                  onMouseLeave={leave}
+                  onFocus={() => point(p.key)}
+                  onBlur={leave}
+                  onClick={onPick ? () => onPick(p.key) : undefined}
+                  className={`grid h-10 w-full grid-cols-[12px_minmax(0,1fr)_5.8rem_3.6rem] items-center gap-x-2 rounded-[var(--r-md)] px-2 text-left text-base transition-[background-color,opacity] duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
+                    onPick ? 'cursor-pointer' : 'cursor-default'
+                  } ${on ? 'bg-surface-hover' : ''} ${hover !== null && !on ? 'opacity-50' : ''}`}
+                >
+                  <span className="h-3 w-3 rounded-full" style={{ background: p.color }} />
+                  <span className="truncate text-ink-secondary">{p.label}</span>
+                  <span className="text-right font-semibold tabular-nums text-ink-primary">{p.display}</span>
+                  <span className="text-right text-base tabular-nums text-ink-muted">{p.pct.toFixed(2)}%</span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+        {tipItem && tip && (
+          <FloatingTip anchor={tip.anchor} width={tipItem.mix ? 320 : 256}>
+            <div className="font-bold text-ink-primary">{tipItem.label}</div>
+            {tipItem.details.map(([k, v, sw]) => (
+              <TipRow key={k} k={k} v={v} swatch={sw} />
+            ))}
+            {tipItem.mix && <EventMix title="Active days" days={tipItem.mix.days} of={tipItem.mix.of} events={tipItem.mix.events} limit={5} />}
+            {hint && <div className="mt-1.5 border-t border-border-subtle pt-1.5 font-semibold text-brand-violet">{hint}</div>}
+          </FloatingTip>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Where a floating tooltip is pinned: the hovered row's top and bottom, and
+ *  the right edge it lines up with — all in viewport pixels. */
+interface TipAnchor {
+  top: number
+  bottom: number
+  right: number
+}
+
+const anchorOf = (row: HTMLElement, edge: HTMLElement): TipAnchor => {
+  const r = row.getBoundingClientRect()
+  return { top: r.top, bottom: r.bottom, right: edge.getBoundingClientRect().right }
+}
+
+/** A tooltip on the page's top layer, so a scrolling card body cannot clip
+ *  it: right-aligned to the anchor, below the row when it fits on screen,
+ *  above it otherwise, and never off the screen. */
+function FloatingTip({ anchor, width, children }: { anchor: TipAnchor; width: number; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [top, setTop] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    const h = ref.current?.offsetHeight ?? 0
+    const room = window.innerHeight - 8
+    const below = anchor.bottom + 6
+    const above = anchor.top - 6 - h
+    setTop(below + h <= room ? below : above >= 8 ? above : Math.max(8, room - h))
+  }, [anchor.top, anchor.bottom])
+  const left = Math.max(8, Math.min(anchor.right - width, window.innerWidth - width - 8))
+  return createPortal(
+    <div
+      ref={ref}
+      role="tooltip"
+      className="pointer-events-none fixed z-[60] rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
+      style={{ left, top: top ?? anchor.bottom + 6, width, visibility: top === null ? 'hidden' : 'visible' }}
+    >
+      {children}
+    </div>,
+    document.body,
+  )
+}
+
+/** EVENT MIX — what else was on during a set of ad days: every combination of
+ *  Festival, Seasonal and promotion type, with its days and share of those
+ *  days, largest first. Past `limit` rows the rest fold into one "Other
+ *  combinations" line, so the block stays a fixed, readable size; "Ad spend
+ *  only" (an ad day with nothing else on) is always last. The days always add
+ *  up to the header's count. Used by the trend's and the Channel card's
+ *  tooltips. */
+export function EventMix({
+  title,
+  days,
+  of,
+  events,
+  limit = 8,
+}: {
+  title: string
+  days: number
+  /** The period's days, for "180 of 365 days". */
+  of?: number
+  events: Array<{ label: string; days: number; pct: number }>
+  limit?: number
+}) {
+  const only = events.find((e) => e.label === 'Ad spend only')
+  const combos = events.filter((e) => e.label !== 'Ad spend only')
+  const shown = combos.length > limit + 1 ? combos.slice(0, limit) : combos
+  const folded = combos.slice(shown.length)
+  const foldedDays = folded.reduce((t, e) => t + e.days, 0)
+  const row = (label: string, d: number, pct: number, strong = false, key = label) => (
+    <div key={key} className="flex items-baseline justify-between gap-3 text-[11px] leading-[1.5]">
+      <span className={`min-w-0 truncate ${strong ? 'font-semibold text-ink-primary' : 'text-ink-secondary'}`} title={label}>
+        {label}
+      </span>
+      <span className="shrink-0 tabular-nums text-ink-primary">
+        {d} <span className="text-ink-muted">{d === 1 ? 'day' : 'days'} · {pct.toFixed(2)}%</span>
+      </span>
+    </div>
+  )
+  return (
+    <div className="mt-1.5 border-t border-border-subtle pt-1.5">
+      <div className="mb-0.5 flex items-baseline justify-between font-bold text-ink-primary">
+        <span>{title}</span>
+        <span className="font-semibold text-ink-muted">{of !== undefined ? `${days} of ${of} days` : `${days} days`}</span>
+      </div>
+      {days === 0 && <div className="text-[11px] text-ink-muted">No ad spend in this period.</div>}
+      {shown.map((e) => row(e.label, e.days, e.pct))}
+      {folded.length > 0 && row(`Other combinations (${folded.length})`, foldedDays, days ? (foldedDays / days) * 100 : 0, false, '__other')}
+      {only && (
+        <div className="mt-0.5 border-t border-dashed border-border-subtle pt-0.5">{row(only.label, only.days, only.pct, true)}</div>
+      )}
+    </div>
+  )
+}
+
 /** The tone a ROAS wears beside a bar: green at or above break-even, red
  *  below it, muted when there is none — as TPO's ROI wears its tone. */
 export function roasTone(roas: number | null): string {
@@ -957,33 +1569,37 @@ export function roasTone(roas: number | null): string {
 export interface ShareBarRow {
   key: string
   label: string
-  sub?: string
   value: number
   display: string
+  /** Muted text after the value — the share, where one adds to 100%; '' for none. */
   share: string
-  /** A second figure after the value — the ROAS, in its tone — as TPO's
-   *  ranked rows print the ROI beside the ranked metric. */
-  aside?: { text: string; color: string }
   /** The hover tooltip's rows: [label, value, swatch?]. */
   details?: Array<[string, string, string?]>
+  /** The tooltip's event mix over the row's active days. */
+  mix?: { days: number; of: number; events: Array<{ label: string; days: number; pct: number }> }
 }
 
-/** Horizontal share bars — one row per item, ranked, the bar scaled to the
- *  largest, with a tooltip of the row's every figure on hover or focus. */
+/** Ranked horizontal bars, one line per row — rank, name, bar, value — the
+ *  bar scaled to the largest. Only the value is printed; the row's other
+ *  figures are in a tooltip on hover or keyboard focus. */
 export function ShareBars({
   rows,
   color = SERIES.spend,
-  ranked = true,
-  inline = false,
+  onPick,
+  hint,
+  fill = false,
 }: {
   rows: ShareBarRow[]
   color?: string
-  ranked?: boolean
-  /** One line per row — rank, name, bar, value — and only the value: the
-   *  row's other figures live in the hover tooltip. */
-  inline?: boolean
+  /** Makes each row a button — the Channel card drills into a channel. */
+  onPick?: (key: string) => void
+  /** A line at the foot of the tooltip, e.g. what clicking does. */
+  hint?: string
+  /** Spread a short list over the card's height, as TPO's ranked rows do,
+   *  instead of stacking it at the top of a half-empty card. */
+  fill?: boolean
 }) {
-  const [hover, setHover] = useState<{ index: number; top: number; above: boolean } | null>(null)
+  const [hover, setHover] = useState<{ index: number; anchor: TipAnchor } | null>(null)
   // ROAS can be negative. Scale by magnitude so a loss remains visible rather
   // than producing an invalid negative-width bar.
   const max = Math.max(...rows.map((r) => Math.abs(r.value)), 1)
@@ -992,123 +1608,75 @@ export function ShareBars({
 
   const enter = (index: number) => (e: React.SyntheticEvent<HTMLLIElement>) => {
     const li = e.currentTarget
-    const list = li.parentElement
-    // Below the row in the top half of the list, above it in the bottom
-    // half, so the tooltip stays inside the card and never covers the row.
-    const above = list ? li.offsetTop > list.clientHeight / 2 : false
-    setHover({ index, top: above ? li.offsetTop - 6 : li.offsetTop + li.offsetHeight + 6, above })
-  }
-
-  const tooltip = active && activeRow?.details && (
-    <div
-      role="tooltip"
-      className="pointer-events-none absolute right-0 z-20 w-60 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
-      style={active.above ? { top: active.top, transform: 'translateY(-100%)' } : { top: active.top }}
-    >
-      <div className="font-bold text-ink-primary">{activeRow.label}</div>
-      {activeRow.sub && <div className="text-ink-muted">{activeRow.sub}</div>}
-      {activeRow.details.map(([k, v, swatch]) => (
-        <TipRow key={k} k={k} v={v} swatch={swatch} />
-      ))}
-    </div>
-  )
-
-  if (inline) {
-    return (
-      <div className="relative">
-        <ul className="flex flex-col">
-          {rows.map((r, i) => {
-            const isActive = active?.index === i
-            const pct = (Math.abs(r.value) / max) * 100
-            return (
-              <li
-                key={r.key}
-                tabIndex={r.details ? 0 : undefined}
-                onMouseEnter={enter(i)}
-                onMouseLeave={() => setHover(null)}
-                onFocus={enter(i)}
-                onBlur={() => setHover(null)}
-                className={`grid grid-cols-[1.25rem_minmax(0,9.5rem)_minmax(0,1fr)_auto] items-center gap-x-3 rounded-[var(--r-sm)] px-2 py-[7px] text-sm transition-[background-color,opacity] duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
-                  isActive ? 'bg-surface-hover' : ''
-                } ${active && !isActive ? 'opacity-55' : ''}`}
-              >
-                <span className="text-right tabular-nums text-ink-muted">{ranked ? i + 1 : ''}</span>
-                <span className="truncate font-semibold text-ink-primary" title={r.label}>
-                  {r.label}
-                </span>
-                <span className="h-2.5 overflow-hidden rounded-full bg-surface-muted">
-                  <span
-                    className="block h-full rounded-full transition-[width] duration-300"
-                    style={{
-                      // A sliver keeps a tiny value visible; a zero or missing
-                      // value ("—") draws no bar at all.
-                      width: `${pct > 0 ? Math.max(pct, 1.5) : 0}%`,
-                      background: r.value < 0 ? 'var(--status-danger)' : color,
-                    }}
-                  />
-                </span>
-                <span className="min-w-[5.5rem] text-right font-bold tabular-nums text-ink-primary">
-                  {r.display}
-                  {r.share && <span className="ml-1 text-xs font-medium text-ink-muted">{r.share}</span>}
-                </span>
-              </li>
-            )
-          })}
-        </ul>
-        {tooltip}
-      </div>
-    )
+    setHover({ index, anchor: anchorOf(li, li.parentElement ?? li) })
   }
 
   return (
-    <div className="relative">
-      <ul className="flex flex-col gap-1">
+    <div className={`relative ${fill ? 'flex flex-1 flex-col' : ''}`}>
+      <ul className={`flex flex-col ${fill ? 'flex-1 justify-around' : ''}`}>
         {rows.map((r, i) => {
           const isActive = active?.index === i
+          const pct = (Math.abs(r.value) / max) * 100
           return (
             <li
               key={r.key}
-              tabIndex={r.details ? 0 : undefined}
+              tabIndex={r.details || onPick ? 0 : undefined}
+              role={onPick ? 'button' : undefined}
               onMouseEnter={enter(i)}
               onMouseLeave={() => setHover(null)}
               onFocus={enter(i)}
               onBlur={() => setHover(null)}
-              className={`rounded-[var(--r-sm)] px-1.5 py-1 transition-[background-color,opacity] duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
+              onClick={onPick ? () => onPick(r.key) : undefined}
+              onKeyDown={onPick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(r.key) } } : undefined}
+              className={`grid ${onPick ? 'cursor-pointer grid-cols-[1.25rem_minmax(0,9.5rem)_minmax(0,1fr)_auto_14px]' : 'grid-cols-[1.25rem_minmax(0,9.5rem)_minmax(0,1fr)_auto]'} items-center gap-x-3 rounded-[var(--r-sm)] px-2 py-[7px] text-sm transition-[background-color,opacity] duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
                 isActive ? 'bg-surface-hover' : ''
-              } ${active && !isActive ? 'opacity-60' : ''}`}
+              } ${active && !isActive ? 'opacity-55' : ''}`}
             >
-              <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
-                <span className="flex min-w-0 items-baseline gap-1.5">
-                  {ranked && <span className="tabular-nums text-ink-muted">{i + 1}</span>}
-                  <span className="truncate font-semibold text-ink-primary">
-                    {r.label}
-                    {r.sub && <span className="ml-1.5 font-normal text-ink-muted">{r.sub}</span>}
-                  </span>
-                </span>
-                <span className="shrink-0 tabular-nums text-ink-secondary">
-                  <span className="font-bold text-ink-primary">{r.display}</span>
-                  {r.aside && (
-                    <>
-                      {' · '}
-                      <span className="font-semibold" style={{ color: r.aside.color }}>
-                        {r.aside.text}
-                      </span>
-                    </>
-                  )}
-                  <span className="text-ink-muted"> · {r.share}</span>
-                </span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-surface-muted">
-                <div
-                  className="h-full rounded-full transition-[width] duration-300"
-                  style={{ width: `${(Math.abs(r.value) / max) * 100}%`, background: r.value < 0 ? 'var(--status-danger)' : color }}
+              <span className="text-right tabular-nums text-ink-muted">{i + 1}</span>
+              <span className="truncate font-semibold text-ink-primary" title={r.label}>
+                {r.label}
+              </span>
+              <span className="h-2.5 overflow-hidden rounded-full bg-surface-muted">
+                <span
+                  className="block h-full rounded-full transition-[width] duration-300"
+                  style={{
+                    // A sliver keeps a tiny value visible; a zero or missing
+                    // value ("—") draws no bar at all.
+                    width: `${pct > 0 ? Math.max(pct, 1.5) : 0}%`,
+                    background: r.value < 0 ? 'var(--status-danger)' : color,
+                  }}
                 />
-              </div>
+              </span>
+              <span className="min-w-[5.5rem] text-right font-bold tabular-nums text-ink-primary">
+                {r.display}
+                {r.share && <span className="ml-1 text-xs font-medium text-ink-muted">{r.share}</span>}
+              </span>
+              {onPick && (
+                <Chevron className={`h-3.5 w-3.5 transition-colors ${isActive ? 'text-brand-violet' : 'text-ink-disabled'}`} />
+              )}
             </li>
           )
         })}
       </ul>
-      {tooltip}
+      {active && activeRow?.details && (
+        <FloatingTip anchor={active.anchor} width={activeRow.mix ? 320 : 240}>
+          <div className="font-bold text-ink-primary">{activeRow.label}</div>
+          {activeRow.details.map(([k, v, swatch]) => (
+            <TipRow key={k} k={k} v={v} swatch={swatch} />
+          ))}
+          {activeRow.mix && <EventMix title="Active days" days={activeRow.mix.days} of={activeRow.mix.of} events={activeRow.mix.events} limit={5} />}
+          {hint && <div className="mt-1.5 border-t border-border-subtle pt-1.5 font-semibold text-brand-violet">{hint}</div>}
+        </FloatingTip>
+      )}
     </div>
+  )
+}
+
+/** A right-pointing chevron, drawn inline so this file needs no icon import. */
+function Chevron({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      <path d="m9 18 6-6-6-6" />
+    </svg>
   )
 }

@@ -29,11 +29,18 @@ def get_frame() -> pd.DataFrame:
         )
     frame = pd.read_csv(path, encoding="utf-8-sig")
     frame["Date"] = pd.to_datetime(frame["Date"], format="%d-%m-%Y")
-    return frame
+    # A file installed before the flags were renamed: read under the new names.
+    legacy = {old: new for old, new in (("Holiday_Flag", "Festival_Flag"),
+                                        ("Trending_Flag", "Seasonal_Flag"))
+              if old in frame.columns and new not in frame.columns}
+    return frame.rename(columns=legacy) if legacy else frame
 
 
 def media_columns(frame: pd.DataFrame) -> list[str]:
-    return [c for c in frame.columns if c.lower().endswith(schema.SPEND_SUFFIX)]
+    """The channel spend columns — every `*_Spend` except the channel totals,
+    which would count the same spend twice."""
+    return [c for c in frame.columns
+            if c.lower().endswith(schema.SPEND_SUFFIX) and not schema.is_rollup(c)]
 
 
 def years(frame: pd.DataFrame) -> list[int]:

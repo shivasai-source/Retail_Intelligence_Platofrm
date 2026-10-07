@@ -43,6 +43,8 @@ export interface MmmInspectResult {
   ok: boolean
   problems: string[]
   media_columns: string[]
+  /** Channel_*_Spend and Total_Spend found — recognised, never channels. */
+  rollup_columns: string[]
   missing_required: string[]
   missing_optional: string[]
   ignored: string[]
@@ -84,6 +86,16 @@ export interface MmmKpi {
   available: boolean
   unavailable_reason: string
   help: string
+  /** True on the Revenue card while a channel filter is on: it then shows
+   *  the selected channels' attributed revenue, not total revenue. */
+  attributed?: boolean
+}
+
+/** One combination of events over a set of ad days. */
+export interface MmmEventMixRow {
+  label: string
+  days: number
+  pct: number
 }
 
 export interface MmmChannel {
@@ -92,9 +104,14 @@ export interface MmmChannel {
   family: string
   spend: number
   spend_display: string
-  /** Revenue on days the channel was on air; overlapping channels are not additive. */
+  /** Revenue on the days the channel was active; overlapping channels are not additive. */
   revenue: number
   revenue_display: string
+  /** Each day's revenue shared among the channels active that day, by their
+   *  spend that day. Additive: channels sum to revenue on ad days. */
+  revenue_attributed: number | null
+  revenue_attributed_display: string
+  revenue_attributed_share: number
   /** Estimated return over the channel's active days, not attributed revenue. */
   roas: number | null
   roas_display: string
@@ -103,6 +120,9 @@ export interface MmmChannel {
   active_days: number
   avg_active_day: number | null
   avg_active_day_display: string
+  /** Days in the period, and the event mix over this channel's active days. */
+  period_days: number
+  events: MmmEventMixRow[]
 }
 
 /** app/mmm/baseline.py#Estimate.to_dict, plus the scope's total. */
@@ -176,6 +196,14 @@ export interface MmmHub {
     baseline_display: string[]
     roas_display: string[]
     widened: boolean[]
+    /** Days in each bucket (after the page's day filters). */
+    days: number[]
+    /** Days with ad spend in each bucket. */
+    ad_days: number[]
+    /** Each bucket's mix of events OVER ITS AD DAYS: every combination of
+     *  Festival, Seasonal and promotion type that occurred, with its days and
+     *  % of the ad days, largest first and "Ad spend only" last. */
+    events: Array<Array<{ label: string; days: number; pct: number }>>
   }
   comparison: {
     period_label: string
@@ -184,7 +212,31 @@ export interface MmmHub {
     windows: MmmComparisonWindow[]
   }
   channels: MmmChannel[]
-  families: Array<{ family: string; spend: number; spend_display: string; share: number; share_display: string }>
+  /** Channel families (the dataset's channels), measured as each sub-channel
+   *  is — the Channel card opens on these and drills into the sub-channels. */
+  families: Array<{
+    family: string
+    spend: number
+    spend_display: string
+    share: number
+    share_display: string
+    revenue: number | null
+    revenue_display: string
+    revenue_attributed: number | null
+    revenue_attributed_display: string
+    revenue_attributed_share: number
+    roas: number | null
+    roas_display: string
+    active_days: number
+    channels: number
+    period_days: number
+    events: MmmEventMixRow[]
+  }>
+  /** Revenue of the days with ad spend — the whole attributed revenue divides. */
+  revenue_attributed_total: number | null
+  revenue_attributed_total_display: string
+  /** app/mmm/decomposition.py — the scope's revenue by driver. */
+  decomposition: MmmDecomposition
   promotions: Array<{
     type: string
     days: number
@@ -211,6 +263,30 @@ export interface MmmHub {
     difference: number | null
     difference_display: string
   }>
+}
+
+export interface MmmDecompositionSlice {
+  key: string
+  label: string
+  kind: 'baseline' | 'event' | 'media'
+  value: number
+  display: string
+  share: number
+  share_display: string
+  /** Sub-channels of a media slice, largest first. */
+  members: Array<{ label: string; value: number; display: string }>
+}
+
+export interface MmmDecomposition {
+  available: boolean
+  reason: string
+  total: number
+  total_display: string
+  incremental?: number
+  incremental_display?: string
+  baseline_source?: 'per-range' | 'model'
+  r2?: number
+  slices: MmmDecompositionSlice[]
 }
 
 /** The scope as the backend echoes it (app/mmm/scope.py#Scope.to_dict) and as
@@ -250,8 +326,8 @@ export interface MmmCalendarMonth {
   spend_display: string
   media_days: number
   promo_days: number
-  holidays: number
-  trending_days: number
+  festival_days: number
+  seasonal_days: number
 }
 
 export interface MmmCalendar {
@@ -279,8 +355,8 @@ export interface MmmCalendarDay {
   spend: number
   spend_display: string
   channels: Array<{ label: string; spend_display: string }>
-  holiday: boolean
-  trending: boolean
+  festival: boolean
+  seasonal: boolean
   promotion: boolean
   promotion_type: string
 }

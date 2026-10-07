@@ -9,10 +9,10 @@ over their own days.
 THE FORMULA. Over the days of the range, read the average daily revenue of
 three kinds of day:
 
-    X  ad spend > 0, and Holiday, Trending and Promotion flags all 1
-       = ads + holiday + trending + promotion + baseline
+    X  ad spend > 0, and Festival, Seasonal and Promotion flags all 1
+       = ads + festival + seasonal + promotion + baseline
     Y  ad spend = 0, and all three flags 1
-       = holiday + trending + promotion + baseline
+       = festival + seasonal + promotion + baseline
     R  ad spend > 0, and all three flags 0
        = ads + baseline
 
@@ -44,7 +44,7 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 
-FLAGS: tuple[str, ...] = ("Holiday_Flag", "Trending_Flag", "Promotion_Flag")
+FLAGS: tuple[str, ...] = ("Festival_Flag", "Seasonal_Flag", "Promotion_Flag")
 
 #: Fewest days of each kind (X, Y, R) an estimate needs before the window
 #: is widened.

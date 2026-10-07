@@ -167,13 +167,34 @@ export function useAzureInspect() {
 export function useAzureInstall() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (req: AzureCreds & { blobs: AzureBlobSel[] }) =>
+    mutationFn: (req: AzureCreds & { blobs: AzureBlobSel[]; progress_id?: string }) =>
       apiPost<StarInstallResult>('/datasets/azure/install', req),
     onSuccess: () => {
       // Same blanket invalidation as an Excel install: this replaced the CSVs
       // behind every KPI, chart and filter in the platform.
       queryClient.invalidateQueries()
     },
+  })
+}
+
+/** GET /datasets/azure/progress/{id} — how far an Azure install has got. */
+export interface AzureInstallProgress {
+  stage: 'downloading' | 'installing' | 'done' | 'failed'
+  bytes_done: number
+  bytes_total: number
+}
+
+/** Polls an in-flight Azure install's real progress, twice a second, while
+ *  `active`. A 404 just means the server has not registered the id yet (the
+ *  poll can beat the install request there), so it keeps polling. */
+export function useAzureInstallProgress(progressId: string | null, active: boolean) {
+  return useQuery({
+    queryKey: ['azure-install-progress', progressId],
+    queryFn: () => apiFetch<AzureInstallProgress>(`/datasets/azure/progress/${progressId}`),
+    enabled: active && progressId !== null,
+    refetchInterval: active ? 500 : false,
+    retry: false,
+    gcTime: 0,
   })
 }
 

@@ -155,6 +155,26 @@ def prepare(filename: str, content: bytes) -> Prepared:
     if blank_spend:
         warnings.append(f"{blank_spend} blank spend cell(s) were read as 0.")
 
+    # Channel totals are not stored — every figure is computed from the
+    # sub-channels — but a total that disagrees with them is worth saying.
+    if match.media and not problems:
+        sub_total = out[list(match.media)].sum(axis=1)
+        for col in match.rollups:
+            given = pd.to_numeric(frame[col], errors="coerce").fillna(0)
+            if col.lower() == schema.TOTAL_SPEND.lower():
+                expected, what = sub_total, "all sub-channels"
+            elif col in schema.ROLLUP_FAMILY:
+                family = schema.ROLLUP_FAMILY[col]
+                members = [c for c in match.media if schema.family_of(c) == family]
+                expected = out[members].sum(axis=1) if members else pd.Series(0.0, index=out.index)
+                what = f"its {family} sub-channels"
+            else:
+                continue
+            off = (given - expected).abs() > (expected.abs() * 0.001).clip(lower=1)
+            if off.any():
+                warnings.append(f"{col} differs from the sum of {what} on {int(off.sum())} day(s) "
+                                f"({_rows(off)}); MMM uses the sub-channels.")
+
     present = set(match.rename.values())
     for flag in schema.FLAGS:
         if flag in present:
@@ -245,6 +265,7 @@ def inspect(filename: str, content: bytes) -> dict[str, Any]:
         "ok": match.ok,
         "problems": match.problems(),
         "media_columns": list(match.media),
+        "rollup_columns": list(match.rollups),
         "missing_required": list(match.missing_required),
         "missing_optional": list(match.missing_optional),
         "ignored": list(match.ignored),
@@ -275,9 +296,11 @@ def status() -> dict[str, Any]:
             installed = False
 
     present_cols = set(header)
-    media = [c for c in header if c.lower().endswith(schema.SPEND_SUFFIX)]
+    media = loader.media_columns(pd.DataFrame(columns=header))
     files = []
     for group, label in schema.GROUP_LABELS.items():
+        if group == "rollup":
+            continue  # never stored, so nothing to report as loaded
         cols = [c.name for c in schema.COLUMNS if c.group == group]
         if group == "media":
             ok = bool(media)
