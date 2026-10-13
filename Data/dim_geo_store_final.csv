@@ -1,558 +1,66 @@
 Store_Id,Channel_Id,Retailer,Distributor_Name,Region,Country,State,City,Tier
-S001,CH002,Reliance Fresh,null,North,India,Delhi,Delhi,Tier 1
-S002,CH002,Reliance Fresh,null,North,India,Delhi,Delhi,Tier 1
-S003,CH002,D Mart,null,North,India,Delhi,Delhi,Tier 1
-S004,CH002,D Mart,null,North,India,Delhi,Delhi,Tier 1
-S005,CH002,Vishal Mega Mart,null,North,India,Delhi,Delhi,Tier 1
-S006,CH002,Vishal Mega Mart,null,North,India,Delhi,Delhi,Tier 1
-S007,CH002,More Retail,null,North,India,Delhi,Delhi,Tier 1
-S008,CH002,More Retail,null,North,India,Delhi,Delhi,Tier 1
-S009,CH002,Heritage Fresh,null,North,India,Delhi,Delhi,Tier 1
-S010,CH002,Heritage Fresh,null,North,India,Delhi,Delhi,Tier 1
-S011,CH002,Reliance Fresh,null,West,India,Maharashtra,Mumbai,Tier 1
-S012,CH002,Reliance Fresh,null,West,India,Maharashtra,Mumbai,Tier 1
-S013,CH002,D Mart,null,West,India,Maharashtra,Mumbai,Tier 1
-S014,CH002,D Mart,null,West,India,Maharashtra,Mumbai,Tier 1
-S015,CH002,Vishal Mega Mart,null,West,India,Maharashtra,Mumbai,Tier 1
-S016,CH002,Vishal Mega Mart,null,West,India,Maharashtra,Mumbai,Tier 1
-S017,CH002,More Retail,null,West,India,Maharashtra,Mumbai,Tier 1
-S018,CH002,More Retail,null,West,India,Maharashtra,Mumbai,Tier 1
-S019,CH002,Heritage Fresh,null,West,India,Maharashtra,Mumbai,Tier 1
-S020,CH002,Heritage Fresh,null,West,India,Maharashtra,Mumbai,Tier 1
-S021,CH002,Reliance Fresh,null,South,India,Karnataka,Bengaluru,Tier 1
-S022,CH002,Reliance Fresh,null,South,India,Karnataka,Bengaluru,Tier 1
-S023,CH002,D Mart,null,South,India,Karnataka,Bengaluru,Tier 1
-S024,CH002,D Mart,null,South,India,Karnataka,Bengaluru,Tier 1
-S025,CH002,Vishal Mega Mart,null,South,India,Karnataka,Bengaluru,Tier 1
-S026,CH002,Vishal Mega Mart,null,South,India,Karnataka,Bengaluru,Tier 1
-S027,CH002,More Retail,null,South,India,Karnataka,Bengaluru,Tier 1
-S028,CH002,More Retail,null,South,India,Karnataka,Bengaluru,Tier 1
-S029,CH002,Heritage Fresh,null,South,India,Karnataka,Bengaluru,Tier 1
-S030,CH002,Heritage Fresh,null,South,India,Karnataka,Bengaluru,Tier 1
-S031,CH002,Reliance Fresh,null,South,India,Tamil Nadu,Chennai,Tier 1
-S032,CH002,Reliance Fresh,null,South,India,Tamil Nadu,Chennai,Tier 1
-S033,CH002,D Mart,null,South,India,Tamil Nadu,Chennai,Tier 1
-S034,CH002,D Mart,null,South,India,Tamil Nadu,Chennai,Tier 1
-S035,CH002,Vishal Mega Mart,null,South,India,Tamil Nadu,Chennai,Tier 1
-S036,CH002,Vishal Mega Mart,null,South,India,Tamil Nadu,Chennai,Tier 1
-S037,CH002,More Retail,null,South,India,Tamil Nadu,Chennai,Tier 1
-S038,CH002,More Retail,null,South,India,Tamil Nadu,Chennai,Tier 1
-S039,CH002,Heritage Fresh,null,South,India,Tamil Nadu,Chennai,Tier 1
-S040,CH002,Heritage Fresh,null,South,India,Tamil Nadu,Chennai,Tier 1
-S041,CH002,Reliance Fresh,null,South,India,Telangana,Hyderabad,Tier 1
-S042,CH002,Reliance Fresh,null,South,India,Telangana,Hyderabad,Tier 1
-S043,CH002,D Mart,null,South,India,Telangana,Hyderabad,Tier 1
-S044,CH002,D Mart,null,South,India,Telangana,Hyderabad,Tier 1
-S045,CH002,Vishal Mega Mart,null,South,India,Telangana,Hyderabad,Tier 1
-S046,CH002,Vishal Mega Mart,null,South,India,Telangana,Hyderabad,Tier 1
-S047,CH002,More Retail,null,South,India,Telangana,Hyderabad,Tier 1
-S048,CH002,More Retail,null,South,India,Telangana,Hyderabad,Tier 1
-S049,CH002,Heritage Fresh,null,South,India,Telangana,Hyderabad,Tier 1
-S050,CH002,Heritage Fresh,null,South,India,Telangana,Hyderabad,Tier 1
-S051,CH002,Reliance Fresh,null,North,India,Chandigarh,Chandigarh,Tier 2
-S052,CH002,Reliance Fresh,null,North,India,Chandigarh,Chandigarh,Tier 2
-S053,CH002,D Mart,null,North,India,Chandigarh,Chandigarh,Tier 2
-S054,CH002,D Mart,null,North,India,Chandigarh,Chandigarh,Tier 2
-S055,CH002,Vishal Mega Mart,null,North,India,Chandigarh,Chandigarh,Tier 2
-S056,CH002,Vishal Mega Mart,null,North,India,Chandigarh,Chandigarh,Tier 2
-S057,CH002,More Retail,null,North,India,Chandigarh,Chandigarh,Tier 2
-S058,CH002,More Retail,null,North,India,Chandigarh,Chandigarh,Tier 2
-S059,CH002,Heritage Fresh,null,North,India,Chandigarh,Chandigarh,Tier 2
-S060,CH002,Heritage Fresh,null,North,India,Chandigarh,Chandigarh,Tier 2
-S061,CH002,Reliance Fresh,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S062,CH002,Reliance Fresh,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S063,CH002,D Mart,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S064,CH002,D Mart,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S065,CH002,Vishal Mega Mart,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S066,CH002,Vishal Mega Mart,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S067,CH002,More Retail,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S068,CH002,More Retail,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S069,CH002,Heritage Fresh,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S070,CH002,Heritage Fresh,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S071,CH002,Reliance Fresh,null,West,India,Rajasthan,Udaipur,Tier 2
-S072,CH002,Reliance Fresh,null,West,India,Rajasthan,Udaipur,Tier 2
-S073,CH002,D Mart,null,West,India,Rajasthan,Udaipur,Tier 2
-S074,CH002,D Mart,null,West,India,Rajasthan,Udaipur,Tier 2
-S075,CH002,Vishal Mega Mart,null,West,India,Rajasthan,Udaipur,Tier 2
-S076,CH002,Vishal Mega Mart,null,West,India,Rajasthan,Udaipur,Tier 2
-S077,CH002,More Retail,null,West,India,Rajasthan,Udaipur,Tier 2
-S078,CH002,More Retail,null,West,India,Rajasthan,Udaipur,Tier 2
-S079,CH002,Heritage Fresh,null,West,India,Rajasthan,Udaipur,Tier 2
-S080,CH002,Heritage Fresh,null,West,India,Rajasthan,Udaipur,Tier 2
-S081,CH002,Reliance Fresh,null,North,India,Punjab,Amritsar,Tier 2
-S082,CH002,Reliance Fresh,null,North,India,Punjab,Amritsar,Tier 2
-S083,CH002,D Mart,null,North,India,Punjab,Amritsar,Tier 2
-S084,CH002,D Mart,null,North,India,Punjab,Amritsar,Tier 2
-S085,CH002,Vishal Mega Mart,null,North,India,Punjab,Amritsar,Tier 2
-S086,CH002,Vishal Mega Mart,null,North,India,Punjab,Amritsar,Tier 2
-S087,CH002,More Retail,null,North,India,Punjab,Amritsar,Tier 2
-S088,CH002,More Retail,null,North,India,Punjab,Amritsar,Tier 2
-S089,CH002,Heritage Fresh,null,North,India,Punjab,Amritsar,Tier 2
-S090,CH002,Heritage Fresh,null,North,India,Punjab,Amritsar,Tier 2
-S091,CH002,Reliance Fresh,null,West,India,Maharashtra,Nagpur,Tier 2
-S092,CH002,Reliance Fresh,null,West,India,Maharashtra,Nagpur,Tier 2
-S093,CH002,D Mart,null,West,India,Maharashtra,Nagpur,Tier 2
-S094,CH002,D Mart,null,West,India,Maharashtra,Nagpur,Tier 2
-S095,CH002,Vishal Mega Mart,null,West,India,Maharashtra,Nagpur,Tier 2
-S096,CH002,Vishal Mega Mart,null,West,India,Maharashtra,Nagpur,Tier 2
-S097,CH002,More Retail,null,West,India,Maharashtra,Nagpur,Tier 2
-S098,CH002,More Retail,null,West,India,Maharashtra,Nagpur,Tier 2
-S099,CH002,Heritage Fresh,null,West,India,Maharashtra,Nagpur,Tier 2
-S100,CH002,Heritage Fresh,null,West,India,Maharashtra,Nagpur,Tier 2
-S101,CH002,Reliance Fresh,null,South,India,Karnataka,Mysuru,Tier 2
-S102,CH002,Reliance Fresh,null,South,India,Karnataka,Mysuru,Tier 2
-S103,CH002,D Mart,null,South,India,Karnataka,Mysuru,Tier 2
-S104,CH002,D Mart,null,South,India,Karnataka,Mysuru,Tier 2
-S105,CH002,Vishal Mega Mart,null,South,India,Karnataka,Mysuru,Tier 2
-S106,CH002,Vishal Mega Mart,null,South,India,Karnataka,Mysuru,Tier 2
-S107,CH002,More Retail,null,South,India,Karnataka,Mysuru,Tier 2
-S108,CH002,More Retail,null,South,India,Karnataka,Mysuru,Tier 2
-S109,CH002,Heritage Fresh,null,South,India,Karnataka,Mysuru,Tier 2
-S110,CH002,Heritage Fresh,null,South,India,Karnataka,Mysuru,Tier 2
-S111,CH002,Reliance Fresh,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S112,CH002,Reliance Fresh,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S113,CH002,D Mart,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S114,CH002,D Mart,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S115,CH002,Vishal Mega Mart,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S116,CH002,Vishal Mega Mart,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S117,CH002,More Retail,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S118,CH002,More Retail,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S119,CH002,Heritage Fresh,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S120,CH002,Heritage Fresh,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S121,CH002,Reliance Fresh,null,South,India,Karnataka,Hubballi,Tier 3
-S122,CH002,Reliance Fresh,null,South,India,Karnataka,Hubballi,Tier 3
-S123,CH002,D Mart,null,South,India,Karnataka,Hubballi,Tier 3
-S124,CH002,D Mart,null,South,India,Karnataka,Hubballi,Tier 3
-S125,CH002,Vishal Mega Mart,null,South,India,Karnataka,Hubballi,Tier 3
-S126,CH002,Vishal Mega Mart,null,South,India,Karnataka,Hubballi,Tier 3
-S127,CH002,More Retail,null,South,India,Karnataka,Hubballi,Tier 3
-S128,CH002,More Retail,null,South,India,Karnataka,Hubballi,Tier 3
-S129,CH002,Heritage Fresh,null,South,India,Karnataka,Hubballi,Tier 3
-S130,CH002,Heritage Fresh,null,South,India,Karnataka,Hubballi,Tier 3
-S131,CH002,Reliance Fresh,null,South,India,Tamil Nadu,Madurai,Tier 3
-S132,CH002,Reliance Fresh,null,South,India,Tamil Nadu,Madurai,Tier 3
-S133,CH002,D Mart,null,South,India,Tamil Nadu,Madurai,Tier 3
-S134,CH002,D Mart,null,South,India,Tamil Nadu,Madurai,Tier 3
-S135,CH002,Vishal Mega Mart,null,South,India,Tamil Nadu,Madurai,Tier 3
-S136,CH002,Vishal Mega Mart,null,South,India,Tamil Nadu,Madurai,Tier 3
-S137,CH002,More Retail,null,South,India,Tamil Nadu,Madurai,Tier 3
-S138,CH002,More Retail,null,South,India,Tamil Nadu,Madurai,Tier 3
-S139,CH002,Heritage Fresh,null,South,India,Tamil Nadu,Madurai,Tier 3
-S140,CH002,Heritage Fresh,null,South,India,Tamil Nadu,Madurai,Tier 3
-S141,CH002,Reliance Fresh,null,South,India,Tamil Nadu,Salem,Tier 3
-S142,CH002,Reliance Fresh,null,South,India,Tamil Nadu,Salem,Tier 3
-S143,CH002,D Mart,null,South,India,Tamil Nadu,Salem,Tier 3
-S144,CH002,D Mart,null,South,India,Tamil Nadu,Salem,Tier 3
-S145,CH002,Vishal Mega Mart,null,South,India,Tamil Nadu,Salem,Tier 3
-S146,CH002,Vishal Mega Mart,null,South,India,Tamil Nadu,Salem,Tier 3
-S147,CH002,More Retail,null,South,India,Tamil Nadu,Salem,Tier 3
-S148,CH002,More Retail,null,South,India,Tamil Nadu,Salem,Tier 3
-S149,CH002,Heritage Fresh,null,South,India,Tamil Nadu,Salem,Tier 3
-S150,CH002,Heritage Fresh,null,South,India,Tamil Nadu,Salem,Tier 3
-S151,CH002,Reliance Fresh,null,East,India,West Bengal,Durgapur,Tier 3
-S152,CH002,Reliance Fresh,null,East,India,West Bengal,Durgapur,Tier 3
-S153,CH002,D Mart,null,East,India,West Bengal,Durgapur,Tier 3
-S154,CH002,D Mart,null,East,India,West Bengal,Durgapur,Tier 3
-S155,CH002,Vishal Mega Mart,null,East,India,West Bengal,Durgapur,Tier 3
-S156,CH002,Vishal Mega Mart,null,East,India,West Bengal,Durgapur,Tier 3
-S157,CH002,More Retail,null,East,India,West Bengal,Durgapur,Tier 3
-S158,CH002,More Retail,null,East,India,West Bengal,Durgapur,Tier 3
-S159,CH002,Heritage Fresh,null,East,India,West Bengal,Durgapur,Tier 3
-S160,CH002,Heritage Fresh,null,East,India,West Bengal,Durgapur,Tier 3
-S161,CH002,Reliance Fresh,null,East,India,West Bengal,Siliguri,Tier 3
-S162,CH002,Reliance Fresh,null,East,India,West Bengal,Siliguri,Tier 3
-S163,CH002,D Mart,null,East,India,West Bengal,Siliguri,Tier 3
-S164,CH002,D Mart,null,East,India,West Bengal,Siliguri,Tier 3
-S165,CH002,Vishal Mega Mart,null,East,India,West Bengal,Siliguri,Tier 3
-S166,CH002,Vishal Mega Mart,null,East,India,West Bengal,Siliguri,Tier 3
-S167,CH002,More Retail,null,East,India,West Bengal,Siliguri,Tier 3
-S168,CH002,More Retail,null,East,India,West Bengal,Siliguri,Tier 3
-S169,CH002,Heritage Fresh,null,East,India,West Bengal,Siliguri,Tier 3
-S170,CH002,Heritage Fresh,null,East,India,West Bengal,Siliguri,Tier 3
-S171,CH002,Reliance Fresh,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S172,CH002,Reliance Fresh,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S173,CH002,D Mart,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S174,CH002,D Mart,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S175,CH002,Vishal Mega Mart,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S176,CH002,Vishal Mega Mart,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S177,CH002,More Retail,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S178,CH002,More Retail,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S179,CH002,Heritage Fresh,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S180,CH002,Heritage Fresh,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S181,CH002,Reliance Fresh,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S182,CH002,Reliance Fresh,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S183,CH002,D Mart,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S184,CH002,D Mart,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S185,CH002,Vishal Mega Mart,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S186,CH002,Vishal Mega Mart,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S187,CH002,More Retail,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S188,CH002,More Retail,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S189,CH002,Heritage Fresh,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S190,CH002,Heritage Fresh,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S191,CH002,Reliance Fresh,null,North,India,Punjab,Jalandhar,Tier 3
-S192,CH002,Reliance Fresh,null,North,India,Punjab,Jalandhar,Tier 3
-S193,CH002,D Mart,null,North,India,Punjab,Jalandhar,Tier 3
-S194,CH002,D Mart,null,North,India,Punjab,Jalandhar,Tier 3
-S195,CH002,Vishal Mega Mart,null,North,India,Punjab,Jalandhar,Tier 3
-S196,CH002,Vishal Mega Mart,null,North,India,Punjab,Jalandhar,Tier 3
-S197,CH002,More Retail,null,North,India,Punjab,Jalandhar,Tier 3
-S198,CH002,More Retail,null,North,India,Punjab,Jalandhar,Tier 3
-S199,CH002,Heritage Fresh,null,North,India,Punjab,Jalandhar,Tier 3
-S200,CH002,Heritage Fresh,null,North,India,Punjab,Jalandhar,Tier 3
-S201,CH002,Reliance Fresh,null,West,India,Gujarat,Rajkot,Tier 3
-S202,CH002,Reliance Fresh,null,West,India,Gujarat,Rajkot,Tier 3
-S203,CH002,D Mart,null,West,India,Gujarat,Rajkot,Tier 3
-S204,CH002,D Mart,null,West,India,Gujarat,Rajkot,Tier 3
-S205,CH002,Vishal Mega Mart,null,West,India,Gujarat,Rajkot,Tier 3
-S206,CH002,Vishal Mega Mart,null,West,India,Gujarat,Rajkot,Tier 3
-S207,CH002,More Retail,null,West,India,Gujarat,Rajkot,Tier 3
-S208,CH002,More Retail,null,West,India,Gujarat,Rajkot,Tier 3
-S209,CH002,Heritage Fresh,null,West,India,Gujarat,Rajkot,Tier 3
-S210,CH002,Heritage Fresh,null,West,India,Gujarat,Rajkot,Tier 3
-S211,CH001,Amazon,null,North,India,Delhi,Delhi,Tier 1
-S212,CH001,Flipkart,null,North,India,Delhi,Delhi,Tier 1
-S213,CH001,Amazon,null,West,India,Maharashtra,Mumbai,Tier 1
-S214,CH001,Flipkart,null,West,India,Maharashtra,Mumbai,Tier 1
-S215,CH001,Amazon,null,South,India,Karnataka,Bengaluru,Tier 1
-S216,CH001,Flipkart,null,South,India,Karnataka,Bengaluru,Tier 1
-S217,CH001,Amazon,null,South,India,Tamil Nadu,Chennai,Tier 1
-S218,CH001,Flipkart,null,South,India,Tamil Nadu,Chennai,Tier 1
-S219,CH001,Amazon,null,South,India,Telangana,Hyderabad,Tier 1
-S220,CH001,Flipkart,null,South,India,Telangana,Hyderabad,Tier 1
-S221,CH003,GT001,null,North,India,Delhi,Delhi,Tier 1
-S222,CH003,GT002,null,North,India,Delhi,Delhi,Tier 1
-S223,CH003,GT003,null,North,India,Delhi,Delhi,Tier 1
-S224,CH003,GT004,null,North,India,Delhi,Delhi,Tier 1
-S225,CH003,GT005,null,North,India,Delhi,Delhi,Tier 1
-S226,CH003,GT006,null,North,India,Delhi,Delhi,Tier 1
-S227,CH003,GT007,null,North,India,Delhi,Delhi,Tier 1
-S228,CH003,GT008,null,North,India,Delhi,Delhi,Tier 1
-S229,CH003,GT009,null,North,India,Delhi,Delhi,Tier 1
-S230,CH003,GT010,null,North,India,Delhi,Delhi,Tier 1
-S231,CH003,GT011,null,West,India,Maharashtra,Mumbai,Tier 1
-S232,CH003,GT012,null,West,India,Maharashtra,Mumbai,Tier 1
-S233,CH003,GT013,null,West,India,Maharashtra,Mumbai,Tier 1
-S234,CH003,GT014,null,West,India,Maharashtra,Mumbai,Tier 1
-S235,CH003,GT015,null,West,India,Maharashtra,Mumbai,Tier 1
-S236,CH003,GT016,null,West,India,Maharashtra,Mumbai,Tier 1
-S237,CH003,GT017,null,West,India,Maharashtra,Mumbai,Tier 1
-S238,CH003,GT018,null,West,India,Maharashtra,Mumbai,Tier 1
-S239,CH003,GT019,null,West,India,Maharashtra,Mumbai,Tier 1
-S240,CH003,GT020,null,West,India,Maharashtra,Mumbai,Tier 1
-S241,CH003,GT021,null,South,India,Karnataka,Bengaluru,Tier 1
-S242,CH003,GT022,null,South,India,Karnataka,Bengaluru,Tier 1
-S243,CH003,GT023,null,South,India,Karnataka,Bengaluru,Tier 1
-S244,CH003,GT024,null,South,India,Karnataka,Bengaluru,Tier 1
-S245,CH003,GT025,null,South,India,Karnataka,Bengaluru,Tier 1
-S246,CH003,GT026,null,South,India,Karnataka,Bengaluru,Tier 1
-S247,CH003,GT027,null,South,India,Karnataka,Bengaluru,Tier 1
-S248,CH003,GT028,null,South,India,Karnataka,Bengaluru,Tier 1
-S249,CH003,GT029,null,South,India,Karnataka,Bengaluru,Tier 1
-S250,CH003,GT030,null,South,India,Karnataka,Bengaluru,Tier 1
-S251,CH003,GT031,null,South,India,Tamil Nadu,Chennai,Tier 1
-S252,CH003,GT032,null,South,India,Tamil Nadu,Chennai,Tier 1
-S253,CH003,GT033,null,South,India,Tamil Nadu,Chennai,Tier 1
-S254,CH003,GT034,null,South,India,Tamil Nadu,Chennai,Tier 1
-S255,CH003,GT035,null,South,India,Tamil Nadu,Chennai,Tier 1
-S256,CH003,GT036,null,South,India,Tamil Nadu,Chennai,Tier 1
-S257,CH003,GT037,null,South,India,Tamil Nadu,Chennai,Tier 1
-S258,CH003,GT038,null,South,India,Tamil Nadu,Chennai,Tier 1
-S259,CH003,GT039,null,South,India,Tamil Nadu,Chennai,Tier 1
-S260,CH003,GT040,null,South,India,Tamil Nadu,Chennai,Tier 1
-S261,CH003,GT041,null,South,India,Telangana,Hyderabad,Tier 1
-S262,CH003,GT042,null,South,India,Telangana,Hyderabad,Tier 1
-S263,CH003,GT043,null,South,India,Telangana,Hyderabad,Tier 1
-S264,CH003,GT044,null,South,India,Telangana,Hyderabad,Tier 1
-S265,CH003,GT045,null,South,India,Telangana,Hyderabad,Tier 1
-S266,CH003,GT046,null,South,India,Telangana,Hyderabad,Tier 1
-S267,CH003,GT047,null,South,India,Telangana,Hyderabad,Tier 1
-S268,CH003,GT048,null,South,India,Telangana,Hyderabad,Tier 1
-S269,CH003,GT049,null,South,India,Telangana,Hyderabad,Tier 1
-S270,CH003,GT050,null,South,India,Telangana,Hyderabad,Tier 1
-S271,CH003,GT051,null,North,India,Chandigarh,Chandigarh,Tier 2
-S272,CH003,GT052,null,North,India,Chandigarh,Chandigarh,Tier 2
-S273,CH003,GT053,null,North,India,Chandigarh,Chandigarh,Tier 2
-S274,CH003,GT054,null,North,India,Chandigarh,Chandigarh,Tier 2
-S275,CH003,GT055,null,North,India,Chandigarh,Chandigarh,Tier 2
-S276,CH003,GT056,null,North,India,Chandigarh,Chandigarh,Tier 2
-S277,CH003,GT057,null,North,India,Chandigarh,Chandigarh,Tier 2
-S278,CH003,GT058,null,North,India,Chandigarh,Chandigarh,Tier 2
-S279,CH003,GT059,null,North,India,Chandigarh,Chandigarh,Tier 2
-S280,CH003,GT060,null,North,India,Chandigarh,Chandigarh,Tier 2
-S281,CH003,GT061,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S282,CH003,GT062,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S283,CH003,GT063,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S284,CH003,GT064,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S285,CH003,GT065,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S286,CH003,GT066,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S287,CH003,GT067,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S288,CH003,GT068,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S289,CH003,GT069,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S290,CH003,GT070,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S291,CH003,GT071,null,West,India,Rajasthan,Udaipur,Tier 2
-S292,CH003,GT072,null,West,India,Rajasthan,Udaipur,Tier 2
-S293,CH003,GT073,null,West,India,Rajasthan,Udaipur,Tier 2
-S294,CH003,GT074,null,West,India,Rajasthan,Udaipur,Tier 2
-S295,CH003,GT075,null,West,India,Rajasthan,Udaipur,Tier 2
-S296,CH003,GT076,null,West,India,Rajasthan,Udaipur,Tier 2
-S297,CH003,GT077,null,West,India,Rajasthan,Udaipur,Tier 2
-S298,CH003,GT078,null,West,India,Rajasthan,Udaipur,Tier 2
-S299,CH003,GT079,null,West,India,Rajasthan,Udaipur,Tier 2
-S300,CH003,GT080,null,West,India,Rajasthan,Udaipur,Tier 2
-S301,CH003,GT081,null,North,India,Punjab,Amritsar,Tier 2
-S302,CH003,GT082,null,North,India,Punjab,Amritsar,Tier 2
-S303,CH003,GT083,null,North,India,Punjab,Amritsar,Tier 2
-S304,CH003,GT084,null,North,India,Punjab,Amritsar,Tier 2
-S305,CH003,GT085,null,North,India,Punjab,Amritsar,Tier 2
-S306,CH003,GT086,null,North,India,Punjab,Amritsar,Tier 2
-S307,CH003,GT087,null,North,India,Punjab,Amritsar,Tier 2
-S308,CH003,GT088,null,North,India,Punjab,Amritsar,Tier 2
-S309,CH003,GT089,null,North,India,Punjab,Amritsar,Tier 2
-S310,CH003,GT090,null,North,India,Punjab,Amritsar,Tier 2
-S311,CH003,GT091,null,West,India,Maharashtra,Nagpur,Tier 2
-S312,CH003,GT092,null,West,India,Maharashtra,Nagpur,Tier 2
-S313,CH003,GT093,null,West,India,Maharashtra,Nagpur,Tier 2
-S314,CH003,GT094,null,West,India,Maharashtra,Nagpur,Tier 2
-S315,CH003,GT095,null,West,India,Maharashtra,Nagpur,Tier 2
-S316,CH003,GT096,null,West,India,Maharashtra,Nagpur,Tier 2
-S317,CH003,GT097,null,West,India,Maharashtra,Nagpur,Tier 2
-S318,CH003,GT098,null,West,India,Maharashtra,Nagpur,Tier 2
-S319,CH003,GT099,null,West,India,Maharashtra,Nagpur,Tier 2
-S320,CH003,GT100,null,West,India,Maharashtra,Nagpur,Tier 2
-S321,CH003,GT101,null,South,India,Karnataka,Mysuru,Tier 2
-S322,CH003,GT102,null,South,India,Karnataka,Mysuru,Tier 2
-S323,CH003,GT103,null,South,India,Karnataka,Mysuru,Tier 2
-S324,CH003,GT104,null,South,India,Karnataka,Mysuru,Tier 2
-S325,CH003,GT105,null,South,India,Karnataka,Mysuru,Tier 2
-S326,CH003,GT106,null,South,India,Karnataka,Mysuru,Tier 2
-S327,CH003,GT107,null,South,India,Karnataka,Mysuru,Tier 2
-S328,CH003,GT108,null,South,India,Karnataka,Mysuru,Tier 2
-S329,CH003,GT109,null,South,India,Karnataka,Mysuru,Tier 2
-S330,CH003,GT110,null,South,India,Karnataka,Mysuru,Tier 2
-S331,CH003,GT111,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S332,CH003,GT112,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S333,CH003,GT113,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S334,CH003,GT114,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S335,CH003,GT115,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S336,CH003,GT116,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S337,CH003,GT117,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S338,CH003,GT118,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S339,CH003,GT119,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S340,CH003,GT120,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S341,CH003,GT121,null,South,India,Karnataka,Hubballi,Tier 3
-S342,CH003,GT122,null,South,India,Karnataka,Hubballi,Tier 3
-S343,CH003,GT123,null,South,India,Karnataka,Hubballi,Tier 3
-S344,CH003,GT124,null,South,India,Karnataka,Hubballi,Tier 3
-S345,CH003,GT125,null,South,India,Karnataka,Hubballi,Tier 3
-S346,CH003,GT126,null,South,India,Karnataka,Hubballi,Tier 3
-S347,CH003,GT127,null,South,India,Karnataka,Hubballi,Tier 3
-S348,CH003,GT128,null,South,India,Karnataka,Hubballi,Tier 3
-S349,CH003,GT129,null,South,India,Karnataka,Hubballi,Tier 3
-S350,CH003,GT130,null,South,India,Karnataka,Hubballi,Tier 3
-S351,CH003,GT131,null,South,India,Tamil Nadu,Madurai,Tier 3
-S352,CH003,GT132,null,South,India,Tamil Nadu,Madurai,Tier 3
-S353,CH003,GT133,null,South,India,Tamil Nadu,Madurai,Tier 3
-S354,CH003,GT134,null,South,India,Tamil Nadu,Madurai,Tier 3
-S355,CH003,GT135,null,South,India,Tamil Nadu,Madurai,Tier 3
-S356,CH003,GT136,null,South,India,Tamil Nadu,Madurai,Tier 3
-S357,CH003,GT137,null,South,India,Tamil Nadu,Madurai,Tier 3
-S358,CH003,GT138,null,South,India,Tamil Nadu,Madurai,Tier 3
-S359,CH003,GT139,null,South,India,Tamil Nadu,Madurai,Tier 3
-S360,CH003,GT140,null,South,India,Tamil Nadu,Madurai,Tier 3
-S361,CH003,GT141,null,South,India,Tamil Nadu,Salem,Tier 3
-S362,CH003,GT142,null,South,India,Tamil Nadu,Salem,Tier 3
-S363,CH003,GT143,null,South,India,Tamil Nadu,Salem,Tier 3
-S364,CH003,GT144,null,South,India,Tamil Nadu,Salem,Tier 3
-S365,CH003,GT145,null,South,India,Tamil Nadu,Salem,Tier 3
-S366,CH003,GT146,null,South,India,Tamil Nadu,Salem,Tier 3
-S367,CH003,GT147,null,South,India,Tamil Nadu,Salem,Tier 3
-S368,CH003,GT148,null,South,India,Tamil Nadu,Salem,Tier 3
-S369,CH003,GT149,null,South,India,Tamil Nadu,Salem,Tier 3
-S370,CH003,GT150,null,South,India,Tamil Nadu,Salem,Tier 3
-S371,CH003,GT151,null,East,India,West Bengal,Durgapur,Tier 3
-S372,CH003,GT152,null,East,India,West Bengal,Durgapur,Tier 3
-S373,CH003,GT153,null,East,India,West Bengal,Durgapur,Tier 3
-S374,CH003,GT154,null,East,India,West Bengal,Durgapur,Tier 3
-S375,CH003,GT155,null,East,India,West Bengal,Durgapur,Tier 3
-S376,CH003,GT156,null,East,India,West Bengal,Durgapur,Tier 3
-S377,CH003,GT157,null,East,India,West Bengal,Durgapur,Tier 3
-S378,CH003,GT158,null,East,India,West Bengal,Durgapur,Tier 3
-S379,CH003,GT159,null,East,India,West Bengal,Durgapur,Tier 3
-S380,CH003,GT160,null,East,India,West Bengal,Durgapur,Tier 3
-S381,CH003,GT161,null,East,India,West Bengal,Siliguri,Tier 3
-S382,CH003,GT162,null,East,India,West Bengal,Siliguri,Tier 3
-S383,CH003,GT163,null,East,India,West Bengal,Siliguri,Tier 3
-S384,CH003,GT164,null,East,India,West Bengal,Siliguri,Tier 3
-S385,CH003,GT165,null,East,India,West Bengal,Siliguri,Tier 3
-S386,CH003,GT166,null,East,India,West Bengal,Siliguri,Tier 3
-S387,CH003,GT167,null,East,India,West Bengal,Siliguri,Tier 3
-S388,CH003,GT168,null,East,India,West Bengal,Siliguri,Tier 3
-S389,CH003,GT169,null,East,India,West Bengal,Siliguri,Tier 3
-S390,CH003,GT170,null,East,India,West Bengal,Siliguri,Tier 3
-S391,CH003,GT171,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S392,CH003,GT172,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S393,CH003,GT173,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S394,CH003,GT174,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S395,CH003,GT175,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S396,CH003,GT176,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S397,CH003,GT177,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S398,CH003,GT178,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S399,CH003,GT179,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S400,CH003,GT180,null,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S401,CH003,GT181,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S402,CH003,GT182,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S403,CH003,GT183,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S404,CH003,GT184,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S405,CH003,GT185,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S406,CH003,GT186,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S407,CH003,GT187,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S408,CH003,GT188,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S409,CH003,GT189,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S410,CH003,GT190,null,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S411,CH003,GT191,null,North,India,Punjab,Jalandhar,Tier 3
-S412,CH003,GT192,null,North,India,Punjab,Jalandhar,Tier 3
-S413,CH003,GT193,null,North,India,Punjab,Jalandhar,Tier 3
-S414,CH003,GT194,null,North,India,Punjab,Jalandhar,Tier 3
-S415,CH003,GT195,null,North,India,Punjab,Jalandhar,Tier 3
-S416,CH003,GT196,null,North,India,Punjab,Jalandhar,Tier 3
-S417,CH003,GT197,null,North,India,Punjab,Jalandhar,Tier 3
-S418,CH003,GT198,null,North,India,Punjab,Jalandhar,Tier 3
-S419,CH003,GT199,null,North,India,Punjab,Jalandhar,Tier 3
-S420,CH003,GT200,null,North,India,Punjab,Jalandhar,Tier 3
-S421,CH003,GT201,null,West,India,Gujarat,Rajkot,Tier 3
-S422,CH003,GT202,null,West,India,Gujarat,Rajkot,Tier 3
-S423,CH003,GT203,null,West,India,Gujarat,Rajkot,Tier 3
-S424,CH003,GT204,null,West,India,Gujarat,Rajkot,Tier 3
-S425,CH003,GT205,null,West,India,Gujarat,Rajkot,Tier 3
-S426,CH003,GT206,null,West,India,Gujarat,Rajkot,Tier 3
-S427,CH003,GT207,null,West,India,Gujarat,Rajkot,Tier 3
-S428,CH003,GT208,null,West,India,Gujarat,Rajkot,Tier 3
-S429,CH003,GT209,null,West,India,Gujarat,Rajkot,Tier 3
-S430,CH003,GT210,null,West,India,Gujarat,Rajkot,Tier 3
-S431,CH004,Delhi Airport Outlet,null,North,India,Delhi,Delhi,Tier 1
-S432,CH004,Delhi Hotel,null,North,India,Delhi,Delhi,Tier 1
-S433,CH004,Delhi Travel Outlet,null,North,India,Delhi,Delhi,Tier 1
-S434,CH004,Mumbai Airport Outlet,null,West,India,Maharashtra,Mumbai,Tier 1
-S435,CH004,Mumbai Hotel,null,West,India,Maharashtra,Mumbai,Tier 1
-S436,CH004,Mumbai Travel Outlet,null,West,India,Maharashtra,Mumbai,Tier 1
-S437,CH004,Bengaluru Airport Outlet,null,South,India,Karnataka,Bengaluru,Tier 1
-S438,CH004,Bengaluru Hotel,null,South,India,Karnataka,Bengaluru,Tier 1
-S439,CH004,Bengaluru Travel Outlet,null,South,India,Karnataka,Bengaluru,Tier 1
-S440,CH004,Chennai Airport Outlet,null,South,India,Tamil Nadu,Chennai,Tier 1
-S441,CH004,Chennai Hotel,null,South,India,Tamil Nadu,Chennai,Tier 1
-S442,CH004,Chennai Travel Outlet,null,South,India,Tamil Nadu,Chennai,Tier 1
-S443,CH004,Hyderabad Airport Outlet,null,South,India,Telangana,Hyderabad,Tier 1
-S444,CH004,Hyderabad Hotel,null,South,India,Telangana,Hyderabad,Tier 1
-S445,CH004,Hyderabad Travel Outlet,null,South,India,Telangana,Hyderabad,Tier 1
-S446,CH005,null,Distributor_01,North,India,Delhi,Delhi,Tier 1
-S447,CH005,null,Distributor_02,North,India,Delhi,Delhi,Tier 1
-S448,CH005,null,Distributor_03,North,India,Delhi,Delhi,Tier 1
-S449,CH005,null,Distributor_04,North,India,Delhi,Delhi,Tier 1
-S450,CH005,null,Distributor_05,North,India,Delhi,Delhi,Tier 1
-S451,CH005,null,Distributor_01,West,India,Maharashtra,Mumbai,Tier 1
-S452,CH005,null,Distributor_02,West,India,Maharashtra,Mumbai,Tier 1
-S453,CH005,null,Distributor_03,West,India,Maharashtra,Mumbai,Tier 1
-S454,CH005,null,Distributor_04,West,India,Maharashtra,Mumbai,Tier 1
-S455,CH005,null,Distributor_05,West,India,Maharashtra,Mumbai,Tier 1
-S456,CH005,null,Distributor_01,South,India,Karnataka,Bengaluru,Tier 1
-S457,CH005,null,Distributor_02,South,India,Karnataka,Bengaluru,Tier 1
-S458,CH005,null,Distributor_03,South,India,Karnataka,Bengaluru,Tier 1
-S459,CH005,null,Distributor_04,South,India,Karnataka,Bengaluru,Tier 1
-S460,CH005,null,Distributor_05,South,India,Karnataka,Bengaluru,Tier 1
-S461,CH005,null,Distributor_01,South,India,Tamil Nadu,Chennai,Tier 1
-S462,CH005,null,Distributor_02,South,India,Tamil Nadu,Chennai,Tier 1
-S463,CH005,null,Distributor_03,South,India,Tamil Nadu,Chennai,Tier 1
-S464,CH005,null,Distributor_04,South,India,Tamil Nadu,Chennai,Tier 1
-S465,CH005,null,Distributor_05,South,India,Tamil Nadu,Chennai,Tier 1
-S466,CH005,null,Distributor_01,South,India,Telangana,Hyderabad,Tier 1
-S467,CH005,null,Distributor_02,South,India,Telangana,Hyderabad,Tier 1
-S468,CH005,null,Distributor_03,South,India,Telangana,Hyderabad,Tier 1
-S469,CH005,null,Distributor_04,South,India,Telangana,Hyderabad,Tier 1
-S470,CH005,null,Distributor_05,South,India,Telangana,Hyderabad,Tier 1
-S471,CH005,null,Distributor_01,North,India,Chandigarh,Chandigarh,Tier 2
-S472,CH005,null,Distributor_02,North,India,Chandigarh,Chandigarh,Tier 2
-S473,CH005,null,Distributor_03,North,India,Chandigarh,Chandigarh,Tier 2
-S474,CH005,null,Distributor_01,Central,India,Madhya Pradesh,Indore,Tier 2
-S475,CH005,null,Distributor_02,Central,India,Madhya Pradesh,Indore,Tier 2
-S476,CH005,null,Distributor_03,Central,India,Madhya Pradesh,Indore,Tier 2
-S477,CH005,null,Distributor_01,West,India,Rajasthan,Udaipur,Tier 2
-S478,CH005,null,Distributor_02,West,India,Rajasthan,Udaipur,Tier 2
-S479,CH005,null,Distributor_03,West,India,Rajasthan,Udaipur,Tier 2
-S480,CH005,null,Distributor_01,North,India,Punjab,Amritsar,Tier 2
-S481,CH005,null,Distributor_02,North,India,Punjab,Amritsar,Tier 2
-S482,CH005,null,Distributor_03,North,India,Punjab,Amritsar,Tier 2
-S483,CH005,null,Distributor_01,West,India,Maharashtra,Nagpur,Tier 2
-S484,CH005,null,Distributor_02,West,India,Maharashtra,Nagpur,Tier 2
-S485,CH005,null,Distributor_03,West,India,Maharashtra,Nagpur,Tier 2
-S486,CH005,null,Distributor_01,South,India,Karnataka,Mysuru,Tier 2
-S487,CH005,null,Distributor_02,South,India,Karnataka,Mysuru,Tier 2
-S488,CH005,null,Distributor_03,South,India,Karnataka,Mysuru,Tier 2
-S489,CH005,null,Distributor_01,South,India,Tamil Nadu,Coimbatore,Tier 2
-S490,CH005,null,Distributor_02,South,India,Tamil Nadu,Coimbatore,Tier 2
-S491,CH005,null,Distributor_03,South,India,Tamil Nadu,Coimbatore,Tier 2
-S492,CH005,null,Distributor_01,South,India,Karnataka,Hubballi,Tier 3
-S493,CH005,null,Distributor_02,South,India,Karnataka,Hubballi,Tier 3
-S494,CH005,null,Distributor_01,South,India,Tamil Nadu,Madurai,Tier 3
-S495,CH005,null,Distributor_02,South,India,Tamil Nadu,Madurai,Tier 3
-S496,CH005,null,Distributor_01,South,India,Tamil Nadu,Salem,Tier 3
-S497,CH005,null,Distributor_02,South,India,Tamil Nadu,Salem,Tier 3
-S498,CH005,null,Distributor_01,East,India,West Bengal,Durgapur,Tier 3
-S499,CH005,null,Distributor_02,East,India,West Bengal,Durgapur,Tier 3
-S500,CH005,null,Distributor_01,East,India,West Bengal,Siliguri,Tier 3
-S501,CH005,null,Distributor_02,East,India,West Bengal,Siliguri,Tier 3
-S502,CH005,null,Distributor_01,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S503,CH005,null,Distributor_02,Central,India,Madhya Pradesh,Bhopal,Tier 3
-S504,CH005,null,Distributor_01,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S505,CH005,null,Distributor_02,Central,India,Madhya Pradesh,Gwalior,Tier 3
-S506,CH005,null,Distributor_01,North,India,Punjab,Jalandhar,Tier 3
-S507,CH005,null,Distributor_02,North,India,Punjab,Jalandhar,Tier 3
-S508,CH005,null,Distributor_01,West,India,Gujarat,Rajkot,Tier 3
-S509,CH005,null,Distributor_02,West,India,Gujarat,Rajkot,Tier 3
-S510,CH006,Blinkit,null,North,India,Delhi,Delhi,Tier 1
-S511,CH006,InstaMart,null,North,India,Delhi,Delhi,Tier 1
-S512,CH006,Zepto,null,North,India,Delhi,Delhi,Tier 1
-S513,CH006,BigBasket,null,North,India,Delhi,Delhi,Tier 1
-S514,CH006,Blinkit,null,West,India,Maharashtra,Mumbai,Tier 1
-S515,CH006,InstaMart,null,West,India,Maharashtra,Mumbai,Tier 1
-S516,CH006,Zepto,null,West,India,Maharashtra,Mumbai,Tier 1
-S517,CH006,BigBasket,null,West,India,Maharashtra,Mumbai,Tier 1
-S518,CH006,Blinkit,null,South,India,Karnataka,Bengaluru,Tier 1
-S519,CH006,InstaMart,null,South,India,Karnataka,Bengaluru,Tier 1
-S520,CH006,Zepto,null,South,India,Karnataka,Bengaluru,Tier 1
-S521,CH006,BigBasket,null,South,India,Karnataka,Bengaluru,Tier 1
-S522,CH006,Blinkit,null,South,India,Tamil Nadu,Chennai,Tier 1
-S523,CH006,InstaMart,null,South,India,Tamil Nadu,Chennai,Tier 1
-S524,CH006,Zepto,null,South,India,Tamil Nadu,Chennai,Tier 1
-S525,CH006,BigBasket,null,South,India,Tamil Nadu,Chennai,Tier 1
-S526,CH006,Blinkit,null,South,India,Telangana,Hyderabad,Tier 1
-S527,CH006,InstaMart,null,South,India,Telangana,Hyderabad,Tier 1
-S528,CH006,Zepto,null,South,India,Telangana,Hyderabad,Tier 1
-S529,CH006,BigBasket,null,South,India,Telangana,Hyderabad,Tier 1
-S530,CH006,Blinkit,null,North,India,Chandigarh,Chandigarh,Tier 2
-S531,CH006,InstaMart,null,North,India,Chandigarh,Chandigarh,Tier 2
-S532,CH006,Zepto,null,North,India,Chandigarh,Chandigarh,Tier 2
-S533,CH006,BigBasket,null,North,India,Chandigarh,Chandigarh,Tier 2
-S534,CH006,Blinkit,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S535,CH006,InstaMart,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S536,CH006,Zepto,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S537,CH006,BigBasket,null,Central,India,Madhya Pradesh,Indore,Tier 2
-S538,CH006,Blinkit,null,West,India,Rajasthan,Udaipur,Tier 2
-S539,CH006,InstaMart,null,West,India,Rajasthan,Udaipur,Tier 2
-S540,CH006,Zepto,null,West,India,Rajasthan,Udaipur,Tier 2
-S541,CH006,BigBasket,null,West,India,Rajasthan,Udaipur,Tier 2
-S542,CH006,Blinkit,null,North,India,Punjab,Amritsar,Tier 2
-S543,CH006,InstaMart,null,North,India,Punjab,Amritsar,Tier 2
-S544,CH006,Zepto,null,North,India,Punjab,Amritsar,Tier 2
-S545,CH006,BigBasket,null,North,India,Punjab,Amritsar,Tier 2
-S546,CH006,Blinkit,null,West,India,Maharashtra,Nagpur,Tier 2
-S547,CH006,InstaMart,null,West,India,Maharashtra,Nagpur,Tier 2
-S548,CH006,Zepto,null,West,India,Maharashtra,Nagpur,Tier 2
-S549,CH006,BigBasket,null,West,India,Maharashtra,Nagpur,Tier 2
-S550,CH006,Blinkit,null,South,India,Karnataka,Mysuru,Tier 2
-S551,CH006,InstaMart,null,South,India,Karnataka,Mysuru,Tier 2
-S552,CH006,Zepto,null,South,India,Karnataka,Mysuru,Tier 2
-S553,CH006,BigBasket,null,South,India,Karnataka,Mysuru,Tier 2
-S554,CH006,Blinkit,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S555,CH006,InstaMart,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S556,CH006,Zepto,null,South,India,Tamil Nadu,Coimbatore,Tier 2
-S557,CH006,BigBasket,null,South,India,Tamil Nadu,Coimbatore,Tier 2
+S001,CH002,Reliance Fresh,,North,India,Delhi,Delhi,Tier 1
+S002,CH002,Reliance Fresh,,North,India,Delhi,Delhi,Tier 1
+S003,CH002,D Mart,,North,India,Delhi,Delhi,Tier 1
+S004,CH002,D Mart,,North,India,Delhi,Delhi,Tier 1
+S005,CH002,Vishal Mega Mart,,North,India,Delhi,Delhi,Tier 1
+S006,CH002,Vishal Mega Mart,,North,India,Delhi,Delhi,Tier 1
+S007,CH002,More Retail,,North,India,Delhi,Delhi,Tier 1
+S008,CH002,More Retail,,North,India,Delhi,Delhi,Tier 1
+S051,CH002,Reliance Fresh,,North,India,Chandigarh,Chandigarh,Tier 2
+S121,CH002,Reliance Fresh,,South,India,Karnataka,Hubballi,Tier 3
+S211,CH001,Amazon,,North,India,Delhi,Delhi,Tier 1
+S212,CH001,Flipkart,,North,India,Delhi,Delhi,Tier 1
+S213,CH001,Amazon,,West,India,Maharashtra,Mumbai,Tier 1
+S214,CH001,Flipkart,,West,India,Maharashtra,Mumbai,Tier 1
+S215,CH001,Amazon,,South,India,Karnataka,Bengaluru,Tier 1
+S216,CH001,Flipkart,,South,India,Karnataka,Bengaluru,Tier 1
+S217,CH001,Amazon,,South,India,Tamil Nadu,Chennai,Tier 1
+S218,CH001,Flipkart,,South,India,Tamil Nadu,Chennai,Tier 1
+S219,CH001,Amazon,,South,India,Telangana,Hyderabad,Tier 1
+S220,CH001,Flipkart,,South,India,Telangana,Hyderabad,Tier 1
+S221,CH003,GT001,,North,India,Delhi,Delhi,Tier 1
+S231,CH003,GT011,,West,India,Maharashtra,Mumbai,Tier 1
+S241,CH003,GT021,,South,India,Karnataka,Bengaluru,Tier 1
+S271,CH003,GT051,,North,India,Chandigarh,Chandigarh,Tier 2
+S281,CH003,GT061,,Central,India,Madhya Pradesh,Indore,Tier 2
+S341,CH003,GT121,,South,India,Karnataka,Hubballi,Tier 3
+S371,CH003,GT151,,East,India,West Bengal,Durgapur,Tier 3
+S391,CH003,GT171,,Central,India,Madhya Pradesh,Bhopal,Tier 3
+S392,CH003,GT172,,Central,India,Madhya Pradesh,Bhopal,Tier 3
+S393,CH003,GT173,,Central,India,Madhya Pradesh,Bhopal,Tier 3
+S431,CH004,Delhi Airport Outlet,,North,India,Delhi,Delhi,Tier 1
+S432,CH004,Delhi Hotel,,North,India,Delhi,Delhi,Tier 1
+S433,CH004,Delhi Travel Outlet,,North,India,Delhi,Delhi,Tier 1
+S434,CH004,Mumbai Airport Outlet,,West,India,Maharashtra,Mumbai,Tier 1
+S435,CH004,Mumbai Hotel,,West,India,Maharashtra,Mumbai,Tier 1
+S436,CH004,Mumbai Travel Outlet,,West,India,Maharashtra,Mumbai,Tier 1
+S437,CH004,Bengaluru Airport Outlet,,South,India,Karnataka,Bengaluru,Tier 1
+S438,CH004,Bengaluru Hotel,,South,India,Karnataka,Bengaluru,Tier 1
+S439,CH004,Bengaluru Travel Outlet,,South,India,Karnataka,Bengaluru,Tier 1
+S440,CH004,Chennai Airport Outlet,,South,India,Tamil Nadu,Chennai,Tier 1
+S441,CH004,Chennai Hotel,,South,India,Tamil Nadu,Chennai,Tier 1
+S442,CH004,Chennai Travel Outlet,,South,India,Tamil Nadu,Chennai,Tier 1
+S443,CH004,Hyderabad Airport Outlet,,South,India,Telangana,Hyderabad,Tier 1
+S444,CH004,Hyderabad Hotel,,South,India,Telangana,Hyderabad,Tier 1
+S445,CH004,Hyderabad Travel Outlet,,South,India,Telangana,Hyderabad,Tier 1
+S446,CH005,,Distributor_01,North,India,Delhi,Delhi,Tier 1
+S456,CH005,,Distributor_01,South,India,Karnataka,Bengaluru,Tier 1
+S461,CH005,,Distributor_01,South,India,Tamil Nadu,Chennai,Tier 1
+S471,CH005,,Distributor_01,North,India,Chandigarh,Chandigarh,Tier 2
+S480,CH005,,Distributor_01,North,India,Punjab,Amritsar,Tier 2
+S489,CH005,,Distributor_01,South,India,Tamil Nadu,Coimbatore,Tier 2
+S492,CH005,,Distributor_01,South,India,Karnataka,Hubballi,Tier 3
+S498,CH005,,Distributor_01,East,India,West Bengal,Durgapur,Tier 3
+S502,CH005,,Distributor_01,Central,India,Madhya Pradesh,Bhopal,Tier 3
+S504,CH005,,Distributor_01,Central,India,Madhya Pradesh,Gwalior,Tier 3
+S510,CH006,Blinkit,,North,India,Delhi,Delhi,Tier 1
+S511,CH006,InstaMart,,North,India,Delhi,Delhi,Tier 1
+S512,CH006,Zepto,,North,India,Delhi,Delhi,Tier 1
+S513,CH006,BigBasket,,North,India,Delhi,Delhi,Tier 1
+S514,CH006,Blinkit,,West,India,Maharashtra,Mumbai,Tier 1
+S515,CH006,InstaMart,,West,India,Maharashtra,Mumbai,Tier 1
+S516,CH006,Zepto,,West,India,Maharashtra,Mumbai,Tier 1
+S517,CH006,BigBasket,,West,India,Maharashtra,Mumbai,Tier 1
+S518,CH006,Blinkit,,South,India,Karnataka,Bengaluru,Tier 1
+S520,CH006,Zepto,,South,India,Karnataka,Bengaluru,Tier 1

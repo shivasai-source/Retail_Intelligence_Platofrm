@@ -51,7 +51,11 @@ def test_headline_evidence_reads_from_the_debug_trace(payload):
         f"{F.money(d['incremental_sales'])} returned on {F.money(d['trade_spend'])} spend · target 1.50"
     )
     assert payload["kpis"]["margin_impact"]["evidence"] == (
-        f"{F.money(d['actual_revenue'])} revenue − {F.money(d['total_cost'])} cost"
+        f"{F.money(d['margin_promoted'])} margin with the promotion − "
+        f"{F.money(d['margin_without_promotion'])} without"
+    )
+    assert payload["kpis"]["margin_impact"]["value"] == pytest.approx(
+        d["margin_promoted"] - d["margin_without_promotion"], abs=0.011
     )
     events = payload["kpis"]["cannibalization_rate"]["comparable_events"]
     assert payload["kpis"]["cannibalization_rate"]["evidence"] == f"Measured on {events:,} comparable promotion events"
@@ -65,16 +69,17 @@ def test_volume_uplift_is_the_pei_component():
     assert card["value"] == bundle.debug["incremental_quantity_percent"]
 
 
-def test_net_incremental_profit_is_the_two_headline_cards_subtracted():
-    """A reader can check it from the cards beside it: Incremental Sales
-    minus Trade Spend, nothing they cannot see."""
-    payload = service.kpis(FilterState.build(year=2025))
-    sales = payload["kpis"]["incremental_sales"]["value"]
-    spend = payload["kpis"]["trade_spend"]["value"]
+def test_net_incremental_profit_is_margin_impact_less_its_costs():
+    """Net Incremental Profit = Margin Impact - Promotion Cost - margin lost on
+    cannibalized packs: the two cards reconcile by subtraction, each term a
+    figure the engine already reports."""
+    state = FilterState.build(year=2025)
+    payload = service.kpis(state)
+    d = service._bundle(state)[0].debug
+    margin = payload["kpis"]["margin_impact"]["value"]
     card = payload["secondary"]["net_incremental_profit"]
-    assert card["value"] == pytest.approx(sales - spend, abs=0.11)
-    # Positive exactly when ROI clears break-even.
-    assert (card["value"] > 0) == (payload["kpis"]["promotion_roi"]["value"] > 1.0)
+    expected = margin - d["trade_spend_promotion_cost"] - (d["cannibalized_margin"] or 0.0)
+    assert card["value"] == pytest.approx(expected, abs=0.11)
 
 
 def test_target_hit_rate_is_the_alerts_panels_own_count():

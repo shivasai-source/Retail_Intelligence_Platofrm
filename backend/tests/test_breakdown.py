@@ -48,7 +48,7 @@ def _direct(state: FilterState, by: str, code: str):
         A.calculate_incremental_quantity(volume),
         A.calculate_incremental_sales(volume),
         A.calculate_roi(rows, volume),
-        A.calculate_margin(rows),
+        A.calculate_margin_impact(rows, volume),
         A.calculate_pei(rows, volume),
         A.calculate_cannibalization(volume),
     )

@@ -9,9 +9,9 @@ import type { UpcomingEvent } from '../../types/promotionCalendar'
  *  to CH002 drops every other channel. The feed never crosses into another
  *  year, because the matrix beside it is a one-year plan.
  *
- *  Both sources are real. Promotion starts come from the calendar aggregate;
- *  the review / launch / extension / data / closure entries are the app's own
- *  business events. No date, name, channel or type is written down here. */
+ *  Every entry is a promotion start from the calendar aggregate -- the data's
+ *  own promotions, nothing hand-written. No date, name, channel or type is
+ *  written down here. */
 
 const MONTH_ABBR = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
@@ -54,7 +54,8 @@ function EventRow({ event }: { event: UpcomingEvent }) {
           {event.promotion_id && (
             <span className="text-ink-disabled">
               {event.promotion_id}
-              {event.product_count !== null && ` · ${event.product_count}p`}
+              {event.product_count !== null && ` · ${event.product_count} products`}
+              {event.store_count != null && ` · ${event.store_count} stores`}
             </span>
           )}
         </div>

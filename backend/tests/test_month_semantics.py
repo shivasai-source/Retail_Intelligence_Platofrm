@@ -238,41 +238,38 @@ def test_weekly_trend_is_untouched_by_month(store, perturbed):
 # --- the fix does what it was for -------------------------------------------
 
 
-def test_march_ch002_p11_250ml_month_scope_has_no_in_scope_control():
-    """KNOWN AND ACCEPTED LIMITATION — baseline scope, not a data defect.
+def test_january_ch002_p11_250ml_month_scope_measures_against_its_own_base_quantity():
+    """A month a monthly channel promotes end to end has no ordinary week in
+    scope. It used to be skipped -- no baseline, no Incremental Sales -- and
+    that was accepted as a limitation of the flat baseline.
 
-    This test previously asserted the opposite. It passed only because the
-    promotion assignment was wrong: the TPO_FINAL generators parsed dim_date
-    month-first (`pd.to_datetime(..., format="mixed")` with no `dayfirst=True`),
-    which scattered CH002's seasonal events across the year and left accidental
-    non-promoted gaps inside a month. Correcting the generators restored the
-    documented behaviour — a MONTHLY channel runs one treatment across EVERY
-    business week of the month, on a disjoint product subset.
-
-    So inside a month-filtered scope a promoted SKU now has zero non-promoted
-    observations, `_volume()` correctly refuses to invent a baseline, and
-    Incremental Sales is 0 (ROI 0.0) for 37 of the 120 channel-months, all in
-    CH002 and CH005. The DATA is right; the baseline definition simply has no
-    in-scope control to measure against. Accepted by the project owner rather
-    than widening baseline scope, which is frozen.
-
-    Drop the month filter and the same data is healthy — asserted below.
+    With a real Base_Quantity on the promoted rows it is measured against
+    those rows' own expected units, so the month reports its uplift. Without
+    one (a file that does not carry the column) the skip is still the honest
+    answer, which `test_a_promoted_month_without_a_baseline_is_skipped` pins.
     """
-    scoped = FilterState.build(year=2025, month=3, channel=["CH002"], product=["P11-250ml"])
-    volume = A._volume(baseline_rows_for(scoped))
+    from app.tpo.loader import get_store
+    assert get_store().counterfactual_base
+    scoped = FilterState.build(year=2025, month=1, channel=["CH002"], product=["P11-250ml"])
+    rows = baseline_rows_for(scoped)
+    assert rows and all(r.is_promoted for r in rows), "promoted every January week"
+    volume = A._volume(rows)
+    product = next(p for p in volume.products if p.product_id == "P11-250ml")
+    assert product.non_promoted_rows == 0
+    assert product.baseline_quantity == pytest.approx(sum(r.base_quantity for r in rows))
+    assert product.incremental_quantity > 0
 
-    # Promoted all five March weeks, so no control inside the month.
+
+def test_a_promoted_month_without_a_baseline_is_skipped():
+    """The same month with the source's baseline withheld: no ordinary week
+    and no real Base_Quantity, so there is nothing to measure against -- the
+    product is skipped and reported, never given a zero baseline."""
+    import dataclasses
+    scoped = FilterState.build(year=2025, month=1, channel=["CH002"], product=["P11-250ml"])
+    rows = tuple(dataclasses.replace(r, counterfactual=False) for r in baseline_rows_for(scoped))
+    volume = A._volume(rows)
     assert volume.products == ()
     assert any(s["product_id"] == "P11-250ml" for s in volume.skipped)
-
-    # Without the month filter the product measures normally.
-    year_scope = FilterState.build(year=2025, channel=["CH002"], product=["P11-250ml"])
-    annual = A._volume(baseline_rows_for(year_scope))
-    product = next((p for p in annual.products if p.product_id == "P11-250ml"), None)
-    assert product is not None, "P11-250ml has no baseline even at year scope"
-    assert product.non_promoted_rows > 0
-    assert product.promoted_rows > 0
-    assert product.baseline_average > 0
 
 
 def test_months_sum_to_the_year_in_rows(store):
@@ -303,8 +300,9 @@ def test_the_declared_cadence_agrees_with_the_fact_files_schedule():
     """`promo_calendar.CADENCE` is a DECLARATION, not an inference from the
     transaction pattern — but it must still match what the data records.
 
-    Read straight from the CSV, because `FactStore` does not carry `Schedule`:
-    the column is not part of any KPI, only of the planning cadence.
+    Read straight from dim_channel's `Schedule` (a channel attribute, moved
+    off the fact on 2026-10-09): it is not part of any KPI, only of the
+    planning cadence.
 
     This assertion lived in `test_target_rescue.py` until the three-mode
     Simulation Studio was removed on 2026-09-22. The module it guards
@@ -317,11 +315,11 @@ def test_the_declared_cadence_agrees_with_the_fact_files_schedule():
     from app.tpo.promo_calendar import CADENCE, DEFAULT_CADENCE
 
     seen: dict[str, set[str]] = {}
-    with open(config.DATA_DIR / "fact_sales_2024_2025_all_channels.csv", newline="", encoding="utf-8") as fh:
+    with open(config.DATA_DIR / config.DIM_FILES["channel"], newline="", encoding="utf-8-sig") as fh:
         for row in csv.DictReader(fh):
             seen.setdefault(row["Channel_Id"].strip(), set()).add(row["Schedule"].strip())
 
-    assert seen, "no fact rows were read"
+    assert seen, "no channel rows were read"
     for channel, schedules in sorted(seen.items()):
         assert len(schedules) == 1, f"{channel} carries mixed schedules: {schedules}"
         declared = CADENCE.get(channel, DEFAULT_CADENCE)

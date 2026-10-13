@@ -3,10 +3,8 @@ Promotion_Id,Promotion_Name,Promotion_Type,Promotion_Description
 PR001,5% Discount,Regular,5% Discount
 PR002,10% Discount,Regular,10% Discount
 PR003,15% Discount,Regular,15% Discount
-PS001,20% Discount,Seasonal,20% Discount
-PB001,Buy3Get1,Seasonal,Buy3Get1
-PBNY24,20% Discount,Seasonal, New Year Savings 24
-PBNY25,Buy3Get1,Seasonal, New Year Savings 25
+PBNY24,20% Discount,Seasonal,New Year Savings 24
+PBNY25,Buy3Get1,Seasonal,New Year Savings 25
 PBHO24,20% Discount,Seasonal,Holi Special Deal 24
 PBHO25,Buy3Get1,Seasonal,Holi Special Deal 25
 PBSU24,20% Discount,Seasonal,Summer Special 24

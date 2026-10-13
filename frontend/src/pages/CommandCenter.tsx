@@ -474,8 +474,8 @@ export function CommandCenter() {
               <span className="flex items-center gap-1.5">
                 Promotion Performance Trend
                 <InfoPopover label="About Promotion Performance Trend" title="Promotion Performance Trend">
-                  <InfoBlock label="Incremental Sales">Actual Sales − Baseline Sales</InfoBlock>
-                  <InfoBlock label="Trade Spend">Discount Value + Promotion Cost</InfoBlock>
+                  <InfoBlock label="Incremental Sales">Actual Sales − Expected Sales without the promotion</InfoBlock>
+                  <InfoBlock label="Trade Spend">Discount Given + Promotion Cost</InfoBlock>
                   <InfoBlock label="ROI">Incremental Sales ÷ Trade Spend — 1.00 is break-even</InfoBlock>
                   <InfoBlock label="Target ROI">{fmtRoi(meta.target_roi)}</InfoBlock>
                   <InfoBlock label="Legend">Click an item to hide or show that line.</InfoBlock>

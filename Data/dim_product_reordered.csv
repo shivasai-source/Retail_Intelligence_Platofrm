@@ -1,37 +1,37 @@
-Product_id,Product_Name,Brand,Category,Size,Cost
-P11-50ml, Liquid Laundry Detergent 50 mL,Laundry Detergent,Fabric & Home Care,50 mL,45
-P11-100ml,Liquid Laundry Detergent 100 mL, Laundry Detergent,Fabric & Home Care,100 mL,80
-P11-250ml, Liquid Laundry Detergent 250 mL, Laundry Detergent,Fabric & Home Care,250 mL,190
-P11-800ml,Liquid Laundry Detergent 800 mL,Laundry Detergent,Fabric & Home Care,800 mL,570
-P12-17oz,Liquid Fabric Conditioner 17 oz,Fabric Conditioner,Fabric & Home Care,17 oz,160
-P12-34oz,Liquid Fabric Conditioner 34 oz,Fabric Conditioner,Fabric & Home Care,34 oz,305
-P12-51oz, Liquid Fabric Conditioner 51 oz,Fabric Conditioner,Fabric & Home Care,51 oz,450
-P12-64oz,Liquid Fabric Conditioner 64 oz,Fabric Conditioner,Fabric & Home Care,64 oz,580
-P13-40ct, Outdoor Fresh Dryer Sheets 40 ct, Fabric Softener Dryer Sheets,Fabric & Home Care,40 ct,180
-P13-80ct,Outdoor Fresh Dryer Sheets 80 ct, Fabric Softener Dryer Sheets,Fabric & Home Care,80 ct,345
-P13-160ct,Outdoor Fresh Dryer Sheets 160 ct,Fabric Softener Dryer Sheets,Fabric & Home Care,160 ct,660
-P13-240ct,Outdoor Fresh  Dryer Sheets 240 ct, Fabric Softener Dryer Sheets,Fabric & Home Care,240 ct,980
-P21-32ct, Swaddlers Diapers Size 1 32 ct,Taped Diapers,Baby Care,32 ct,320
-P21-64ct, Swaddlers Diapers Size 2 64 ct, Taped Diapers,Baby Care,64 ct,620
-P21-68ct,Cruisers Diapers Size 4 98 ct,Taped Diapers,Baby Care,98 ct,950
-P21-84ct,Cruisers Diapers Size 3 84 ct,Taped Diapers,Baby Care,84 ct,820
-P22-07ct, Sensitive Baby Wipes 7 ct, Baby Wipes,Baby Care,7 ct,35
-P22-12ct,Sensitive Baby Wipes 12 ct,Baby Wipes,Baby Care,12 ct,55
-P22-56ct, Sensitive Baby Wipes 56 ct,Baby Wipes,Baby Care,56 ct,235
-P22-72ct,Sensitive Baby Wipes 72 ct,Baby Wipes,Baby Care,72 ct,280
-P23-30ct,Ultra Leakguards Diapers Size 4 30 ct,L_Diapers,Baby Care,30 ct,270
-P23-36ct,Ultra Leakguards Diapers Size 3 36 ct,L_Diapers,Baby Care,36 ct,325
-P23-42ct,Ultra Leakguards Diapers Size 2 42 ct,L_Diapers,Baby Care,42 ct,385
-P23-44ct,Ultra Leakguards Diapers Size 1 44 ct,L_Diapers,Baby Care,44 ct,400
-P31-01oz,Complete Toothpaste Travel Size 1 oz,Toothpaste,Health Care,1 oz,45
-P31-03oz,Tartar Protection Toothpaste 3 oz,Toothpaste,Health Care,3 oz,120
-P31-04oz,Pro-Health Toothpaste Advanced 4 oz,Toothpaste,Health Care,4 oz,150
-P31-06oz,White Toothpaste Radiant Mint 6 oz,Toothpaste,Health Care,6 oz,220
-P32-01ct,Indicator Manual Toothbrush Soft 1 ct,Toothbrushes,Health Care,1 ct,60
-P32-02ct, Complete Manual Toothbrush Soft 2 ct, Toothbrushes,Health Care,2 ct,110
-P32-03ct,CrossAction Electric Toothbrush Brush Head Refill 3 ct, Toothbrushes,Health Care,3 ct,160
-P32-04ct,Pro-Health Manual Toothbrush Soft 4 ct,Toothbrushes,Health Care,4 ct,210
-P33-30ct,Ointment Chest Rub 30 ct,Cough & Cold,Health Care,30 ct,45
-P33-40ct,Ointment Chest Rub 40 ct,Cough & Cold,Health Care,40 ct,60
-P33-60ct,Ointment Chest Rub 60 ct, Cough & Cold,Health Care,60 ct,85
-P33-80ct,Ointment Chest Rub 80 ct, Cough & Cold,Health Care,80 ct,110
+Product_id,Product_Name,Brand,Category,Size
+P11-50ml,Liquid Laundry Detergent 50 mL,Laundry Detergent,Fabric & Home Care,50 mL
+P11-100ml,Liquid Laundry Detergent 100 mL,Laundry Detergent,Fabric & Home Care,100 mL
+P11-250ml,Liquid Laundry Detergent 250 mL,Laundry Detergent,Fabric & Home Care,250 mL
+P11-800ml,Liquid Laundry Detergent 800 mL,Laundry Detergent,Fabric & Home Care,800 mL
+P12-17oz,Liquid Fabric Conditioner 17 oz,Fabric Conditioner,Fabric & Home Care,17 oz
+P12-34oz,Liquid Fabric Conditioner 34 oz,Fabric Conditioner,Fabric & Home Care,34 oz
+P12-51oz,Liquid Fabric Conditioner 51 oz,Fabric Conditioner,Fabric & Home Care,51 oz
+P12-64oz,Liquid Fabric Conditioner 64 oz,Fabric Conditioner,Fabric & Home Care,64 oz
+P13-40ct,Outdoor Fresh Dryer Sheets 40 ct,Fabric Softener Dryer Sheets,Fabric & Home Care,40 ct
+P13-80ct,Outdoor Fresh Dryer Sheets 80 ct,Fabric Softener Dryer Sheets,Fabric & Home Care,80 ct
+P13-160ct,Outdoor Fresh Dryer Sheets 160 ct,Fabric Softener Dryer Sheets,Fabric & Home Care,160 ct
+P13-240ct,Outdoor Fresh Dryer Sheets 240 ct,Fabric Softener Dryer Sheets,Fabric & Home Care,240 ct
+P21-32ct,Swaddlers Diapers Size 1 32 ct,Taped Diapers,Baby Care,32 ct
+P21-64ct,Swaddlers Diapers Size 2 64 ct,Taped Diapers,Baby Care,64 ct
+P21-98ct,Cruisers Diapers Size 4 98 ct,Taped Diapers,Baby Care,98 ct
+P21-84ct,Cruisers Diapers Size 3 84 ct,Taped Diapers,Baby Care,84 ct
+P22-07ct,Sensitive Baby Wipes 7 ct,Baby Wipes,Baby Care,7 ct
+P22-12ct,Sensitive Baby Wipes 12 ct,Baby Wipes,Baby Care,12 ct
+P22-56ct,Sensitive Baby Wipes 56 ct,Baby Wipes,Baby Care,56 ct
+P22-72ct,Sensitive Baby Wipes 72 ct,Baby Wipes,Baby Care,72 ct
+P23-30ct,Ultra Leakguards Diapers Size 4 30 ct,L_Diapers,Baby Care,30 ct
+P23-36ct,Ultra Leakguards Diapers Size 3 36 ct,L_Diapers,Baby Care,36 ct
+P23-42ct,Ultra Leakguards Diapers Size 2 42 ct,L_Diapers,Baby Care,42 ct
+P23-44ct,Ultra Leakguards Diapers Size 1 44 ct,L_Diapers,Baby Care,44 ct
+P31-01oz,Complete Toothpaste Travel Size 1 oz,Toothpaste,Health Care,1 oz
+P31-03oz,Tartar Protection Toothpaste 3 oz,Toothpaste,Health Care,3 oz
+P31-04oz,Pro-Health Toothpaste Advanced 4 oz,Toothpaste,Health Care,4 oz
+P31-06oz,White Toothpaste Radiant Mint 6 oz,Toothpaste,Health Care,6 oz
+P32-01ct,Indicator Manual Toothbrush Soft 1 ct,Toothbrushes,Health Care,1 ct
+P32-02ct,Complete Manual Toothbrush Soft 2 ct,Toothbrushes,Health Care,2 ct
+P32-03ct,CrossAction Electric Toothbrush Brush Head Refill 3 ct,Toothbrushes,Health Care,3 ct
+P32-04ct,Pro-Health Manual Toothbrush Soft 4 ct,Toothbrushes,Health Care,4 ct
+P33-30ct,Ointment Chest Rub 30 ct,Cough & Cold,Health Care,30 ct
+P33-40ct,Ointment Chest Rub 40 ct,Cough & Cold,Health Care,40 ct
+P33-60ct,Ointment Chest Rub 60 ct,Cough & Cold,Health Care,60 ct
+P33-80ct,Ointment Chest Rub 80 ct,Cough & Cold,Health Care,80 ct

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Icon } from '../../icons'
+import { carryPromotionToPlanner } from '../../store/plannerSelection'
 import { LegendSwatch } from './PromotionMatrix'
 import { STATUS, statusForPromotionType } from './statusColors'
 import type { CalendarCellDetail, CalendarPromotion } from '../../types/promotionCalendar'
@@ -30,6 +32,9 @@ function TypeBadge({ type }: { type: string }) {
   )
 }
 
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const fmtDay = (iso: string) => `${Number(iso.slice(8, 10))} ${MONTH_ABBR[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`
+
 function PromotionBody({ promotion }: { promotion: CalendarPromotion }) {
   return (
     <div className="mt-3">
@@ -48,6 +53,20 @@ function PromotionBody({ promotion }: { promotion: CalendarPromotion }) {
         {/* dim_promotion.Promotion_Name — the mechanic, not a derived label. */}
         <dt className="text-ink-muted">Mechanic</dt>
         <dd className="font-semibold text-ink-primary">{promotion.mechanic}</dd>
+        {promotion.start && promotion.end && (
+          <>
+            <dt className="text-ink-muted">Runs</dt>
+            <dd className="font-semibold tabular-nums text-ink-primary">
+              {fmtDay(promotion.start)} – {fmtDay(promotion.end)}
+            </dd>
+          </>
+        )}
+        {promotion.store_count != null && (
+          <>
+            <dt className="text-ink-muted">Stores</dt>
+            <dd className="font-semibold text-ink-primary">{promotion.store_count}</dd>
+          </>
+        )}
         {promotion.weeks && promotion.weeks.length > 0 && (
           <>
             <dt className="text-ink-muted">Business Weeks</dt>
@@ -57,6 +76,25 @@ function PromotionBody({ promotion }: { promotion: CalendarPromotion }) {
           </>
         )}
       </dl>
+
+      {promotion.stores && promotion.stores.length > 0 && (
+        <details className="mt-3.5 group">
+          <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-wide text-ink-muted hover:text-ink-primary">
+            Stores ({promotion.stores.length}) <span className="font-normal normal-case group-open:hidden">· show</span>
+          </summary>
+          <ul className="mt-1.5 flex flex-wrap gap-1">
+            {promotion.stores.map((s) => (
+              <li
+                key={s.store_id}
+                title={`${s.name} · ${s.city} · ${s.region}`}
+                className="rounded-full bg-ink-primary/[0.04] px-2 py-0.5 text-xs font-semibold text-ink-secondary"
+              >
+                {s.store_id} · {s.city}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       <p className="mt-3.5 text-xs font-bold uppercase tracking-wide text-ink-muted">
         Products in Promotion ({promotion.product_count})
@@ -92,6 +130,7 @@ export function PromotionDetailPanel({
   onClose: () => void
 }) {
   const [openId, setOpenId] = useState<string | null>(null)
+  const navigate = useNavigate()
 
   // Default to the cell's headline promotion — the seasonal event when there
   // is one, which is what the grid cell is named after.
@@ -122,7 +161,7 @@ export function PromotionDetailPanel({
             {detail.month_name} {detail.year} — {channel.channel_id}
           </h3>
           <p className="mt-0.5 truncate text-sm text-ink-muted">
-            {channel.name} · {channel.cadence === 'WEEKLY' ? 'Weekly' : 'Monthly'} cadence
+            {channel.name} · promotions run {channel.booking === 'week' ? 'by the week' : 'for the month'}
           </p>
         </div>
         <button
@@ -148,7 +187,7 @@ export function PromotionDetailPanel({
             (n)" heading below, which counts one promotion only — the two are
             different questions and must not read as the same number. */}
         <p className="mt-1 text-sm font-semibold text-ink-secondary">
-          {cell.product_count} distinct products promoted this month
+          {cell.product_count} products · {cell.store_count} stores · {cell.week_count} week{cell.week_count === 1 ? '' : 's'}
         </p>
 
         {promotions.length === 0 ? (
@@ -160,7 +199,7 @@ export function PromotionDetailPanel({
           <>
             {/* Weekly channels: the month is a summary, so show the weeks that
                 make it up before drilling into any single promotion. */}
-            {channel.cadence === 'WEEKLY' && weeks.length > 0 && (
+            {channel.booking === 'week' && weeks.length > 0 && (
               <div className="mt-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">
                   Weekly Promotions
@@ -189,7 +228,7 @@ export function PromotionDetailPanel({
                                 : 'border-border-subtle text-ink-secondary hover:bg-surface-hover'
                             }`}
                           >
-                            {promotion.promotion_id} · {promotion.product_count}p
+                            {promotion.promotion_id} · {promotion.product_count}p{promotion.store_count != null ? ` · ${promotion.store_count}st` : ''}
                           </button>
                         ))}
                       </div>
@@ -226,6 +265,27 @@ export function PromotionDetailPanel({
                   <span className="text-base font-bold text-ink-primary">{selected.description}</span>
                   <TypeBadge type={selected.type} />
                 </div>
+                {/* Into the Simulation Studio's Promotion Planner with this
+                    promotion's own product-stores in this channel-month: its
+                    discount, what-if, a profit target and its best offers. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    carryPromotionToPlanner({
+                      promotionId: selected.promotion_id,
+                      promotionName: selected.description,
+                      channelId: channel.channel_id,
+                      channelName: channel.name,
+                      year: detail.year,
+                      month: detail.month,
+                      monthName: detail.month_name,
+                    })
+                    navigate('/simulation')
+                  }}
+                  className="mt-3 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-[var(--r-md)] bg-brand-violet px-3 py-2 text-sm font-semibold text-white shadow-[var(--shadow-violet)] transition-colors hover:bg-brand-violet-600 [&_svg]:h-4 [&_svg]:w-4"
+                >
+                  <Icon name="sparkles" /> Simulate this promotion
+                </button>
                 <PromotionBody promotion={selected} />
               </div>
             )}

@@ -24,7 +24,7 @@ canonical filename the loader opens.
 Identification and completeness are two separate steps. A few discriminating
 columns decide WHICH table a file is meant to be (ROLE_DISCRIMINATORS); the
 full column list then decides whether it can actually be loaded (ROLE_COLUMNS).
-Collapsing them would turn "your product file is missing the Cost column" into
+Collapsing them would turn "your product file is missing the Size column" into
 "no product dimension uploaded" — a message about the wrong problem.
 
 ALL SIX, OR NOTHING. A star schema is only consistent as a set — a new fact
@@ -77,16 +77,19 @@ ROLE_LABELS: dict[str, str] = {
 #: read, rather than being accepted on its name and failing later.
 #:
 #: These lists are exhaustive rather than a minimal fingerprint on purpose. A
-#: file missing `Cost` IS NOT a usable product dimension, so recognising it as
+#: file missing `Size` IS NOT a usable product dimension, so recognising it as
 #: one and letting the loader fail on a KeyError would report the wrong problem;
 #: `missing_columns` names the absent column instead.
 ROLE_COLUMNS: dict[str, tuple[str, ...]] = {
+    # Only what a source system records. Week/Month come from dim_date, the
+    # channel from dim_geo_store, both revenues from units x price.
+    # Base_Quantity (units expected without the promotion) is read when present
+    # but not required -- see loader._build_store.
     "fact": (
-        "Date", "Week", "Month", "Product_id", "Store_Id", "Channel_Id", "Promotion_Id",
-        "Base_Quantity", "Actual_Quantity", "Actual_Price", "Base_Revenue", "Actual_Revenue",
-        "Total_Cost", "Promotion_Cost",
+        "Date", "Product_id", "Store_Id", "Promotion_Id",
+        "Actual_Quantity", "Base_Price", "Actual_Price", "Total_Cost", "Promotion_Cost",
     ),
-    "product": ("Product_id", "Product_Name", "Brand", "Category", "Size", "Cost"),
+    "product": ("Product_id", "Product_Name", "Brand", "Category", "Size"),
     "geo_store": ("Store_Id", "Channel_Id", "Retailer", "Region", "State", "City", "Tier"),
     "channel": ("Channel_Id", "Channel_Name", "Channel_Type"),
     "promotion": ("Promotion_Id", "Promotion_Name", "Promotion_Type", "Promotion_Description"),
@@ -97,9 +100,9 @@ ROLE_COLUMNS: dict[str, tuple[str, ...]] = {
 #: in this order. Identification and completeness are deliberately SEPARATE
 #: steps: a file is first recognised as "meant to be the product dimension" by
 #: these few columns, and only then checked against the full ROLE_COLUMNS list.
-#: One step would make a product file missing `Cost` simply unrecognised —
+#: One step would make a product file missing `Size` simply unrecognised —
 #: reported as "no product dimension uploaded" when the truth is "your product
-#: file is missing the Cost column", which is the difference between a message
+#: file is missing the Size column", which is the difference between a message
 #: the user can act on and one they cannot.
 #:
 #: Order matters where signatures overlap. The fact table carries Product_id,
@@ -107,7 +110,7 @@ ROLE_COLUMNS: dict[str, tuple[str, ...]] = {
 #: which no dimension has; dim_geo_store carries Channel_Id, so it is tested
 #: before dim_channel.
 ROLE_DISCRIMINATORS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("fact", ("Base_Quantity", "Actual_Revenue")),
+    ("fact", ("Actual_Quantity", "Promotion_Cost")),
     ("geo_store", ("Store_Id", "Retailer")),
     ("product", ("Product_id", "Product_Name")),
     ("promotion", ("Promotion_Id", "Promotion_Name")),
@@ -406,6 +409,7 @@ def reset_caches() -> None:
         filters._present_values,
         promo_calendar._aggregate,
         promo_calendar.available_years,
+        promo_calendar.booking,
         fingerprint._compute,
         # The Insights Hub's memoised engine passes (app/tpo/service.py).
         service._bundle,
@@ -417,6 +421,11 @@ def reset_caches() -> None:
         studio.lift_model,
     ):
         cached.cache_clear()
+    # The Promotion Planner's slot table, fitted response model and every
+    # selection resolved against them (app/tpo/planner*.py).
+    from app.tpo import planner, planner_model
+    planner.clear()
+    planner_model.clear()
     get_store.cache_clear()
 
     # config.DATA_DIR was resolved at import time. If Data/ was empty then, it

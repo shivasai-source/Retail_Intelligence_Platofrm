@@ -8,61 +8,56 @@ the frontend, which fetches results and formats them, nothing more.
 Adapted from the validated engine in the previous TPO project. The formulas
 are unchanged; what changed is the schema they read.
 
-The property everything rests on:
+THE BASELINE -- what a promoted row would have sold without its promotion,
+its EXPECTED UNITS -- is the whole chain's foundation, and it is taken from
+the data in one of two ways:
 
-    On every row, promoted or not, Base_Quantity == Actual_Quantity.
-
-Verified on all 243,360 rows of the finalized fact table. So
-`Actual_Quantity - Base_Quantity` is identically zero and measures nothing.
-Uplift is instead measured against the product's own NON-PROMOTIONAL baseline
-— the level at which it trades when no promotion is running:
-
-    baseline = mean(Base_Quantity) over rows with Promotion_Id = -1,
-               for that product IN THAT CHANNEL, inside the filter selection
+  * The source's own Base_Quantity, when it is a real counterfactual: the
+    file carries it and it differs from Actual_Quantity on at least one
+    promoted row (`FactStore.counterfactual_base`). Retail panels (Nielsen,
+    IRI) ship exactly this.
+  * Otherwise the product's ORDINARY trading NEAR the promoted week: units per
+    store-week over the nearest BASELINE_WINDOW non-promoted weeks either
+    side, for that product IN THAT CHANNEL, inside the selection. Local rather
+    than one flat average over the whole span, so a seasonal product's winter
+    peak is not counted as promotional lift (Cough & Cold: a flat baseline
+    overstated its winter promotions by 57 % and understated its summer ones
+    by 42 %).
 
 The chain, in the order it is computed:
 
-    per-(product, channel) baseline   (mean over non-promoted rows)
-        -> incremental quantity   Sum over promoted rows of (Actual_Quantity - baseline)
+    expected units per promoted row    (above)
+        -> incremental quantity   Sum over promoted rows of (Actual_Quantity - expected)
         -> incremental sales      Sum over promoted rows of (that x Actual_Price)
-        -> ROI
+        -> ROI                    Incremental Sales / Trade Spend
         -> PEI                    (last, from the components above)
 
-Trade Spend is independent of that chain — Sum(Base_Revenue - Actual_Revenue +
-Promotion_Cost) over the filtered rows — as is Margin Impact. Cannibalization
-is also independent: a within-period contrast between neighbouring SKUs.
+Trade Spend is independent of that chain -- Sum(Base_Revenue - Actual_Revenue +
+Promotion_Cost) over the filtered rows -- as is gross margin. Cannibalization
+measures the neighbouring pack sizes against their own nearby ordinary weeks.
 
-Four invariants hold throughout:
+Invariants:
 
   * Only promoted rows contribute incremental volume. A product never promoted
-    in the selection contributes zero — its ordinary sales are not incremental
+    in the selection contributes zero -- its ordinary sales are not incremental
     sales.
-  * Every product carries its OWN baseline. One pooled average across products
-    would measure pack size, not promotional response.
-  * That baseline is per CHANNEL. `Schedule` is a property of the channel: a
-    WEEKLY channel books one row per WEEK (mean Base_Quantity 142.9) while a
-    MONTHLY one books one row per MONTH (mean 576.9). Pooling those would
-    measure period length, not promotional response — the same error as pooling
-    pack sizes, and the reason this key gained a channel when the schema did.
-    Which channel is which is declared in `promo_calendar.CADENCE` and recorded
-    in `fact_sales.Schedule`; nothing here needs to know the roster.
-  * A promoted (product, channel) with no non-promoted row in the selection has
-    no baseline. It is skipped and reported, never defaulted to zero.
-
-One consequence worth stating because it looks like a bug and is not: a year
-does NOT equal the sum of its months, and All Channels does NOT equal the sum
-of the individual channels, for the volume-derived KPIs. Each selection
-re-derives its baseline from its own non-promoted rows. Trade Spend and Margin Impact are
-plain sums and do add up exactly.
+  * Every product carries its OWN baseline, per CHANNEL: pooling products would
+    measure pack size, pooling a weekly and a monthly channel period length.
+  * A promoted (product, channel) with no expected units -- no real
+    Base_Quantity and no ordinary week in the selection -- is skipped and
+    reported, never defaulted to zero.
+  * Every promoted row carries its own expected units, so the volume KPIs are
+    additive: periods and events sum exactly to the headline.
 """
 
 from __future__ import annotations
 
+from bisect import bisect_left
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Sequence
 
-# PEI = 0.40(ROI net return) + 0.30(Incremental qty %) + 0.30(Margin Impact).
+# PEI = 0.40(ROI net return) + 0.30(Incremental qty %) + 0.30(Gross margin %).
 #
 # Trade Spend Efficiency and the cannibalization score are deliberately NOT
 # components: TSE = ROI x 100 by definition, so carrying both would put 45% of
@@ -71,7 +66,7 @@ from typing import Any, Callable, Iterable, Sequence
 PEI_WEIGHTS = {
     "roi": 0.40,
     "incremental_quantity_percent": 0.30,
-    "margin_impact": 0.30,
+    "gross_margin": 0.30,
 }
 
 # Ceilings used to normalise each PEI component onto 0-100. Scale references
@@ -118,6 +113,13 @@ class WeekRow:
     discount_value: float  # Base_Revenue - Actual_Revenue; half of Trade Spend
     actual_price_sum: float  # Sum of row-level Actual_Price over the group
     transaction_count: int
+    #: Sum of Base_Quantity x Actual_Price over the group: the expected units
+    #: valued at the price actually paid. Read only when `counterfactual`.
+    base_value: float = 0.0
+    #: True when Base_Quantity is a real "without the promotion" figure (see
+    #: the module docstring); False for a source without one, and for the
+    #: Simulation Studio's synthetic rows.
+    counterfactual: bool = False
 
     @property
     def year(self) -> str:
@@ -179,6 +181,66 @@ def _round(value: float | None, dp: int) -> float | None:
 
 def promotion_rows(rows: Sequence[WeekRow]) -> list[WeekRow]:
     return [r for r in rows if r.is_promoted]
+
+
+# --- the baseline ----------------------------------------------------------
+
+#: Non-promoted weeks averaged on EACH side of a row for its local baseline.
+BASELINE_WINDOW = 4
+
+
+def _local_baselines(rows: Sequence[WeekRow]) -> list[float | None]:
+    """Every row's ordinary level, in units per store-week: Sum(Base_Quantity)
+    / Sum(store-weeks) over the nearest BASELINE_WINDOW non-promoted rows of
+    the same (product, channel) on each side, in week order, the row itself
+    excluded. None where the (product, channel) has no other ordinary row.
+
+    A ratio of sums, so a week booked by many stores weighs more than one
+    booked by few. On a non-promoted row Base_Quantity is its own units, so
+    this is the product's nearby ordinary trading whatever the source.
+    """
+    by_key: dict[tuple[str, str], list[int]] = defaultdict(list)
+    for i, r in enumerate(rows):
+        by_key[r.baseline_key].append(i)
+    out: list[float | None] = [None] * len(rows)
+    for idxs in by_key.values():
+        idxs.sort(key=lambda i: rows[i].week_key)
+        ordinary = [p for p, i in enumerate(idxs) if not rows[i].is_promoted]
+        if not ordinary:
+            continue
+        for p, i in enumerate(idxs):
+            k = bisect_left(ordinary, p)
+            after = k + 1 if k < len(ordinary) and ordinary[k] == p else k
+            near = ordinary[max(0, k - BASELINE_WINDOW):k] + ordinary[after:after + BASELINE_WINDOW]
+            stores = sum(rows[idxs[q]].transaction_count for q in near)
+            if stores:
+                out[i] = sum(rows[idxs[q]].base_quantity for q in near) / stores
+    return out
+
+
+def _expected(
+    rows: Sequence[WeekRow], local: list[float | None] | None = None
+) -> list[tuple[float, float] | None]:
+    """Per PROMOTED row: (expected units, expected units valued at the row's
+    own prices) -- what it would have sold without the promotion. None on a
+    non-promoted row, and on a promoted one with nothing to measure against.
+
+    The source's Base_Quantity when it is a real counterfactual, else the
+    local ordinary level above. See the module docstring.
+    """
+    out: list[tuple[float, float] | None] = [None] * len(rows)
+    for i, r in enumerate(rows):
+        if not r.is_promoted:
+            continue
+        if r.counterfactual:
+            out[i] = (r.base_quantity, r.base_value)
+            continue
+        if local is None:
+            local = _local_baselines(rows)
+        b = local[i]
+        if b is not None:
+            out[i] = (b * r.transaction_count, b * r.actual_price_sum)
+    return out
 
 
 # --- Trade Spend -----------------------------------------------------------
@@ -248,6 +310,16 @@ class Volume:
     baseline_quantity: float = 0.0
     incremental_sales: float = 0.0
     incremental_cost: float = 0.0
+    #: Discount given on the EXPECTED units -- the price cut on volume that would
+    #: have sold anyway. The cut on the extra units is already inside
+    #: Incremental Sales, which values them at the price paid.
+    baseline_discount: float = 0.0
+    #: The measured promoted rows, as traded and as they would have traded
+    #: without the promotion (expected units at list price, at their own cost).
+    promoted_revenue: float = 0.0
+    promoted_cost: float = 0.0
+    counterfactual_revenue: float = 0.0
+    counterfactual_cost: float = 0.0
     skipped: tuple[dict[str, Any], ...] = ()
 
     @property
@@ -256,38 +328,31 @@ class Volume:
 
 
 def _volume(rows: Sequence[WeekRow]) -> Volume:
-    """Per-(product, channel) incremental volume against a non-promotional
-    baseline — the primitive every other volume KPI derives from.
+    """Per-(product, channel) incremental volume against each promoted row's
+    expected units (`_expected`) -- the primitive every other volume KPI
+    derives from.
 
-        baseline = mean(Base_Quantity) over rows with Promotion_Id = -1
+        incremental quantity = Sum over promoted rows of (Actual_Quantity - expected)
+        incremental sales    = Sum over promoted rows of (Actual_Quantity - expected) x Actual_Price
 
-        incremental quantity = Sum over promoted rows of
-                               (Actual_Quantity - baseline)
-        incremental sales    = Sum over promoted rows of
-                               (Actual_Quantity - baseline) x Actual_Price
+    Evaluated from the aggregate grain: a row's expected units carry their own
+    value at the row's prices, so Sum(Actual_Revenue) - Sum(expected value) is
+    the row-level formula exactly. Each promoted row is valued at its OWN
+    Actual_Price -- two discounts in one selection are never pooled.
 
-    Evaluated from the aggregate grain rather than row by row, using the
-    identity Actual_Revenue == Actual_Quantity x Actual_Price:
-
-        Sum((Aq - b) x Ap) = Sum(Aq x Ap) - b x Sum(Ap)
-                           = Sum(Actual_Revenue) - b x Sum(Actual_Price)
-
-    so `actual_price_sum` and `transaction_count` make the row-level formula
-    exact without walking every transaction. Each promoted row is valued at
-    its OWN Actual_Price — two different discounts in one selection are never
-    collapsed into a single pooled price.
-
-    Negative results are kept. A promoted row below the product's ordinary
-    level is genuine underperformance; clamping it at zero would turn a
-    loss-making promotion into a neutral one.
+    Negative results are kept. A promoted row below its expected level is
+    genuine underperformance; clamping it at zero would turn a loss-making
+    promotion into a neutral one.
     """
+    expected = _expected(rows)
     acc: dict[tuple[str, str], dict[str, float]] = defaultdict(
         lambda: {
-            "n_base": 0.0, "n_rows": 0.0,
-            "p_qty": 0.0, "p_rev": 0.0, "p_price": 0.0, "p_rows": 0.0, "p_cost": 0.0,
+            "n_rows": 0.0, "p_qty": 0.0, "p_rev": 0.0, "p_price": 0.0, "p_rows": 0.0,
+            "p_cost": 0.0, "e_units": 0.0, "e_value": 0.0, "missing": 0.0,
+            "e_discount": 0.0, "e_list": 0.0, "e_cost": 0.0,
         }
     )
-    for r in rows:
+    for r, e in zip(rows, expected):
         a = acc[r.baseline_key]
         if r.is_promoted:
             a["p_qty"] += r.actual_quantity
@@ -295,42 +360,56 @@ def _volume(rows: Sequence[WeekRow]) -> Volume:
             a["p_price"] += r.actual_price_sum
             a["p_rows"] += r.transaction_count
             a["p_cost"] += r.total_cost
+            if e is None:
+                a["missing"] += r.transaction_count
+            else:
+                a["e_units"] += e[0]
+                a["e_value"] += e[1]
+                # Per-unit list price, discount and cost of this row. One
+                # product at one offer: the same for every store it pools.
+                if r.actual_quantity:
+                    a["e_discount"] += e[0] * r.discount_value / r.actual_quantity
+                    a["e_list"] += e[0] * (r.actual_revenue + r.discount_value) / r.actual_quantity
+                    a["e_cost"] += e[0] * r.total_cost / r.actual_quantity
         else:
-            # Base_Quantity, not Actual_Quantity: the baseline is the ordinary
-            # demand level the source records for a non-promoted row.
-            a["n_base"] += r.base_quantity
             a["n_rows"] += r.transaction_count
 
     products: list[ProductVolume] = []
     skipped: list[dict[str, Any]] = []
+    totals: dict[str, float] = defaultdict(float)
 
     for key in sorted(acc):
         product_id, channel_id = key
         a = acc[key]
         if not a["p_rows"]:
             continue  # Never promoted in this selection -> contributes nothing.
-        if not a["n_rows"]:
+        if a["missing"]:
             skipped.append({
                 "product_id": product_id,
                 "channel_id": channel_id,
                 "promoted_rows": int(a["p_rows"]),
-                "reason": "no non-promoted row in the selection — no baseline to measure against",
+                "reason": "no ordinary week of this product in the selection — no baseline to measure against",
             })
             continue
 
-        baseline = a["n_base"] / a["n_rows"]
-        baseline_quantity = baseline * a["p_rows"]
+        baseline_quantity = a["e_units"]
         incremental = a["p_qty"] - baseline_quantity
-        sales = a["p_rev"] - baseline * a["p_price"]
+        sales = a["p_rev"] - a["e_value"]
 
         price = safe_divide(a["p_rev"], a["p_qty"])
         unit_cost = safe_divide(a["p_cost"], a["p_qty"])
         cost = incremental * unit_cost if unit_cost is not None else 0.0
 
+        totals["baseline_discount"] += a["e_discount"]
+        totals["promoted_revenue"] += a["p_rev"]
+        totals["promoted_cost"] += a["p_cost"]
+        totals["counterfactual_revenue"] += a["e_list"]
+        totals["counterfactual_cost"] += a["e_cost"]
+
         products.append(ProductVolume(
             product_id=product_id,
             channel_id=channel_id,
-            baseline_average=baseline,
+            baseline_average=baseline_quantity / a["p_rows"],
             non_promoted_rows=int(a["n_rows"]),
             promoted_rows=int(a["p_rows"]),
             promoted_quantity=a["p_qty"],
@@ -350,13 +429,18 @@ def _volume(rows: Sequence[WeekRow]) -> Volume:
         baseline_quantity=sum(p.baseline_quantity for p in products),
         incremental_sales=sum(p.incremental_sales for p in products),
         incremental_cost=sum(p.incremental_cost for p in products),
+        baseline_discount=totals["baseline_discount"],
+        promoted_revenue=totals["promoted_revenue"],
+        promoted_cost=totals["promoted_cost"],
+        counterfactual_revenue=totals["counterfactual_revenue"],
+        counterfactual_cost=totals["counterfactual_cost"],
         skipped=tuple(skipped),
     )
 
 
 def calculate_incremental_quantity(rows: Sequence[WeekRow]) -> float | None:
-    """Sum over promoted rows of (Actual_Quantity - that (product, channel)'s
-    non-promotional baseline). May be negative; not clamped."""
+    """Sum over promoted rows of (Actual_Quantity - expected units). May be
+    negative; not clamped."""
     if not rows:
         return None
     return _round(_volume(rows).incremental_quantity, 0)
@@ -417,30 +501,30 @@ def calculate_incremental_profit(
 
 
 def calculate_net_incremental_profit(
-    rows: Sequence[WeekRow], volume_rows: Sequence[WeekRow] | None = None
+    rows: Sequence[WeekRow],
+    volume_rows: Sequence[WeekRow] | None = None,
+    cannibalized_margin: float | None = 0.0,
 ) -> float | None:
-    """Incremental Sales - Trade Spend: the absolute money behind the ROI
-    multiple, the same two figures ROI divides, subtracted instead.
+    """The change in profit the promotions caused.
 
-    DELIBERATELY NOT `calculate_incremental_profit` above, which also takes
-    off the product cost of the extra units. The Insights Hub card states
-    itself against the two headline cards beside it -- what was spent and
-    what came back -- so a reader can check it by subtracting them, and a
-    third term they cannot see on the page would break that. Positive
-    exactly when ROI > 1.00, by construction.
+        Margin Impact - Promotion Cost - margin lost on cannibalized sister packs
+
+    Margin Impact is the gross margin the promoted rows earned above what they
+    would have earned without the promotion (`calculate_margin_impact`), so
+    the discount and the extra units are both already in it; what is left is
+    the promotion's running cost and the margin it took from neighbouring
+    pack sizes. The two cards reconcile by subtraction.
+
+    Margin Impact reads the baseline-widened `volume_rows`; Promotion Cost the
+    selection itself.
     """
     if not rows:
         return None
-    vrows = volume_rows if volume_rows is not None else rows
-    # Nothing promoted means nothing to net -- the card says so, rather than
-    # reporting a zero that reads as "the promotions broke even".
-    if not _volume(vrows).has_promotion:
+    margin = calculate_margin_impact(rows, volume_rows, precision=None)
+    if margin is None:
         return None
-    sales = calculate_incremental_sales(vrows)
-    spend = calculate_trade_spend(rows)
-    if sales is None or spend is None:
-        return None
-    return _round(sales - spend, 2)
+    promotion_cost = _sum(rows, lambda r: r.promotion_cost)
+    return _round(margin - promotion_cost - (cannibalized_margin or 0.0), 2)
 
 
 # --- ROI, margin, efficiency -----------------------------------------------
@@ -531,6 +615,35 @@ def calculate_margin(rows: Sequence[WeekRow], precision: int | None = 2) -> floa
     return ratio * 100 if precision is None else _round(ratio * 100, precision)
 
 
+def calculate_margin_impact(
+    rows: Sequence[WeekRow],
+    volume_rows: Sequence[WeekRow] | None = None,
+    precision: int | None = 2,
+) -> float | None:
+    """The gross margin the promotions added, in money.
+
+        gross margin of the promoted rows as sold
+        - gross margin the SAME rows would have earned without the promotion
+          (their expected units at list price, at their own unit cost)
+
+    Gross margin = revenue - Total_Cost. The discount lowers the margin on
+    every unit; the extra units add margin back. Positive when the extra
+    volume more than pays for the price cut. Promotion cost is not in it --
+    Net Incremental Profit takes that off. Null when nothing in the selection
+    was promoted and measured.
+    """
+    if not rows:
+        return None
+    volume = _volume(volume_rows if volume_rows is not None else rows)
+    if not volume.has_promotion:
+        return None
+    change = (
+        (volume.promoted_revenue - volume.promoted_cost)
+        - (volume.counterfactual_revenue - volume.counterfactual_cost)
+    )
+    return change if precision is None else _round(change, precision)
+
+
 def calculate_trade_spend_efficiency(
     rows: Sequence[WeekRow], volume_rows: Sequence[WeekRow] | None = None
 ) -> float | None:
@@ -557,48 +670,74 @@ class PeriodPoint:
     incremental_sales: float
     incremental_quantity: float = 0.0
     promoted_quantity: float = 0.0
+    incremental_cost: float = 0.0
+    baseline_discount: float = 0.0
+    promotion_cost: float = 0.0
+    margin_impact: float = 0.0
 
 
 def period_series(rows: Sequence[WeekRow], key: Callable[[WeekRow], str]) -> list[PeriodPoint]:
-    """Trade Spend and Incremental Sales split across periods, for the trend
-    chart. The parts sum EXACTLY to `calculate_trade_spend(rows)` and
-    `calculate_incremental_sales(rows)` over the same selection.
+    """Trade Spend and Incremental Sales split across periods (or events), for
+    the trend chart and the event list. The parts sum EXACTLY to
+    `calculate_trade_spend(rows)` and `calculate_incremental_sales(rows)`
+    over the same selection.
 
-    Not a second definition of either KPI — the same arithmetic, grouped:
-
-    * Trade Spend is a plain row sum, so it splits trivially.
-    * Incremental Sales holds the baseline FIXED at the one computed over the
-      whole selection, and groups only the per-row terms. Recomputing it per
-      period would measure each week against its own trading level, and the
-      weeks would no longer add up to the headline number on the card.
+    Not a second definition of either KPI -- the same arithmetic, grouped.
+    Every promoted row carries its own expected units (`_expected`), so its
+    incremental is its own and grouping cannot move it. A (product, channel)
+    `_volume` skips for want of a baseline is skipped here too.
 
     Sorted by period key, which is zero-padded ("2025-W07", "2025-03") and so
     sorts chronologically as a string, across a year boundary too.
     """
-    baselines = {(p.product_id, p.channel_id): p.baseline_average for p in _volume(rows).products}
+    expected = _expected(rows)
+    skipped = {r.baseline_key for r, e in zip(rows, expected) if r.is_promoted and e is None}
+    # Unit cost per (product, channel) over its promoted rows -- the rate
+    # `_volume` costs the extra units at, so event costs add up to its total.
+    promo_qty: dict[tuple[str, str], float] = defaultdict(float)
+    promo_cost: dict[tuple[str, str], float] = defaultdict(float)
+    for r in rows:
+        if r.is_promoted:
+            promo_qty[r.baseline_key] += r.actual_quantity
+            promo_cost[r.baseline_key] += r.total_cost
+
     spend: dict[str, float] = defaultdict(float)
     sales: dict[str, float] = defaultdict(float)
     quantity: dict[str, float] = defaultdict(float)
     gross: dict[str, float] = defaultdict(float)
-    for r in rows:
+    cost: dict[str, float] = defaultdict(float)
+    base_discount: dict[str, float] = defaultdict(float)
+    overhead: dict[str, float] = defaultdict(float)
+    margin: dict[str, float] = defaultdict(float)
+    for r, e in zip(rows, expected):
         period = key(r)
         spend[period] += r.discount_value + r.promotion_cost
-        baseline = baselines.get(r.baseline_key)
-        if r.is_promoted and baseline is not None:
-            sales[period] += r.actual_revenue - baseline * r.actual_price_sum
-            # The baseline is scaled by the row count exactly once, the same
-            # way `_volume` does it.
-            quantity[period] += r.actual_quantity - baseline * r.transaction_count
+        overhead[period] += r.promotion_cost
+        if r.is_promoted and r.baseline_key not in skipped:
+            extra = r.actual_quantity - e[0]
+            sales[period] += r.actual_revenue - e[1]
+            quantity[period] += extra
             gross[period] += r.actual_quantity
+            unit_cost = safe_divide(promo_cost[r.baseline_key], promo_qty[r.baseline_key])
+            cost[period] += extra * unit_cost if unit_cost is not None else 0.0
+            if r.actual_quantity:
+                base_discount[period] += e[0] * r.discount_value / r.actual_quantity
+                list_price = (r.actual_revenue + r.discount_value) / r.actual_quantity
+                unit_cost_row = r.total_cost / r.actual_quantity
+                margin[period] += (r.actual_revenue - r.total_cost) - e[0] * (list_price - unit_cost_row)
     return [
         PeriodPoint(
             period_key=period,
             trade_spend=round(spend[period], 2),
-            # A period with no promoted row has no incremental sales — 0, not a
+            # A period with no promoted row has no incremental sales -- 0, not a
             # gap: it traded, it simply ran no promotion.
             incremental_sales=round(sales.get(period, 0.0), 2),
             incremental_quantity=round(quantity.get(period, 0.0), 2),
             promoted_quantity=round(gross.get(period, 0.0), 2),
+            incremental_cost=round(cost.get(period, 0.0), 2),
+            baseline_discount=round(base_discount.get(period, 0.0), 2),
+            promotion_cost=round(overhead.get(period, 0.0), 2),
+            margin_impact=round(margin.get(period, 0.0), 2),
         )
         for period in sorted(spend)
     ]
@@ -620,7 +759,9 @@ def _adjacent_ranks(promoted_rank: int) -> tuple[int, ...]:
 
 
 def _sku_baselines(rows: Sequence[WeekRow]) -> dict[tuple[str, str], float]:
-    """mean(Base_Quantity) over each (product, channel)'s NON-promoted rows.
+    """mean(Base_Quantity) over each (product, channel)'s NON-promoted rows --
+    the flat whole-selection level, kept for the Simulation Studio's lift fit.
+    The KPIs measure against `_expected` instead.
 
     The same baseline definition Incremental Sales uses, computed inside the
     current filter context — so a Region or Retailer selection re-derives the
@@ -646,22 +787,52 @@ class CannibalizationEvent:
     channel_id: str
     promoted_product_id: str
     promoted_rank: int
+    promotion_id: str
     promoted_baseline: float
     promoted_expected: float
     promoted_actual: float
     increment: float  # promoted_actual - promoted_expected, > 0
     neighbours: tuple[dict[str, Any], ...]
     cannibalized: float  # Sum of the neighbours' clamped losses
+    cannibalized_margin: float = 0.0  # those units at the neighbours' gross margin
+
+
+#: The last few `cannibalization_detail` results, keyed on the identity of the
+#: rows they were measured on. One page load asks for the same selection's
+#: cannibalization several times (the card, its delta, the score, the debug
+#: trace, Net Incremental Profit); the rows are immutable tuples, so the same
+#: object is the same answer.
+_CANNIBALIZATION_MEMO: list[tuple[Sequence[WeekRow], frozenset[str] | None, dict[str, Any]]] = []
+_CANNIBALIZATION_MEMO_SIZE = 16
 
 
 def cannibalization_detail(
     rows: Sequence[WeekRow], promoted_products: frozenset[str] | None = None
 ) -> dict[str, Any]:
+    for cached_rows, cached_products, result in _CANNIBALIZATION_MEMO:
+        if cached_rows is rows and cached_products == promoted_products:
+            return result
+    result = _cannibalization_detail(rows, promoted_products)
+    _CANNIBALIZATION_MEMO.append((rows, promoted_products, result))
+    del _CANNIBALIZATION_MEMO[:-_CANNIBALIZATION_MEMO_SIZE]
+    return result
+
+
+def _cannibalization_detail(
+    rows: Sequence[WeekRow], promoted_products: frozenset[str] | None = None
+) -> dict[str, Any]:
     """Cannibalization at event, Brand Form and overall grain.
 
-        loss(neighbour)   = max(baseline x its rows - its actual quantity, 0)
-        increment(promo)  = its actual quantity - baseline x its rows
+        loss(neighbour)   = max(its expected units - its actual units, 0)
+        increment(promo)  = its actual units - its expected units
         rate              = Sum loss / Sum increment x 100
+
+    Expected units are the engine's (`_expected`) for the promoted SKU, and the
+    neighbour's own nearby ordinary weeks (`_local_baselines`) for the
+    neighbour -- whose Base_Quantity on an un-promoted week is just its sales,
+    so it cannot stand in for what the week would have been. The lost units
+    are also valued at the neighbour's gross margin, `cannibalized_margin`,
+    which Net Incremental Profit charges against the promotion.
 
     A *promotion event* is one (Brand Form, channel, business week, promoted
     SKU). The channel is part of the identity because a weekly-grain channel
@@ -690,86 +861,92 @@ def cannibalization_detail(
         "overall": None, "overall_exact": None, "score": None, "by_brand_form": {},
         "events": [], "comparable_events": 0, "excluded_events": 0, "excluded": [],
         "cannibalized_quantity": None, "incremental_quantity": None,
+        "cannibalized_margin": None,
     }
     if not rows:
         return empty
 
-    baselines = _sku_baselines(rows)
+    local = _local_baselines(rows)
+    expected = _expected(rows, local)
 
-    # (brand form, channel, week) -> rank -> the rows for that SKU that week.
-    grid: dict[tuple[str, str, str], dict[int, list[WeekRow]]] = defaultdict(lambda: defaultdict(list))
-    for r in rows:
-        grid[(r.brand_form, r.channel_id, r.week_key)][r.product_rank].append(r)
+    # (brand form, channel, week) -> rank -> that SKU's row indices that week.
+    grid: dict[tuple[str, str, str], dict[int, list[int]]] = defaultdict(lambda: defaultdict(list))
+    for i, r in enumerate(rows):
+        grid[(r.brand_form, r.channel_id, r.week_key)][r.product_rank].append(i)
 
     events: list[CannibalizationEvent] = []
     excluded: list[dict[str, Any]] = []
 
     for (brand_form, channel_id, week_key), by_rank in sorted(grid.items()):
-        for promoted_rank, promoted_rows_ in sorted(by_rank.items()):
-            promo = [r for r in promoted_rows_ if r.is_promoted]
+        for promoted_rank, idxs in sorted(by_rank.items()):
+            promo = [i for i in idxs if rows[i].is_promoted]
             if not promo:
                 continue  # Not a promotion event for this SKU this week.
 
-            product_id = promo[0].product_id
+            product_id = rows[promo[0]].product_id
             if promoted_products is not None and product_id not in promoted_products:
                 continue
-            baseline = baselines.get((product_id, channel_id))
-            if baseline is None:
+            if any(expected[i] is None for i in promo):
                 excluded.append({
                     "brand_form": brand_form, "channel_id": channel_id, "week": week_key,
                     "rank": promoted_rank,
-                    "reason": "promoted SKU has no non-promoted row in this selection — "
-                              "no baseline to measure its uplift against",
+                    "reason": "promoted SKU has no baseline in this selection — no ordinary "
+                              "week to measure its uplift against",
                 })
                 continue
 
-            promo_txns = sum(r.transaction_count for r in promo)
-            expected = baseline * promo_txns
-            actual = sum(r.actual_quantity for r in promo)
-            increment = actual - expected
+            promo_txns = sum(rows[i].transaction_count for i in promo)
+            expected_units = sum(expected[i][0] for i in promo)
+            actual = sum(rows[i].actual_quantity for i in promo)
+            increment = actual - expected_units
             if increment <= 0:
                 excluded.append({
                     "brand_form": brand_form, "channel_id": channel_id, "week": week_key,
                     "rank": promoted_rank,
-                    "reason": "no promotional uplift (actual <= baseline) — nothing for a "
+                    "reason": "no promotional uplift (actual <= expected) — nothing for a "
                               "neighbour's loss to be a share of",
                 })
                 continue
 
             neighbours: list[dict[str, Any]] = []
             cannibalized = 0.0
+            lost_margin = 0.0
             for rank in _adjacent_ranks(promoted_rank):
-                nb_rows = by_rank.get(rank)
-                if not nb_rows:
+                nb = by_rank.get(rank)
+                if not nb:
                     continue
                 # The neighbour must be genuinely un-promoted that week.
-                clean = [r for r in nb_rows if not r.is_promoted]
-                if not clean or any(r.is_promoted for r in nb_rows):
+                clean = [i for i in nb if not rows[i].is_promoted]
+                if not clean or any(rows[i].is_promoted for i in nb):
                     excluded.append({
                         "brand_form": brand_form, "channel_id": channel_id, "week": week_key,
                         "pair": f"rank{promoted_rank}->rank{rank}",
                         "reason": "neighbour was itself on promotion that week",
                     })
                     continue
-                nb_id = clean[0].product_id
-                nb_baseline = baselines.get((nb_id, channel_id))
-                if nb_baseline is None:
+                nb_id = rows[clean[0]].product_id
+                if any(local[i] is None for i in clean):
                     excluded.append({
                         "brand_form": brand_form, "channel_id": channel_id, "week": week_key,
                         "pair": f"rank{promoted_rank}->rank{rank}",
-                        "reason": "neighbour has no non-promoted baseline in this selection",
+                        "reason": "neighbour has no other ordinary week in this selection",
                     })
                     continue
-                nb_txns = sum(r.transaction_count for r in clean)
-                nb_expected = nb_baseline * nb_txns
-                nb_actual = sum(r.actual_quantity for r in clean)
+                nb_txns = sum(rows[i].transaction_count for i in clean)
+                nb_expected = sum(local[i] * rows[i].transaction_count for i in clean)
+                nb_actual = sum(rows[i].actual_quantity for i in clean)
                 loss = max(nb_expected - nb_actual, 0.0)
+                nb_revenue = sum(rows[i].actual_revenue for i in clean)
+                nb_cost = sum(rows[i].total_cost for i in clean)
+                unit_margin = safe_divide(nb_revenue - nb_cost, nb_actual) or 0.0
+                margin = loss * unit_margin
                 cannibalized += loss
+                lost_margin += margin
                 neighbours.append({
                     "product_id": nb_id, "rank": rank,
-                    "baseline": round(nb_baseline, 2), "transactions": nb_txns,
+                    "baseline": round(nb_expected / nb_txns, 2), "transactions": nb_txns,
                     "expected": round(nb_expected, 2), "actual": round(nb_actual, 2),
-                    "loss": round(loss, 2),
+                    "loss": round(loss, 2), "lost_margin": round(margin, 2),
                 })
 
             if not neighbours:
@@ -783,9 +960,11 @@ def cannibalization_detail(
             events.append(CannibalizationEvent(
                 brand_form=brand_form, week_key=week_key, channel_id=channel_id,
                 promoted_product_id=product_id, promoted_rank=promoted_rank,
-                promoted_baseline=baseline, promoted_expected=expected,
+                promotion_id=rows[promo[0]].promotion_id,
+                promoted_baseline=expected_units / promo_txns, promoted_expected=expected_units,
                 promoted_actual=actual, increment=increment,
                 neighbours=tuple(neighbours), cannibalized=cannibalized,
+                cannibalized_margin=lost_margin,
             ))
 
     if not events:
@@ -816,16 +995,19 @@ def cannibalization_detail(
         "score": cannibalization_score(overall),
         "cannibalized_quantity": _round(total_loss, 2),
         "incremental_quantity": _round(total_increment, 2),
+        "cannibalized_margin": _round(sum(e.cannibalized_margin for e in events), 2),
         "by_brand_form": dict(sorted(by_brand.items(), key=lambda kv: -kv[1])),
         "events": [
             {
                 "brand_form": e.brand_form, "week": e.week_key, "channel_id": e.channel_id,
                 "promoted_product_id": e.promoted_product_id, "promoted_rank": e.promoted_rank,
+                "promotion_id": e.promotion_id,
                 "promoted_baseline": round(e.promoted_baseline, 2),
                 "promoted_expected": round(e.promoted_expected, 2),
                 "promoted_actual": round(e.promoted_actual, 2),
                 "increment": round(e.increment, 2),
                 "cannibalized": round(e.cannibalized, 2),
+                "cannibalized_margin": round(e.cannibalized_margin, 2),
                 "neighbours": list(e.neighbours),
             }
             for e in sorted(events, key=lambda e: -e.cannibalized)
@@ -873,7 +1055,7 @@ def calculate_pei(
     """0-100 composite, computed LAST — every component is one of the KPIs
     above, not a parallel calculation.
 
-        PEI = 0.40(ROI net return) + 0.30(Incremental qty %) + 0.30(Margin Impact)
+        PEI = 0.40(ROI net return) + 0.30(Incremental qty %) + 0.30(Gross margin %)
 
     each component divided by its ceiling and clamped onto 0-100 first. The
     ROI component is the multiple less 1.0 (see `PEI_SCALE`), so the index is
@@ -908,7 +1090,7 @@ def calculate_pei(
         PEI_SCALE["incremental_quantity_cap_pct"],
         PEI_WEIGHTS["incremental_quantity_percent"],
     )
-    add(calculate_margin(rows), PEI_SCALE["margin_cap_pct"], PEI_WEIGHTS["margin_impact"])
+    add(calculate_margin(rows), PEI_SCALE["margin_cap_pct"], PEI_WEIGHTS["gross_margin"])
 
     if not components:
         return None
@@ -996,6 +1178,10 @@ def _cannibalization_metric(
     )
 
 
+def _pct(ratio: float | None) -> float | None:
+    return None if ratio is None else ratio * 100
+
+
 def build_debug(
     rows: Sequence[WeekRow],
     cannib_rows: Sequence[WeekRow] = (),
@@ -1020,6 +1206,18 @@ def build_debug(
         "baseline_quantity": _round(volume.baseline_quantity, 2),
         "incremental_product_cost": _round(volume.incremental_cost, 2),
         "incremental_profit": calculate_incremental_profit(rows, vrows),
+        "cannibalized_margin": cannibalization["cannibalized_margin"],
+        "net_incremental_profit": calculate_net_incremental_profit(
+            rows, vrows, cannibalization["cannibalized_margin"]
+        ),
+        # Net Incremental Profit's terms beyond the headline cards.
+        "baseline_discount": _round(volume.baseline_discount, 2),
+        # Margin Impact's two sides -- the promoted rows as traded and as they
+        # would have traded without the promotion -- and the gross margin PEI scores.
+        "margin_promoted": _round(volume.promoted_revenue - volume.promoted_cost, 2),
+        "margin_without_promotion": _round(
+            volume.counterfactual_revenue - volume.counterfactual_cost, 2),
+        "gross_margin": calculate_margin(rows),
         "products_without_baseline": list(volume.skipped),
         # --- KPIs ---
         "trade_spend": _round(calculate_trade_spend(rows), 2),
@@ -1031,7 +1229,7 @@ def build_debug(
         "incremental_quantity_percent": calculate_incremental_quantity_percent(vrows),
         "incremental_sales": calculate_incremental_sales(vrows),
         "roi": calculate_roi(rows, vrows),
-        "margin_impact": calculate_margin(rows),
+        "margin_impact": calculate_margin_impact(rows, vrows),
         "trade_spend_efficiency": calculate_trade_spend_efficiency(rows, vrows),
         "cannibalization_rate": cannibalization["overall"],
         "cannibalization_score": cannibalization["score"],
@@ -1057,7 +1255,7 @@ def _per_product_rollup(volume: Volume) -> list[dict[str, Any]]:
 
     `baseline_avg` is the number the whole calculation turns on. It is reported
     unrounded to 4 dp precisely so nobody mistakes it for a constant: it is
-    mean(Base_Quantity) over that product's non-promoted rows in THIS
+    the promoted rows' expected units per store-week in THIS
     selection, and it moves with every filter.
     """
     return sorted(
@@ -1127,6 +1325,12 @@ def calculate_kpis(
     cannib_rows = family_rows or rows
     cannib_prior = previous_family_rows or previous_rows
 
+    def lost_margin(source: Sequence[WeekRow]) -> float:
+        """Gross margin the sister packs lost, as the Cannibalization card measures it."""
+        if not source:
+            return 0.0
+        return cannibalization_detail(source, promoted_products)["cannibalized_margin"] or 0.0
+
     return KpiBundle(
         trade_spend=both(calculate_trade_spend),
         incremental_quantity=volume(calculate_incremental_quantity),
@@ -1142,13 +1346,16 @@ def calculate_kpis(
             2,
         ),
         margin_impact=_precise(
-            calculate_margin(rows, precision=None),
-            calculate_margin(previous_rows, precision=None),
+            calculate_margin_impact(rows, vrows, precision=None),
+            calculate_margin_impact(previous_rows, prior_vrows, precision=None),
             2,
         ),
         trade_spend_efficiency=paired(calculate_trade_spend_efficiency),
         incremental_profit=paired(calculate_incremental_profit),
-        net_incremental_profit=paired(calculate_net_incremental_profit),
+        net_incremental_profit=calculate_growth(
+            calculate_net_incremental_profit(rows, vrows, lost_margin(cannib_rows)),
+            calculate_net_incremental_profit(previous_rows, prior_vrows, lost_margin(cannib_prior)),
+        ),
         cannibalization=_cannibalization_metric(cannib_rows, cannib_prior, promoted_products),
         cannibalization_score=cannibalization_score(
             calculate_cannibalization(cannib_rows, promoted_products)

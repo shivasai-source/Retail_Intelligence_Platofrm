@@ -6,7 +6,11 @@
  *  exactly one source of truth. */
 
 /** Presentation bucket behind the legend, not a business category. */
-export type CellKind = 'none' | 'regular' | 'seasonal' | 'festival'
+export type CellKind = 'none' | 'regular' | 'seasonal' | 'festival' | 'no_data'
+
+/** How a channel's promotions actually run in a store, read from the data:
+ *  single weeks, or a whole calendar month. */
+export type Booking = 'week' | 'month'
 
 export type Cadence = 'WEEKLY' | 'MONTHLY'
 
@@ -19,6 +23,10 @@ export interface CalendarCell {
   promotion_ids: string[]
   /** DISTINCT products promoted in this Channel x Month. */
   product_count: number
+  /** Distinct stores that ran any of the cell's promotions. */
+  store_count: number
+  /** Business weeks with a promotion running in the cell. */
+  week_count: number
   promotion_count: number
   /** Regular promotions running alongside a named seasonal event. */
   extra_regular: number
@@ -28,6 +36,7 @@ export interface CalendarChannelRow {
   channel_id: string
   name: string
   cadence: Cadence
+  booking: Booking
   cells: CalendarCell[]
 }
 
@@ -37,7 +46,7 @@ export interface CalendarMatrix {
   months: { month: number; name: string; abbr: string }[]
   /** Every channel, regardless of the current filter — the channel picker is
    *  built from this so narrowing to one channel still offers the others. */
-  all_channels: { channel_id: string; name: string; cadence: Cadence }[]
+  all_channels: { channel_id: string; name: string; cadence: Cadence; booking: Booking }[]
   /** Only the channels in the current filter scope. */
   channels: CalendarChannelRow[]
 }
@@ -64,8 +73,13 @@ export interface CalendarPromotion {
    *  and flags the gap instead of inventing a name. */
   metadata_missing: boolean
   product_count: number
+  store_count?: number
   weeks?: number[]
+  /** First and last calendar day it ran in this month. */
+  start?: string | null
+  end?: string | null
   products: CalendarProduct[]
+  stores?: { store_id: string; name: string; city: string; region: string }[]
 }
 
 export interface CalendarWeek {
@@ -79,7 +93,7 @@ export interface CalendarCellDetail {
   year: number
   month: number
   month_name: string
-  channel: { channel_id: string; name: string; cadence: Cadence }
+  channel: { channel_id: string; name: string; cadence: Cadence; booking: Booking }
   cell: CalendarCell
   promotions: CalendarPromotion[]
   /** Populated for WEEKLY channels only. */
@@ -104,6 +118,7 @@ export interface UpcomingEvent {
   channel_id: string | null
   channel_name: string
   product_count: number | null
+  store_count?: number | null
   week_number: number | null
 }
 

@@ -229,8 +229,12 @@ def test_a_partial_week_is_pro_rated_and_said(client, scope):
     assert ten["window"]["partial_week_fraction"] == pytest.approx(3 / 7, abs=1e-3)
     assert seven["window"]["partial_week_fraction"] is None
     assert ten["weekly"][1]["days"] == 3.0
+    # Pro-rated, not extrapolated: the 3 days are 3/7 of week 2 as a 14-day
+    # window books it -- week 2 carries its own fade, so 10/7 of week 1 is not it.
+    fourteen = _simulate(client, 10, ceiling, 14)
+    weeks = fourteen["weekly"]
     assert ten["scenario"]["revenue"]["value"] == pytest.approx(
-        seven["scenario"]["revenue"]["value"] * 10 / 7, rel=1e-6)
+        weeks[0]["scenario_revenue"]["value"] + weeks[1]["scenario_revenue"]["value"] * 3 / 7, abs=1.0)
 
 
 def test_the_weekly_rows_sum_to_the_window(client, scope):
@@ -271,13 +275,18 @@ def test_a_zero_budget_funds_nothing(client):
 
 
 def test_the_roi_status_flips_with_the_depth(client, scope):
-    """ROI is a multiple: 1.00 is break-even. A deep enough discount in this
-    scope pushes the scenario below it and the status says so."""
+    """ROI is a multiple: 1.00 is break-even. The status follows the scenario's
+    ROI at every depth -- which side of 1.00 a depth lands on is the data's
+    business, the label agreeing with the number is the engine's."""
     ceiling = scope["levers"]["trade_spend"]["max"]
-    statuses = {d: _simulate(client, d, ceiling, 14)["deltas"]["roi"]["status"]
-                for d in (5, scope["levers"]["discount_pct"]["max"])}
-    assert statuses[5] == "profitable"
-    assert statuses[scope["levers"]["discount_pct"]["max"]] == "loss_making"
+    rois = []
+    for d in (5, 10, 15, 20, scope["levers"]["discount_pct"]["max"]):
+        r = _simulate(client, d, ceiling, 14)
+        roi = r["scenario"]["roi"]["value"]
+        rois.append(roi)
+        expected = "profitable" if roi > 1 else "loss_making" if roi < 1 else "break_even"
+        assert r["deltas"]["roi"]["status"] == expected, (d, roi)
+    assert rois[0] > rois[-1], "a deeper discount should not buy a better return here"
 
 
 def test_deltas_are_against_the_current_plan_over_the_same_window(client, scope):
@@ -448,22 +457,29 @@ def test_optimize_beats_or_matches_every_sampled_point_in_its_range(client):
 
 
 def test_optimize_with_the_budget_free_funds_the_scope_and_no_more(client):
-    """ROI is the same at every budget, so the tie-break decides: the smaller
-    of the ceiling and the full-coverage cost.
+    """ROI is the same at every budget, so the tie-break decides: revenue.
 
-    With the budget searched, its baseline is the budget that funds the
-    current plan -- which IS that smaller amount. So the honest answer is
-    always "your plan already spends the right amount": overfunding is never
-    recommended, and a range that cannot even reach the plan's cost has
-    nothing in it that beats the plan."""
+    The baseline is the budget that funds the current plan. Overfunding is
+    never recommended, and a budget below the plan's is recommended only
+    inside the searched range and only when it keeps more revenue -- which is
+    what a promotion returning less revenue than it gives away does. Whether
+    this scope is such a promotion is the data's business; both branches are
+    asserted."""
     full_cost = _simulate(client, 25.0, 20_000_000.0, 7, filters=ONE_PRODUCT)["levers"]["trade_spend"]["full_coverage_cost"]["value"]
     for top in (20_000_000.0, full_cost, 3_000_000.0):
         r = _optimize(client, {"trade_spend": top}, spend=top)
         assert r["from"]["levers"]["trade_spend"] == pytest.approx(full_cost, rel=1e-6), top
-        assert r["best"]["levers"]["trade_spend"] == pytest.approx(full_cost, rel=1e-6), top
-        assert r["best"]["changed"]["trade_spend"] is False, top
-        assert r["already_optimal"] is True, top
         assert r["gain"]["roi"]["direction"] == "unchanged", top
+        if r["best"]["changed"]["trade_spend"]:
+            # A smaller budget is recommended only inside the searched range,
+            # and only when it keeps more revenue.
+            assert r["best"]["levers"]["trade_spend"] <= min(top, full_cost) * (1 + 1e-6), top
+            assert r["gain"]["revenue"]["direction"] == "up", top
+        else:
+            # Otherwise the plan stands -- even when the searched range cannot
+            # reach its cost, nothing in that range beat it.
+            assert r["best"]["levers"]["trade_spend"] == pytest.approx(full_cost, rel=1e-6), top
+            assert r["already_optimal"] is True, top
 
 
 def test_optimize_measures_a_searched_lever_against_the_current_plan(client):

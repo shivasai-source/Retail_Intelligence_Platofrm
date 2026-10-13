@@ -114,6 +114,10 @@ class FilterState:
     year: int | None = None
     month: int | None = None
     week: int | None = None            # business week number, 1-53
+    #: Only business weeks up to and including this one. Never chosen by the
+    #: reader: `comparison()` sets it so a previous year is read over the same
+    #: span the current year's data covers.
+    through_week: int | None = None
     channel: frozenset[str] | None = None      # Channel_Id, e.g. "CH002"
     retailer: frozenset[str] | None = None     # dim_geo_store.Retailer
     region: frozenset[str] | None = None
@@ -143,18 +147,33 @@ class FilterState:
     def comparison(self, store: FactStore) -> "FilterState | None":
         """The SAME dimensional filters over the comparison period.
 
-        Only the year moves; every other constraint carries across unchanged.
+        Only the year moves (and, for a part year, the span read -- below);
+        every other constraint carries across unchanged.
         Comparing a filtered current period against unfiltered history would be
         comparing two different populations.
 
         None when there is no earlier year in the data — the earliest year
         loaded has no predecessor, and its deltas must render as undefined
         rather than as a fabricated 0%.
+
+        LIKE FOR LIKE. When the current year's data stops early -- a year still
+        in progress, such as January to August -- the previous year is read
+        over the same business weeks only (`through_week`), so eight months are
+        compared with eight months, not with twelve. Business weeks are
+        numbered from 1 January in every year, so week N of one year spans the
+        same part of the calendar as week N of the next. A complete year is
+        compared whole.
         """
         if self.year is None:
             return None
         previous = self.year - 1
-        return self.replace(year=previous) if previous in set(store.years()) else None
+        if previous not in set(store.years()):
+            return None
+        reached, previous_reached = store.last_week(self.year), store.last_week(previous)
+        cap = reached if reached and previous_reached and reached < previous_reached else None
+        if self.through_week is not None:
+            cap = self.through_week if cap is None else min(cap, self.through_week)
+        return self.replace(year=previous, through_week=cap)
 
     def widened_to_brand_form(self) -> "FilterState":
         """The same selection with the Product filter lifted to its Brand Form.
@@ -247,6 +266,7 @@ def _matching_indices(store: FactStore, state: FilterState, *, keep_baseline: bo
     promo_filtered = state.promotion is not None or state.promotion_type is not None
 
     year, month, week = state.year, state.month, state.week
+    through_week = state.through_week
     year_col, month_col, week_col = store.year, store.month, store.week
     product_col, store_col, promo_col = store.product_code, store.store_code, store.promo_code
     promoted_col = store.promoted
@@ -257,6 +277,8 @@ def _matching_indices(store: FactStore, state: FilterState, *, keep_baseline: bo
         if year is not None and year_col[i] != year:
             continue
         if month is not None and month_col[i] != month:
+            continue
+        if through_week is not None and week_col[i] > through_week:
             continue
         if week is not None and week_col[i] != week:
             # THE BASELINE IS READ FROM THE WEEKS THE PROMOTION WAS NOT RUNNING,
@@ -309,12 +331,13 @@ def _to_week_rows(store: FactStore, indices: Sequence[int]) -> tuple[WeekRow, ..
         group = acc.get(key)
         if group is None:
             group = acc[key] = {
-                "base_quantity": 0.0, "actual_quantity": 0.0, "actual_revenue": 0.0,
+                "base_quantity": 0.0, "base_value": 0.0, "actual_quantity": 0.0, "actual_revenue": 0.0,
                 "total_cost": 0.0, "promotion_cost": 0.0, "discount_value": 0.0,
                 "actual_price_sum": 0.0, "transaction_count": 0.0,
                 "month": float(store.month[i]),
             }
         group["base_quantity"] += store.base_quantity[i]
+        group["base_value"] += store.base_quantity[i] * store.actual_price[i]
         group["actual_quantity"] += store.actual_quantity[i]
         group["actual_revenue"] += store.actual_revenue[i]
         group["total_cost"] += store.total_cost[i]
@@ -344,6 +367,8 @@ def _to_week_rows(store: FactStore, indices: Sequence[int]) -> tuple[WeekRow, ..
             discount_value=g["discount_value"],
             actual_price_sum=g["actual_price_sum"],
             transaction_count=int(g["transaction_count"]),
+            base_value=g["base_value"],
+            counterfactual=store.counterfactual_base,
         ))
     rows.sort(key=lambda r: (r.week_key, r.product_id, r.channel_id, r.promotion_id))
     return tuple(rows)

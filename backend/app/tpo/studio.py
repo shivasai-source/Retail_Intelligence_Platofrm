@@ -267,17 +267,20 @@ def _model_notes(m: LiftModel) -> list[str]:
 
 
 def _baselines(rows: Sequence[A.WeekRow]) -> dict[tuple[str, str], float]:
-    """Each (product, channel)'s baseline: mean Base_Quantity per transaction
-    over its non-promoted rows -- THE rule `aggregate._volume` applies, stated
-    identically so a scenario is re-based on exactly what the engine measures
-    against. `tests/test_studio.py` asserts the two agree."""
+    """Each (product, channel)'s baseline, in units per store-week: what
+    `aggregate._volume` measured its promoted rows against (their expected
+    units), and for a product it measured nothing for, its mean over the
+    non-promoted rows. A scenario is re-based on exactly what the engine
+    measures against; `tests/test_studio.py` asserts the two agree."""
     acc: dict[tuple[str, str], list[float]] = defaultdict(lambda: [0.0, 0.0])
     for r in rows:
         if not r.is_promoted:
             a = acc[r.baseline_key]
             a[0] += r.base_quantity
             a[1] += r.transaction_count
-    return {k: v[0] / v[1] for k, v in acc.items() if v[1]}
+    ordinary = {k: v[0] / v[1] for k, v in acc.items() if v[1]}
+    measured = {(p.product_id, p.channel_id): p.baseline_average for p in A._volume(rows).products}
+    return {**ordinary, **measured}
 
 
 @dataclass(frozen=True)
@@ -609,12 +612,17 @@ def _promoted_row(t: Template, week_index: int, transactions: float, uplift: flo
         product_id=t.product_id, channel_id=t.channel_id, brand_form=t.brand_form,
         product_rank=t.product_rank, week_key=_week_key(week_index), month=t.month,
         is_promoted=True, promotion_id="SIM",
-        base_quantity=quantity, actual_quantity=quantity,
+        # The scenario knows its own counterfactual exactly -- b.n units -- so
+        # it hands the engine that, flagged real, rather than letting the
+        # engine re-estimate it from the synthetic ordinary weeks.
+        base_quantity=t.baseline * transactions, actual_quantity=quantity,
         actual_revenue=actual_revenue, total_cost=t.unit_cost * quantity,
         promotion_cost=config.PROMOTION_COST_RATE * base_revenue,
         discount_value=base_revenue - actual_revenue,
         actual_price_sum=price * transactions,
         transaction_count=transactions,  # type: ignore[arg-type]  # fractional under partial coverage
+        base_value=t.baseline * transactions * price,
+        counterfactual=True,
     )
 
 

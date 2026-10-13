@@ -69,7 +69,7 @@ export function Calendar() {
   // third weekly channel arrived and told the user the opposite of what the
   // grid was showing them.
   const weeklyNames = useMemo(
-    () => (matrix.data?.all_channels ?? []).filter((c) => c.cadence === 'WEEKLY').map((c) => c.name),
+    () => (matrix.data?.all_channels ?? []).filter((c) => c.booking === 'week').map((c) => c.name),
     [matrix.data],
   )
 

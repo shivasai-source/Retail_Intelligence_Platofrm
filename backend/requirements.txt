@@ -27,6 +27,12 @@ pypdf>=4.0
 # 2.3.x is long-established and loads under the same policy. Lift this bound only
 # once pandas 3's wheels are accepted on the target machines.
 pandas>=2.2,<3
+# Simulation Studio's optimiser (TPO_Algorithm_Workflow.pdf, component C):
+# Brent's method, scipy.optimize.brentq, for the exact depth that reaches a
+# target. numpy comes with pandas. The response model's NUTS sampler is our
+# own (app/tpo/nuts.py) -- PyMC and numpyro need native code that Smart App
+# Control blocks on these machines.
+scipy>=1.13
 python-multipart>=0.0.9
 # Investigation agents (app/agents/) — OpenAI client + .env loading for the
 # server-side API key. The key is NEVER sent from the browser.

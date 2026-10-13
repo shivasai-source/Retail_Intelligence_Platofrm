@@ -52,21 +52,14 @@ export const ROI_TONE_VAR: Record<RoiTone, string> = {
   muted: 'var(--text-muted)',
 }
 
-/** HOW A NET FIGURE IS COLOURED beside an ROI — Incremental Sales less Trade
- *  Spend, the money behind the multiple.
- *
- *  By its sign, with ONE exception: when the ROI beside it prints as 1.00x,
- *  the net is shown in plain ink whatever its sign. The ROI is rounded to two
- *  decimals, so a row can read "1.00x" over an ROI of 1.0014 and a net of
- *  +₹977 on ₹6.8 L of spend — arithmetically positive, but a green figure
- *  beside a break-even multiple claims a win the multiple does not show, and
- *  a reader who checks the two against each other is right to call it a
- *  contradiction. So the net takes the ROI's own rounding as its verdict:
- *  break-even as displayed is break-even as coloured. The amount itself is
- *  still printed exactly; only the colour defers. */
-export function netTone(net: number | null | undefined, roi: number | null | undefined): RoiTone {
+/** HOW A NET FIGURE IS COLOURED beside an ROI: by its own sign. The net is
+ *  Net Incremental Profit -- after the cost of the extra units, the trade
+ *  spend and the margin lost to cannibalized packs -- so it is a different
+ *  quantity from the ROI multiple, and a promotion can print 1.20x and still
+ *  lose money. Each figure keeps its own colour; the ROI is not consulted.
+ *  (`roi` stays in the signature so every caller reads the same.) */
+export function netTone(net: number | null | undefined, _roi?: number | null | undefined): RoiTone {
   if (net == null || !Number.isFinite(net)) return 'muted'
-  if (roi != null && Number.isFinite(roi) && Math.round(roi * 100) === Math.round(BREAKEVEN_ROI * 100)) return 'neutral'
   if (net > 0) return 'success'
   if (net < 0) return 'danger'
   return 'neutral'

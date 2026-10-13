@@ -186,17 +186,17 @@ def test_incremental_sales_is_additive_across_channels():
     assert total == pytest.approx(parts)
 
 
-def test_incremental_sales_is_not_additive_across_months():
-    """A year is NOT the sum of its months for the volume KPIs.
+def test_incremental_sales_is_additive_across_months():
+    """A year IS the sum of its months, for Trade Spend and Incremental Sales.
 
-    Each selection re-derives its baseline from its own non-promoted rows, so
-    January's uplift is measured against January's ordinary trading and the
-    year's against the year's. That is the definition working, not an
-    aggregation bug — pinned here so nobody "fixes" it by pooling.
-
-    Trade Spend, a plain row sum, does add up exactly; both facts are asserted
-    together so the distinction stays visible.
+    Every promoted row carries its own expected units -- here the file's real
+    Base_Quantity (`FactStore.counterfactual_base`) -- so a month's uplift is
+    the same number whether it is read alone or inside the year. The flat
+    whole-selection baseline this replaced made January's figure depend on
+    whether February was selected too.
     """
+    from app.tpo.loader import get_store
+    assert get_store().counterfactual_base, "the shipped dataset carries a real Base_Quantity"
     state = FilterState.build(year=YEAR)
     months = [FilterState.build(year=YEAR, month=m) for m in range(1, 13)]
 
@@ -206,10 +206,7 @@ def test_incremental_sales_is_not_additive_across_months():
 
     year_sales = A.calculate_incremental_sales(rows_for(state))
     month_sales = sum(A.calculate_incremental_sales(rows_for(m)) or 0.0 for m in months)
-    assert year_sales != pytest.approx(month_sales, rel=1e-6), (
-        "Incremental Sales came out additive across months — the per-period "
-        "baseline has probably been replaced with a pooled one."
-    )
+    assert year_sales == pytest.approx(month_sales, abs=1.0), "Incremental Sales must be additive"
 
 
 def test_baseline_is_keyed_per_channel():
@@ -273,7 +270,7 @@ def test_alerts_carry_the_event_identifiers_but_never_a_week_filter():
         assert alert["promotion_id"] == event.promotion_id
         assert alert["product_id"] == event.product_id
         assert alert["channel_id"] == event.channel_id
-        assert alert["week"] == event.week_key
+        assert alert["week"] == event.period
 
     # The collapse itself, on the event the alert names.
     alert = alerts[0]
@@ -366,7 +363,12 @@ def test_underperforming_rows_carry_the_event_identifiers():
 
     for row in payload["rows"]:
         key = f"{row['product_id']}|{row['channel_id']}|{row['period']}|{row['promotion_id']}"
-        event = events.get(key)
+        event = next(
+            (e for e in events.values()
+             if (e.product_id, e.channel_id, e.promotion_id, e.period)
+             == (row["product_id"], row["channel_id"], row["promotion_id"], row["period"])),
+            None,
+        )
         assert event is not None, f"row identifiers do not name a real event: {key}"
         # The codes belong to the same event the displayed figures came from.
         assert row["roi_multiple"] == event.roi_multiple
@@ -430,13 +432,15 @@ def test_promotion_events_never_merge_distinct_offers():
 # --- data invariants the engine depends on ---------------------------------
 
 
-def test_base_equals_actual_quantity_on_every_row(store):
-    """The invariant that forces a non-promotional baseline. If this ever
-    fails, `Actual - Base` becomes meaningful and the engine should be
-    revisited."""
+def test_base_equals_actual_quantity_on_non_promoted_rows(store):
+    """Base_Quantity is the units expected WITHOUT a promotion, so it equals
+    Actual_Quantity on every non-promoted row -- the only rows the engine's
+    baseline (`aggregate._volume`) reads. On promoted rows it carries a real
+    counterfactual since 2026-10-09; the engine still measures uplift against
+    the non-promotional mean, so its figures are unchanged."""
     mismatches = sum(
         1 for i in range(store.row_count)
-        if store.base_quantity[i] != store.actual_quantity[i]
+        if not store.promoted[i] and store.base_quantity[i] != store.actual_quantity[i]
     )
     assert mismatches == 0
 

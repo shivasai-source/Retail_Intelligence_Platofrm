@@ -470,13 +470,14 @@ def test_a_usd_pdf_uses_the_dollar_sign() -> None:
 def test_a_missing_kpi_is_absent_not_zero() -> None:
     """A KPI the engine could not produce must not appear as 0. The workbook
     carries its reason instead."""
-    state = FilterState.build(year=2025, month=10, channel=["CH002"])
-    cards = tpo_service.kpis(state, "INR")["kpis"]
+    # A month Modern Trade promotes this pack in every week: no ordinary row,
+    # so Margin Impact has nothing to compare and is unavailable.
+    scope = {"year": 2025, "month": 1, "channel": ["CH002"], "product": ["P11-250ml"]}
+    cards = tpo_service.kpis(FilterState.build(**scope), "INR")["kpis"]
     unavailable = [c for c in cards.values() if c.get("value") is None]
-    if not unavailable:
-        pytest.skip("every KPI is available for this scope")
+    assert unavailable, "this scope no longer has an unavailable KPI to check"
 
-    payload, _ = ok("command-center", "xlsx", CC_SCOPE)
+    payload, _ = ok("command-center", "xlsx", scope)
     summary = load_workbook(io.BytesIO(payload))["Executive Summary"]
     text = " ".join(
         str(c.value) for row in summary.iter_rows() for c in row if isinstance(c.value, str)

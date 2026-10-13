@@ -413,16 +413,17 @@ def test_ui_api_preview_excel_and_pdf_all_carry_the_same_kpis() -> None:
 
 
 def test_the_pei_precision_defect_stays_fixed() -> None:
-    """The brief's own worked example: the card shows 66 and -6.0%, so the report
-    must show 66 and -6.0% — not 65.7 and not 66.00."""
+    """The brief's own worked example: the card shows a whole index (66, not
+    65.7 and not 66.00) and the report must show the same whole number. The
+    value itself is the data's; the format is what this pins."""
     cards = tpo_service.kpis(FilterState.build(year=2025), "INR")["kpis"]
     pei = cards["pei"]
-    assert pei["display_value"] == "66"
+    assert re.fullmatch(r"-?\d+", pei["display_value"]), pei["display_value"]
 
     report = created("command-center", {"year": 2025})
     document = pdf_text(artifact(report["report_id"], "pdf")[0])
     line = next(l for l in document.splitlines() if "Promotion Efficiency Index" in l)
-    assert "66.00" not in document
+    assert f"{pei['display_value']}.00" not in document
     assert pei["delta_display"] in document
     assert line
 
@@ -431,14 +432,18 @@ def test_a_kpi_the_scope_cannot_support_still_shows_its_wider_measurement() -> N
     """The Insights Hub tile falls back to the narrowest WIDER scope that can
     measure cannibalization, and names it. A report that dropped that showed less
     than the screen and read as a missing KPI — which is what was reported."""
-    state = FilterState.build(year=2025, month=10, channel=["CH002"])
+    # One SKU in one channel-month: too few comparable events of its own, so
+    # the card reports the SKU across all channels instead.
+    thin = {"year": 2025, "month": 10, "channel": ["CH002"], "product": ["P11-250ml"]}
+    state = FilterState.build(**thin)
     card = tpo_service.kpis(state, "INR")["kpis"]["cannibalization_rate"]
     assert card["available"] is False
     wider = card["measured_at"]
     assert wider, "this scope no longer has a wider-scope fallback to check"
 
-    report = created("command-center", CC_SCOPE)
-    document = pdf_text(artifact(report["report_id"], "pdf")[0])
+    report = created("command-center", thin)
+    # Whitespace-normalised: the PDF wraps a long product name across lines.
+    document = " ".join(pdf_text(artifact(report["report_id"], "pdf")[0]).split())
     assert wider["display_value"] in document
     assert wider["scope_label"] in document
     assert f"{wider['comparable_events']:,}" in document

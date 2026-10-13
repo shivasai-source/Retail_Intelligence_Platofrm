@@ -47,6 +47,12 @@ export const STATUS: Record<CellKind, StatusColor> = {
     hover: 'rgba(217, 119, 6, 0.16)',
     border: 'rgba(217, 119, 6, 0.32)',
   },
+  no_data: {
+    solid: '#CBD5E1',
+    tint: 'transparent',
+    hover: 'rgba(148, 163, 184, 0.06)',
+    border: 'rgba(148, 163, 184, 0.35)',
+  },
   none: {
     solid: '#94A3B8',
     tint: 'rgba(148, 163, 184, 0.08)',

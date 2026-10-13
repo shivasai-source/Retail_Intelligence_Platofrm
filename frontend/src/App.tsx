@@ -4,7 +4,7 @@ import { Home } from './pages/Home'
 import { CommandCenter } from './pages/CommandCenter'
 import { Investigations } from './pages/Investigations'
 import { Intelligence } from './pages/Intelligence'
-import { Simulation } from './pages/Simulation'
+import { PromotionPlanner } from './pages/PromotionPlanner'
 import { Decision } from './pages/Decision'
 import { Calendar } from './pages/Calendar'
 import { Reports } from './pages/Reports'
@@ -38,7 +38,7 @@ function App() {
         <Route path="/command" element={<RequireAuth><RequireDataset><CommandCenter /></RequireDataset></RequireAuth>} />
         <Route path="/investigations" element={<RequireAuth><RequireDataset><Investigations /></RequireDataset></RequireAuth>} />
         <Route path="/intelligence" element={<RequireAuth><RequireDataset><Intelligence /></RequireDataset></RequireAuth>} />
-        <Route path="/simulation" element={<RequireAuth><RequireDataset><Simulation /></RequireDataset></RequireAuth>} />
+        <Route path="/simulation" element={<RequireAuth><RequireDataset><PromotionPlanner /></RequireDataset></RequireAuth>} />
         <Route path="/decision" element={<RequireAuth><RequireDataset><Decision /></RequireDataset></RequireAuth>} />
         <Route path="/calendar" element={<RequireAuth><RequireDataset><Calendar /></RequireDataset></RequireAuth>} />
         <Route path="/reports" element={<RequireAuth><RequireDataset><Reports /></RequireDataset></RequireAuth>} />

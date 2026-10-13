@@ -8,6 +8,8 @@ computed for the whole selection or for one promotion event.
 
 from __future__ import annotations
 
+import statistics
+
 from collections import defaultdict
 from dataclasses import dataclass
 from functools import lru_cache
@@ -51,10 +53,10 @@ KPI_SPECS: tuple[KpiSpec, ...] = (
         key="trade_spend",
         label="Trade Spend",
         unit="currency",
-        formula="Base Revenue − Actual Revenue + Promotion Cost",
+        formula="Σ (Base Price − Actual Price) × Units Sold + Promotion Cost",
         meaning=(
-            "Total investment behind the promotion — the discount given away plus "
-            "the promotion expenditure booked against it."
+            "Total investment behind the promotions — the discount given away on every "
+            "unit sold, plus the promotion cost booked against it."
         ),
         lower_is_better=True,
     ),
@@ -62,10 +64,14 @@ KPI_SPECS: tuple[KpiSpec, ...] = (
         key="incremental_sales",
         label="Incremental Sales",
         unit="currency",
-        formula="Σ over promoted rows of (Actual Quantity − baseline) × Actual Price",
+        formula="Σ over promoted rows of (Actual Units − Expected Units) × Actual Price",
         meaning=(
-            "Revenue the promotion added above the product's ordinary trading level, "
-            "with every row valued at its own actual price."
+            "Revenue the promotions added above what the same rows would have sold "
+            "without them, every row valued at its own selling price. "
+            "Expected units are the file's Base_Quantity where it holds a real "
+            "'without the promotion' figure; otherwise the product's average over the "
+            "nearest ordinary (non-promoted) weeks, up to four either side, in the same "
+            "channel — so a seasonal peak is not counted as promotional lift."
         ),
     ),
     KpiSpec(
@@ -74,29 +80,35 @@ KPI_SPECS: tuple[KpiSpec, ...] = (
         unit="multiple",
         formula="Incremental Sales ÷ Trade Spend",
         meaning=(
-            f"Incremental sales returned for every rupee invested; 1.00 is break-even. "
-            f"The target is {config.PROMOTION_TARGET_ROI:.2f}."
+            f"Incremental sales returned for every rupee of trade spend; 1.00x means the "
+            f"spend came back as extra revenue and nothing more. The target is "
+            f"{config.PROMOTION_TARGET_ROI:.2f}x. A revenue ratio — the profit after "
+            f"product cost is the Net Incremental Profit card."
         ),
     ),
     KpiSpec(
         key="margin_impact",
         label="Margin Impact",
-        unit="percent",
-        formula="Σ(Actual Revenue − Total Cost) ÷ Σ(Actual Revenue) × 100",
+        unit="currency",
+        formula="Gross Margin with the promotion − Gross Margin without the promotion",
         meaning=(
-            "Gross margin retained across the selected period — one ratio of summed "
-            "revenue and cost, not an average of per-row margins."
+            "The extra gross margin (Revenue − Total Cost) the promotions earned. "
+            "\"Without\" is the same products, at list price, selling only the units "
+            "they would have sold anyway. Positive when the extra units more than pay "
+            "for the discount."
         ),
+        delta_as="difference",
     ),
     KpiSpec(
         key="pei",
         label="Promotion Efficiency Index",
         unit="score",
-        formula="0.40 × (ROI − 1.00) + 0.30 × Incremental Qty % + 0.30 × Margin Impact",
+        formula="0.40 × ROI + 0.30 × Incremental Qty % + 0.30 × Gross Margin %",
         meaning=(
-            "A 0–100 composite of the three KPIs above, with ROI counted as its return "
-            "above break-even. If a component cannot be computed its weight is "
-            "redistributed across the rest."
+            "A 0–100 composite. Each part is scored 0–100 first: ROI by its return above "
+            "break-even (1.00x scores 0, 2.00x scores 100), Incremental Qty % against "
+            "50%, Gross Margin % against 40%. If a part cannot be computed its weight "
+            "is redistributed across the rest."
         ),
     ),
     KpiSpec(
@@ -105,8 +117,9 @@ KPI_SPECS: tuple[KpiSpec, ...] = (
         unit="percent",
         formula="Total Cannibalized Quantity ÷ Promotional Incremental Quantity × 100",
         meaning=(
-            "Share of a promotion's uplift taken from neighbouring pack sizes in the "
-            "same Brand Form. Shown as — when the selection cannot support it."
+            "Share of a promotion's extra units taken from the pack sizes either side of "
+            "it in the same Brand Form, that week — each neighbour measured against its "
+            "own nearby ordinary weeks. Shown as — when the selection cannot support it."
         ),
         lower_is_better=True,
     ),
@@ -128,11 +141,11 @@ SECONDARY_KPI_SPECS: tuple[KpiSpec, ...] = (
         key="volume_uplift",
         label="Volume Uplift",
         unit="percent",
-        formula="Incremental Quantity ÷ Baseline Quantity × 100",
+        formula="(Actual Units − Expected Units) ÷ Expected Units × 100, over promoted rows",
         meaning=(
             "How much more volume the promoted rows moved than they would have "
-            "at their ordinary trading level, independent of price. The same "
-            "figure the Promotion Efficiency Index weights at 0.30."
+            "without the promotion, independent of price. The same figure the "
+            "Promotion Efficiency Index weights at 0.30."
         ),
         delta_as="points",
     ),
@@ -140,11 +153,11 @@ SECONDARY_KPI_SPECS: tuple[KpiSpec, ...] = (
         key="net_incremental_profit",
         label="Net Incremental Profit",
         unit="currency",
-        formula="Incremental Sales − Trade Spend",
+        formula="Margin Impact − Promotion Cost − Margin lost on cannibalized packs",
         meaning=(
-            "The absolute money behind the ROI multiple: what the promotions "
-            "returned above their ordinary trading level, less what was spent "
-            "to run them. Negative when they cost more than they brought back."
+            "What the promotions added to profit: the extra gross margin they earned "
+            "(Margin Impact), less what it cost to run them and the margin the "
+            "neighbouring pack sizes lost. Negative when they cost more than they earned."
         ),
         delta_as="difference",
     ),
@@ -157,9 +170,9 @@ SECONDARY_KPI_SPECS: tuple[KpiSpec, ...] = (
             "÷ All promotion events × 100"
         ),
         meaning=(
-            "The share of individual promotion events -- one product, channel, "
-            "week and offer -- that cleared the ROI target. Counted from the same "
-            "events the Risk Alerts panel reports."
+            "The share of individual promotion events — one product in one channel "
+            "on one offer, over its consecutive promoted weeks — that cleared the ROI "
+            "target. Counted from the same events the Risk Alerts panel reports."
         ),
         delta_as="points",
     ),
@@ -244,8 +257,23 @@ def _bundle(state: FilterState) -> tuple[A.KpiBundle, str | None]:
         volume_rows=volume_rows,
         previous_volume_rows=previous_volume,
     )
-    label = F.fiscal_label(previous_state.year) if previous_state else None
-    return bundle, label
+    return bundle, comparison_label(previous_state, store)
+
+
+def comparison_label(previous_state: FilterState | None, store) -> str | None:
+    """"F25", or "Jan–Aug F25" when the previous year is read over only the
+    span the current year covers -- so the card says what it compared with."""
+    if previous_state is None:
+        return None
+    label = F.fiscal_label(previous_state.year)
+    cap = previous_state.through_week
+    if cap is None or previous_state.month is not None or previous_state.week is not None:
+        return label
+    days = store.dims.week_dates.get((previous_state.year, cap))
+    if not days:
+        return label
+    last = max(days)
+    return "Jan" + ("" if last.month == 1 else f"–{last:%b}") + f" {label}"
 
 
 def offer_label(promotion) -> str:
@@ -259,6 +287,8 @@ def _display(value: float | None, unit: str, currency: str) -> str:
         return F.money(value, currency)
     if unit == "percent":
         return F.percent(value)
+    if unit == "points":
+        return "—" if value is None else f"{value:+,.2f} pp"
     if unit == "multiple":
         return F.multiple(value)
     return F.score(value)
@@ -615,12 +645,12 @@ def _evidence(
             return None
         return f"{money(sales)} returned on {money(spend)} spend · target {target:.2f}"
     if key == "margin_impact":
-        revenue, cost = d.get("actual_revenue"), d.get("total_cost")
-        if not revenue or cost is None:
+        promoted, without = d.get("margin_promoted"), d.get("margin_without_promotion")
+        if promoted is None or without is None:
             return None
-        return f"{money(revenue)} revenue − {money(cost)} cost"
+        return f"{money(promoted)} margin with the promotion − {money(without)} without"
     if key == "pei":
-        roi, uplift, margin = d.get("roi"), d.get("incremental_quantity_percent"), d.get("margin_impact")
+        roi, uplift, margin = d.get("roi"), d.get("incremental_quantity_percent"), d.get("gross_margin")
         parts = [
             f"ROI {F.multiple(roi)}" if roi is not None else None,
             f"uplift {F.percent(uplift)}" if uplift is not None else None,
@@ -638,10 +668,14 @@ def _evidence(
             return None
         return f"{incremental:+,.0f} units on a {baseline:,.0f} baseline"
     if key == "net_incremental_profit":
-        sales, spend = d.get("incremental_sales"), d.get("trade_spend")
-        if sales is None or spend is None:
+        margin, overhead = d.get("margin_impact"), d.get("trade_spend_promotion_cost")
+        lost = d.get("cannibalized_margin") or 0.0
+        if margin is None or overhead is None:
             return None
-        return f"{money(sales)} incremental sales − {money(spend)} trade spend"
+        return (
+            f"{money(margin)} margin impact − {money(overhead)} promotion cost"
+            f" − {money(lost)} cannibalized margin"
+        )
     if key == "target_hit_rate":
         hits, total = _target_hits(promotion_events(state, target), target)
         if not total:
@@ -671,6 +705,8 @@ def _why_unavailable(key: str, bundle: A.KpiBundle) -> str:
         )
     if key == "pei":
         return "Nothing in this selection was promoted, so there is no promotion efficiency to index."
+    if key == "margin_impact":
+        return "Nothing in this selection was promoted and measured, so there is no margin change to show."
     if key in ("volume_uplift", "net_incremental_profit"):
         return "Nothing in this selection was promoted, so there is no uplift to measure."
     if key == "target_hit_rate":
@@ -683,12 +719,14 @@ def _why_unavailable(key: str, bundle: A.KpiBundle) -> str:
 
 @dataclass(frozen=True)
 class PromotionEvent:
-    """One promotion event: Year + Week + Product + Promotion.
+    """One promotion event: one product in one channel on one offer, over its
+    run of CONSECUTIVE promoted weeks.
 
-    This is the grain risk alerts and the underperforming table report at.
-    Different Promotion_Ids are never merged — a week running both a 5% and a
-    10% offer is two events, and combining them would report a promotion that
-    never ran.
+    This is the grain risk alerts and the underperforming table report at. A
+    month-long Modern Trade offer is one event, not four or five weekly ones;
+    a weekly channel's one-week offer is one event as before. Different
+    Promotion_Ids are never merged -- a week running both a 5% and a 10% offer
+    is two events.
     """
 
     key: str
@@ -706,10 +744,31 @@ class PromotionEvent:
     incremental_sales: float
     roi_multiple: float | None
     at_stake: float
+    incremental_cost: float = 0.0
+    cannibalized_margin: float = 0.0
+    last_week_key: str = ""
+    baseline_discount: float = 0.0
+    promotion_cost: float = 0.0
+    margin_impact: float = 0.0
+
+    @property
+    def period(self) -> str:
+        """"2025-W33", or "2025-W31 – W35" for a run of weeks."""
+        last = self.last_week_key or self.week_key
+        if last == self.week_key:
+            return self.week_key
+        if last[:4] == self.week_key[:4]:
+            return f"{self.week_key} – {last[5:]}"
+        return f"{self.week_key} – {last}"
+
+    @property
+    def net_incremental_profit(self) -> float:
+        """The event's own Net Incremental Profit -- the card's formula."""
+        return round(self.margin_impact - self.promotion_cost - self.cannibalized_margin, 2)
 
     @property
     def label(self) -> str:
-        return f"{self.promotion_name} · {self.product_name.strip()} ({self.week_key})"
+        return f"{self.promotion_name} · {self.product_name.strip()} ({self.period})"
 
 
 @lru_cache(maxsize=128)
@@ -723,17 +782,51 @@ def promotion_events(
     reads the target -- spend, sales and ROI are the same events whatever the
     hurdle.
 
-    Trade Spend and Incremental Sales per event come from `period_series`,
-    which holds the selection-wide baseline fixed — so the events sum exactly
-    to the headline cards rather than forming a second, disagreeing total.
+    Trade Spend, Incremental Sales and the cost of the extra units per event
+    come from `period_series`, which gives every promoted row its own expected
+    units -- so the events sum exactly to the headline cards rather than
+    forming a second, disagreeing total. An event is a run of consecutive
+    weeks: the weeks a (product, channel, offer) is promoted, split wherever a
+    week in the selection passes without it.
     """
     store = get_store()
     rows = baseline_rows_for(state)
 
+    # Week order across the whole selection, so "consecutive" means the next
+    # business week the data holds.
+    week_index = {w: i for i, w in enumerate(sorted({r.week_key for r in rows}))}
+    weeks_of: dict[tuple[str, str, str], set[str]] = defaultdict(set)
+    for r in rows:
+        if r.is_promoted:
+            weeks_of[(r.product_id, r.channel_id, r.promotion_id)].add(r.week_key)
+    run_of: dict[tuple[str, str, str, str], tuple[str, str]] = {}
+    for (product_id, channel_id, promotion_id), weeks in weeks_of.items():
+        start = previous = None
+        for week in sorted(weeks, key=week_index.get):
+            if previous is None or week_index[week] != week_index[previous] + 1:
+                start = week
+            run_of[(product_id, channel_id, promotion_id, week)] = (start, week)
+            previous = week
+    last_of: dict[tuple[str, str, str, str], str] = {}
+    for (product_id, channel_id, promotion_id, _), (start, week) in run_of.items():
+        k = (product_id, channel_id, promotion_id, start)
+        last_of[k] = max(last_of.get(k, week), week, key=week_index.get)
+
     def key_of(r: A.WeekRow) -> str:
-        return f"{r.product_id}|{r.channel_id}|{r.week_key}|{r.promotion_id}"
+        start = run_of.get((r.product_id, r.channel_id, r.promotion_id, r.week_key), (r.week_key,))[0]
+        return f"{r.product_id}|{r.channel_id}|{start}|{r.promotion_id}"
 
     points = {p.period_key: p for p in A.period_series(rows, key_of)}
+
+    # Margin lost by the neighbouring packs, per event -- the same measurement
+    # the Cannibalization card makes, attributed to the run its week belongs to.
+    lost: dict[str, float] = defaultdict(float)
+    for c in A.cannibalization_detail(rows)["events"]:
+        run = run_of.get((c["promoted_product_id"], c["channel_id"], c["promotion_id"], c["week"]))
+        if run:
+            lost[f"{c['promoted_product_id']}|{c['channel_id']}|{run[0]}|{c['promotion_id']}"] += (
+                c.get("cannibalized_margin") or 0.0
+            )
 
     # The dimension labels for each event key, taken from the rows themselves.
     labels: dict[str, A.WeekRow] = {}
@@ -752,10 +845,11 @@ def promotion_events(
         product = store.dims.products.get(row.product_id)
         channel = store.dims.channels.get(row.channel_id)
         promotion = store.dims.promotions.get(row.promotion_id)
+        first = key.split("|")[2]
         events.append(PromotionEvent(
             key=key,
-            year=int(row.year),
-            week_key=row.week_key,
+            year=int(first[:4]),
+            week_key=first,
             product_id=row.product_id,
             product_name=product.name if product else row.product_id,
             brand_form=row.brand_form,
@@ -771,6 +865,12 @@ def promotion_events(
             # reach the ROI target. Never negative — an event already at target
             # has nothing at stake.
             at_stake=round(max(config.target_incremental_sales(spend, target) - sales, 0.0), 2),
+            incremental_cost=point.incremental_cost,
+            baseline_discount=point.baseline_discount,
+            promotion_cost=point.promotion_cost,
+            margin_impact=point.margin_impact,
+            cannibalized_margin=round(lost.get(key, 0.0), 2),
+            last_week_key=last_of.get((row.product_id, row.channel_id, row.promotion_id, first), first),
         ))
     return tuple(events)
 
@@ -837,7 +937,7 @@ def risk_alerts(
                 "tone": _SEVERITY_TONE[severity],
                 "title": f"ROI below target — {event.promotion_name}",
                 "description": (
-                    f"{event.product_name.strip()} · {event.channel_name} · {event.week_key}: "
+                    f"{event.product_name.strip()} · {event.channel_name} · {event.period}: "
                     f"ROI {event.roi_multiple:.2f} against a {target:.2f} target."
                 ),
                 "roi_multiple": event.roi_multiple,
@@ -845,31 +945,15 @@ def risk_alerts(
                 "trade_spend_display": F.money(event.trade_spend, currency),
                 "incremental_sales": event.incremental_sales,
                 "incremental_sales_display": F.money(event.incremental_sales, currency),
-                # Net Incremental Profit for the event — the same two figures
-                # ROI divides, subtracted (aggregate.calculate_net_incremental_profit),
-                # so it is positive exactly when the ROI is above 1.00. Formatted
-                # here like every other money figure; the client never does.
-                #
-                # SHOWN AS ZERO WHEN THE ROI SHOWS BREAK-EVEN. The multiple is
-                # printed to two decimals, so an event at 1.0014 reads "1.00x"
-                # while its net is +Rs 977 on Rs 6.8 L of spend. Printing that
-                # beside a break-even multiple made readers ask why "equal"
-                # figures left money over — a fair question with no answer a
-                # row can give. The displayed net therefore follows the
-                # displayed ROI: break-even as printed is zero as printed. The
-                # raw figure beside it is untouched, so nothing downstream
-                # loses the real number.
-                "net_incremental_profit": event.incremental_sales - event.trade_spend,
-                "net_incremental_profit_display": F.money(
-                    0.0 if round(event.roi_multiple, 2) == 1.0
-                    else event.incremental_sales - event.trade_spend,
-                    currency,
-                ),
+                # Net Incremental Profit for the event -- the card's formula on
+                # the event's own figures (PromotionEvent.net_incremental_profit).
+                "net_incremental_profit": event.net_incremental_profit,
+                "net_incremental_profit_display": F.money(event.net_incremental_profit, currency),
                 "at_stake": event.at_stake,
                 "at_stake_display": F.money(event.at_stake, currency),
                 "channel": event.channel_name,
                 "product": event.product_name.strip(),
-                "week": event.week_key,
+                "week": event.period,
                 # The event's own dimension codes, for the same reason the
                 # underperforming rows carry them: a drill-down narrows BY
                 # IDENTITY instead of handing over the whole selection. The
@@ -966,7 +1050,7 @@ def underperforming_promotions(
             "product_id": event.product_id,
             "channel": event.channel_name,
             "channel_id": event.channel_id,
-            "period": event.week_key,
+            "period": event.period,
             "roi_multiple": event.roi_multiple,
             "roi_display": F.multiple(event.roi_multiple),
             "vs_target": round(event.roi_multiple - target, 2),
@@ -986,15 +1070,28 @@ def underperforming_promotions(
     }
 
 
+#: Top Performing Promotions only ranks events spending at least this share of
+#: the selection's median event spend.
+TOP_MATERIALITY = 0.5
+
+
 def top_promotions(
     state: FilterState,
     currency: str = "INR",
     limit: int = 10,
     target: float = config.PROMOTION_TARGET_ROI,
 ) -> dict[str, Any]:
-    """The best-performing promotion events, by ROI descending."""
+    """The best-performing promotion events, by ROI descending, among the
+    MATERIAL ones: an event whose trade spend is below TOP_MATERIALITY of the
+    median event spend in the selection is left out, so a promotion that spent
+    a few thousand rupees cannot top the list on a ratio alone. Relative to the
+    selection, so it holds for any dataset and any currency.
+    """
     currency = F.normalise_currency(currency)
     events = [e for e in promotion_events(state, target) if e.roi_multiple is not None]
+    if events:
+        floor = statistics.median(e.trade_spend for e in events) * TOP_MATERIALITY
+        events = [e for e in events if e.trade_spend >= floor]
     ranked = sorted(events, key=lambda e: -(e.roi_multiple or 0))[:limit]
     return {
         "rows": [
@@ -1002,7 +1099,7 @@ def top_promotions(
                 "promotion": e.promotion_name,
                 "product": e.product_name.strip(),
                 "channel": e.channel_name,
-                "period": e.week_key,
+                "period": e.period,
                 "roi_multiple": e.roi_multiple,
                 "roi_display": F.multiple(e.roi_multiple),
                 "vs_target": round(e.roi_multiple - target, 2),
@@ -1148,18 +1245,18 @@ COMPARISON_METRICS: tuple[ComparisonMetric, ...] = (
         key="incremental_sales",
         label="Incremental Sales",
         unit="currency",
-        formula="Σ over promoted rows of (Actual Quantity − baseline) × Actual Price",
+        formula="Σ over promoted rows of (Actual Units − Expected Units) × Actual Price",
         meaning=(
-            "Revenue the promotions added above ordinary trading level. Every month "
-            "here is measured against ONE baseline taken over the whole span, so two "
-            "months differ by performance and not by baseline."
+            "Revenue the promotions added above what the same rows would have sold "
+            "without them. Every promoted row carries its own expected units, so the "
+            "months add up to the span."
         ),
     ),
     ComparisonMetric(
         key="trade_spend",
         label="Trade Spend",
         unit="currency",
-        formula="Σ (Base Revenue − Actual Revenue + Promotion Cost)",
+        formula="Σ (Base Price − Actual Price) × Units Sold + Promotion Cost",
         meaning="The investment behind the promotions — discount given away plus promotion cost.",
         lower_is_better=True,
     ),
@@ -1766,7 +1863,7 @@ def _breakdown_groups(state: FilterState, by: str) -> tuple[dict[str, Any], ...]
             "incremental_units": A.calculate_incremental_quantity(volume),
             "incremental_sales": A.calculate_incremental_sales(volume),
             "roi": A.calculate_roi(rows, volume),
-            "margin_impact": A.calculate_margin(rows),
+            "margin_impact": A.calculate_margin_impact(rows, volume),
             "pei": A.calculate_pei(rows, volume),
             "cannibalization": A.calculate_cannibalization(volume),
         })

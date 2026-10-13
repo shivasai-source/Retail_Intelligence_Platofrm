@@ -1,7 +1,7 @@
-Channel_Id,Channel_Name,Channel_Type
-CH001,E-commerce,Retail
-CH002,Modern Trade,Retail
-CH003,General Trade,Retail
-CH004,Travel & Hospitality,Retail
-CH005,B2B,B2B
-CH006,Q-Commerce,Retail
+Channel_Id,Channel_Name,Channel_Type,Schedule
+CH001,E-commerce,Retail,WEEKLY
+CH002,Modern Trade,Retail,MONTHLY
+CH003,General Trade,Retail,MONTHLY
+CH004,Travel & Hospitality,Retail,WEEKLY
+CH005,B2B,B2B,MONTHLY
+CH006,Q-Commerce,Retail,WEEKLY

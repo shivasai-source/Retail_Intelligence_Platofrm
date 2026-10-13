@@ -60,7 +60,7 @@ SCOPES: tuple[tuple[str, dict], ...] = (
 #: percent scale both were negative -- deterioration that
 #: `(current - previous) / previous` would report as a POSITIVE number -- and
 #: the fixture is kept so the sign rule stays exercised on real data.
-NEGATIVE_PREVIOUS = {"year": YEAR, "channel": ["CH005"], "month": 1}
+NEGATIVE_PREVIOUS = {"year": YEAR, "channel": ["CH004"], "month": 12}  # 0.94x -> 0.91x
 
 #: A 2025-only promotion id. `F24 + PBDU25` selects nothing, so there is no
 #: comparison to make and none is invented.
@@ -69,7 +69,7 @@ SEASONAL_OFFER = {"year": YEAR, "promotion": ["PBDU25"]}
 #: KPI card -> (engine call, the precision that card reports at).
 EXACT_CALLS = {
     "promotion_roi": (lambda rows, vol, p: A.calculate_roi(rows, vol, precision=p), 2),  # the ROI multiple is 2dp
-    "margin_impact": (lambda rows, vol, p: A.calculate_margin(rows, precision=p), 2),
+    "margin_impact": (lambda rows, vol, p: A.calculate_margin_impact(rows, vol, precision=p), 2),
     "pei": (lambda rows, vol, p: A.calculate_pei(rows, vol, precision=p), 0),
 }
 
@@ -255,7 +255,7 @@ def test_the_card_values_are_the_engines_own_rounded_values(name, scope):
     assert cards["trade_spend"]["value"] == A.calculate_trade_spend(rows)
     assert cards["incremental_sales"]["value"] == A.calculate_incremental_sales(vol)
     assert cards["promotion_roi"]["value"] == A.calculate_roi(rows, vol)
-    assert cards["margin_impact"]["value"] == A.calculate_margin(rows)
+    assert cards["margin_impact"]["value"] == A.calculate_margin_impact(rows, vol)
     assert cards["pei"]["value"] == A.calculate_pei(rows, vol)
 
 

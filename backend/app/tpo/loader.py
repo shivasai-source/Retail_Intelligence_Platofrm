@@ -40,7 +40,6 @@ class Product:
     brand: str  # the Brand Form — 4 pack sizes share one
     category: str
     size: str
-    cost: float
     rank: int  # 1-4 by pack size within the Brand Form; 1 is never promoted
 
 
@@ -177,7 +176,6 @@ MONTHS = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
 ]
-_MONTH_NUMBER = {name: i for i, name in enumerate(MONTHS, start=1)}
 
 
 def _parse_date(value: str) -> date:
@@ -245,7 +243,6 @@ def _load_products(data_dir: Path) -> dict[str, Product]:
             brand=row["Brand"],
             category=row["Category"],
             size=row["Size"],
-            cost=_float(row["Cost"]),
             rank=ranks[row["Product_id"]],
         )
         for row in raw
@@ -347,6 +344,12 @@ class FactStore:
     actual_price: array = field(default_factory=lambda: array("d"))
     total_cost: array = field(default_factory=lambda: array("d"))
     promotion_cost: array = field(default_factory=lambda: array("d"))
+    #: True when the source's Base_Quantity is a real "units without the
+    #: promotion" figure -- it differs from Actual_Quantity on at least one
+    #: promoted row. Then promoted rows are measured against it directly; a file
+    #: without the column, or one that merely copies Actual_Quantity into it,
+    #: is measured against the nearest ordinary weeks instead (aggregate._expected).
+    counterfactual_base: bool = False
 
     @property
     def row_count(self) -> int:
@@ -354,6 +357,17 @@ class FactStore:
 
     def years(self) -> list[int]:
         return sorted(set(self.year))
+
+    def last_week(self, year: int) -> int | None:
+        """The last business week of `year` the data holds -- 35 for a year
+        whose sales stop in late August. Computed once per store."""
+        if not hasattr(self, "_last_week"):
+            last: dict[int, int] = {}
+            for y, w in zip(self.year, self.week):
+                if w > last.get(y, 0):
+                    last[y] = w
+            self._last_week = last
+        return self._last_week.get(year)
 
     def week_span(self, year: int, week: int) -> int:
         """How many calendar days this business week has in dim_date. Normally
@@ -379,16 +393,20 @@ def _build_store(data_dir: Path) -> FactStore:
         "product": dims.products, "store": dims.stores, "promotion": dims.promotions,
     }
     placeholders: dict[str, Callable[[str], Any]] = {
-        "product": lambda k: Product(k, k, "", "", "", 0.0, 0),
+        "product": lambda k: Product(k, k, "", "", "", 0),
         "store": lambda k: Store(k, "", "", "", "", "", "", ""),
         "promotion": lambda k: Promotion(k, k, "", ""),
     }
     unknown: dict[str, set[str]] = {"product": set(), "store": set(), "promotion": set()}
-    # (Year, Week) pairs the fact carries that dim_date cannot resolve. The
-    # analytical month depends on this join, so an unresolved pair must fail
-    # loudly rather than silently fall back and misfile the row.
-    unresolved: set[tuple[int, int]] = set()
+    # Sales dates dim_date does not hold. The business week and analytical
+    # month both come from that join, so an unresolved date must fail loudly
+    # rather than silently fall back and misfile the row.
+    unresolved: set[date] = set()
     week_start = dims.week_start
+    # The fact carries only what a source system records (see
+    # star_dataset.ROLE_COLUMNS["fact"]); the business week is dim_date's, read
+    # by the row's Date. A Date the calendar does not hold is unresolved.
+    week_of_day = {day: week for (_, week), days in dims.week_dates.items() for day in days}
 
     def code(kind: str, key: str) -> int:
         index = indexes[kind]
@@ -412,32 +430,46 @@ def _build_store(data_dir: Path) -> FactStore:
         store.promoted.append(1 if promotion_id != NO_PROMOTION else 0)
 
         day = _parse_date(row["Date"])
-        week = int(row["Week"])
+        week = week_of_day.get(day, 0)
         store.year.append(day.year)
-        # The analytical month comes from (Year, Week) -> dim_date week start,
-        # NOT from fact_sales.Month. See Dimensions.week_start for why.
+        # The analytical month comes from (Year, Week) -> dim_date week start.
+        # See Dimensions.week_start for why.
         start = week_start.get((day.year, week))
         if start is None:
-            unresolved.add((day.year, week))
-            store.month.append(_MONTH_NUMBER.get(_clean(row["Month"]), day.month))
+            unresolved.add(day)
+            store.month.append(day.month)
         else:
             store.month.append(start.month)
         store.week.append(week)
 
-        store.base_quantity.append(_float(row["Base_Quantity"]))
-        store.actual_quantity.append(_float(row["Actual_Quantity"]))
-        store.base_revenue.append(_float(row["Base_Revenue"]))
-        store.actual_revenue.append(_float(row["Actual_Revenue"]))
-        store.actual_price.append(_float(row["Actual_Price"]))
+        # Units, list price and selling price are what the source records.
+        # Base_Quantity -- expected units WITHOUT the promotion -- is optional:
+        # equal to Actual_Quantity on a non-promoted row, and only those rows
+        # feed the uplift baseline (aggregate._volume), so a source without it
+        # loses nothing. `base_revenue` is the units SOLD at list price, never
+        # Base_Quantity x price: Base_Revenue - Actual_Revenue is the discount
+        # given away on what was sold, half of Trade Spend.
+        quantity = _float(row["Actual_Quantity"])
+        base_quantity = row.get("Base_Quantity")
+        base_price = _float(row["Base_Price"])
+        actual_price = _float(row["Actual_Price"])
+        base = quantity if base_quantity in (None, "") else _float(base_quantity)
+        store.base_quantity.append(base)
+        if promotion_id != NO_PROMOTION and base != quantity:
+            store.counterfactual_base = True
+        store.actual_quantity.append(quantity)
+        store.base_revenue.append(quantity * base_price)
+        store.actual_revenue.append(quantity * actual_price)
+        store.actual_price.append(actual_price)
         store.total_cost.append(_float(row["Total_Cost"]))
         store.promotion_cost.append(_float(row["Promotion_Cost"]))
 
     if unresolved:
+        shown = ", ".join(d.strftime("%d-%m-%Y") for d in sorted(unresolved)[:10])
         raise ValueError(
-            f"{len(unresolved)} (Year, Week) pair(s) in {config.FACT_FILE} have no match in "
-            f"{config.DIM_FILES['date']}, so their analytical month cannot be derived: "
-            f"{sorted(unresolved)[:10]}. Either the fact carries a week the calendar does not "
-            f"cover, or dim_date is truncated."
+            f"{len(unresolved)} sales date(s) in {config.FACT_FILE} are missing from "
+            f"{config.DIM_FILES['date']}, so their week and month cannot be read: {shown}. "
+            f"The date file must hold every day the sales file uses."
         )
 
     for kind, missing in unknown.items():

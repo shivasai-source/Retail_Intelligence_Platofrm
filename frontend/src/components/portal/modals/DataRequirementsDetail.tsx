@@ -60,8 +60,8 @@ const RULES: Array<{ title: string; body: string }> = [
     body: 'Each Product_id, Store_Id and Promotion_Id in the sales file should exist in its own file, or it shows up without a name.',
   },
   {
-    title: 'Cover every sales week in the date file',
-    body: 'Each year and week that appears in your sales must be in the date file, otherwise loading stops.',
+    title: 'Cover every sales date in the date file',
+    body: 'Each Date in your sales file must be in the date file — its week and month are read from there — otherwise loading stops.',
   },
   {
     title: 'Use CSV (UTF-8) or Excel',
@@ -70,6 +70,14 @@ const RULES: Array<{ title: string; body: string }> = [
 ]
 
 type Section = StarRole | 'rules'
+
+/** "9 columns", or "9 columns + 1 optional" where a file has optional ones. */
+function columnCount(role: StarRole): string {
+  const columns = guideFor(role).columns
+  const optional = columns.filter((c) => c.optional).length
+  const required = columns.length - optional
+  return `${required} columns${optional ? ` + ${optional} optional` : ''}`
+}
 
 export function DataRequirementsDetail({
   onClose,
@@ -120,7 +128,7 @@ export function DataRequirementsDetail({
               key={role}
               icon={ROLE_ICON[role]}
               label={STAR_ROLE_LABELS[role]}
-              sub={`${guideFor(role).columns.length} columns`}
+              sub={columnCount(role)}
               active={section === role}
               onClick={() => setSection(role)}
             />
@@ -267,7 +275,10 @@ function FilePane({ role }: { role: StarRole }) {
             <tr key={c.name} className="border-b border-border-subtle align-top last:border-b-0">
               <td className="py-3 pr-4">
                 <div className="font-mono text-[14px] font-semibold text-ink-primary">{c.name}</div>
-                <div className="mt-0.5 text-[12.5px] text-ink-muted">{COLUMN_TYPE_LABELS[c.type]}</div>
+                <div className="mt-0.5 text-[12.5px] text-ink-muted">
+                  {COLUMN_TYPE_LABELS[c.type]}
+                  {c.optional ? ' · optional' : ''}
+                </div>
               </td>
               <td className="py-3 pr-4 font-mono text-[14px] text-ink-secondary">{c.example || '—'}</td>
               <td className="py-3 text-[14px] leading-[1.55] text-ink-secondary">

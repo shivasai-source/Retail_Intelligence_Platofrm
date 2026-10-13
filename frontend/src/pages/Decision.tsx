@@ -143,7 +143,7 @@ export function Decision() {
         <div className="mt-6 rounded-[var(--r-lg)] border border-dashed border-border-default bg-surface-card px-6 py-14 text-center">
           <div className="text-md font-bold text-ink-primary">No scenarios on the board</div>
           <div className="mt-1 text-base text-ink-secondary">
-            Set the levers in Simulation Studio and press <strong className="font-semibold text-ink-secondary">Add to Decision Center</strong>. Up to {MAX_SCENARIOS} at a time.
+            Build a scenario in Simulation Studio and press <strong className="font-semibold text-ink-secondary">Add to Decision Center</strong>. Up to {MAX_SCENARIOS} at a time.
           </div>
           <Button variant="primary" className="mt-5" onClick={() => navigate('/simulation')}>
             <Icon name="flow" /> Open Simulation Studio

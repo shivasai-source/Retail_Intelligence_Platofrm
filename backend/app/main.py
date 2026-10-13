@@ -63,6 +63,17 @@ def _warm_caches() -> None:
 
             warm_tool_memo()
             log.info("Warmed investigation tool tables")
+            # Simulation Studio's response model: read from its disk cache,
+            # or sampled (NUTS, about two minutes) the first time a dataset
+            # is seen -- here rather than on the first page visit.
+            from app.tpo import planner_model
+
+            planner_model.fitted()
+            from app.tpo import planner
+
+            period = planner.options(planner.PlanScope())["default_period"]
+            planner.curve(planner.PlanScope.build(start=period["start"], end=period["end"]))
+            log.info("Warmed Simulation Studio's response model and default discount scan")
         except Exception:  # a warmup failure must never stop the server booting
             log.exception("Cache warmup failed; first request will be slow instead")
 
@@ -130,6 +141,7 @@ from app.routers import (  # noqa: E402
     investigations,
     misc,
     nav,
+    planner,
     promotion_calendar,
     reports,
     simulation,
@@ -139,7 +151,7 @@ from app.routers import (  # noqa: E402
 from app.mmm import router as mmm  # noqa: E402  — every /api/mmm/* route
 
 for r in (nav, command_center, investigations, misc, connectors,
-          promotion_calendar, simulation, decision, decision_brief, briefing, store, reports,
+          promotion_calendar, simulation, planner, decision, decision_brief, briefing, store, reports,
           auth, datasets, intelligence, analyst, mmm):
     app.include_router(r.router)
 

@@ -47,24 +47,25 @@ DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "incremental_sales": {
         "label": "Incremental Sales",
-        "formula": "Sum over promoted rows of (Actual_Quantity − baseline) × that row's own price",
+        "formula": "Sum over promoted rows of (Actual units − Expected units) × that row's own price",
         "means": (
-            "The revenue the promotion ADDED, over and above what the product would have "
-            "sold anyway. The baseline is each (product, channel)'s own average "
-            "non-promoted quantity, so every product is measured against itself."
+            "The revenue the promotion ADDED, over and above what the same rows would have "
+            "sold without it. Expected units are the file's Base_Quantity when it carries a "
+            "real baseline, otherwise the product's average over its nearest ordinary weeks "
+            "in that channel — so a seasonal peak is not mistaken for promotional lift."
         ),
         "unit": "money",
         "direction": "higher is better",
         "caveat": (
-            "Does NOT sum back to a selection's total across groups — each group re-derives "
-            "its own baseline. Treat a breakdown of it as a RANKING, never as a composition, "
-            "and never draw it as a pie."
+            "Every promoted row carries its own expected units, so periods and events add "
+            "up to the total. Groups that split a product's stores (a region, a retailer) "
+            "measure each group against its own ordinary weeks."
         ),
         "source": "aggregate.calculate_incremental_sales",
     },
     "incremental_units": {
         "label": "Incremental Units",
-        "formula": "Sum over promoted rows of (Actual_Quantity − baseline)",
+        "formula": "Sum over promoted rows of (Actual units − Expected units)",
         "means": (
             "The extra VOLUME the promotion moved, in units rather than money. May be "
             "negative, and is not clamped: a promotion that sold less than the baseline "
@@ -88,32 +89,36 @@ DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "net_incremental_profit": {
         "label": "Net Incremental Profit",
-        "formula": "Incremental Sales − Trade Spend",
+        "formula": "Margin Impact − Promotion Cost − gross margin lost on cannibalized sister packs",
         "means": (
-            "The absolute money behind the ROI multiple — the same two figures ROI divides, "
-            "subtracted instead. Positive exactly when ROI is above 1.00, by construction, "
-            "so a reader can check it against the two headline cards beside it."
+            "What the promotions added to profit: the extra gross margin they earned, less "
+            "what it cost to run them and the margin taken from neighbouring pack sizes. ROI "
+            "is a revenue ratio; every extra unit also has to be made, so a promotion can "
+            "show ROI above 1.00 and still lose money here."
         ),
         "unit": "money",
         "direction": "higher is better",
         "caveat": (
-            "Deliberately does NOT subtract the product cost of the extra units — that is a "
-            "different measure (Incremental Profit) and would break the reader's ability to "
-            "verify this one by subtracting the two cards on screen."
+            "The cannibalized margin is measured only where the selection holds the "
+            "promoted pack's neighbours; a single-product view therefore carries none."
         ),
         "source": "aggregate.calculate_net_incremental_profit",
     },
     "margin_impact": {
         "label": "Margin Impact",
-        "formula": "Sum(Actual_Revenue − Total_Cost) ÷ Sum(Actual_Revenue) × 100",
-        "means": (
-            "Gross margin retained across the period, as a percentage. One ratio of summed "
-            "revenue and summed cost — not an average of per-row margins, which would let a "
-            "tiny row swing the result as hard as a large one."
+        "formula": (
+            "Gross margin with the promotion − gross margin the same products would have "
+            "earned without it (list price, only the units that would have sold anyway); "
+            "gross margin = revenue − Total_Cost"
         ),
-        "unit": "percent",
+        "means": (
+            "The extra gross margin, in money, the promotions earned. The discount lowers "
+            "the margin on every unit; the extra units add margin back. Positive when the "
+            "extra volume more than pays for the price cut."
+        ),
+        "unit": "money",
         "direction": "higher is better",
-        "source": "aggregate.calculate_margin",
+        "source": "aggregate.calculate_margin_impact",
     },
     "cannibalization_rate": {
         "label": "Cannibalization Rate",
@@ -129,7 +134,7 @@ DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "volume_uplift": {
         "label": "Volume Uplift",
-        "formula": "Incremental quantity ÷ baseline quantity × 100",
+        "formula": "Incremental units ÷ expected units × 100, over promoted rows",
         "means": (
             "The extra volume as a percentage of what those same promoted rows would have "
             "moved at ordinary, non-promoted levels."
@@ -143,7 +148,7 @@ DEFINITIONS: dict[str, dict[str, Any]] = {
         "formula": (
             "0.40 × (ROI net return, capped at 1.0 over break-even) "
             "+ 0.30 × (incremental quantity %, capped at 50%) "
-            "+ 0.30 × (margin impact, capped at 40%), scored 0–100"
+            "+ 0.30 × (gross margin %, capped at 40%), scored 0–100"
         ),
         "means": (
             "A single 0–100 composite of the three signals that matter most. ROI enters as "
@@ -162,25 +167,33 @@ DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "target_hit_rate": {
         "label": "Target Hit Rate",
-        "formula": "Share of promotions in the selection meeting the target ROI",
-        "means": "The percentage of promotions that cleared the ROI hurdle, rather than an average.",
+        "formula": "Promotion events with ROI at or above the target ÷ all promotion events × 100",
+        "means": (
+            "The percentage of promotion events that cleared the ROI hurdle, rather than an "
+            "average. An event is one product in one channel on one offer, over its run of "
+            "consecutive promoted weeks."
+        ),
         "unit": "percent",
         "direction": "higher is better",
         "source": "app/tpo/service.py",
     },
     "baseline": {
         "label": "Baseline",
-        "formula": "mean(Base_Quantity) over that (product, channel)'s NON-promoted rows",
+        "formula": (
+            "The file's Base_Quantity on a promoted row when it is a real baseline; otherwise "
+            "the average units per store-week over the nearest 4 ordinary weeks either side, "
+            "for that (product, channel)"
+        ),
         "means": (
-            "The counterfactual every uplift measure is built on: what this product sold in "
-            "this channel when it was NOT on promotion. Kept per (product, channel) because "
-            "a pooled average across products would let a high-volume SKU set the yardstick "
-            "for a small one."
+            "The counterfactual every uplift measure is built on: what this product would "
+            "have sold in this channel that week without the promotion. Local, so a seasonal "
+            "peak is not counted as lift; per (product, channel), so a high-volume SKU never "
+            "sets the yardstick for a small one."
         ),
         "unit": "quantity",
         "direction": "context",
         "caveat": (
-            "A selection with no non-promoted row has no baseline. That is reported, never "
+            "A product with no real Base_Quantity and no ordinary week in the selection has no baseline. That is reported, never "
             "defaulted to zero — a zero baseline would make any promoted volume look "
             "infinitely incremental."
         ),

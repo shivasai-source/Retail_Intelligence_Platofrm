@@ -336,18 +336,21 @@ def csv_rows():
                                      newline="", encoding="utf-8-sig"))
     }
     weeks = defaultdict(list)
+    week_of_date = {}
     for r in csv.DictReader(open(config.DATA_DIR / config.DIM_FILES["date"],
                                  newline="", encoding="utf-8-sig")):
         d, m, y = r["Date"].split("-")
         weeks[(int(y), int(r["Week"]))].append(date(int(y), int(m), int(d)))
+        week_of_date[r["Date"].strip()] = int(r["Week"])
     week_start = {k: min(v) for k, v in weeks.items()}
 
+    # The fact carries no Week of its own: dim_date's, by Date.
     out = []
     for r in csv.DictReader(open(config.DATA_DIR / config.FACT_FILE,
                                  newline="", encoding="utf-8-sig")):
         year = int(r["Date"].split("-")[2])
         store = geo[r["Store_Id"].strip()]
-        out.append((year, week_start[(year, int(r["Week"]))].month,
+        out.append((year, week_start[(year, week_of_date[r["Date"].strip()])].month,
                     store["Channel_Id"].strip(), store["Retailer"].strip()))
     return out
 

@@ -75,7 +75,12 @@ export function useSourceSync() {
     mutationFn: () => apiPost<SourceSyncResult>('/datasets/source/sync', {}),
     // Replaced the CSVs behind every KPI, chart and filter, as an install does.
     // A failed sync still records its error, so the status is refreshed too.
-    onSettled: () => queryClient.invalidateQueries(),
+    // Not returned: react-query would hold the mutation pending — the pill
+    // spinning — until every query on the page had refetched, long after the
+    // sync itself finished.
+    onSettled: () => {
+      void queryClient.invalidateQueries()
+    },
   })
 }
 

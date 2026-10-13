@@ -309,8 +309,11 @@ def _clamp_limit(value: Any) -> int:
 
 #: Which formatter each KPI takes. Keys mirror `service.kpis()`; anything not
 #: listed is left as a bare number, which is right for counts and indices.
-_MONEY_KEYS = {"trade_spend", "incremental_sales", "net_incremental_profit", "baseline_sales", "actual_sales"}
-_PERCENT_KEYS = {"margin_impact", "cannibalization_rate", "volume_uplift", "target_hit_rate"}
+_MONEY_KEYS = {"trade_spend", "incremental_sales", "net_incremental_profit", "margin_impact",
+               "baseline_sales", "actual_sales"}
+_PERCENT_KEYS = {"cannibalization_rate", "volume_uplift", "target_hit_rate"}
+#: Percentage-POINT gaps, signed. None at present; kept so a points KPI has a home.
+_POINTS_KEYS: set[str] = set()
 _MULTIPLE_KEYS = {"promotion_roi", "roi"}
 _SCORE_KEYS = {"pei"}
 
@@ -326,6 +329,8 @@ def _display_for(key: str, value: Any, currency: str) -> str | None:
         return F.money(value, currency)
     if key in _PERCENT_KEYS:
         return F.percent(value)
+    if key in _POINTS_KEYS:
+        return f"{value:+,.2f} pp"
     if key in _MULTIPLE_KEYS:
         return F.multiple(value)
     if key in _SCORE_KEYS:
@@ -560,11 +565,16 @@ READING THE NUMBERS
 - promotion_roi and roi are a MULTIPLE of trade spend: 1.00 is break-even, 1.50
   is the target. Write it as "1.34" or "1.34x", never as a percentage.
 - *_delta_pct is percent change against the prior comparable period.
-  margin_impact, cannibalization_rate, volume_uplift and target_hit_rate are
-  themselves percentages.
-- In a `compare` result, Trade Spend sums back to the total but Incremental
-  Sales does NOT — its baseline is re-derived per group. Treat groups as a
-  RANKING, never as a composition, and do not present them as shares of a whole.
+  cannibalization_rate, volume_uplift and target_hit_rate are themselves
+  percentages. margin_impact is MONEY: the gross margin the promotions earned
+  above what the same rows would have earned without them.
+- net_incremental_profit = margin_impact - promotion cost - margin lost to
+  cannibalized packs. It can be negative while ROI is above 1.00; say so when
+  the two seem to disagree.
+- In a `compare` result, Trade Spend sums back to the total. Incremental Sales
+  sums back too when the groups split products or channels, but not when they
+  split a product's stores (region, retailer), which measure against their own
+  ordinary weeks. Treat groups as a RANKING, not as shares of a whole.
 - Lower is better for trade_spend and cannibalization_rate; higher for the rest.
 
 HOW TO ANSWER

@@ -34,6 +34,7 @@ export const LEGEND: { kind: CellKind; label: string }[] = [
   { kind: 'seasonal', label: 'Seasonal Promotion' },
   { kind: 'festival', label: 'Multi-event Month' },
   { kind: 'none', label: 'No Promotion' },
+  { kind: 'no_data', label: 'No data yet' },
 ]
 
 /** Drop a trailing two-digit year token from the promotion master's own
@@ -115,13 +116,14 @@ export function PromotionMatrix({
                     cell is a SUMMARY of several promotions, a monthly
                     channel's is the plan itself. */}
                 <span
+                  title={channel.booking === 'week' ? 'Promotions run as single weeks in a store' : 'Promotions run for a whole month in a store'}
                   className={`mt-0.5 inline-block rounded-full px-1.5 py-px text-2xs font-bold uppercase tracking-wide ${
-                    channel.cadence === 'WEEKLY'
+                    channel.booking === 'week'
                       ? 'bg-status-info/10 text-status-info'
                       : 'bg-ink-primary/[0.06] text-ink-muted'
                   }`}
                 >
-                  {channel.cadence === 'WEEKLY' ? 'Weekly' : 'Monthly'}
+                  {channel.booking === 'week' ? 'Weekly' : 'Monthly'}
                 </span>
               </span>
             </div>
@@ -154,11 +156,22 @@ function MatrixCell({
   const tooltip = [
     cell.label,
     ids || '—',
-    `${cell.product_count} products`,
+    `${cell.product_count} products · ${cell.store_count} stores · ${cell.week_count} weeks`,
     cell.extra_regular > 0 ? `+${cell.extra_regular} regular promotion${cell.extra_regular > 1 ? 's' : ''}` : '',
   ]
     .filter(Boolean)
     .join('\n')
+
+  if (cell.kind === 'no_data') {
+    return (
+      <div
+        title="The data does not reach this month yet"
+        className="m-1 flex min-h-[80px] items-center justify-center rounded-[var(--r-sm)] border border-dashed border-border-subtle text-2xs font-semibold text-ink-disabled"
+      >
+        No data
+      </div>
+    )
+  }
 
   return (
     <button

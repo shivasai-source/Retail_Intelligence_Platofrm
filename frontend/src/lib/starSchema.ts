@@ -21,18 +21,30 @@ export const STAR_ROLE_LABELS: Record<StarRole, string> = {
   date: 'Date dimension',
 }
 
-// Every column the loader reads out of each table.
+// Every column each table MUST carry. Only what a source system records: the
+// sales file's week, month and channel come from the date and store files, and
+// both revenues are units x price.
 export const ROLE_COLUMNS: Record<StarRole, string[]> = {
   fact: [
-    'Date', 'Week', 'Month', 'Product_id', 'Store_Id', 'Channel_Id', 'Promotion_Id',
-    'Base_Quantity', 'Actual_Quantity', 'Actual_Price', 'Base_Revenue', 'Actual_Revenue',
-    'Total_Cost', 'Promotion_Cost',
+    'Date', 'Product_id', 'Store_Id', 'Promotion_Id',
+    'Actual_Quantity', 'Base_Price', 'Actual_Price', 'Total_Cost', 'Promotion_Cost',
   ],
-  product: ['Product_id', 'Product_Name', 'Brand', 'Category', 'Size', 'Cost'],
+  product: ['Product_id', 'Product_Name', 'Brand', 'Category', 'Size'],
   geo_store: ['Store_Id', 'Channel_Id', 'Retailer', 'Region', 'State', 'City', 'Tier'],
   channel: ['Channel_Id', 'Channel_Name', 'Channel_Type'],
   promotion: ['Promotion_Id', 'Promotion_Name', 'Promotion_Type', 'Promotion_Description'],
   date: ['Date', 'Year', 'Month', 'Week'],
+}
+
+// Columns the loader reads WHEN PRESENT. Never required -- a file without them
+// is accepted and the platform works without them.
+export const OPTIONAL_COLUMNS: Record<StarRole, string[]> = {
+  fact: ['Base_Quantity'],
+  product: [],
+  geo_store: ['Distributor_Name'],
+  channel: ['Schedule'],
+  promotion: [],
+  date: [],
 }
 
 // Which columns tell each table apart from the other five. Order matters where
@@ -40,7 +52,7 @@ export const ROLE_COLUMNS: Record<StarRole, string[]> = {
 // tested first on its measures; dim_geo_store carries Channel_Id, so it is
 // tested before dim_channel.
 const ROLE_DISCRIMINATORS: [StarRole, string[]][] = [
-  ['fact', ['Base_Quantity', 'Actual_Revenue']],
+  ['fact', ['Actual_Quantity', 'Promotion_Cost']],
   ['geo_store', ['Store_Id', 'Retailer']],
   ['product', ['Product_id', 'Product_Name']],
   ['promotion', ['Promotion_Id', 'Promotion_Name']],
