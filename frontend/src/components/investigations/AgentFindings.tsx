@@ -5,8 +5,11 @@ import { InfoBlock, InfoPopover } from '../ui/InfoPopover'
 /** One root cause and the agents whose findings support it. */
 export interface RootCauseView {
   cause: string
-  /** Its share of the problem, 0-100; the shares add up to 100. */
+  /** Its share of the problem, 0-100; the shares add up to 100. On a current
+   *  run it is the contribution of the one agent behind it. */
   share: number | null
+  /** The one action that addresses this cause (current runs). */
+  recommendation: string | null
   agents: { key: string; name: string; icon: string }[]
 }
 
@@ -37,6 +40,11 @@ export function AgentFindings({
   id?: string
 }) {
   const scored = rootCauses.some((rc) => rc.share !== null)
+  // ONE ACTION PER CAUSE, numbered as its cause. A run recorded before causes
+  // carried their own action falls back to the synthesis's separate list.
+  const actions = rootCauses.some((rc) => rc.recommendation)
+    ? rootCauses.flatMap((rc, i) => (rc.recommendation ? [{ n: i + 1, text: rc.recommendation }] : []))
+    : recommendations.map((text, i) => ({ n: i + 1, text }))
   return (
     <div id={id} className="scroll-mt-6">
       <Card className="fade-in mb-4">
@@ -48,9 +56,9 @@ export function AgentFindings({
           }
         />
         <div className="flex flex-col gap-4 p-5 pt-3.5">
-          {/* THE EXPLANATION */}
+          {/* THE COMBINED ROOT CAUSE: 3-4 sentences joining every cause below */}
           <div>
-            <SectionLabel icon="file">Explanation</SectionLabel>
+            <SectionLabel icon="file">Combined root cause</SectionLabel>
             <p className="mt-1.5 text-base leading-[1.65] text-ink-secondary">{summary}</p>
           </div>
 
@@ -66,8 +74,8 @@ export function AgentFindings({
                   {scored && (
                     <InfoPopover label="How the share is worked out" title="Share of the problem">
                       <InfoBlock label="Per agent">One unit of evidence: its confidence × how directly its finding points at a cause (a loss 1.0, risk 0.9, moderate 0.6, data 0.4, a strong result 0.3)</InfoBlock>
-                      <InfoBlock label="Per cause">The units of the agents behind it; an agent behind several causes splits its unit between them</InfoBlock>
-                      <InfoBlock label="Shares">Scaled so all causes add up to 100%</InfoBlock>
+                      <InfoBlock label="Per cause">Each agent gives one root cause, so a cause's share is its agent's contribution to the total score</InfoBlock>
+                      <InfoBlock label="Shares">Scaled so all causes add up to 100%, largest first</InfoBlock>
                     </InfoPopover>
                   )}
                 </span>
@@ -115,18 +123,19 @@ export function AgentFindings({
             </div>
           )}
 
-          {recommendations.length > 0 && (
+          {actions.length > 0 && (
             <div className="rounded-[var(--r-md)] border-l-4 border-status-success bg-status-success-bg p-[12px_16px]">
               <div className="flex items-center gap-1.5 text-sm font-medium text-[var(--pill-success-ink)]">
                 <Icon name="checkCircle" className="h-3.5 w-3.5" /> Recommended actions
+                {rootCauses.some((rc) => rc.recommendation) && <span className="text-xs">· one per root cause</span>}
               </div>
               <ol className="mt-2 flex flex-col gap-2">
-                {recommendations.map((r, i) => (
-                  <li key={i} className="flex items-start gap-2.5 text-base leading-[1.55] text-ink-primary">
+                {actions.map((a) => (
+                  <li key={a.n} className="flex items-start gap-2.5 text-base leading-[1.55] text-ink-primary">
                     <span className="mt-[1px] inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-card text-xs font-medium text-[var(--pill-success-ink)] shadow-[0_0_0_1px_var(--status-success)]">
-                      {i + 1}
+                      {a.n}
                     </span>
-                    <span>{r}</span>
+                    <span>{a.text}</span>
                   </li>
                 ))}
               </ol>

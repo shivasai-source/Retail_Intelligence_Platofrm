@@ -42,16 +42,13 @@ export function WeekTrend({
   })
   const hasBand = series.some((s) => Math.abs(s.hi - s.lo) > 0.5)
 
+  const sign = (v: number) => (metric === 'change' && v > 0 ? '+' : '')
   const height = 300
-  const padL = 76
   const padR = 14
   const padT = 14
-  const padB = 44
-  const innerW = Math.max(1, w - padL - padR)
+  const padB = 48
   const innerH = height - padT - padB
   const n = weeks.length
-  const slot = innerW / n
-  const X = (i: number) => padL + slot * i + slot / 2
   const values = series.flatMap((s) => [s.now, s.plan, s.lo, s.hi])
   const lo = Math.min(...values)
   const hi = Math.max(...values)
@@ -60,9 +57,20 @@ export function WeekTrend({
   const yMax = hi + span * 0.1
   const Y = (v: number) => padT + innerH * (1 - (v - yMin) / (yMax - yMin))
   const ticks = niceTicks(yMin, yMax).filter((t) => t >= yMin && t <= yMax)
+  // The y gutter fits the longest tick label at 15px (~9px a character, plus
+  // the 8px gap and a little air) rather than a fixed width.
+  const padL = Math.max(48, Math.max(...ticks.map((t) => `${sign(t)}${format(t)}`.length)) * 9 + 16)
+  const innerW = Math.max(1, w - padL - padR)
+  const slot = innerW / n
+  const X = (i: number) => padL + slot * i + slot / 2
   const path = (pick: (s: (typeof series)[number]) => number) => series.map((s, i) => `${i ? 'L' : 'M'} ${X(i)} ${Y(pick(s))}`).join(' ')
-  const sign = (v: number) => (metric === 'change' && v > 0 ? '+' : '')
   const fewWeeks = n <= 20
+  // A 15px "W12" is ~32px wide: label every week only when the slots allow it,
+  // otherwise every second (third, ...) week so neighbours never touch.
+  const weekEvery = Math.max(1, Math.ceil(40 / slot))
+  // Month labels in the long view are placed left to right and skipped when
+  // they would run into the previous one ("Jan 2026" is ~64px at 15px).
+  let monthEnd = -Infinity
   const h = hover != null ? weeks[hover] : null
   const hs = hover != null ? series[hover] : null
   const festivals = weeks.some((p) => p.festival)
@@ -123,7 +131,7 @@ export function WeekTrend({
           {ticks.map((t) => (
             <g key={t}>
               <line x1={padL} x2={padL + innerW} y1={Y(t)} y2={Y(t)} stroke="var(--border-subtle)" />
-              <text x={padL - 8} y={Y(t) + 4} textAnchor="end" fontSize={13} fill="var(--text-muted)">
+              <text x={padL - 8} y={Y(t) + 4} textAnchor="end" fontSize={15} fill="var(--text-muted)">
                 {sign(t)}
                 {format(t)}
               </text>
@@ -160,11 +168,13 @@ export function WeekTrend({
             if (fewWeeks) {
               return (
                 <g key={`a${p.week}`}>
-                  <text x={X(i)} y={axisY} textAnchor="middle" fontSize={13} fill="var(--text-muted)">
-                    {p.week.slice(5)}
-                  </text>
+                  {i % weekEvery === 0 && (
+                    <text x={X(i)} y={axisY} textAnchor="middle" fontSize={15} fill="var(--text-muted)">
+                      {p.week.slice(5)}
+                    </text>
+                  )}
                   {monthStart && (
-                    <text x={X(i)} y={axisY + 16} textAnchor="middle" fontSize={13} fill="var(--text-secondary)">
+                    <text x={X(i)} y={axisY + 18} textAnchor="middle" fontSize={15} fill="var(--text-secondary)">
                       {MONTH[p.month - 1]}
                     </text>
                   )}
@@ -173,13 +183,18 @@ export function WeekTrend({
             }
             if (!monthStart) return null
             const yearStart = i === 0 || p.week.slice(0, 4) !== weeks[i - 1].week.slice(0, 4)
+            const labelX = padL + slot * i + 3
+            const text = `${MONTH[p.month - 1]}${yearStart ? ` ${p.week.slice(0, 4)}` : ''}`
+            const fits = labelX >= monthEnd + 8 && labelX + text.length * 8 <= w
+            if (fits) monthEnd = labelX + text.length * 8
             return (
               <g key={`a${p.week}`}>
                 <line x1={padL + slot * i} x2={padL + slot * i} y1={padT + innerH} y2={padT + innerH + 6} stroke="var(--border-default)" />
-                <text x={padL + slot * i + 3} y={axisY} fontSize={13} fill="var(--text-muted)">
-                  {MONTH[p.month - 1]}
-                  {yearStart ? ` ${p.week.slice(0, 4)}` : ''}
-                </text>
+                {fits && (
+                  <text x={labelX} y={axisY} fontSize={15} fill="var(--text-muted)">
+                    {text}
+                  </text>
+                )}
               </g>
             )
           })}

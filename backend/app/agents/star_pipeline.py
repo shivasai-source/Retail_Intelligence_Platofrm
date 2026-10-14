@@ -25,6 +25,7 @@ from app.agents.pipeline import (
     SYNTHESIS_SYSTEM,
     assemble_orchestration,
     ground_synthesis,
+    score_agents,
 )
 from app.agents.roster import BY_KEY as ROSTER_BY_KEY
 from app.agents.roster import KEYS as ROSTER_KEYS
@@ -172,20 +173,18 @@ YOUR TEAM:
 
 HOW TO ASSIGN — this decides whether the investigation is a real RCA:
 
-  - Pick %d or fewer. Prefer a CHAIN over a crowd: one that establishes whether
-    the problem is real, one or two that localise it, one that names the
-    specific events and what they lost.
-  - ALWAYS include `benchmark` on a diagnostic question. Without it nobody can
-    tell whether a bad-looking number is actually unusual, and every other
-    finding risks being over-read.
-  - Choose lenses that can DISAGREE with each other. If `mechanic_efficiency`
-    blames the offer design and `geography` finds it only breaks at one
-    retailer, that tension is the most informative thing the investigation can
-    produce. Picking four lenses that all point the same way tells you nothing.
-  - Match the lens to the question. "Why did ROI fall" wants benchmark +
-    mechanic_efficiency. "Where is money leaking" wants offer_forensics.
-    "Is our lift real" wants cannibalization. "Did it fade" wants benchmark,
-    which reads the monthly trend.
+  - Brief all %d. They form one chain: `performance` establishes whether the
+    problem is real and when it happened, `promotion_design` tests the offers
+    and names the events that lost money, `market` localises it by place,
+    partner, category and brand, and `cannibalization` checks whether the lift
+    was real.
+  - Write briefs that let the agents DISAGREE. If `promotion_design` blames the
+    offer and `market` finds it only breaks at one retailer, that tension is the
+    most informative thing the investigation can produce.
+  - Weight each brief to the question. "Why did ROI fall" leans on
+    performance + promotion_design. "Where is money leaking" leans on
+    promotion_design's events. "Is our lift real" leans on cannibalization.
+    "Did it fade" leans on performance, which reads the monthly trend.
   - `assignment` must be specific to THIS question, naming what that specialist
     should look for. Not "analyse mechanics" but "check whether Buy3Get1 fails
     only in the South or everywhere".
@@ -248,7 +247,11 @@ Rules:
   and the arrow. Set `delta_basis` to null rather than forcing a comparison
   your data does not contain — an absent delta is correct, a computed one is
   not yours to make.
-- Keep headline under 60 characters; it renders on a graph node."""
+- `headline` is your ONE-LINE SUMMARY: a single sentence of 15-25 words (about
+  100-160 characters) that states what you found, names the group and carries
+  the figure that proves it -- e.g. "Buy3Get1 returned 1.05x in Modern Trade
+  against 1.41x across the business, on 38% of the segment's spend." No second
+  sentence; the body explains it."""
 
 
 def _plan_prompt(
@@ -489,9 +492,9 @@ async def run_star_pipeline(
                 "investigation_type": plan.get("investigation_type", "diagnostic"),
             }
 
-    # THE STANDING PANEL. Every investigation runs these five, in this order, so
-    # the agents panel shows the same five every time (nine became five on
-    # 2026-10-13 -- see the roster's docstring).
+    # THE STANDING PANEL. Every investigation runs these four, in this order, so
+    # the agents panel shows the same four every time (five became four on
+    # 2026-10-14 -- see the roster's docstring).
     #
     # It used to be whatever subset the planner chose, capped at MAX_SPECIALISTS.
     # That made the panel vary run to run — an alert-driven question ("Why did X
@@ -500,13 +503,12 @@ async def run_star_pipeline(
     # The neighbour check is not an optional lens; it is part of reading a
     # promotion, so it is no longer left to the question's wording.
     #
-    # The planner still BRIEFS the panel: where it assigned one of the five, that
+    # The planner still BRIEFS the panel: where it assigned one of the four, that
     # assignment is kept verbatim. Only the choice of who runs is fixed.
     PANEL: tuple[tuple[str, str], ...] = (
-        ("benchmark", "Establish whether this segment is genuinely abnormal."),
-        ("mechanic_efficiency", "Find which mechanics under- and over-perform here."),
-        ("offer_forensics", "Name the events that lost money and size the total loss."),
-        ("geography", "Find where -- and in which categories or brands -- this performs best and worst."),
+        ("performance", "Establish whether this segment is genuinely abnormal, and when."),
+        ("promotion_design", "Find which mechanics and events lost money here, and size the loss."),
+        ("market", "Find where -- and in which categories or brands -- this performs best and worst."),
         ("cannibalization", "Check whether same-brand-form neighbours lost sales while it ran."),
     )
     briefs: dict[str, str] = {}
@@ -620,6 +622,10 @@ async def run_star_pipeline(
     rows_in_scope = len(_rows_for(_rows_state(global_filters)))
     for finding in findings:
         finding.update(finding_confidence(finding, rows_in_scope))
+    # Each agent's contribution to the total score, before the synthesis, so
+    # its summary can say how much each root cause accounts for -- the same
+    # figure the page shows beside the agent and its root cause.
+    score_agents(findings)
 
     # ---- 4. Synthesis ------------------------------------------------------
     synthesis = await complete_json(
@@ -630,7 +636,7 @@ async def run_star_pipeline(
             f"KPIS FOR THAT SCOPE: {json.dumps(scoped_totals)}\n\n"
             f"SPECIALIST FINDINGS:\n"
             + "\n\n".join(
-                f"[{f['name']}] (confidence {f['confidence']}, impact {f['impact']})\n"
+                f"[{f['name']}] (contribution {f['contribution_pct']}%, confidence {f['confidence']}, impact {f['impact']})\n"
                 f"  Lens: {f['role']}\n"
                 f"  {f['headline']}\n  {f['body']}\n  Evidence: {f['evidence']}"
                 for f in findings
@@ -641,7 +647,7 @@ async def run_star_pipeline(
         temperature=0.3,
     )
     # The findings this run actually produced, counted rather than asserted --
-    # the panel is fixed at five, but a specialist can fail and drop out.
+    # the panel is fixed at four, but a specialist can fail and drop out.
     synthesis = ground_synthesis(synthesis, findings)
     synthesis.update(synthesis_confidence(findings, attempted=len(specialists)))
 

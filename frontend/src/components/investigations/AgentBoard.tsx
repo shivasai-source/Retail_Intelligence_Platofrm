@@ -33,9 +33,12 @@ export function AgentBoard({
   /** Each agent's figures (the bars it drew), by key. */
   details: Record<string, NodeDetail>
   /** The root causes, each with the agent keys that support it. */
-  rootCauses: { cause: string; agents: string[]; share_pct?: number }[]
+  rootCauses: { cause: string; agents: string[]; share_pct?: number; recommendation?: string }[]
 }) {
   const stateOf = (a: Accelerator): LiveState => statusOverride?.[a.key] ?? (a.status === 'Completed' ? 'done' : 'progress')
+  const contribution = (key: string) => findings.find((f) => f.key === key)?.contribution_pct ?? null
+  // Largest contribution first; agents still running keep their place.
+  accelerators = [...accelerators].sort((a, b) => (contribution(b.key) ?? -1) - (contribution(a.key) ?? -1))
   const done = accelerators.filter((a) => stateOf(a) === 'done').length
   const [selected, setSelected] = useState<string | null>(accelerators[0]?.key ?? null)
   useEffect(() => {
@@ -90,6 +93,11 @@ export function AgentBoard({
                   <Icon name={a.icon as IconName} />
                 </span>
                 <span className={`min-w-0 flex-1 truncate text-base ${on ? 'font-medium text-ink-primary' : 'text-ink-secondary'}`}>{a.name}</span>
+                {contribution(a.key) != null && (
+                  <span className="shrink-0 text-sm [font-variant-numeric:tabular-nums]" title="Contribution to total score">
+                    {contribution(a.key)}%
+                  </span>
+                )}
                 <span className={`h-2 w-2 shrink-0 rounded-full ${STATUS[st].dot}`} title={STATUS[st].label} />
               </button>
             )
@@ -122,6 +130,21 @@ export function AgentBoard({
 
           <p className="mt-3 text-base leading-[1.6] text-ink-muted">{PLAIN_DESC[agent.key] ?? agent.desc}</p>
 
+          {finding?.contribution_pct != null && (
+            <div className="mt-4 rounded-[var(--r-md)] border border-border-subtle p-[10px_14px]">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-sm text-ink-muted">Contribution to total score</span>
+                <span className="text-sm font-medium text-ink-primary [font-variant-numeric:tabular-nums]">{finding.contribution_pct}%</span>
+              </div>
+              <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-surface-muted">
+                <span
+                  className="block h-full rounded-full bg-brand-violet [animation:npGrow_700ms_var(--ease-out)_forwards]"
+                  style={{ width: `${finding.contribution_pct}%` }}
+                />
+              </span>
+            </div>
+          )}
+
           {finding ? (
             <>
               <Divider label="What it found" />
@@ -139,14 +162,19 @@ export function AgentBoard({
 
               {supports.length > 0 && (
                 <>
-                  <Divider label="Root causes it supports" />
+                  <Divider label={supports.length === 1 ? 'Its root cause' : 'Root causes it supports'} />
                   <ul className="flex flex-col gap-2">
                     {supports.map((rc) => (
                       <li key={rc.n} className="flex items-start gap-2.5 text-base leading-[1.5] text-ink-primary">
                         <span className="mt-[1px] inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-violet text-xs font-medium text-white">
                           {rc.n}
                         </span>
-                        <span className="min-w-0 flex-1">{rc.cause}</span>
+                        <span className="min-w-0 flex-1">
+                          {rc.cause}
+                          {rc.recommendation && (
+                            <span className="mt-1 block text-ink-secondary">Recommendation: {rc.recommendation}</span>
+                          )}
+                        </span>
                         {rc.share_pct != null && (
                           <span className="shrink-0 text-sm font-medium text-brand-violet [font-variant-numeric:tabular-nums]">{rc.share_pct}%</span>
                         )}

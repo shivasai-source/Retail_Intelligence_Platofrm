@@ -16,29 +16,46 @@
 ============================================================================ */
 @theme {
   /* ===== Type scale — THE ONLY FONT SIZES IN THE APP =====
-     2026-10-13: one step up at the small end (body 13 -> 14px) so every page
-     reads at the size Simulation Studio does; one-off px sizes were folded
-     onto these steps.
-     Every module reads from these steps. Before this the app used
-     22 ad-hoc `text-[Npx]` values plus Tailwind's own six, so the same
-     kind of label rendered at 11px on one screen and 11.5px on another.
-     Sizes are px (not rem) because the whole design is px-based; the
-     line-heights are unitless so they scale with the step. */
-  --text-2xs: 11px;   --text-2xs--line-height: 1.4;   /* micro / eyebrow labels */
-  --text-xs: 12px;    --text-xs--line-height: 1.4;    /* chart axes, meta */
-  --text-sm: 13px;    --text-sm--line-height: 1.45;   /* secondary text, pills */
-  --text-base: 14px;  --text-base--line-height: 1.45; /* body, tables */
-  --text-md: 16px;    --text-md--line-height: 1.4;    /* card titles */
-  --text-lg: 18px;    --text-lg--line-height: 1.35;   /* section headings */
-  --text-xl: 22px;    --text-xl--line-height: 1.2;    /* KPI values */
-  --text-2xl: 26px;   --text-2xl--line-height: 1.15;  /* page titles */
-  /* The ninth step, and the only one no module uses: sign-in is the one
-     screen in the product with no density pressure -- a single card on an
-     empty page -- and 26px read there as just another card title rather
-     than as the page's one statement. */
-  --text-3xl: 30px;   --text-3xl--line-height: 1.1;   /* the sign-in greeting */
+     2026-10-14: one size for every piece of text, on every page -- headers,
+     footers, headings, sidebars, tables, charts -- 15px; the one exception is
+     the figure on a KPI card, 18px (`--text-kpi`, used by `.kpi-value`).
+     The named steps are kept so existing classes still resolve, but every
+     one of them is now the same 15px. */
+  --text-2xs: 15px;   --text-2xs--line-height: 1.45;
+  --text-xs: 15px;    --text-xs--line-height: 1.45;
+  --text-sm: 15px;    --text-sm--line-height: 1.45;
+  --text-base: 15px;  --text-base--line-height: 1.45;
+  --text-md: 15px;    --text-md--line-height: 1.45;
+  --text-lg: 15px;    --text-lg--line-height: 1.45;
+  --text-xl: 15px;    --text-xl--line-height: 1.45;
+  --text-2xl: 15px;   --text-2xl--line-height: 1.45;
+  --text-3xl: 15px;   --text-3xl--line-height: 1.45;
+  --text-4xl: 15px;   --text-4xl--line-height: 1.45;
+  --text-5xl: 15px;   --text-5xl--line-height: 1.45;
+  --text-6xl: 15px;   --text-6xl--line-height: 1.45;
+  --text-7xl: 15px;   --text-7xl--line-height: 1.45;
+  --text-8xl: 15px;   --text-8xl--line-height: 1.45;
+  --text-9xl: 15px;   --text-9xl--line-height: 1.45;
+  --text-kpi: 18px;   --text-kpi--line-height: 1.15;  /* KPI card values only */
 
+  /* ONE FONT. Inter everywhere -- the mono and serif families point at it
+     too, so no corner of the app falls back to a different face. */
   --font-sans: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: var(--font-sans);
+  --font-serif: var(--font-sans);
+
+  /* ONE WEIGHT. No text in the app is bold: every weight utility
+     (font-medium, font-semibold, font-bold, ...) resolves to regular 400, so
+     hierarchy comes from colour and spacing, never from weight. */
+  --font-weight-thin: 400;
+  --font-weight-extralight: 400;
+  --font-weight-light: 400;
+  --font-weight-normal: 400;
+  --font-weight-medium: 400;
+  --font-weight-semibold: 400;
+  --font-weight-bold: 400;
+  --font-weight-extrabold: 400;
+  --font-weight-black: 400;
 
   /* Brand — kept as brand-* (not violet/blue/indigo) because those bare
      names collide with Tailwind's own built-in color palette, which
@@ -139,6 +156,15 @@
    etc). Ported from base.css; everything preflight already covers (box-sizing,
    margin resets) was dropped rather than duplicated.
 ============================================================================ */
+/* One font, one size, one weight for any text no class sizes: 15px Inter at
+   400. Form controls and SVG chart labels included -- a CSS rule outranks an
+   SVG `fontSize`/`fontWeight` attribute, so no chart can drift to its own.
+   b/strong/th/optgroup are bold by browser default; they are regular here. */
+html, body { font-family: var(--font-sans); font-size: 15px; line-height: 1.45; font-weight: 400; }
+input, select, textarea, button, svg text, svg tspan { font-family: var(--font-sans); }
+svg text, svg tspan { font-size: 15px; font-weight: 400; }
+b, strong, th, optgroup, dt, legend, summary { font-weight: 400; }
+
 body {
   color: var(--text-primary);
   background: var(--surface-page);
@@ -148,12 +174,8 @@ body {
 }
 
 /* Large and light, small and medium: titles get size, not weight. */
-h1, h2, h3, h4, h5, h6 { font-weight: 500; color: var(--text-primary); letter-spacing: -0.01em; }
-h1, h2 { font-weight: 400; }
-h1 { font-size: 26px; line-height: 1.15; letter-spacing: -0.02em; }
-h2 { font-size: 22px; line-height: 1.2; }
-h3 { font-size: 18px; line-height: 1.35; }
-h4 { font-size: 16px; line-height: 1.4; }
+h1, h2, h3, h4, h5, h6 { font-weight: 400; color: var(--text-primary); }
+h1, h2, h3, h4, h5, h6 { font-size: 15px; line-height: 1.45; }
 
 ::selection { background: var(--brand-violet); color: white; }
 
@@ -216,11 +238,11 @@ h4 { font-size: 16px; line-height: 1.4; }
 }
 
 /* THE KPI VALUE. One style for every business figure on a KPI card, on every
-   page -- the Insights Hub tile's own: 22px, normal weight, tight tracking,
+   page -- 18px, normal weight, tight tracking,
    tabular numerals. Colour stays contextual (ink, violet hero, red danger),
    set beside the class, never inside it. */
 .kpi-value {
-  font-size: var(--text-xl);
+  font-size: var(--text-kpi);
   font-weight: 400;
   letter-spacing: -0.015em;
   line-height: 1.15;
@@ -453,3 +475,59 @@ h4 { font-size: 16px; line-height: 1.4; }
 @media (prefers-reduced-motion: reduce) {
   .dd-enter, .chip-enter, .panel-enter { animation: none; }
 }
+
+/* ===== ONE TEXT STYLE, EVERYWHERE =====
+   Every piece of text in the app is the same: 15px Inter, regular weight,
+   upright, no case transform, normal tracking, no decoration, in ONE colour
+   -- --text-primary on light surfaces (white on the dark sidebar and on dark
+   filled buttons, where the primary ink would be invisible). The only
+   exceptions: a KPI card's figure is 18px (`.kpi-value` above), and a signed
+   figure is green or red (`[data-sign]` below).
+   Unlayered on purpose: unlayered rules outrank Tailwind's utility layer, so
+   no `text-ink-muted`, `text-status-danger`, `italic`, `uppercase` or
+   `tracking-*` anywhere can make one piece of text differ from the rest. */
+:where(body) * {
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: normal;
+  text-decoration: none;
+}
+.kpi-value { letter-spacing: normal; }
+
+:is(
+  [class*="text-ink-"],
+  [class*="text-brand-"],
+  [class*="text-status-"],
+  [class*="text-pill-"],
+  [class*="text-[var(--"],
+  [class*="text-[#"]
+):not([class*="text-white"], [class*="text-surface-card"]) {
+  color: var(--text-primary);
+}
+
+/* Inline `style={{ color }}` (calendar dates, alert titles, deltas) -- an
+   inline style outranks any stylesheet rule, hence !important. Icon tiles
+   (a tinted square holding only an icon) keep their accent: that colour is
+   the icon's, not text's. */
+:is([style*="; color:"], [style^="color:"]):not(:has(> svg:only-child)) {
+  color: var(--text-primary) !important;
+}
+
+/* Translucent white on a dark fill reads as a second, dimmer white. */
+[class*="text-white/"] { color: #FFFFFF; }
+
+/* Chart labels: a CSS fill outranks an SVG `fill` attribute. */
+svg text, svg tspan { fill: var(--text-primary); }
+
+/* THE ONE COLOUR EXCEPTION: a signed figure. Anything whose whole text is
+   "+X" is green and "-X" red, on every page, in tables, cards and charts
+   alike -- lib/signColor.ts tags it `data-sign`. !important so it outranks
+   the single-colour rules above, inline styles included. */
+[data-sign="pos"] { color: var(--pill-success-ink) !important; }
+[data-sign="neg"] { color: var(--pill-danger-ink) !important; }
+svg [data-sign="pos"] { fill: var(--pill-success-ink) !important; }
+svg [data-sign="neg"] { fill: var(--pill-danger-ink) !important; }
+/* A signed figure inside a longer line ("+2.66% vs F24"): lib/signColor.ts
+   registers just those characters as a highlight range. */
+::highlight(sign-pos) { color: var(--pill-success-ink); }
+::highlight(sign-neg) { color: var(--pill-danger-ink); }

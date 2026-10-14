@@ -5,6 +5,7 @@ import { useCommandFilters } from '../../store/commandFilters'
 import { ChartFrame } from './ChartFrame'
 import { COLUMN_DIVISIONS, TipRow, columnNiceStep, columnPath, tooltipLeft, useChartSize } from './ChartSections'
 import { Segmented } from './Segmented'
+import { maxTextW } from '../charts/textWidth'
 import type {
   ComparisonMetricSpec,
   ComparisonPoint,
@@ -183,11 +184,10 @@ function ComparisonColumns({
   const currency = useCommandFilters((s) => s.currency)
 
   const n = series.length
-  const padL = 52
   const padR = 10
   const padT = 16
-  const padB = 34
-  const innerW = Math.max(120, width - padL - padR)
+  // Two 15px rows under the plot: the month, then the year where it turns.
+  const padB = 46
   const innerH = Math.max(80, height - padT - padB)
 
   const values = series
@@ -205,11 +205,6 @@ function ComparisonColumns({
   const zeroY = y(0)
   const ticks: number[] = []
   for (let t = lo; t <= hi + 1e-6; t += step) ticks.push(t)
-
-  const slot = innerW / Math.max(1, n)
-  const barW = Math.max(6, Math.min(26, slot * 0.56))
-  const centreX = (i: number) => padL + slot * i + slot / 2
-  const active = hover !== null && hover < n ? hover : null
 
   /** Axis ticks in the metric's own unit. A multiple prints itself; money is
    *  abbreviated to keep the gutter narrow — the exact figure is on the bar's
@@ -229,6 +224,14 @@ function ComparisonColumns({
     if (a >= 1e5) return `${symbol}${(v / 1e5).toFixed(2)} L`
     return `${symbol}${v.toFixed(2)}`
   }
+
+  // The left margin fits the widest tick label ("₹120.00 Cr") in full.
+  const padL = Math.max(40, maxTextW(ticks.map(tick)) + 14)
+  const innerW = Math.max(120, width - padL - padR)
+  const slot = innerW / Math.max(1, n)
+  const barW = Math.max(6, Math.min(26, slot * 0.56))
+  const centreX = (i: number) => padL + slot * i + slot / 2
+  const active = hover !== null && hover < n ? hover : null
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -264,7 +267,7 @@ function ComparisonColumns({
                 y2={y(t)}
                 stroke={t === lo ? 'var(--border-default)' : 'var(--border-subtle)'}
               />
-              <text x={padL - 7} y={y(t) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+              <text x={padL - 7} y={y(t) + 5} textAnchor="end" fontSize={15} fill="var(--text-muted)">
                 {tick(t)}
               </text>
             </g>
@@ -315,9 +318,9 @@ function ComparisonColumns({
                     being compared stays findable in a row of thirteen. */}
                 <text
                   x={centreX(i)}
-                  y={height - 19}
+                  y={height - 26}
                   textAnchor="middle"
-                  fontSize={10}
+                  fontSize={15}
                   fontWeight={role === 'idle' ? 500 : 700}
                   fill={role === 'idle' ? 'var(--text-muted)' : 'var(--text-primary)'}
                 >
@@ -326,9 +329,9 @@ function ComparisonColumns({
                 {(i === 0 || p.month === 1) && (
                   <text
                     x={centreX(i)}
-                    y={height - 7}
+                    y={height - 8}
                     textAnchor="middle"
-                    fontSize={10}
+                    fontSize={15}
                     fontWeight={500}
                     fill="var(--text-muted)"
                   >

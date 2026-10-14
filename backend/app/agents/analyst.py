@@ -6,7 +6,7 @@ their own words; this turns that into a scope, runs it through the SAME KPI
 engine the Insights Hub renders, and says the answer back in a sentence.
 
 WHAT IT IS NOT. It does not explain WHY a number moved. Causal attribution is
-what the Investigations module is for — it runs six specialists over the star
+what the Investigations module is for — it runs four specialists over the star
 schema and carries confidence and evidence with every claim. A chat turn has
 none of that behind it, so a "why" question here is handed to Investigations
 rather than answered with a plausible-sounding guess. The line is enforced in
@@ -69,7 +69,7 @@ _WHY_OPENERS = (
 WHY_DEFLECTION = (
     "I can't answer *why* something happened — I look numbers up and do the "
     "arithmetic on them, but I don't do causal analysis.\n\n"
-    "**Investigations** is built for that question: it runs six specialists "
+    "**Investigations** is built for that question: it runs four specialists "
     "over the same data and carries evidence and a confidence level with every "
     "finding.\n\n"
     "I can give you the numbers underneath it, though — try asking me *what* "

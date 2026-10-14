@@ -98,3 +98,11 @@ export function standingOf(roi: number | null | undefined): RoiStanding | null {
   if (roi < SEVERITY_BANDS.medium) return 'Medium'
   return 'On target'
 }
+
+/** A gain-or-loss figure with its sign: "+₹24.67 L" for a gain, "-₹3.69 L"
+ *  for a loss. The API already formats the money; a positive figure whose
+ *  text carries no "+" gets one here, so a gain never reads as a bare amount. */
+export function signedDisplay(value: number | null | undefined, display: string | null | undefined): string {
+  const text = display ?? ''
+  return value != null && value > 0 && !text.startsWith('+') ? `+${text}` : text
+}

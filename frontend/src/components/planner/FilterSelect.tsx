@@ -15,7 +15,7 @@ import type { GroupedOption } from '../../types/planner'
  *  The Studio's own control. The Insights Hub's MultiSelect is shared with a
  *  frozen page and is left exactly as it is. */
 
-const PANEL_W = 340
+const PANEL_W = 400
 const LIST_MAX_H = 320
 
 export function FilterSelect({
@@ -207,8 +207,8 @@ export function FilterSelect({
                       >
                         <Check on={on} />
                         <span className="min-w-0 flex-1">
-                          <span className={`block truncate text-base ${on ? 'text-brand-violet' : 'text-ink-primary'}`}>{main}</span>
-                          {sub && <span className="block truncate text-base text-ink-muted">{sub}</span>}
+                          <span className={`block break-words text-base leading-snug ${on ? 'text-brand-violet' : 'text-ink-primary'}`}>{main}</span>
+                          {sub && <span className="block break-words text-base leading-snug text-ink-muted">{sub}</span>}
                         </span>
                       </button>
                     )

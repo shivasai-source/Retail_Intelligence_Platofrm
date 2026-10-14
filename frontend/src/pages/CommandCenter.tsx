@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
 import {
   Button,
@@ -11,7 +12,6 @@ import {
   Dropdown,
   IconButton,
   useLiveStatus,
-  useToast,
 } from '../components/ui'
 import { Icon, type IconName } from '../icons'
 import { InfoBlock, InfoPopover } from '../components/ui/InfoPopover'
@@ -21,6 +21,7 @@ import { PromotionMixCard } from '../components/command/PromotionMixCard'
 import { SalesComparisonCard } from '../components/command/SalesComparisonCard'
 import { EmptyState as CcEmptyState, ErrorState, KpiSkeleton, PanelSkeleton, Stale } from '../components/command/States'
 import { AddKpiMenu } from '../components/command/AddKpiMenu'
+import { RefreshProgress } from '../components/command/RefreshProgress'
 import { SERIES_CLASS } from '../components/command/series'
 import { ADDABLE_KPI_ORDER, HERO_TILE_CLASS, readAddedKpis, writeAddedKpis } from '../components/command/kpiDeckState'
 import { TrendPanels, type TrendSeries } from '../components/command/TrendPanels'
@@ -154,9 +155,9 @@ export function CommandCenter() {
   // Query already has this screen's data in memory. It is presentation state
   // only; it neither delays nor changes any request, filter or KPI.
   const [showLandingTransition, setShowLandingTransition] = useState(true)
-  const { show } = useToast()
   const live = useLiveStatus()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
   const initialise = useCommandFilters((s) => s.initialise)
   const initialised = useCommandFilters((s) => s.initialised)
@@ -206,13 +207,28 @@ export function CommandCenter() {
 
   const refreshing = kpis.isFetching || trend.isFetching || mix.isFetching
 
+  // THE RELOAD POP-UP (RefreshProgress): opened by the Refresh button and by
+  // a new period from the calendar, closed when the hub's queries land.
+  const [reload, setReload] = useState({ token: 0, title: '' })
   const handleRefresh = () => {
-    show('Refreshing all data sources...', { duration: 1500 })
-    queryClient.invalidateQueries({ queryKey: ['command-center'] }).then(() => {
-      live.reset()
-      show('Data refreshed · all systems healthy', { duration: 2000 })
-    })
+    setReload({ token: Date.now(), title: 'Refreshing all data…' })
+    queryClient.invalidateQueries({ queryKey: ['command-center'] }).then(() => live.reset())
   }
+  // The calendar sets a whole year as `year` and anything else as
+  // `period_from`/`period_to`, so all four make up "the period".
+  const periodYear = useCommandFilters((s) => s.filters.year)
+  const periodMonth = useCommandFilters((s) => s.filters.month)
+  const periodFrom = useCommandFilters((s) => s.filters.period_from)
+  const periodTo = useCommandFilters((s) => s.filters.period_to)
+  const lastPeriod = useRef<string | null>(null)
+  useEffect(() => {
+    const period = `${periodYear}-${periodMonth}-${periodFrom}-${periodTo}`
+    // The first period seen is the page loading, not a change.
+    if (initialised && lastPeriod.current !== null && lastPeriod.current !== period) {
+      setReload({ token: Date.now(), title: 'Loading the new period…' })
+    }
+    if (initialised) lastPeriod.current = period
+  }, [periodYear, periodMonth, periodFrom, periodTo, initialised])
 
   // First load: lay out the real grid in skeleton form so the page does not
   // jump when data lands, and so nothing reads as a value before it is one.
@@ -318,6 +334,7 @@ export function CommandCenter() {
 
   return (
     <AppShell activeKey="command" crumbs={crumbs}>
+      <RefreshProgress token={reload.token} title={reload.title} />
       {/* Decorative ambient wash behind the header — the "lights" feel, kept to
           two very low-alpha radial gradients. */}
       <div className="cc-ambient" aria-hidden="true" />
@@ -382,6 +399,12 @@ export function CommandCenter() {
             />
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
+            {/* THE WAY INTO INVESTIGATIONS. The hub shows WHAT happened; the
+                question that follows is WHY, and that is what the
+                investigation agents answer. */}
+            <Button variant="secondary" size="pill" className="cursor-pointer" onClick={() => navigate('/investigations')}>
+              <Icon name="search" className="h-4 w-4" /> Investigate
+            </Button>
             {/* Adds KPI cards to the deck below. It never touches the scope:
                 every card it adds is measured over the same selection as the
                 headline three. */}

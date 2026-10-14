@@ -89,7 +89,13 @@ export function DonutBreakdown({
           </div>
         )}
       </div>
-      <div className={`flex min-w-0 flex-1 flex-col ${bars ? 'gap-5' : 'gap-1.5'}`}>
+      {/* At least 300px, so a 14px "20% Discount (Seasonal)" keeps its name
+          beside its figures; a narrower card wraps the legend under the donut
+          rather than cutting every name to a stub. */}
+      <div
+        className={`flex flex-1 flex-col ${bars ? 'gap-5' : 'gap-1.5'}`}
+        style={{ minWidth: 'min(100%, 300px)' }}
+      >
         {segments.map((s) => (
           <div key={s.key} title={s.key}>
             <div className="flex items-center gap-2 text-base">

@@ -21,7 +21,7 @@ export function GroupedBar({
   }, [])
 
   const h = height
-  const padL = 40,
+  const padL = 48,
     padR = 16,
     padT = 16,
     padB = 36
@@ -53,7 +53,7 @@ export function GroupedBar({
               stroke="var(--border-subtle)"
               strokeDasharray="3 4"
             />
-            <text x={padL - 8} y={y(v) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+            <text x={padL - 8} y={y(v) + 5} textAnchor="end" fontSize={15} fill="var(--text-muted)">
               {v.toFixed(2)}
             </text>
           </g>
@@ -93,9 +93,9 @@ export function GroupedBar({
               />
               <text
                 x={cx}
-                y={padT + innerH + 18}
+                y={padT + innerH + 20}
                 textAnchor="middle"
-                fontSize={11}
+                fontSize={15}
                 fill="var(--text-secondary)"
                 fontWeight={500}
               >
@@ -105,7 +105,7 @@ export function GroupedBar({
                 x={cx - barW / 2 - 2}
                 y={yA - 6}
                 textAnchor="middle"
-                fontSize={11}
+                fontSize={15}
                 fill={aBelow ? 'var(--pill-danger-ink)' : 'var(--pill-success-ink)'}
                 fontWeight={500}
               >

@@ -38,7 +38,7 @@ export function ComboBarLine({
   const h = height
   const padL = 44,
     padR = 50,
-    padT = 14,
+    padT = 24,
     padB = 36
   const innerW = Math.max(1, w - padL - padR)
   const innerH = Math.max(1, h - padT - padB)
@@ -72,20 +72,20 @@ export function ComboBarLine({
               stroke="var(--border-subtle)"
               strokeDasharray="3 4"
             />
-            <text x={padL - 6} y={yL(v) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+            <text x={padL - 6} y={yL(v) + 5} textAnchor="end" fontSize={15} fill="var(--text-muted)">
               {v.toFixed(2)}
             </text>
           </g>
         ))}
         {rightTicks.map((v) => (
-          <text key={v} x={padL + innerW + 6} y={yR(v) + 3} textAnchor="start" fontSize={10} fill="var(--text-muted)">
+          <text key={v} x={padL + innerW + 6} y={yR(v) + 5} textAnchor="start" fontSize={15} fill="var(--text-muted)">
             {v}
           </text>
         ))}
-        <text x={padL - 24} y={padT - 4} fontSize={10} fill="var(--text-muted)" fontWeight={500}>
+        <text x={2} y={padT - 8} fontSize={15} fill="var(--text-muted)" fontWeight={500}>
           ROI
         </text>
-        <text x={padL + innerW + 14} y={padT - 4} fontSize={10} fill="var(--text-muted)" fontWeight={500}>
+        <text x={w - 2} y={padT - 8} textAnchor="end" fontSize={15} fill="var(--text-muted)" fontWeight={500}>
           Amount (Cr)
         </text>
 
@@ -147,9 +147,9 @@ export function ComboBarLine({
           <text
             key={lab}
             x={padL + i * step}
-            y={padT + innerH + 18}
+            y={padT + innerH + 20}
             textAnchor="middle"
-            fontSize={10}
+            fontSize={15}
             fill="var(--text-muted)"
           >
             {lab}

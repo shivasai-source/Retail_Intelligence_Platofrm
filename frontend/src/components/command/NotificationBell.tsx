@@ -8,7 +8,7 @@ import { useAlertHandoff } from '../../hooks/useAlertHandoff'
 import { ALERT_FETCH_LIMIT, alertHeadline, topAlerts } from './riskRanking'
 import { OPEN_ALERTS_STATE_KEY, buildOpenAlertsIntent } from '../../lib/askWhy'
 import type { RiskAlert } from '../../types/commandCenter'
-import { ROI_TONE_CLASS, fmtRoi, netTone, roiTone } from '../../lib/roi'
+import { ROI_TONE_CLASS, fmtRoi, netTone, roiTone, signedDisplay } from '../../lib/roi'
 
 /** The header's notification centre.
  *
@@ -293,7 +293,7 @@ function AlertRow({ alert, onSelect, targetRoi }: { alert: RiskAlert; onSelect: 
             ROI {fmtRoi(alert.roi_multiple ?? 0)}
           </span>
           <span className={`truncate ${ROI_TONE_CLASS[netTone(alert.sales_less_spend, alert.roi_multiple)]}`}>
-            · {alert.sales_less_spend_display}
+            · {signedDisplay(alert.sales_less_spend, alert.sales_less_spend_display)}
           </span>
         </span>
         {/* The business week the event ran. The API carries no timestamp, so no

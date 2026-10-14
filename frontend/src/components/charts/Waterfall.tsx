@@ -70,7 +70,7 @@ export function Waterfall({
               stroke="var(--border-subtle)"
               strokeDasharray="3 4"
             />
-            <text x={padL - 8} y={y(v) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+            <text x={padL - 8} y={y(v) + 5} textAnchor="end" fontSize={15} fill="var(--text-muted)">
               {v}
             </text>
           </g>
@@ -112,7 +112,7 @@ export function Waterfall({
                 x={cx}
                 y={yTop - 6}
                 textAnchor="middle"
-                fontSize={12}
+                fontSize={15}
                 fontWeight={500}
                 fill={b.type === 'negative' ? 'var(--pill-danger-ink)' : b.type === 'total' ? 'var(--text-primary)' : b.type === 'base' ? 'var(--text-secondary)' : 'var(--pill-success-ink)'}
               >
@@ -130,9 +130,9 @@ export function Waterfall({
               )}
               <text
                 x={cx}
-                y={padT + innerH + 18}
+                y={padT + innerH + 20}
                 textAnchor="middle"
-                fontSize={10}
+                fontSize={15}
                 fill="var(--text-secondary)"
                 fontWeight={500}
               >
@@ -141,9 +141,9 @@ export function Waterfall({
               {line2 && (
                 <text
                   x={cx}
-                  y={padT + innerH + 30}
+                  y={padT + innerH + 37}
                   textAnchor="middle"
-                  fontSize={10}
+                  fontSize={15}
                   fill="var(--text-secondary)"
                   fontWeight={500}
                 >

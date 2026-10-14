@@ -113,13 +113,13 @@ export function PromotionMixCard({
         {segments.length > 0 ? (
           <DonutBreakdown
             segments={segments}
-            size={236}
-            stroke={34}
+            size={212}
+            stroke={30}
             centerValue={centerValue}
             centerLabel={centerLabel}
             bars
             decimals={2}
-            className="w-full gap-8"
+            className="w-full justify-center gap-6"
           />
         ) : (
           emptyState

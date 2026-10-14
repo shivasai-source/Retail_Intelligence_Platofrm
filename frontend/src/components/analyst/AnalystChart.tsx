@@ -233,8 +233,13 @@ function Tip({ text, x, y }: { text: string; x: string; y: string }) {
 
 /* ---------------------------------------------------------------- bar (horizontal) */
 
-const BAR_ROW = 26
+// Sized for 15px labels: a label line, then the bar beneath it.
+const BAR_ROW = 36
 const BAR_W = 320
+
+/** At 15px a character is ~9px wide; label every k-th slot so no two touch. */
+const labelStride = (labels: string[], slot: number) =>
+  Math.max(1, Math.ceil((Math.max(0, ...labels.map((l) => Math.min(l.length, 10))) * 9 + 8) / slot))
 
 /** HORIZONTAL BARS — the default for ranking named categories, because the
  *  labels read horizontally at any length. */
@@ -268,23 +273,23 @@ function Bars({
           >
             {/* A transparent hit band, so hovering anywhere on the row works. */}
             <rect x="0" y={y} width={BAR_W} height={BAR_ROW} fill="transparent" />
-            <text x="0" y={y + 9} fontSize="10" fill="var(--text-secondary)">
-              {p.label.length > 26 ? `${p.label.slice(0, 25)}…` : p.label}
+            <text x="0" y={y + 14} fontSize={15} fill="var(--text-secondary)">
+              {p.label.length > 22 ? `${p.label.slice(0, 21)}…` : p.label}
             </text>
             {/* DIRECT LABELS on every row is right here and only here: the
                 rows are few and the number IS the answer to the question. */}
             <text
               x={BAR_W}
-              y={y + 9}
-              fontSize="10"
+              y={y + 14}
+              fontSize={15}
               fontWeight="500"
               textAnchor="end"
               fill="var(--text-primary)"
             >
               {label(i)}
             </text>
-            <rect x="0" y={y + 14} width={BAR_W} height="6" rx="3" fill="var(--surface-hover)" />
-            <rect x="0" y={y + 14} width={w} height="6" rx="3" fill={color} />
+            <rect x="0" y={y + 22} width={BAR_W} height="6" rx="3" fill="var(--surface-hover)" />
+            <rect x="0" y={y + 22} width={w} height="6" rx="3" fill={color} />
           </g>
         )
       })}
@@ -309,9 +314,10 @@ function Columns({
   gap: number
 }) {
   const W = 320
-  const labelH = 22
+  const labelH = 24
   const slot = W / points.length
   const barW = Math.max(1, slot - gap)
+  const every = labelStride(points.map((p) => p.label), slot)
 
   return (
     <div className="relative">
@@ -337,15 +343,17 @@ function Columns({
               <rect x={x} y="0" width={barW} height={COL_H} fill="transparent" />
               {/* 4px rounded data-end, anchored to the baseline. */}
               <rect x={x} y={COL_H - h} width={barW} height={h} rx="3" fill={color} />
-              <text
-                x={x + barW / 2}
-                y={COL_H + 11}
-                fontSize="8"
-                textAnchor="middle"
-                fill="var(--text-muted)"
-              >
-                {p.label.length > 10 ? `${p.label.slice(0, 9)}…` : p.label}
-              </text>
+              {i % every === 0 && (
+                <text
+                  x={x + barW / 2}
+                  y={COL_H + 17}
+                  fontSize={15}
+                  textAnchor="middle"
+                  fill="var(--text-muted)"
+                >
+                  {p.label.length > 10 ? `${p.label.slice(0, 9)}…` : p.label}
+                </text>
+              )}
             </g>
           )
         })}
@@ -468,8 +476,9 @@ function MultiSeries({
   const stacked = spec.type === 'stacked'
   const W = 320
   const H = 132
-  const labelH = 22
+  const labelH = 24
   const slot = W / labels.length
+  const every = labelStride(labels, slot)
 
   // One shared scale unless the units genuinely differ.
   const seriesMax = series.map((s) => Math.max(...s.values.map((v) => Math.max(0, v)), 0))
@@ -536,15 +545,17 @@ function MultiSeries({
                     />
                   )
                 })}
-                <text
-                  x={gx + slot / 2}
-                  y={H + 11}
-                  fontSize="8"
-                  textAnchor="middle"
-                  fill="var(--text-muted)"
-                >
-                  {name.length > 10 ? `${name.slice(0, 9)}…` : name}
-                </text>
+                {i % every === 0 && (
+                  <text
+                    x={gx + slot / 2}
+                    y={H + 17}
+                    fontSize={15}
+                    textAnchor="middle"
+                    fill="var(--text-muted)"
+                  >
+                    {name.length > 10 ? `${name.slice(0, 9)}…` : name}
+                  </text>
+                )}
               </g>
             )
           })}
@@ -585,7 +596,7 @@ function Scatter({
 }) {
   const W = 320
   const H = 150
-  const pad = { l: 8, r: 8, t: 10, b: 20 }
+  const pad = { l: 8, r: 8, t: 10, b: 26 }
   const xs = points.map((p) => p.x ?? 0)
   const ys = points.map((p) => p.y ?? 0)
   // The axes include zero so a cloud of similar values is not magnified into
@@ -625,7 +636,7 @@ function Scatter({
             onMouseLeave={() => setHover(null)}
           />
         ))}
-        <text x={W - pad.r} y={H - 4} fontSize="8" textAnchor="end" fill="var(--text-muted)">
+        <text x={W - pad.r} y={H - 4} fontSize={15} textAnchor="end" fill="var(--text-muted)">
           {spec.x_label} →
         </text>
       </svg>

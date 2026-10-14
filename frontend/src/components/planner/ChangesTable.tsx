@@ -70,7 +70,7 @@ export function ChangesTable({ rows, truncated, total }: { rows: ChangeRow[]; tr
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <label className="flex h-10 min-w-[260px] items-center gap-2 rounded-[var(--r-md)] border border-border-default bg-surface-card px-3 text-base focus-within:border-brand-violet [&_svg]:h-4 [&_svg]:w-4">
+        <label className="flex h-10 w-full max-w-[340px] items-center gap-2 rounded-[var(--r-md)] border border-border-default bg-surface-card px-3 text-base focus-within:border-brand-violet [&_svg]:h-4 [&_svg]:w-4">
           <Icon name="search" className="text-ink-muted" />
           <input
             style={{ outline: 'none' }}

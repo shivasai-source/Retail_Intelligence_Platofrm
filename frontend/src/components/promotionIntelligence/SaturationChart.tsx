@@ -7,12 +7,15 @@ import { fmtRoi } from '../../lib/roi'
 // of depths the business runs (5/10/15/25%) rather than a smooth synthetic
 // sweep. Points are plotted at their true depth, so the gap between 15% and
 // 25% is visible rather than evenly spaced — that gap is information.
-export function SaturationChart({ curve, height = 240 }: { curve: SaturationCurve; height?: number }) {
+export function SaturationChart({ curve, height = 270 }: { curve: SaturationCurve; height?: number }) {
   const { ref, width: w } = useChartWidth(560)
-  const padL = 44,
-    padR = 18,
-    padT = 26,
-    padB = 42
+  // Sized for 15px labels: room for "2.50x" on the left, for half of a
+  // centred "12.50% spend" past the last point on the right, and for three
+  // label lines (depth, spend share, axis title) under the plot.
+  const padL = 56,
+    padR = 48,
+    padT = 32,
+    padB = 64
   const innerW = Math.max(1, w - padL - padR)
   const innerH = Math.max(1, height - padT - padB)
 
@@ -36,7 +39,7 @@ export function SaturationChart({ curve, height = 240 }: { curve: SaturationCurv
         {gridVals.map((v) => (
           <g key={v}>
             <line x1={padL} y1={y(v)} x2={padL + innerW} y2={y(v)} stroke="var(--border-subtle)" strokeDasharray="3 4" />
-            <text x={padL - 8} y={y(v) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+            <text x={padL - 8} y={y(v) + 5} textAnchor="end" fontSize={15} fill="var(--text-muted)">
               {fmtRoi(v)}
             </text>
           </g>
@@ -44,14 +47,14 @@ export function SaturationChart({ curve, height = 240 }: { curve: SaturationCurv
 
         {/* The hurdle every promotion must clear — the line that makes the curve mean something. */}
         <line x1={padL} y1={y(curve.target_roi)} x2={padL + innerW} y2={y(curve.target_roi)} stroke="var(--status-success)" strokeWidth={1.4} strokeDasharray="6 4" />
-        <text x={padL + innerW} y={y(curve.target_roi) - 6} textAnchor="end" fontSize={10} fill="var(--pill-success-ink)" fontWeight={500}>
+        <text x={padL + innerW} y={y(curve.target_roi) - 6} textAnchor="end" fontSize={15} fill="var(--pill-success-ink)" fontWeight={500}>
           Target {fmtRoi(curve.target_roi)}
         </text>
 
         {curve.saturation_depth_pct !== null && (
           <>
             <line x1={x(curve.saturation_depth_pct)} y1={padT} x2={x(curve.saturation_depth_pct)} y2={padT + innerH} stroke="var(--status-danger)" strokeWidth={1} strokeDasharray="4 3" />
-            <text x={x(curve.saturation_depth_pct)} y={padT - 8} textAnchor="middle" fontSize={10} fill="var(--pill-danger-ink)" fontWeight={500}>
+            <text x={x(curve.saturation_depth_pct)} y={padT - 8} textAnchor="middle" fontSize={15} fill="var(--pill-danger-ink)" fontWeight={500}>
               Saturation {curve.saturation_depth_pct}%
             </text>
           </>
@@ -68,14 +71,14 @@ export function SaturationChart({ curve, height = 240 }: { curve: SaturationCurv
           return (
             <g key={p.mechanic}>
               <circle cx={x(p.depth_pct)} cy={y(roi)} r={r} fill={below ? 'var(--status-danger)' : 'var(--status-success)'} opacity={0.9} stroke="white" strokeWidth={1.5} />
-              <text x={x(p.depth_pct)} y={y(roi) - r - 6} textAnchor="middle" fontSize={10} fontWeight={500} fill={below ? 'var(--pill-danger-ink)' : 'var(--pill-success-ink)'}>
+              <text x={x(p.depth_pct)} y={y(roi) - r - 6} textAnchor="middle" fontSize={15} fontWeight={500} fill={below ? 'var(--pill-danger-ink)' : 'var(--pill-success-ink)'}>
                 {fmtRoi(roi)}
               </text>
-              <text x={x(p.depth_pct)} y={padT + innerH + 16} textAnchor="middle" fontSize={9.5} fill="var(--text-muted)">
+              <text x={x(p.depth_pct)} y={padT + innerH + 19} textAnchor="middle" fontSize={15} fill="var(--text-muted)">
                 {p.depth_pct}%
               </text>
               {p.spend_share_pct != null && (
-                <text x={x(p.depth_pct)} y={padT + innerH + 29} textAnchor="middle" fontSize={9} fill="var(--text-secondary)" fontWeight={500}>
+                <text x={x(p.depth_pct)} y={padT + innerH + 38} textAnchor="middle" fontSize={15} fill="var(--text-secondary)" fontWeight={500}>
                   {p.spend_share_pct.toFixed(2)}% spend
                 </text>
               )}
@@ -83,10 +86,10 @@ export function SaturationChart({ curve, height = 240 }: { curve: SaturationCurv
           )
         })}
 
-        <text x={padL - 30} y={padT - 10} fontSize={9.5} fill="var(--text-muted)" fontWeight={500}>
+        <text x={padL - 30} y={padT - 10} fontSize={15} fill="var(--text-muted)" fontWeight={500}>
           ROI
         </text>
-        <text x={padL + innerW} y={height - 4} textAnchor="end" fontSize={9.5} fill="var(--text-muted)" fontWeight={500}>
+        <text x={padL + innerW} y={height - 4} textAnchor="end" fontSize={15} fill="var(--text-muted)" fontWeight={500}>
           Discount depth →
         </text>
       </svg>

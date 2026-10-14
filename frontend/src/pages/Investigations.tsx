@@ -669,9 +669,15 @@ export function Investigations() {
   // or -- for a run recorded before causes were listed -- one per agent, from
   // that agent's own finding.
   const findingsList = run?.result?.findings ?? []
-  const rootCauses: { cause: string; agents: string[]; share_pct?: number }[] = run?.result?.synthesis?.root_causes?.length
-    ? run.result.synthesis.root_causes
-    : findingsList.filter((f) => f.headline).map((f) => ({ cause: f.headline, agents: [f.key] }))
+  const rootCauses: { cause: string; agents: string[]; share_pct?: number; recommendation?: string }[] = (
+    run?.result?.synthesis?.root_causes?.length
+      ? run.result.synthesis.root_causes
+      : findingsList.filter((f) => f.headline).map((f) => ({ cause: f.headline, agents: [f.key] }))
+  )
+    // Largest share of the problem first -- on every run, including ones
+    // stored before the backend sorted them.
+    .slice()
+    .sort((a, b) => (b.share_pct ?? -1) - (a.share_pct ?? -1))
 
   // While the pipeline runs, accelerator rows mirror real specialist state
   // instead of the old timer-driven cascade.
@@ -851,6 +857,7 @@ export function Investigations() {
           rootCauses={rootCauses.map((rc) => ({
             cause: rc.cause,
             share: rc.share_pct ?? null,
+            recommendation: rc.recommendation ?? null,
             agents: rc.agents.map((key) => ({ key, name: agentName(key), icon: agentIcon(key) })),
           }))}
           recommendations={run.result.synthesis.recommendations}

@@ -334,7 +334,6 @@ export function FilterBar({
             end={periodEnd}
             onApply={applyPeriod}
             onClear={clearPeriod}
-            monthsOnly
             renderTrigger={({ open, label, toggle }) => (
               <Button
                 variant={open ? 'primary' : 'secondary'}

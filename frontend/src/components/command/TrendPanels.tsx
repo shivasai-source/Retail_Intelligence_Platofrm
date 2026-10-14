@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { SERIES } from './series'
 import { useChartWidth } from '../charts/useChartWidth'
+import { maxTextW } from '../charts/textWidth'
 import { calendarYear } from '../../lib/labels'
 import type { TrendResponse } from '../../types/commandCenter'
 import { fmtRoi } from '../../lib/roi'
@@ -50,11 +51,13 @@ function niceStep(raw: number): number {
 
 const DIVISIONS = 4
 
-/** Minimum horizontal pitch between x-axis ticks, in px. Ticks are spaced by
- *  PIXELS rather than by a fixed count: at 52 weekly points the old `n / 13`
- *  rule placed 13 ticks 48px apart while each one read "W01 2025" at ~45px
- *  wide, leaving 3px between them — the axis read as one grey smear. */
-const TICK_PITCH = 48
+/** Minimum clear space between neighbouring x-axis labels, in px. Ticks are
+ *  spaced by PIXELS rather than by a fixed count: at 52 weekly points the old
+ *  `n / 13` rule placed 13 ticks 48px apart while each one read "W01 2025" at
+ *  ~45px wide, leaving 3px between them — the axis read as one grey smear.
+ *  The pitch is the widest label (with its year, since one can appear where
+ *  the year turns over) plus this gap. */
+const TICK_GAP = 16
 
 const TOOLTIP_W = 224
 
@@ -87,13 +90,11 @@ export function TrendPanels({
 
   const { labels, series } = data
   const n = labels.length
-  const padL = 60
-  const padR = 52
+  // Top room for the half of the highest axis label that sits above its grid
+  // line; bottom room for one row of 15px x-axis labels.
   const padT = 14
-  const padB = 26
-  const innerW = Math.max(120, width - padL - padR)
+  const padB = 32
   const innerH = Math.max(80, height - padT - padB)
-  const step = n > 1 ? innerW / n : innerW
   const targetRoi = series.target_roi[0] ?? data.meta.target_roi
 
   const money = (v: number) => {
@@ -132,6 +133,14 @@ export function TrendPanels({
   const roiHi = roiLo + roiStep * DIVISIONS
   const yRoi = (v: number) => padT + innerH * (1 - (v - roiLo) / (roiHi - roiLo || 1))
 
+  // Side margins are sized from the axis labels actually drawn, so a long
+  // "₹120.00 Cr" never loses its first characters off the SVG's left edge.
+  const gridFs = Array.from({ length: DIVISIONS + 1 }, (_, k) => k / DIVISIONS)
+  const padL = Math.max(40, maxTextW(gridFs.map((f) => money(moneyMax * f))) + 14)
+  const padR = Math.max(40, maxTextW(gridFs.map((f) => fmtRoi(roiLo + (roiHi - roiLo) * f))) + 14)
+  const innerW = Math.max(120, width - padL - padR)
+  const step = n > 1 ? innerW / n : innerW
+
   // Break the ROI line into runs of consecutive non-null points, so a gap is a
   // gap rather than a line dropping to zero.
   const runs: { i: number; v: number }[][] = []
@@ -145,7 +154,8 @@ export function TrendPanels({
   if (run.length) runs.push(run)
 
   const cx = (i: number) => padL + step * i + step / 2
-  const labelEvery = Math.max(1, Math.ceil(TICK_PITCH / step))
+  const tickPitch = maxTextW(labels.map(calendarYear)) + TICK_GAP
+  const labelEvery = Math.max(1, Math.ceil(tickPitch / step))
 
   // The year is identical on almost every tick, so it is printed only when it
   // CHANGES. That is what shortens "W01 2025" to "W01" and lets the periods
@@ -193,12 +203,12 @@ export function TrendPanels({
             <g key={k}>
               <line x1={padL} x2={width - padR} y1={y} y2={y} stroke="var(--border-subtle)" />
               {(show.sales || show.spend) && (
-                <text x={padL - 8} y={y + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+                <text x={padL - 8} y={y + 5} textAnchor="end" fontSize={15} fill="var(--text-muted)">
                   {money(moneyMax * f)}
                 </text>
               )}
               {roiAxis && (
-                <text x={width - padR + 8} y={y + 3} textAnchor="start" fontSize={10} fill="var(--text-muted)">
+                <text x={width - padR + 8} y={y + 5} textAnchor="start" fontSize={15} fill="var(--text-muted)">
                   {fmtRoi(roiLo + (roiHi - roiLo) * f)}
                 </text>
               )}
@@ -223,9 +233,14 @@ export function TrendPanels({
               x={width - padR - 4}
               y={yRoi(targetRoi) - 4}
               textAnchor="end"
-              fontSize={10}
+              fontSize={15}
               fill="var(--text-muted)"
               fontWeight={500}
+              /* A halo in the card colour keeps the caption legible where
+                 the ROI line runs through it. */
+              stroke="var(--surface-card)"
+              strokeWidth={4}
+              paintOrder="stroke"
             >
               Target {fmtRoi(targetRoi)}
             </text>
@@ -274,7 +289,7 @@ export function TrendPanels({
         )}
 
         {xTicks.map((t) => (
-          <text key={t.i} x={cx(t.i)} y={height - 6} textAnchor="middle" fontSize={10} fill="var(--text-muted)">
+          <text key={t.i} x={cx(t.i)} y={height - 8} textAnchor="middle" fontSize={15} fill="var(--text-muted)">
             {t.text}
           </text>
         ))}

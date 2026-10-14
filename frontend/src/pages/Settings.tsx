@@ -81,13 +81,13 @@ export function SettingsPage({
         <Card className="fade-in">
           <CardHeader title="Profile" />
           <div className="p-5">
-            <div className="mb-3.5 flex items-center gap-3.5 border-b border-border-subtle pb-4">
+            <div className="mb-3.5 flex flex-wrap items-center gap-3.5 border-b border-border-subtle pb-4">
               <div className="grid h-[54px] w-[54px] shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,var(--brand-violet),var(--brand-blue))] text-lg font-normal text-white">
                 {user?.initials}
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-[200px] flex-1">
                 <div className="text-md font-medium text-ink-primary">{user?.name}</div>
-                <div className="truncate text-base text-ink-muted">
+                <div className="text-base text-ink-muted [overflow-wrap:anywhere]">
                   {user?.email || 'No email recorded'}
                 </div>
                 <div className="mt-0.5 text-xs text-ink-muted">

@@ -26,6 +26,9 @@ export interface AgentFinding {
   trend: 'up' | 'down' | ''
   impact: string
   confidence: number
+  /** This agent's contribution to the total score, 0-100; the panel's
+   *  contributions add up to 100 (agents/pipeline.py `score_agents`). */
+  contribution_pct?: number
   /** Raw tool output the specialist analysed. Only the fields the UI binds to
    *  are declared; the payload's shape is the specialist's, not this type's. */
   analysis_data?: {

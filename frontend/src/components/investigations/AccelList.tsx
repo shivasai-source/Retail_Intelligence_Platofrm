@@ -29,6 +29,15 @@ const ICON_STYLES: Record<LiveState, { bg: string; fg: string }> = {
  *  a specialist added later — falls back to whatever the API sent.
  */
 export const PLAIN_DESC: Record<string, string> = {
+  // The current four-agent panel (agents/roster.py).
+  performance:
+    "Checks whether this segment really underperforms the rest of the business and its peer channels and regions, and whether it held, faded or spiked month by month.",
+  promotion_design:
+    "Compares each mechanic's ROI here with the same mechanic elsewhere, shows where the spend went, and names the promotion events that missed target with the value at stake.",
+  market:
+    'Breaks ROI down by region, state, retailer, category and brand, to find the smallest place or product group that explains the result.',
+  // cannibalization keeps its key; its entry is below.
+  // Retired agents, still named by runs recorded before the four-agent panel.
   benchmark:
     "Compares this segment's ROI with the rest of the business, and with every other channel and region.",
   spend_allocation:

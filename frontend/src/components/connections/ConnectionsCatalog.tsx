@@ -173,7 +173,7 @@ function ConnectorTile({
       <div className="flex items-start gap-3">
         <ConnectorLogo connectorId={entry.id} label={entry.label} mark={entry.mark} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-base font-medium text-ink-primary">{entry.label}</div>
+          <div className="text-base font-medium text-ink-primary">{entry.label}</div>
           <div className="mt-0.5 text-sm text-ink-muted">{FAMILY_LABEL[entry.family]}</div>
         </div>
         {!available ? (

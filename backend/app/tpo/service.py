@@ -986,16 +986,17 @@ def risk_alerts(
                 # Net Incremental Profit for the event -- the card's formula on
                 # the event's own figures (PromotionEvent.net_incremental_profit).
                 "net_incremental_profit": event.net_incremental_profit,
-                "net_incremental_profit_display": F.money(event.net_incremental_profit, currency),
+                "net_incremental_profit_display": _signed_money(event.net_incremental_profit, currency),
                 # INCREMENTAL SALES LESS TRADE SPEND, the plain "did the extra
                 # revenue cover the money put in" figure. It is NOT the net
                 # incremental profit above it: this counts every extra rupee of
                 # revenue, where that one also subtracts the cost of the extra
                 # units, the discount given on units that would have sold
                 # anyway, and the margin taken from sister packs. Positive
-                # exactly when ROI is above 1.00.
+                # exactly when ROI is above 1.00, and shown with its sign
+                # ("+₹1.20 Cr") because it is a gain or a loss, not an amount.
                 "sales_less_spend": round(event.incremental_sales - event.trade_spend, 2),
-                "sales_less_spend_display": F.money(event.incremental_sales - event.trade_spend, currency),
+                "sales_less_spend_display": _signed_money(event.incremental_sales - event.trade_spend, currency),
                 "at_stake": event.at_stake,
                 "at_stake_display": F.money(event.at_stake, currency),
                 "channel": event.channel_name,

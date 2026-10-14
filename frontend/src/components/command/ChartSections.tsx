@@ -1,10 +1,11 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useBreakdown, useFilterOptions, useTargetRoi, useTopPromotions } from '../../hooks/useCommandCenter'
 import { useCommandFilters } from '../../store/commandFilters'
-import { monthPeriodLabel } from '../planner/PeriodPicker'
+import { smartPeriodLabel } from '../planner/PeriodPicker'
 import { ChartFrame } from './ChartFrame'
 import { Segmented } from './Segmented'
 import { SERIES, SERIES_CLASS } from './series'
+import { PROSE_CHAR_W, maxTextW, textW } from '../charts/textWidth'
 import type { BreakdownGroup } from '../../types/commandCenter'
 import { BREAKEVEN_ROI, ROI_TONE_CLASS, ROI_TONE_VAR, fmtRoi, roiTone } from '../../lib/roi'
 
@@ -250,7 +251,6 @@ export function ChannelSection() {
       }}
       isEmpty={rows.length === 0}
       emptyMessage={`No ${level?.label ?? 'promotion'} activity in this scope.`}
-      footnote={`Ranked by ${perfLabel(metric)}. Channels are compared, not summed.`}
     >
       <MetricRows
         fill
@@ -409,7 +409,6 @@ export function TopPerformingSection() {
       isEmpty={rows.length === 0}
       emptyMessage="No promotion with a measurable return in this scope."
       height={230}
-      footnote={`${rows.length} promotions ranked by ROI, among those at or above median Trade Spend. At most ${PER_MECHANIC_CAP} per mechanic.`}
     >
       <RoiDotPlot rows={rows} targetRoi={targetRoi} />
     </ChartFrame>
@@ -454,15 +453,18 @@ function RoiDotPlot({
   const [hover, setHover] = useState<number | null>(null)
 
   const n = rows.length
-  // The name column takes what it needs up to ~40% of the card; the rest is
+  // The name column takes what it needs up to ~45% of the card; the rest is
   // the axis. Below 150px the names would be unreadable stubs.
-  const labelW = Math.round(Math.min(270, Math.max(150, width * 0.4)))
+  const labelW = Math.round(Math.min(300, Math.max(150, width * 0.45)))
   const padL = labelW + 10
-  const padR = 48 // the value label to the right of the last dot
-  const padT = 18 // the "Target" caption above the line
-  const padB = 22 // the tick labels
+  const padR = 56 // the value label to the right of the last dot
+  const padT = 24 // the "Target" caption above the line
+  const padB = 30 // the tick labels
   const innerW = Math.max(120, width - padL - padR)
-  const innerH = Math.max(n * 18, height - padT - padB)
+  // A 15px name needs ~22px of row; the plot grows (see the host's
+  // min-height) rather than letting neighbouring rows overprint.
+  const ROW_MIN = 22
+  const innerH = Math.max(n * ROW_MIN, height - padT - padB)
   const rowH = innerH / n
 
   const rois = rows.map((r) => r.roi_multiple)
@@ -477,31 +479,40 @@ function RoiDotPlot({
 
   const ticks: number[] = []
   for (let t = lo; t <= hi + 1e-6; t += step) ticks.push(Math.round(t * 1000) / 1000)
+  // Label every k-th tick so neighbouring "2.50x" captions keep a clear gap.
+  const tickGap = ticks.length > 1 ? x(ticks[1]) - x(ticks[0]) : innerW
+  const tickEvery = Math.max(1, Math.ceil((maxTextW(ticks.map(fmtRoi)) + 12) / tickGap))
 
   // Name column: rank, name in bold, channel in muted ink, cut to fit. The
   // channel goes first when space runs out — two "5% Discount" rows are told
   // apart by it, so it is only dropped when the name itself does not fit.
-  const chars = Math.max(6, Math.floor((labelW - 18) / 6.3))
+  const chars = Math.max(6, Math.floor((labelW - textW(n) - 12) / PROSE_CHAR_W))
   const fitName = (r: (typeof rows)[number]) => {
     if (r.promotion.length + 3 + r.channel.length <= chars) return { name: r.promotion, channel: r.channel }
     if (r.promotion.length + 4 <= chars)
-      return { name: r.promotion, channel: fitLabel(r.channel, (chars - r.promotion.length - 3) * 6.3) }
-    return { name: fitLabel(r.promotion, chars * 6.3), channel: '' }
+      return { name: r.promotion, channel: fitLabel(r.channel, (chars - r.promotion.length - 3) * PROSE_CHAR_W) }
+    return { name: fitLabel(r.promotion, chars * PROSE_CHAR_W), channel: '' }
   }
 
   const active = hover !== null && hover < n ? hover : null
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div ref={ref} className="relative min-h-[200px] w-full flex-1">
+      <div
+        ref={ref}
+        className="relative min-h-[200px] w-full flex-1"
+        style={{ minHeight: n * ROW_MIN + padT + padB }}
+      >
         <svg className="absolute inset-0" width={width} height={height} role="img" aria-label="Top promotions by ROI against the target">
           {/* Vertical hairline grid at each tick, ticks in the axis band. */}
-          {ticks.map((t) => (
+          {ticks.map((t, k) => (
             <g key={t}>
               <line x1={x(t)} x2={x(t)} y1={padT} y2={padT + innerH} stroke="var(--border-subtle)" />
-              <text x={x(t)} y={height - 6} textAnchor="middle" fontSize={10} fill="var(--text-muted)">
-                {fmtRoi(t)}
-              </text>
+              {k % tickEvery === 0 && (
+                <text x={x(t)} y={height - 8} textAnchor="middle" fontSize={15} fill="var(--text-muted)">
+                  {fmtRoi(t)}
+                </text>
+              )}
             </g>
           ))}
 
@@ -517,7 +528,7 @@ function RoiDotPlot({
             stroke="var(--brand-violet)"
             strokeDasharray="3 3"
           />
-          <text x={x(targetRoi)} y={padT - 8} textAnchor="middle" fontSize={10} fontWeight={500} fill="var(--brand-violet)">
+          <text x={x(targetRoi)} y={padT - 9} textAnchor="middle" fontSize={15} fontWeight={500} fill="var(--brand-violet)">
             Target {fmtRoi(targetRoi)}
           </text>
 
@@ -539,7 +550,7 @@ function RoiDotPlot({
                   opacity={isActive ? 1 : 0}
                   className="transition-opacity duration-150"
                 />
-                <text x={6} y={cy + 4} fontSize={11} fill="var(--text-primary)">
+                <text x={6} y={cy + 5} fontSize={15} fill="var(--text-primary)">
                   <tspan fill="var(--text-disabled)">{i + 1}</tspan>
                   <tspan dx={6} fontWeight={500}>
                     {name}
@@ -558,7 +569,7 @@ function RoiDotPlot({
                   strokeWidth={2}
                   className="transition-[r] duration-150"
                 />
-                <text x={cx + 11} y={cy + 4} fontSize={10} fontWeight={500} fill={ROI_TONE_VAR[tone]}>
+                <text x={cx + 11} y={cy + 5} fontSize={15} fontWeight={500} fill={ROI_TONE_VAR[tone]}>
                   {r.roi_display}
                 </text>
                 <rect
@@ -649,7 +660,6 @@ export function PromotionContributionSection() {
       onRetry={() => void q.refetch()}
       isEmpty={rows.length === 0}
       emptyMessage="No promotion mechanics ran in this scope."
-      footnote={`${rows.length} mechanics ranked by Incremental Sales · shares total 100% of the scope.`}
     >
       {q.data && (
         <Dumbbell groups={rows} total={total} rate={q.data.meta.exchange_rate} symbol={symbol} targetRoi={targetRoi} />
@@ -694,13 +704,17 @@ function Dumbbell({
   const [hover, setHover] = useState<number | null>(null)
 
   const n = groups.length
-  const labelW = Math.round(Math.min(190, Math.max(110, width * 0.3)))
+  const labelW = Math.round(Math.min(210, Math.max(110, width * 0.34)))
   const padL = labelW + 10
-  const padR = 52 // the ROI column
+  const padR = 60 // the ROI column
   const padT = 8
-  const padB = 22
+  const padB = 30
   const innerW = Math.max(120, width - padL - padR)
-  const innerH = Math.max(n * 40, height - padT - padB)
+  // Each row carries a 15px label above its dots and one below, so it needs
+  // ~56px or the labels of neighbouring rows overprint. The plot grows (see
+  // the host's min-height) rather than squeezing them.
+  const ROW_MIN = 56
+  const innerH = Math.max(n * ROW_MIN, height - padT - padB)
   const rowH = innerH / n
 
   const values = groups.flatMap((g) => [g.trade_spend, g.incremental_sales ?? 0])
@@ -717,6 +731,18 @@ function Dumbbell({
 
   const ticks: number[] = []
   for (let t = lo; t <= hi + 1e-6; t += step) ticks.push(t)
+  // Label every k-th tick so "₹160.00 Cr" never runs into its neighbour.
+  const tickGap = ticks.length > 1 ? x(ticks[1]) - x(ticks[0]) : innerW
+  const tickEvery = Math.max(
+    1,
+    Math.ceil((maxTextW(ticks.map((t) => tickMoney(t, rate, symbol))) + 12) / tickGap),
+  )
+  /** Centre a value label on its dot, but keep it inside the plot so it never
+   *  runs into the name column or the ROI column. */
+  const labelX = (cx: number, text: string) => {
+    const half = textW(text) / 2
+    return Math.max(padL + half, Math.min(padL + innerW - half, cx))
+  }
 
   const active = hover !== null && hover < n ? hover : null
 
@@ -736,9 +762,13 @@ function Dumbbell({
         <span className="ml-auto">ROI at the row end</span>
       </div>
 
-      <div ref={ref} className="relative min-h-[200px] w-full flex-1">
+      <div
+        ref={ref}
+        className="relative min-h-[200px] w-full flex-1"
+        style={{ minHeight: n * ROW_MIN + padT + padB }}
+      >
         <svg className="absolute inset-0" width={width} height={height} role="img" aria-label="Trade Spend and Incremental Sales by promotion mechanic">
-          {ticks.map((t) => (
+          {ticks.map((t, k) => (
             <g key={t}>
               <line
                 x1={x(t)}
@@ -747,9 +777,11 @@ function Dumbbell({
                 y2={padT + innerH}
                 stroke={t === lo ? 'var(--border-default)' : 'var(--border-subtle)'}
               />
-              <text x={x(t)} y={height - 6} textAnchor="middle" fontSize={10} fill="var(--text-muted)">
-                {tickMoney(t, rate, symbol)}
-              </text>
+              {k % tickEvery === 0 && (
+                <text x={x(t)} y={height - 8} textAnchor="middle" fontSize={15} fill="var(--text-muted)">
+                  {tickMoney(t, rate, symbol)}
+                </text>
+              )}
             </g>
           ))}
 
@@ -761,6 +793,8 @@ function Dumbbell({
             const share = total && sales !== null ? (sales / total) * 100 : null
             const isActive = active === i
             const tone = roiTone(g.roi, targetRoi)
+            const salesText =
+              sales === null ? '' : `${g.incremental_sales_display}${share !== null ? ` · ${share.toFixed(2)}%` : ''}`
             return (
               <g key={g.code}>
                 <rect
@@ -773,7 +807,7 @@ function Dumbbell({
                   opacity={isActive ? 1 : 0}
                   className="transition-opacity duration-150"
                 />
-                <text x={6} y={cy + 4} fontSize={11} fontWeight={500} fill="var(--text-primary)">
+                <text x={6} y={cy + 5} fontSize={15} fontWeight={500} fill="var(--text-primary)">
                   {fitLabel(g.label, labelW - 8)}
                 </text>
 
@@ -790,13 +824,13 @@ function Dumbbell({
                   />
                 )}
                 <circle cx={xs} cy={cy} r={6} fill={SERIES.spend} stroke="var(--surface-card)" strokeWidth={2} />
-                <text x={xs} y={cy + 17} textAnchor="middle" fontSize={10} fill="var(--text-muted)">
+                <text x={labelX(xs, g.trade_spend_display)} y={cy + 22} textAnchor="middle" fontSize={15} fill="var(--text-muted)">
                   {g.trade_spend_display}
                 </text>
                 {xi !== null && (
                   <>
                     <circle cx={xi} cy={cy} r={6} fill={SERIES.incremental} stroke="var(--surface-card)" strokeWidth={2} />
-                    <text x={xi} y={cy - 10} textAnchor="middle" fontSize={10} fontWeight={500} fill="var(--text-primary)">
+                    <text x={labelX(xi, salesText)} y={cy - 12} textAnchor="middle" fontSize={15} fontWeight={500} fill="var(--text-primary)">
                       {g.incremental_sales_display}
                       {share !== null && (
                         <tspan fontWeight={400} fill="var(--text-muted)">{` · ${share.toFixed(2)}%`}</tspan>
@@ -805,7 +839,7 @@ function Dumbbell({
                   </>
                 )}
 
-                <text x={padL + innerW + 12} y={cy + 4} fontSize={11} fontWeight={500} fill={ROI_TONE_VAR[tone]}>
+                <text x={padL + innerW + 12} y={cy + 5} fontSize={15} fontWeight={500} fill={ROI_TONE_VAR[tone]}>
                   {fmtRoi(g.roi)}
                 </text>
 
@@ -872,10 +906,6 @@ export function PromotionTypeSection() {
     ? groups.reduce((sum, g) => sum + (perfValue(g, metric) ?? 0), 0)
     : null
 
-  const [lead, trail] = rankBy(groups, metric)
-  const gapPts =
-    lead && trail ? (perfValue(lead, metric) ?? 0) - (perfValue(trail, metric) ?? 0) : null
-
   return (
     <ChartFrame
       fill
@@ -890,13 +920,6 @@ export function PromotionTypeSection() {
       onRetry={() => void q.refetch()}
       isEmpty={groups.length === 0}
       emptyMessage="No promotions in this scope."
-      footnote={
-        isShareable
-          ? `Share of ${perfLabel(metric)}; the two types total 100% of the scope.`
-          : gapPts !== null && lead
-            ? `ROI is a ratio, so it carries no share — ${lead.code} leads by ${gapPts.toFixed(2)}.`
-            : 'ROI is a ratio, so it carries no share.'
-      }
     >
       {q.data && (
         <MetricColumns
@@ -953,7 +976,6 @@ export function ProductSection() {
       onRetry={() => void q.refetch()}
       isEmpty={rows.length === 0}
       emptyMessage="No products with measurable performance in this scope."
-      footnote={`Top ${rows.length} of ${total} products by ${perfLabel(metric)}. ROI breaks ties. A ranking, not a share of the total.`}
     >
       <MetricTable rows={rows} metric={metric} targetRoi={targetRoi} />
     </ChartFrame>
@@ -1111,7 +1133,7 @@ export function columnPath(x: number, top: number, w: number, h: number, down: b
  *  truncate on its own, and an overrunning label would collide with its
  *  neighbour's. */
 function fitLabel(text: string, px: number): string {
-  const max = Math.max(3, Math.floor(px / 6.4))
+  const max = Math.max(3, Math.floor(px / PROSE_CHAR_W))
   return text.length > max ? `${text.slice(0, max - 1)}…` : text
 }
 
@@ -1162,11 +1184,10 @@ function MetricColumns({
   const [hover, setHover] = useState<number | null>(null)
 
   const n = groups.length
-  const padL = 56
   const padR = 12
   const padT = 24
-  const padB = 40
-  const innerW = Math.max(140, width - padL - padR)
+  // Two 15px rows under the plot: the group name, then its ROI.
+  const padB = 48
   const innerH = Math.max(90, height - padT - padB)
 
   const isRoi = metric === 'roi'
@@ -1198,13 +1219,17 @@ function MetricColumns({
   while (hi < rawMax) hi += step
   // HEADROOM for the direct label: a peak within ~14px of the axis top puts
   // its value on the top gridline. One more step keeps the label clear.
-  if (((hi - rawMax) / (hi - lo)) * innerH < 14) hi += step
+  if (((hi - rawMax) / (hi - lo)) * innerH < 20) hi += step
 
   const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
   const zeroY = y(0)
 
   const ticks: number[] = []
   for (let t = lo; t <= hi + 1e-6; t += step) ticks.push(t)
+
+  // The left margin fits the widest tick label ("₹120.00 Cr") in full.
+  const padL = Math.max(40, maxTextW(ticks.map(tick)) + 14)
+  const innerW = Math.max(140, width - padL - padR)
 
   const slot = innerW / n
   // THIN marks. A saturated fill 30px wide reads as a block rather than as a
@@ -1250,9 +1275,9 @@ function MetricColumns({
               />
               <text
                 x={padL - 8}
-                y={y(t) + 3}
+                y={y(t) + 5}
                 textAnchor="end"
-                fontSize={10}
+                fontSize={15}
                 fill="var(--text-muted)"
               >
                 {tick(t)}
@@ -1314,9 +1339,9 @@ function MetricColumns({
                 {/* Direct label on the column. */}
                 <text
                   x={centreX(i)}
-                  y={v !== null && v < 0 ? Math.max(y(v), zeroY) + 13 : Math.min(y(v ?? 0), zeroY) - 7}
+                  y={v !== null && v < 0 ? Math.max(y(v), zeroY) + 17 : Math.min(y(v ?? 0), zeroY) - 7}
                   textAnchor="middle"
-                  fontSize={10}
+                  fontSize={15}
                   fontWeight={500}
                   fill="var(--text-primary)"
                 >
@@ -1327,9 +1352,9 @@ function MetricColumns({
                     ROI IS the axis, where it would repeat the label above. */}
                 <text
                   x={centreX(i)}
-                  y={isRoi ? height - 14 : height - 21}
+                  y={isRoi ? height - 16 : height - 27}
                   textAnchor="middle"
-                  fontSize={11}
+                  fontSize={15}
                   fontWeight={500}
                   fill="var(--text-primary)"
                 >
@@ -1338,9 +1363,9 @@ function MetricColumns({
                 {!isRoi && (
                   <text
                     x={centreX(i)}
-                    y={height - 7}
+                    y={height - 8}
                     textAnchor="middle"
-                    fontSize={10}
+                    fontSize={15}
                     fontWeight={500}
                     fill={ROI_TONE_VAR[roiTone(g.roi, targetRoi)]}
                   >
@@ -1470,7 +1495,7 @@ export function SalesByRegionSection() {
 
   const yearLabel =
     periodFrom != null && periodTo != null
-      ? monthPeriodLabel(
+      ? smartPeriodLabel(
           [Math.floor(periodFrom / 100), periodFrom % 100],
           [Math.floor(periodTo / 100), periodTo % 100],
           options.data?.calendar ?? [],
@@ -1504,13 +1529,6 @@ export function SalesByRegionSection() {
       onRetry={() => void q.refetch()}
       isEmpty={rows.length === 0}
       emptyMessage={`No promotion activity in any region for ${cut}.`}
-      footnote={`${count} ranked by ${perfLabel(metric)} · ${cut}. ${
-        metric === 'incremental_sales'
-          ? 'A ranking, not a share — Incremental Sales is re-baselined per region, so the regions do not sum to the headline figure.'
-          : metric === 'roi'
-            ? 'A ranking; ROI is a ratio and carries no share.'
-            : 'A ranking, not a share of the total.'
-      }`}
     >
       <MetricColumns
         groups={rows}

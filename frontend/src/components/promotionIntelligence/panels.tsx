@@ -101,8 +101,10 @@ export function DimensionTable({ title, rows, nameHeader }: { title: string; row
 /** Realised incremental sales against the spend-implied target, by month. */
 export function TrendVsTarget({ trend, height = 230 }: { trend: TrendFacts; height?: number }) {
   const { ref, width: w } = useChartWidth(560)
-  const padL = 52,
-    padR = 16,
+  // Sized for 15px labels: room for "₹12.50 Cr" on the left and for half of
+  // a centred month label past the last point on the right.
+  const padL = 80,
+    padR = 28,
     padT = 18,
     padB = 34
   const innerW = Math.max(1, w - padL - padR)
@@ -144,6 +146,11 @@ export function TrendVsTarget({ trend, height = 230 }: { trend: TrendFacts; heig
       .join(' ')
 
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => maxV * f)
+  // Month labels at 15px are ~9px a character; print every k-th one so no
+  // two labels touch, whatever the width.
+  const monthLabel = (l: string) => l.replace(' F', "'")
+  const widest = Math.max(...trend.labels.map((l) => monthLabel(l).length)) * 9 + 12
+  const labelEvery = Math.max(1, Math.ceil(widest / (innerW / n)))
 
   return (
     <div ref={ref}>
@@ -151,7 +158,7 @@ export function TrendVsTarget({ trend, height = 230 }: { trend: TrendFacts; heig
         {ticks.map((v) => (
           <g key={v}>
             <line x1={padL} y1={y(v)} x2={padL + innerW} y2={y(v)} stroke="var(--border-subtle)" strokeDasharray="3 4" />
-            <text x={padL - 8} y={y(v) + 3} textAnchor="end" fontSize={9.5} fill="var(--text-muted)">
+            <text x={padL - 8} y={y(v) + 5} textAnchor="end" fontSize={15} fill="var(--text-muted)">
               {fmtCr(v)}
             </text>
           </g>
@@ -190,11 +197,13 @@ export function TrendVsTarget({ trend, height = 230 }: { trend: TrendFacts; heig
             />
           ),
         )}
-        {trend.labels.map((l, i) => (
-          <text key={l} x={x(i)} y={padT + innerH + 16} textAnchor="middle" fontSize={9} fill="var(--text-muted)">
-            {l.replace(' F', "'")}
-          </text>
-        ))}
+        {trend.labels.map((l, i) =>
+          i % labelEvery ? null : (
+            <text key={l} x={x(i)} y={padT + innerH + 20} textAnchor="middle" fontSize={15} fill="var(--text-muted)">
+              {monthLabel(l)}
+            </text>
+          ),
+        )}
       </svg>
       <div className="mt-1.5 flex flex-wrap items-center gap-4 px-1 text-xs text-ink-muted">
         <span className="inline-flex items-center gap-1.5">

@@ -96,11 +96,10 @@ function Panel({
   height?: number
 }) {
   const { ref, width: w } = useChartWidth(360)
-  const padL = 64
-  const padR = 16
+  // Room for half of a centred 15px "30%" past the last tick.
+  const padR = 24
   const padT = 30
-  const padB = 40
-  const innerW = Math.max(1, w - padL - padR)
+  const padB = 44
   const innerH = Math.max(1, height - padT - padB)
 
   const pts = curve.points.map((p) => ({ x: p.discount_pct, v: pick(p) })).filter((p): p is { x: number; v: number } => p.v != null)
@@ -112,11 +111,19 @@ function Panel({
   const hi = Math.max(...values)
   const yMin = lo - (hi - lo) * 0.15
   const yMax = hi + (hi - lo) * 0.2 + 1e-9
+  const ticks = niceTicks(yMin, yMax).filter((t) => t >= yMin && t <= yMax)
+  // The y gutter is sized from the longest tick label at 15px (~9px a
+  // character, plus the 8px gap and a little air), so "₹456.00 Cr" never
+  // runs off the SVG's left edge.
+  const padL = Math.max(48, Math.max(...ticks.map((t) => format(t).length)) * 9 + 16)
+  const innerW = Math.max(1, w - padL - padR)
   const X = (x: number) => padL + ((x - xMin) / Math.max(1e-9, xMax - xMin)) * innerW
   const Y = (v: number) => padT + innerH * (1 - (v - yMin) / Math.max(1e-9, yMax - yMin))
   const path = pts.map((p, i) => `${i ? 'L' : 'M'} ${X(p.x)} ${Y(p.v)}`).join(' ')
-  const ticks = niceTicks(yMin, yMax).filter((t) => t >= yMin && t <= yMax)
-  const xTicks = Array.from({ length: Math.floor(xMax / 5) + 1 }, (_, i) => i * 5).filter((x) => x >= xMin && x <= xMax)
+  // Every 5% where there is room; a narrow panel steps by 10% or more so the
+  // 15px "35%" labels (~35px) keep at least ~48px between their centres.
+  const xStep = 5 * Math.max(1, Math.ceil(48 / Math.max(1, (5 / Math.max(1e-9, xMax - xMin)) * innerW)))
+  const xTicks = Array.from({ length: Math.floor(xMax / xStep) + 1 }, (_, i) => i * xStep).filter((x) => x >= xMin && x <= xMax)
   const today = curve.current_discount_pct
   const bestPt = best ? pts.reduce((a, p) => (Math.abs(p.x - best.x) < Math.abs(a.x - best.x) ? p : a), pts[0]) : null
   const hovered = hover != null ? curve.points[hover] : null
@@ -150,18 +157,18 @@ function Panel({
         {ticks.map((t) => (
           <g key={t}>
             <line x1={padL} x2={padL + innerW} y1={Y(t)} y2={Y(t)} stroke="var(--border-subtle)" />
-            <text x={padL - 8} y={Y(t) + 4} textAnchor="end" fontSize={13} fill="var(--text-muted)">
+            <text x={padL - 8} y={Y(t) + 4} textAnchor="end" fontSize={15} fill="var(--text-muted)">
               {format(t)}
             </text>
           </g>
         ))}
         <line x1={padL} x2={padL + innerW} y1={padT + innerH} y2={padT + innerH} stroke="var(--border-default)" />
         {xTicks.map((x) => (
-          <text key={x} x={X(x)} y={padT + innerH + 17} textAnchor="middle" fontSize={13} fill="var(--text-muted)">
+          <text key={x} x={X(x)} y={padT + innerH + 18} textAnchor="middle" fontSize={15} fill="var(--text-muted)">
             {x}%
           </text>
         ))}
-        <text x={padL + innerW / 2} y={height - 4} textAnchor="middle" fontSize={13} fontWeight={500} fill="var(--text-secondary)">
+        <text x={padL + innerW / 2} y={height - 6} textAnchor="middle" fontSize={15} fontWeight={500} fill="var(--text-secondary)">
           Average discount
         </text>
 
@@ -169,7 +176,7 @@ function Panel({
         {curve.evidence_max < xMax && (
           <g>
             <line x1={X(curve.evidence_max)} x2={X(curve.evidence_max)} y1={padT} y2={padT + innerH} stroke="var(--text-muted)" strokeDasharray="3 3" />
-            <text x={X(curve.evidence_max) + 4} y={padT + 12} fontSize={13} fill="var(--text-muted)">
+            <text x={X(curve.evidence_max) + 4} y={padT + 12} fontSize={15} fill="var(--text-muted)">
               data limit
             </text>
           </g>
@@ -178,7 +185,7 @@ function Panel({
         <path d={path} fill="none" stroke={LINE} strokeWidth={2.4} strokeLinejoin="round" strokeLinecap="round" />
 
         <line x1={X(today)} x2={X(today)} y1={padT - 4} y2={padT + innerH} stroke={CURRENT} strokeWidth={1.4} strokeDasharray="4 3" />
-        <text x={X(today) + (today > mid ? -6 : 6)} y={padT - 10} textAnchor={today > mid ? 'end' : 'start'} fontSize={13} fontWeight={500} fill={CURRENT}>
+        <text x={X(today) + (today > mid ? -6 : 6)} y={padT - 10} textAnchor={today > mid ? 'end' : 'start'} fontSize={15} fontWeight={500} fill={CURRENT}>
           Current {today.toFixed(2)}%
         </text>
 
@@ -189,7 +196,7 @@ function Panel({
               x={X(bestPt.x)}
               y={Y(bestPt.v) - 12}
               textAnchor="middle"
-              fontSize={13}
+              fontSize={15}
               fontWeight={500}
               fill="var(--text-secondary)"
               stroke="var(--surface-card)"

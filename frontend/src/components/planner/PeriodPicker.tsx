@@ -3,32 +3,38 @@ import { createPortal } from 'react-dom'
 import { Icon } from '../../icons'
 import type { PlannerOptions } from '../../types/planner'
 
-/** The period: a date range, chosen like the Google Calendar date picker.
+/** The period: a date range, chosen by dates or by whole months.
  *
- *  The header shows the period in big type; the date the next click will
- *  set is underlined in blue, and a line under it says what to do ("Now
- *  click the end date"). One month at a time, with arrows. The title climbs
- *  a level per click -- days, then the months of a year, then the years.
- *  Clicking a YEAR selects all of it and opens its months; Apply then takes
- *  the whole year, or a month click narrows it (a second month makes a
- *  range). The period is a soft band
- *  between two solid circles. Days with no data are greyed out. The panel is
- *  one fixed size.
+ *  TWO MODES, ONE PANEL.
+ *    Dates   a month of days. Click a start day, then an end day -- in the
+ *            same month or any other: the arrows step a month, and the
+ *            month title opens a month-and-year grid that JUMPS there, so a
+ *            range across months or years is two clicks to reach.
+ *    Months  the twelve months of a year. Click a start month, then an end
+ *            month -- the arrows change year, so a range across years works
+ *            the same way. One month alone is a period too. "All of 2025"
+ *            takes a whole year.
+ *  Shortcuts (last 3/6/12 months, the last two years) sit above both. While
+ *  the end is being chosen the range follows the pointer. The header shows
+ *  the two ends; click either to change just that one. Days and months with
+ *  no data are greyed out.
+ *
+ *  THE DATA IS IN BUSINESS WEEKS. Whatever is chosen covers the weeks that
+ *  contain its first and last day; the line under the header says exactly
+ *  which dates and how many weeks that is, and that is what Apply hands on.
  *
  *  SHARED. The Simulation Studio uses it as is; the Insights Hub passes
  *  `onClear` (an "All data" button -- its default) and `renderTrigger` (its
- *  own pill-shaped button), and may pass no period at all.
- *
- *  THE PLANNER WORKS IN BUSINESS WEEKS. Whatever is chosen, the plan covers
- *  the weeks that contain the start and the end -- the footer says which,
- *  and that is what Apply hands on. */
+ *  own pill-shaped button), and may pass no period at all. Both name the
+ *  period the same way (`smartPeriodLabel`): whole months as months,
+ *  anything that starts or ends inside a month as dates. */
 
 type WeekKey = [number, number]
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const MONTH_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const DOW = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
-const PANEL_W = 360
+const PANEL_W = 380
 
 const cmp = (a: WeekKey, b: WeekKey) => a[0] - b[0] || a[1] - b[1]
 
@@ -42,6 +48,11 @@ const addDays = (iso: string, n: number) => {
   return toIso(d)
 }
 const fmtDay = (iso: string) => `${Number(iso.slice(8, 10))} ${MONTH_ABBR[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`
+/** "10 Feb – 20 Apr 2025", or "29 Dec 2025 – 4 Jan 2026" across a year. */
+const fmtSpan = (from: string, to: string) =>
+  from.slice(0, 4) === to.slice(0, 4)
+    ? `${Number(from.slice(8, 10))} ${MONTH_ABBR[Number(from.slice(5, 7)) - 1]} – ${fmtDay(to)}`
+    : `${fmtDay(from)} – ${fmtDay(to)}`
 
 interface WeekSpan {
   key: WeekKey
@@ -87,8 +98,7 @@ function monthOfSpan(x: WeekSpan): [number, number] {
 }
 
 /** A period by its months -- "Mar 2025", "Mar – Jun 2025", "Nov 2025 – Feb
- *  2026" -- or "2025" for one whole year. No days: the Insights Hub names
- *  periods in months and years only. */
+ *  2026" -- or "2025" for one whole year. */
 export function monthPeriodLabel(start: WeekKey, end: WeekKey, calendar: PlannerOptions['calendar']): string {
   const spans = weekSpans(calendar)
   const a = spans.find((s) => cmp(s.key, start) === 0)
@@ -103,20 +113,62 @@ export function monthPeriodLabel(start: WeekKey, end: WeekKey, calendar: Planner
   return `${MONTH_ABBR[ma - 1]} ${ya} – ${MONTH_ABBR[mb - 1]} ${yb}`
 }
 
+/** Whether a period runs over WHOLE months: it starts on the first week of
+ *  a month and ends on the last week of a month (a week belongs to the month
+ *  holding most of its days, as everywhere else in this picker). */
+function isWholeMonths(start: WeekKey, end: WeekKey, spans: WeekSpan[]): boolean {
+  const i = spans.findIndex((s) => cmp(s.key, start) === 0)
+  const j = spans.findIndex((s) => cmp(s.key, end) === 0)
+  if (i < 0 || j < 0) return false
+  const sameMonth = (a: WeekSpan, b: WeekSpan) => {
+    const [ya, ma] = monthOfSpan(a)
+    const [yb, mb] = monthOfSpan(b)
+    return ya === yb && ma === mb
+  }
+  const startsMonth = i === 0 || !sameMonth(spans[i - 1], spans[i])
+  const endsMonth = j === spans.length - 1 || !sameMonth(spans[j], spans[j + 1])
+  return startsMonth && endsMonth
+}
+
+/** THE PERIOD'S NAME, on every page that shows one. Whole months read as
+ *  months -- "Jan – Apr 2026", or "2025" for a whole year -- because the dates
+ *  add nothing; a period that starts or ends inside a month reads as its
+ *  dates -- "12 Jan – 18 Apr 2026" -- because the month name would hide that
+ *  it is partial. */
+export function smartPeriodLabel(start: WeekKey, end: WeekKey, calendar: PlannerOptions['calendar']): string {
+  return isWholeMonths(start, end, weekSpans(calendar))
+    ? monthPeriodLabel(start, end, calendar)
+    : periodLabel(start, end, calendar)
+}
+
 export function weeksBetween(start: WeekKey, end: WeekKey, calendar: PlannerOptions['calendar']): number {
   let n = 0
   for (const y of calendar) for (const w of y.weeks) if (cmp([y.year, w.week], start) >= 0 && cmp([y.year, w.week], end) <= 0) n++
   return n
 }
 
-/** Which date the next click on a day sets.
+/** What the next click does.
  *
- *    new    the first click of a fresh period: it sets the start, and the
- *           next click sets the end
- *    end    the next click sets the end
- *    start  the user clicked the start date in the header: the next click
- *           moves the start only */
-type Step = 'new' | 'end' | 'start'
+ *    new        starts a fresh period: it sets the start, and the next
+ *               click sets the end
+ *    end        sets the end of the period being chosen
+ *    editStart  the start was clicked in the header: moves the start only
+ *    editEnd    the end was clicked in the header: moves the end only */
+type Pending = 'new' | 'end' | 'editStart' | 'editEnd'
+type Mode = 'days' | 'months'
+interface Range {
+  from: string
+  to: string
+}
+
+/** The next range after clicking a day or a month (`span`: a day is a span
+ *  of one day). Ends that cross are swapped, so any order of clicks works. */
+function nextRange(range: Range, span: Range, pending: Pending): Range {
+  if (pending === 'new') return span
+  if (pending === 'end') return { from: span.from < range.from ? span.from : range.from, to: span.to > range.to ? span.to : range.to }
+  if (pending === 'editStart') return span.from <= range.to ? { from: span.from, to: range.to } : { from: range.to, to: span.to }
+  return span.to >= range.from ? { from: range.from, to: span.to } : { from: span.from, to: range.from }
+}
 
 export function PeriodPicker({
   calendar,
@@ -139,42 +191,67 @@ export function PeriodPicker({
   onClear?: () => void
   /** A page's own trigger button, in place of the Studio's. */
   renderTrigger?: (t: { open: boolean; label: string; weeks: number | null; toggle: () => void }) => ReactNode
-  /** Years and months only -- no day grid (the Insights Hub). */
+  /** Months only -- no Dates mode. */
   monthsOnly?: boolean
 }) {
   const spans = useMemo(() => weekSpans(calendar), [calendar])
   const minDay = spans[0]?.start ?? ''
   const maxDay = spans[spans.length - 1]?.end ?? ''
   const spanOf = (k: WeekKey) => spans.find((s) => cmp(s.key, k) === 0)
-  const years = calendar.filter((y) => y.weeks.length).map((y) => y.year)
+
+  /** Each calendar month's span in business weeks, keyed y*12+m-1. A week
+   *  belongs to the month holding most of its days, so every week is in
+   *  exactly one month -- including the weeks that straddle a new year. */
+  const months = useMemo(() => {
+    const out = new Map<number, Range>()
+    for (const s of spans) {
+      const [y, m] = monthOfSpan(s)
+      const k = y * 12 + m - 1
+      const cur = out.get(k)
+      out.set(k, cur ? { from: cur.from, to: s.end } : { from: s.start, to: s.end })
+    }
+    return out
+  }, [spans])
+  const monthSpan = (y: number, m: number) => months.get(y * 12 + m - 1) ?? null
+  /** A business year: its first week to its last. */
+  const yearSpan = (y: number): Range | null => {
+    const ws = spans.filter((x) => x.key[0] === y)
+    return ws.length ? { from: ws[0].start, to: ws[ws.length - 1].end } : null
+  }
+  const monthYears = useMemo(() => [...new Set([...months.keys()].map((k) => Math.floor(k / 12)))], [months])
+  const businessYears = calendar.filter((y) => y.weeks.length).map((y) => y.year)
+  const monthKeys = [...months.keys()]
+  const firstMonthKey = Math.min(...monthKeys)
+  const lastMonthKey = Math.max(...monthKeys)
 
   const [open, setOpen] = useState(false)
-  const [range, setRange] = useState<{ from: string; to: string }>({ from: '', to: '' })
-  const [step, setStep] = useState<Step>('new')
-  const [hover, setHover] = useState<string | null>(null)
-  const [month, setMonth] = useState<{ y: number; m: number }>({ y: start?.[0] ?? years[years.length - 1] ?? 2026, m: 1 })
-  /** What the calendar shows: one month of days, the twelve months of a
-   *  year, or the years. The title button climbs a level each click. */
-  const [view, setView] = useState<'days' | 'months' | 'years'>('days')
-  /** The grain of the last pick. A single month or year is a whole period
-   *  already, so Apply needs no second click for it; a single day does. */
-  const [grain, setGrain] = useState<'day' | 'month' | 'year'>('day')
-  const [chooserYear, setChooserYear] = useState(start?.[0] ?? years[years.length - 1] ?? 2026)
+  const [mode, setMode] = useState<Mode>('days')
+  const [range, setRange] = useState<Range>({ from: '', to: '' })
+  const [pending, setPending] = useState<Pending>('new')
+  const [hover, setHover] = useState<Range | null>(null)
+  /** The month the Dates grid shows, and the year the Months grid shows. */
+  const [cursor, setCursor] = useState({ y: 2026, m: 1 })
+  const [cursorYear, setCursorYear] = useState(2026)
+  /** Dates mode's month-and-year jump grid, open over the days. */
+  const [jumping, setJumping] = useState(false)
+  const [jumpYear, setJumpYear] = useState(2026)
   const anchorRef = useRef<HTMLSpanElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const [place, setPlace] = useState({ left: 0, top: 0, maxH: 600 })
+  const [place, setPlace] = useState({ left: 0, top: 0, maxH: 640 })
 
-  const showMonthOf = (iso: string) => setMonth({ y: Number(iso.slice(0, 4)), m: Number(iso.slice(5, 7)) })
+  const showMonthOf = (iso: string) => setCursor({ y: Number(iso.slice(0, 4)), m: Number(iso.slice(5, 7)) })
 
+  // Opening: the current period, in the mode that names it best.
   useEffect(() => {
     if (!open) return
     const from = (start && spanOf(start)?.start) || minDay
     const to = (end && spanOf(end)?.end) || maxDay
     setRange({ from, to })
-    setStep('new')
-    setView(monthsOnly ? 'months' : 'days')
-    setGrain(monthsOnly ? 'month' : 'day')
-    setChooserYear(Number(to.slice(0, 4)))
+    setPending('new')
+    setHover(null)
+    setJumping(false)
+    setMode(monthsOnly || !start || !end || isWholeMonths(start, end, spans) ? 'months' : 'days')
+    setCursorYear(Number(to.slice(0, 4)))
     showMonthOf(to)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
@@ -186,7 +263,7 @@ export function PeriodPicker({
     const measure = () => {
       if (!anchorRef.current) return
       const r = anchorRef.current.getBoundingClientRect()
-      setPlace({ left: Math.max(8, Math.min(r.left, window.innerWidth - PANEL_W - 8)), top: r.bottom + 6, maxH: Math.max(240, window.innerHeight - r.bottom - 14) })
+      setPlace({ left: Math.max(8, Math.min(r.left, window.innerWidth - PANEL_W - 8)), top: r.bottom + 6, maxH: Math.max(260, window.innerHeight - r.bottom - 14) })
     }
     measure()
     window.addEventListener('resize', measure)
@@ -203,115 +280,134 @@ export function PeriodPicker({
       if (panelRef.current?.contains(e.target as Node) || anchorRef.current?.contains(e.target as Node)) return
       setOpen(false)
     }
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      // Escape steps back: out of the jump grid, then out of a half-chosen
+      // range, then closes.
+      if (jumping) setJumping(false)
+      else if (pending !== 'new') setPending('new')
+      else setOpen(false)
+    }
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
     return () => {
       document.removeEventListener('mousedown', onDown)
       document.removeEventListener('keydown', onKey)
     }
-  }, [open])
+  }, [open, jumping, pending])
 
-  const pick = (iso: string) => {
-    if (step === 'end' && grain === 'day') {
-      setRange((r) => (iso < r.from ? { from: iso, to: r.from } : { from: r.from, to: iso }))
-      setStep('new')
-    } else if (step === 'start') {
-      setRange((r) => (iso > r.to ? { from: r.to, to: iso } : { from: iso, to: r.to }))
-      setStep('new')
-    } else {
-      setRange({ from: iso, to: iso })
-      setStep('end')
-    }
+  /** A click on a day or a month: the next range, then what comes after. */
+  const choose = (span: Range) => {
+    setRange((r) => nextRange(r, span, pending))
+    setPending(pending === 'new' ? 'end' : 'new')
     setHover(null)
   }
-
-  /** A whole month or year, as business weeks. A week counts toward the
-   *  month that holds most of its days (its 4th day, or its last for a short
-   *  week), so March reads 3 Mar – 30 Mar, not 3 Mar – 6 Apr. */
-  const spanOfWeeks = (ws: WeekSpan[]) => (ws.length ? { from: ws[0].start, to: ws[ws.length - 1].end } : null)
-  const monthOfWeek = monthOfSpan
-  const monthSpan = (y: number, m: number) =>
-    spanOfWeeks(spans.filter((x) => x.key[0] === y && monthOfWeek(x)[0] === y && monthOfWeek(x)[1] === m))
-  const yearSpan = (y: number) => spanOfWeeks(spans.filter((x) => x.key[0] === y))
-
-  /** A year: select all of it and open its months, so a month can narrow it. */
-  const pickYear = (y: number) => {
-    const span = yearSpan(y)
+  const preset = (span: Range | null) => {
     if (!span) return
     setRange(span)
-    setStep('new')
-    setGrain('year')
-    setChooserYear(y)
-    setView('months')
+    setPending('new')
+    setHover(null)
+    setCursorYear(Number(span.to.slice(0, 4)))
+    showMonthOf(span.to)
   }
 
-  /** A month: the first click selects it, a second click stretches the
-   *  period to cover both months. */
-  const pickMonth = (y: number, m: number) => {
-    const span = monthSpan(y, m)
-    if (!span) return
-    if (step === 'end' && grain === 'month') {
-      setRange((r) => ({ from: span.from < r.from ? span.from : r.from, to: span.to > r.to ? span.to : r.to }))
-      setStep('new')
-    } else if (step === 'start') {
-      setRange((r) => ({ from: span.from, to: span.to > r.to ? span.to : r.to }))
-      setStep('new')
-    } else if (step === 'end') {
-      setRange((r) => ({ from: span.from < r.from ? span.from : r.from, to: span.to > r.to ? span.to : r.to }))
-      setStep('new')
-    } else {
-      setRange(span)
-      setStep('end')
-    }
-    setGrain('month')
-  }
-
-  // While the end is being chosen, the band follows the pointer.
-  const shown =
-    step === 'end' && hover ? (hover < range.from ? { from: hover, to: range.from } : { from: range.from, to: hover }) : range
-  const fromWeek = range.from ? weekOf(range.from, spans) : null
-  const toWeek = range.to ? weekOf(range.to, spans) : null
+  // While the end is being chosen, the range follows the pointer.
+  const shown = hover && pending !== 'new' ? nextRange(range, hover, pending) : range
+  const fromWeek = shown.from ? weekOf(shown.from, spans) : null
+  const toWeek = shown.to ? weekOf(shown.to, spans) : null
   const nWeeks = fromWeek && toWeek ? weeksBetween(fromWeek.key, toWeek.key, calendar) : 0
+  // One day is not a period yet; one month is.
+  const incomplete = pending === 'end' && mode === 'days'
 
-  const first = `${month.y}-${String(month.m).padStart(2, '0')}-01`
-  const canPrev = first > minDay
-  const canNext = addDays(first, 31).slice(0, 7) <= maxDay.slice(0, 7)
-  const go = (n: number) => {
-    const i = month.y * 12 + month.m - 1 + n
-    setMonth({ y: Math.floor(i / 12), m: (i % 12) + 1 })
+  // --- shortcuts, relative to the data's last month ---------------------------
+  const lastMonths = (n: number): Range | null => {
+    const a = months.get(Math.max(firstMonthKey, lastMonthKey - n + 1))
+    const b = months.get(lastMonthKey)
+    return a && b ? { from: a.from, to: b.to } : null
   }
+  const lastYear = businessYears[businessYears.length - 1]
+  const presets: { label: string; span: Range | null }[] = [
+    { label: 'Last 3 months', span: lastMonths(3) },
+    { label: 'Last 6 months', span: lastMonths(6) },
+    { label: 'Last 12 months', span: lastMonths(12) },
+    { label: String(lastYear), span: yearSpan(lastYear) },
+    ...(businessYears.length > 1 ? [{ label: String(lastYear - 1), span: yearSpan(lastYear - 1) }] : []),
+  ]
+  const presetOn = (span: Range | null) => !!span && span.from === range.from && span.to === range.to && pending === 'new'
 
-  const wholeYear = years.find((y) => {
+  // --- the Dates grid's month arrows: any month that holds a data day -------
+  const cursorKey = cursor.y * 12 + cursor.m - 1
+  const monthKeyOf = (iso: string) => Number(iso.slice(0, 4)) * 12 + Number(iso.slice(5, 7)) - 1
+  const canPrevMonth = cursorKey > monthKeyOf(minDay)
+  const canNextMonth = cursorKey < monthKeyOf(maxDay)
+  const stepMonth = (n: number) => {
+    const i = cursorKey + n
+    setCursor({ y: Math.floor(i / 12), m: (i % 12) + 1 })
+  }
+  const dayMonthHasData = (y: number, m: number) => {
+    const k = y * 12 + m - 1
+    return k >= monthKeyOf(minDay) && k <= monthKeyOf(maxDay)
+  }
+  const dayYears = useMemo(() => {
+    const out: number[] = []
+    for (let y = Number(minDay.slice(0, 4)); y <= Number(maxDay.slice(0, 4)); y++) out.push(y)
+    return out
+  }, [minDay, maxDay])
+
+  const wholeYear = businessYears.find((y) => {
     const span = yearSpan(y)
     return span && span.from === range.from && span.to === range.to
   })
-  const hint =
-    view === 'years'
-      ? 'Click a year to select all of it'
-      : view === 'months'
-        ? step === 'start'
-          ? 'Click the new first month'
-          : step === 'end' && grain === 'month'
-          ? 'Click another month for a range, or press Apply'
-          : wholeYear
-            ? `All of ${wholeYear} is selected · click a month to narrow it`
-            : 'Click a month to select it'
-        : step === 'end'
-          ? 'Now click the end date'
-          : step === 'start'
-            ? 'Click the new start date'
-            : 'Click a day to start a new period'
-  // One day is not a period yet; one month or one year is.
-  const incomplete = step === 'end' && grain === 'day'
 
-  const triggerLabel = start && end ? (monthsOnly ? monthPeriodLabel(start, end, calendar) : periodLabel(start, end, calendar)) : 'All data'
-  /** One edge of the period in the header: a day, or (months only) its month. */
+  const hint =
+    mode === 'months'
+      ? pending === 'end'
+        ? 'Now click the end month (‹ › change year), or Apply for this month alone'
+        : pending === 'editStart'
+          ? 'Click the new first month'
+          : pending === 'editEnd'
+            ? 'Click the new last month'
+            : 'Click a start month, then an end month'
+      : pending === 'end'
+        ? 'Now click the end date. ‹ › or the month title reach any month or year'
+        : pending === 'editStart'
+          ? 'Click the new start date'
+          : pending === 'editEnd'
+            ? 'Click the new end date'
+            : 'Click a start date, then an end date'
+
+  /** An end of the period in the header: its month in Months mode, its day in Dates. */
   const edgeText = (iso: string) => {
-    if (!iso || !monthsOnly) return undefined
-    const [y, m] = monthOfSpan(weekOf(iso, spans))
-    return `${MONTH_ABBR[m - 1]} ${y}`
+    if (!iso) return ''
+    if (mode === 'months') {
+      const [y, m] = monthOfSpan(weekOf(iso, spans))
+      return `${MONTH_ABBR[m - 1]} ${y}`
+    }
+    return fmtDay(iso)
   }
+  const switchMode = (m: Mode) => {
+    if (m === mode) return
+    setMode(m)
+    setPending('new')
+    setHover(null)
+    setJumping(false)
+    if (m === 'months') setCursorYear(Number((range.to || maxDay).slice(0, 4)))
+    else showMonthOf(range.to || maxDay)
+  }
+  const editEdge = (edge: 'editStart' | 'editEnd') => {
+    setPending(edge)
+    setHover(null)
+    const iso = edge === 'editStart' ? range.from : range.to
+    if (mode === 'months') setCursorYear(Number(iso.slice(0, 4)))
+    else {
+      setJumping(false)
+      showMonthOf(iso)
+    }
+  }
+
+  const gridYear = mode === 'months' ? cursorYear : jumpYear
+  const gridYears = mode === 'months' ? monthYears : dayYears
+  const triggerLabel = start && end ? (monthsOnly ? monthPeriodLabel(start, end, calendar) : smartPeriodLabel(start, end, calendar)) : 'All data'
   const triggerWeeks = start && end ? weeksBetween(start, end, calendar) : null
 
   return (
@@ -320,24 +416,24 @@ export function PeriodPicker({
         {renderTrigger ? (
           renderTrigger({ open, label: triggerLabel, weeks: triggerWeeks, toggle: () => !locked && setOpen((v) => !v) })
         ) : (
-        <button
-          type="button"
-          onClick={() => !locked && setOpen((v) => !v)}
-          title={locked ?? 'Choose the period to plan'}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          className={`inline-flex h-10 cursor-pointer items-center gap-2 rounded-[var(--r-md)] border px-3 text-base transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet [&_svg]:h-4 [&_svg]:w-4 ${
-            open ? 'border-brand-violet/50 bg-brand-violet-50 text-brand-violet' : 'border-border-default bg-surface-card text-ink-secondary hover:border-border-strong hover:bg-surface-hover'
-          } ${locked ? 'cursor-default' : ''}`}
-        >
-          <Icon name="calendar" />
-          <span className="font-medium">Period</span>
-          <span className="font-medium text-ink-primary">{triggerLabel}</span>
-          {triggerWeeks !== null && (
-            <span className="rounded-[var(--r-sm)] bg-brand-violet-50 px-1.5 py-0.5 text-sm font-medium text-brand-violet">{triggerWeeks} weeks</span>
-          )}
-          {locked ? <Icon name="lock" /> : <Icon name="chevronDown" />}
-        </button>
+          <button
+            type="button"
+            onClick={() => !locked && setOpen((v) => !v)}
+            title={locked ?? 'Choose the period to plan'}
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            className={`inline-flex h-10 cursor-pointer items-center gap-2 rounded-[var(--r-md)] border px-3 text-base transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet [&_svg]:h-4 [&_svg]:w-4 ${
+              open ? 'border-brand-violet/50 bg-brand-violet-50 text-brand-violet' : 'border-border-default bg-surface-card text-ink-secondary hover:border-border-strong hover:bg-surface-hover'
+            } ${locked ? 'cursor-default' : ''}`}
+          >
+            <Icon name="calendar" />
+            <span className="font-medium">Period</span>
+            <span className="font-medium text-ink-primary">{triggerLabel}</span>
+            {triggerWeeks !== null && (
+              <span className="rounded-[var(--r-sm)] bg-brand-violet-50 px-1.5 py-0.5 text-sm font-medium text-brand-violet">{triggerWeeks} weeks</span>
+            )}
+            {locked ? <Icon name="lock" /> : <Icon name="chevronDown" />}
+          </button>
         )}
       </span>
       {open &&
@@ -349,161 +445,168 @@ export function PeriodPicker({
             className="dd-enter fixed z-[9999] flex flex-col overflow-hidden rounded-[var(--r-xl)] border border-border-default bg-surface-card shadow-[var(--shadow-lg)]"
             style={{ left: place.left, top: place.top, width: PANEL_W, maxWidth: 'calc(100vw - 16px)', maxHeight: place.maxH }}
           >
-            {/* HEADER: the period in big type. Click a date to change just that one. */}
+            {/* HEADER: the two ends -- click either to change just that one --
+                and exactly what the period will cover. */}
             <div className="shrink-0 border-b border-border-subtle px-5 pb-3 pt-4">
-              <div className="text-sm text-ink-muted">Select period</div>
-              <div className="mt-1 flex items-baseline gap-2 text-xl">
-                <DateText value={range.from} text={edgeText(range.from)} active={step === 'start'} onClick={() => {
-                    setStep('start')
-                    setGrain(monthsOnly ? 'month' : 'day')
-                    if (monthsOnly) {
-                      setChooserYear(Number(range.from.slice(0, 4)))
-                      setView('months')
-                    } else {
-                      setView('days')
-                      showMonthOf(range.from)
-                    }
-                  }}
-                  label="start"
-                />
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-ink-muted">Select period</span>
+                {!monthsOnly && (
+                  <div role="tablist" aria-label="Choose by" className="inline-flex rounded-[var(--r-pill)] bg-surface-muted p-0.5">
+                    {(['days', 'months'] as Mode[]).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        role="tab"
+                        aria-selected={mode === m}
+                        onClick={() => switchMode(m)}
+                        className={`h-7 cursor-pointer rounded-[var(--r-pill)] px-3 transition-colors ${mode === m ? 'bg-surface-card text-ink-primary shadow-[var(--shadow-sm)]' : 'text-ink-muted hover:text-ink-primary'}`}
+                      >
+                        {m === 'days' ? 'Dates' : 'Months'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2">
+                <EdgeButton text={edgeText(shown.from)} active={pending === 'editStart'} onClick={() => editEdge('editStart')} label="start" />
                 <span className="text-ink-muted">–</span>
-                <DateText value={step === 'end' && range.from === range.to ? '' : range.to} text={step === 'end' && range.from === range.to ? undefined : edgeText(range.to)} active={step === 'end'} onClick={() => {
-                    setStep('end')
-                    setGrain(monthsOnly ? 'month' : 'day')
-                    if (monthsOnly) {
-                      setChooserYear(Number(range.to.slice(0, 4)))
-                      setView('months')
-                    } else {
-                      setView('days')
-                      showMonthOf(range.to)
-                    }
-                  }}
+                <EdgeButton
+                  text={pending === 'end' && !hover ? '' : edgeText(shown.to)}
+                  placeholder={mode === 'months' ? 'End month' : 'End date'}
+                  active={pending === 'end' || pending === 'editEnd'}
+                  onClick={() => editEdge('editEnd')}
                   label="end"
                 />
               </div>
-              <div className="mt-1 text-sm text-ink-muted">
-                {nWeeks} {nWeeks === 1 ? 'week' : 'weeks'} · <span className={step === 'new' && view === 'days' ? '' : 'font-medium text-brand-blue'}>{hint}</span>
+              <div className="mt-1 text-ink-muted [font-variant-numeric:tabular-nums]">
+                {fromWeek && toWeek ? `Covers ${fmtSpan(fromWeek.start, toWeek.end)} · ${nWeeks} ${nWeeks === 1 ? 'week' : 'weeks'}` : ''}
               </div>
+              <div className="mt-0.5 text-brand-blue">{hint}</div>
             </div>
 
-            {/* NAV BAR: the title climbs a level -- days, months, years. */}
-            <div className="flex shrink-0 items-center justify-between px-3 pt-3">
-              {view === 'years' ? (
-                <span className="px-2 py-1 text-base font-medium text-ink-primary">Choose a year</span>
-              ) : (
+            {/* SHORTCUTS */}
+            <div className="flex shrink-0 flex-wrap gap-1.5 px-4 pt-3">
+              {presets.map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  disabled={!p.span}
+                  onClick={() => preset(p.span)}
+                  className={`h-7 cursor-pointer rounded-[var(--r-pill)] border px-2.5 transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                    presetOn(p.span) ? 'border-brand-violet bg-brand-violet text-white' : 'border-border-default text-ink-secondary hover:border-border-strong hover:bg-surface-hover'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* NAV BAR */}
+            <div className="flex shrink-0 items-center justify-between px-3 pt-2">
+              {mode === 'days' && !jumping ? (
                 <button
                   type="button"
-                  title={view === 'days' ? 'Choose a month' : 'Choose a year'}
+                  title="Jump to another month or year"
                   onClick={() => {
-                    if (view === 'days') {
-                      setChooserYear(month.y)
-                      setView('months')
-                    } else setView('years')
+                    setJumpYear(cursor.y)
+                    setJumping(true)
                   }}
-                  className="inline-flex cursor-pointer items-center gap-1 rounded-[var(--r-md)] px-2 py-1 text-base font-medium text-ink-primary hover:bg-surface-hover [&_svg]:h-4 [&_svg]:w-4"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-[var(--r-md)] px-2 py-1 text-ink-primary hover:bg-surface-hover [&_svg]:h-4 [&_svg]:w-4"
                 >
-                  {view === 'months' ? chooserYear : `${MONTH_FULL[month.m - 1]} ${month.y}`}
+                  {MONTH_FULL[cursor.m - 1]} {cursor.y}
                   <Icon name="chevronDown" />
                 </button>
+              ) : (
+                <span className="px-2 py-1 text-ink-primary">{mode === 'days' ? `Go to a month in ${jumpYear}` : cursorYear}</span>
               )}
               <div className="flex items-center">
-                {view !== 'days' && !monthsOnly && (
+                {mode === 'months' && (
                   <button
                     type="button"
-                    onClick={() => {
-                      showMonthOf(range.from || minDay)
-                      setView('days')
-                    }}
-                    className="mr-1 h-8 cursor-pointer rounded-[var(--r-md)] px-2.5 text-sm font-medium text-brand-blue hover:bg-brand-blue-50"
+                    disabled={!yearSpan(cursorYear)}
+                    onClick={() => preset(yearSpan(cursorYear))}
+                    className={`mr-1 h-8 cursor-pointer rounded-[var(--r-md)] px-2.5 hover:bg-brand-blue-50 disabled:cursor-not-allowed disabled:opacity-40 ${
+                      wholeYear === cursorYear ? 'text-brand-violet' : 'text-brand-blue'
+                    }`}
                   >
-                    Pick days
+                    All of {cursorYear}
                   </button>
                 )}
-                {view !== 'years' && (
-                  <>
-                    <RoundButton
-                      label={view === 'months' ? 'Previous year' : 'Previous month'}
-                      icon="chevronLeft"
-                      disabled={view === 'months' ? chooserYear <= years[0] : !canPrev}
-                      onClick={() => (view === 'months' ? setChooserYear(chooserYear - 1) : go(-1))}
-                    />
-                    <RoundButton
-                      label={view === 'months' ? 'Next year' : 'Next month'}
-                      icon="chevronRight"
-                      disabled={view === 'months' ? chooserYear >= years[years.length - 1] : !canNext}
-                      onClick={() => (view === 'months' ? setChooserYear(chooserYear + 1) : go(1))}
-                    />
-                  </>
+                {mode === 'days' && jumping && (
+                  <button type="button" onClick={() => setJumping(false)} className="mr-1 h-8 cursor-pointer rounded-[var(--r-md)] px-2.5 text-brand-blue hover:bg-brand-blue-50">
+                    Back
+                  </button>
+                )}
+                <RoundButton
+                  label={mode === 'days' && !jumping ? 'Previous month' : 'Previous year'}
+                  icon="chevronLeft"
+                  disabled={mode === 'days' && !jumping ? !canPrevMonth : gridYear <= gridYears[0]}
+                  onClick={() => (mode === 'days' && !jumping ? stepMonth(-1) : mode === 'days' ? setJumpYear(jumpYear - 1) : setCursorYear(cursorYear - 1))}
+                />
+                <RoundButton
+                  label={mode === 'days' && !jumping ? 'Next month' : 'Next year'}
+                  icon="chevronRight"
+                  disabled={mode === 'days' && !jumping ? !canNextMonth : gridYear >= gridYears[gridYears.length - 1]}
+                  onClick={() => (mode === 'days' && !jumping ? stepMonth(1) : mode === 'days' ? setJumpYear(jumpYear + 1) : setCursorYear(cursorYear + 1))}
+                />
+              </div>
+            </div>
+
+            {/* BODY: days, the jump grid, or months. One fixed height. */}
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2 pt-1" onMouseLeave={() => setHover(null)}>
+              <div className="h-[272px]">
+                {mode === 'months' || jumping ? (
+                  <div className="grid grid-cols-3 gap-2 pt-3">
+                    {MONTH_ABBR.map((name, i) => {
+                      const span = monthSpan(gridYear, i + 1)
+                      const hasData = mode === 'months' ? !!span : dayMonthHasData(gridYear, i + 1)
+                      const on = mode === 'months' && !!span && span.to >= shown.from && span.from <= shown.to
+                      const edge = on && !!span && (span.from === shown.from || span.to === shown.to)
+                      const here = jumping && gridYear === cursor.y && i + 1 === cursor.m
+                      return (
+                        <button
+                          key={name}
+                          type="button"
+                          disabled={!hasData}
+                          title={hasData ? `${MONTH_FULL[i]} ${gridYear}` : 'No data'}
+                          onMouseEnter={() => mode === 'months' && pending !== 'new' && span && setHover(span)}
+                          onClick={() => {
+                            if (jumping) {
+                              setCursor({ y: gridYear, m: i + 1 })
+                              setJumping(false)
+                            } else if (span) choose(span)
+                          }}
+                          className={`h-11 cursor-pointer rounded-[var(--r-pill)] transition-colors disabled:cursor-not-allowed disabled:text-ink-disabled ${
+                            edge
+                              ? 'bg-brand-violet text-white'
+                              : on
+                                ? 'bg-brand-blue-50 text-brand-violet hover:bg-brand-blue/15'
+                                : here
+                                  ? 'bg-brand-violet text-white'
+                                  : 'text-ink-primary hover:bg-surface-hover'
+                          }`}
+                        >
+                          {name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <MonthGrid
+                    year={cursor.y}
+                    month={cursor.m}
+                    minDay={minDay}
+                    maxDay={maxDay}
+                    from={shown.from}
+                    to={shown.to}
+                    onPick={(iso) => choose({ from: iso, to: iso })}
+                    onHover={(iso) => pending !== 'new' && setHover({ from: iso, to: iso })}
+                  />
                 )}
               </div>
             </div>
 
-            {/* BODY: days, months or years. One fixed height. */}
-            <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2 pt-1" onMouseLeave={() => setHover(null)}>
-              <div className="h-[272px]">
-              {view === 'years' ? (
-                <div className="grid grid-cols-2 gap-2 pt-3">
-                  {years.map((y) => {
-                    const span = yearSpan(y)
-                    const n = spans.filter((x) => x.key[0] === y).length
-                    const on = !!span && span.to >= range.from && span.from <= range.to
-                    const whole = wholeYear === y
-                    return (
-                      <button
-                        key={y}
-                        type="button"
-                        onClick={() => pickYear(y)}
-                        className={`flex h-16 cursor-pointer flex-col items-center justify-center rounded-[var(--r-lg)] transition-colors ${
-                          whole ? 'bg-brand-violet text-white' : on ? 'bg-brand-blue-50 text-brand-violet hover:bg-brand-blue/15' : 'text-ink-primary hover:bg-surface-hover'
-                        }`}
-                      >
-                        <span className="text-md font-medium">{y}</span>
-                        <span className={`text-sm ${whole ? 'text-white/80' : 'text-ink-muted'}`}>{n < 50 ? `${n} weeks so far` : `${n} weeks`}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              ) : view === 'months' ? (
-                <div className="grid grid-cols-3 gap-2 pt-3">
-                  {MONTH_ABBR.map((name, i) => {
-                    const span = monthSpan(chooserYear, i + 1)
-                    const on = !!span && span.to >= range.from && span.from <= range.to
-                    const edge = !!span && !wholeYear && (span.from === range.from || span.to === range.to)
-                    return (
-                      <button
-                        key={name}
-                        type="button"
-                        disabled={!span}
-                        title={span ? `${MONTH_FULL[i]} ${chooserYear}` : 'No data'}
-                        onClick={() => pickMonth(chooserYear, i + 1)}
-                        className={`h-11 cursor-pointer rounded-[var(--r-pill)] text-base transition-colors disabled:cursor-not-allowed disabled:text-ink-disabled ${
-                          edge ? 'bg-brand-violet font-medium text-white' : on ? 'bg-brand-blue-50 text-brand-violet hover:bg-brand-blue/15' : 'text-ink-primary hover:bg-surface-hover'
-                        }`}
-                      >
-                        {name}
-                      </button>
-                    )
-                  })}
-                </div>
-              ) : (
-                <MonthGrid
-                  year={month.y}
-                  month={month.m}
-                  minDay={minDay}
-                  maxDay={maxDay}
-                  from={shown.from}
-                  to={shown.to}
-                  onPick={(iso) => {
-                    pick(iso)
-                    setGrain('day')
-                  }}
-                  onHover={(iso) => step === 'end' && grain === 'day' && setHover(iso)}
-                />
-              )}
-              </div>
-            </div>
-
-            {/* FOOTER: what the plan will cover, and the two actions. */}
+            {/* FOOTER */}
             <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border-subtle px-5 py-2.5">
               {onClear ? (
                 <TextButton
@@ -516,22 +619,16 @@ export function PeriodPicker({
                   All data
                 </TextButton>
               ) : (
-              <span className="min-w-0 truncate text-sm text-ink-muted">
-                {fromWeek && toWeek
-                  ? fromWeek.key[0] === toWeek.key[0]
-                    ? `Weeks ${fromWeek.key[1]}–${toWeek.key[1]}, ${toWeek.key[0]}`
-                    : `Week ${fromWeek.key[1]} ${fromWeek.key[0]} – week ${toWeek.key[1]} ${toWeek.key[0]}`
-                  : ''}
-              </span>
+                <span />
               )}
               <div className="flex shrink-0 items-center gap-2">
                 <TextButton onClick={() => setOpen(false)}>Cancel</TextButton>
                 <TextButton
                   strong
-                  disabled={incomplete || !fromWeek || !toWeek}
+                  disabled={incomplete || !range.from || !range.to}
                   title={incomplete ? 'Click the end date first' : undefined}
                   onClick={() => {
-                    if (fromWeek && toWeek) onApply(fromWeek.key, toWeek.key)
+                    onApply(weekOf(range.from, spans).key, weekOf(range.to, spans).key)
                     setOpen(false)
                   }}
                 >
@@ -546,19 +643,19 @@ export function PeriodPicker({
   )
 }
 
-/** A date in the header: big text, underlined in blue while it is the one the
- *  next click will set. */
-function DateText({ value, text, active, onClick, label }: { value: string; text?: string; active: boolean; onClick: () => void; label: string }) {
+/** An end of the period in the header: big text, underlined in blue while it
+ *  is the one the next click will set. */
+function EdgeButton({ text, placeholder, active, onClick, label }: { text: string; placeholder?: string; active: boolean; onClick: () => void; label: string }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      title={`Change the ${label} date`}
-      className={`cursor-pointer border-b-2 pb-0.5 font-normal transition-colors ${
+      title={`Change the ${label}`}
+      className={`cursor-pointer border-b-2 pb-0.5 text-xl font-normal transition-colors ${
         active ? 'border-brand-blue text-brand-blue' : 'border-transparent text-ink-primary hover:border-border-strong'
       }`}
     >
-      {value ? (text ?? fmtDay(value)) : <span className="text-ink-muted">{text === undefined ? 'End' : 'End month'}</span>}
+      {text || <span className="text-ink-muted">{placeholder ?? 'End'}</span>}
     </button>
   )
 }
@@ -646,7 +743,7 @@ function MonthGrid({
             <button
               type="button"
               disabled={out}
-              title={out ? 'No data for this day' : undefined}
+              title={out ? 'No data for this day' : fmtDay(iso)}
               onClick={() => onPick(iso)}
               onMouseEnter={() => onHover(iso)}
               className={`relative grid h-9 w-9 cursor-pointer place-items-center rounded-full text-base [font-variant-numeric:tabular-nums] transition-colors disabled:cursor-not-allowed ${

@@ -6,7 +6,7 @@ import { useRiskAlerts } from '../../hooks/useCommandCenter'
 import { useAlertHandoff } from '../../hooks/useAlertHandoff'
 import { useEnsureCommandScope } from '../../hooks/useCommandScope'
 import { ALERT_FETCH_LIMIT, topAlerts } from '../command/riskRanking'
-import { BREAKEVEN_ROI, ROI_TONE_CLASS, fmtRoi, netTone } from '../../lib/roi'
+import { BREAKEVEN_ROI, ROI_TONE_CLASS, fmtRoi, netTone, signedDisplay } from '../../lib/roi'
 import type { RiskAlert } from '../../types/commandCenter'
 
 /** START AN INVESTIGATION FROM AN ALERT, without going back to the Insights Hub.
@@ -242,7 +242,7 @@ export function AlertPicker({ disabled }: { disabled?: boolean }) {
                           title="Incremental sales − trade spend"
                           className={ROI_TONE_CLASS[netTone(a.net_incremental_profit, roi)]}
                         >
-                          {a.net_incremental_profit_display}
+                          {signedDisplay(a.net_incremental_profit, a.net_incremental_profit_display)}
                           <span className="ml-1 text-xs font-medium text-ink-muted">net</span>
                         </span>
                       </span>

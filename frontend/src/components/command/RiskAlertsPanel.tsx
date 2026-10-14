@@ -3,7 +3,7 @@ import { IconButton, Modal } from '../ui'
 import { Icon, type IconName } from '../../icons'
 import { SEVERITIES, rankByImpact, type Severity } from './riskRanking'
 import type { RiskAlert, RiskAlertsResponse } from '../../types/commandCenter'
-import { ROI_TONE_CLASS, fmtRoi, netTone, roiTone } from '../../lib/roi'
+import { ROI_TONE_CLASS, fmtRoi, netTone, roiTone, signedDisplay } from '../../lib/roi'
 
 /** Top Risk Alerts, segmented by severity.
  *
@@ -263,7 +263,7 @@ function AlertRow({
             title="Incremental sales − trade spend"
             className={ROI_TONE_CLASS[netTone(a.sales_less_spend, roi)]}
           >
-            {a.sales_less_spend_display}
+            {signedDisplay(a.sales_less_spend, a.sales_less_spend_display)}
           </span>
         </span>
       </div>
@@ -294,7 +294,7 @@ function AlertRow({
           <span className="shrink-0 tabular-nums">{a.at_stake_display} at stake</span>
         </div>
         <div className="mt-0.5 tabular-nums text-ink-muted">
-          {a.net_incremental_profit_display} net incremental profit
+          {signedDisplay(a.net_incremental_profit, a.net_incremental_profit_display)} net incremental profit
         </div>
       </div>
     </button>

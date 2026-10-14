@@ -349,11 +349,13 @@ function ReportRow({
   const ready = report.status === 'ready'
   return (
     <Tr>
-      <Td emphasis className="max-w-[260px]">
-        <span className="block truncate" title={report.name}>
+      {/* Names wrap rather than truncate: at 14px a truncated name cut every
+          report to the same "Decision Center — F25 (Annual..." prefix. */}
+      <Td emphasis className="min-w-[240px] max-w-[320px]">
+        <span className="block break-words" title={report.name}>
           {report.name}
         </span>
-        <span className="block truncate text-xs font-normal text-ink-muted">
+        <span className="block break-words text-xs font-normal text-ink-muted">
           {report.title}
         </span>
       </Td>
@@ -363,7 +365,7 @@ function ReportRow({
         </span>
       </Td>
       <Td className="max-w-[240px]">
-        <span className="block truncate text-sm" title={report.scope_label}>
+        <span className="block break-words text-sm" title={report.scope_label}>
           {report.scope_label || '—'}
         </span>
       </Td>
@@ -611,7 +613,7 @@ function Line({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <span className="shrink-0 text-ink-muted">{label}</span>
-      <span className="truncate text-right font-medium text-ink-primary" title={value}>
+      <span className="min-w-0 break-words text-right font-medium text-ink-primary" title={value}>
         {value}
       </span>
     </div>

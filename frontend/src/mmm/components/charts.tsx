@@ -70,7 +70,64 @@ function axisWithLabelRoom(values: number[]) {
   return axis(peak > 0 ? [...values, peak * 1.12] : values)
 }
 
-const TICK_PITCH = 56
+/** Every chart label is 15px Inter. CHAR_W is a slightly generous advance
+ *  per character (figures, "₹", "Cr"), so space sized from it always holds
+ *  the label. */
+const CHAR_W = 9
+const textW = (s: string) => s.length * CHAR_W
+
+/** The width a y-axis needs: its longest tick label plus the 8px gap to the
+ *  plot and a little air at the SVG edge. */
+const axisPad = (labels: string[]) => Math.ceil(Math.max(0, ...labels.map(textW))) + 14
+
+/** Lowers a 15px tick label so its middle sits on its gridline. */
+const TICK_DY = 5
+
+/** Baseline-to-baseline distance of stacked 15px labels under a chart. */
+const LINE_H = 18
+
+let measureCtx: CanvasRenderingContext2D | null | undefined
+/** The rendered width of a 15px label in the page's font; `textW`'s
+ *  estimate where a canvas is unavailable. */
+function measure(s: string): number {
+  if (measureCtx === undefined) {
+    measureCtx = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d')
+    if (measureCtx) measureCtx.font = `400 15px ${getComputedStyle(document.body).fontFamily || 'Inter, sans-serif'}`
+  }
+  return measureCtx ? measureCtx.measureText(s).width : textW(s)
+}
+
+/** A label in at most two lines no wider than `maxW`, broken at a space;
+ *  what will not fit is cut with an ellipsis. */
+function wrapLabel(label: string, maxW: number): string[] {
+  const cut = (s: string) => {
+    if (measure(s) <= maxW) return s
+    let t = s
+    while (t.length > 1 && measure(`${t}…`) > maxW) t = t.slice(0, -1)
+    return `${t}…`
+  }
+  if (measure(label) <= maxW) return [label]
+  const words = label.split(' ')
+  let first = ''
+  let k = 0
+  while (k < words.length && measure(first ? `${first} ${words[k]}` : words[k]) <= maxW) {
+    first = first ? `${first} ${words[k]}` : words[k]
+    k++
+  }
+  if (!first) return [cut(label)]
+  return k < words.length ? [first, cut(words.slice(k).join(' '))] : [first]
+}
+
+/** Year-aware x-axis ticks (see `yearAwareTicks`) at the smallest spacing
+ *  where no two neighbouring labels come within 16px of each other. `step`
+ *  is the pixel distance between consecutive labels' centres. */
+function spacedTicks(labels: string[], step: number): Array<{ i: number; text: string }> {
+  for (let every = 1; ; every++) {
+    const ticks = yearAwareTicks(labels, every)
+    const fits = ticks.every((t, k) => k === 0 || step * every >= (textW(ticks[k - 1].text) + textW(t.text)) / 2 + 16)
+    if (fits || every >= labels.length) return ticks
+  }
+}
 
 /** X-axis ticks every `every` labels, printing the year only on the first
  *  tick and where it changes — "Jan 2025, Feb, Mar … Jan 2026", as TPO's
@@ -131,14 +188,9 @@ export function MmmTrend({
   const { ref, width } = useChartWidth(640)
   const [hover, setHover] = useState<number | null>(null)
   const n = trend.labels.length
-  const padL = 64
-  const padR = 52
-  const padT = 14
-  const padB = 26
-  const innerW = Math.max(120, width - padL - padR)
+  const padT = 16
+  const padB = 30
   const innerH = Math.max(80, height - padT - padB)
-  const step = n > 0 ? innerW / n : innerW
-  const x = (i: number) => padL + step * i + step / 2
 
   const show = (k: MmmTrendSeries) => !hidden.has(k)
   const moneyValues = [
@@ -163,6 +215,15 @@ export function MmmTrend({
   const roasLo = roasFloor(roasStep)
   const roasHi = roasLo + roasStep * roasDivs
   const yRoas = (v: number) => padT + innerH * (1 - (v - roasLo) / (roasHi - roasLo || 1))
+  const moneyLabels = money.ticks.map((t) => axisMoney(t * rate, currency))
+  const roasLabels = money.ticks.map((_, k) => `${(roasLo + roasStep * k).toFixed(2)}x`)
+
+  // The side pads are sized from the axis labels they hold.
+  const padL = axisPad(moneyLabels)
+  const padR = axisPad(roasLabels)
+  const innerW = Math.max(120, width - padL - padR)
+  const step = n > 0 ? innerW / n : innerW
+  const x = (i: number) => padL + step * i + step / 2
 
   const line = (values: Array<number | null>, y: (v: number) => number) => {
     const runs: string[] = []
@@ -177,8 +238,7 @@ export function MmmTrend({
     return runs
   }
 
-  const every = Math.max(1, Math.ceil(TICK_PITCH / step))
-  const xTicks = yearAwareTicks(trend.labels, every)
+  const xTicks = spacedTicks(trend.labels, step)
   const active = hover !== null && hover < n ? hover : null
   // Wider when the period's event mix is listed, so a combination such as
   // "Festival + Seasonal + 10% Discount" stays on one line.
@@ -198,12 +258,12 @@ export function MmmTrend({
             <g key={t}>
               <line x1={padL} x2={width - padR} y1={yy} y2={yy} stroke={t === money.lo ? 'var(--border-default)' : 'var(--border-subtle)'} />
               {moneyAxis && (
-                <text x={padL - 8} y={yy + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+                <text x={padL - 8} y={yy + TICK_DY} textAnchor="end" fontSize={15} fill="var(--text-muted)">
                   {axisMoney(t * rate, currency)}
                 </text>
               )}
               {roasAxis && (
-                <text x={width - padR + 8} y={yy + 3} textAnchor="start" fontSize={10} fill="var(--text-muted)">
+                <text x={width - padR + 8} y={yy + TICK_DY} textAnchor="start" fontSize={15} fill="var(--text-muted)">
                   {(roasLo + roasStep * k).toFixed(2)}x
                 </text>
               )}
@@ -227,7 +287,7 @@ export function MmmTrend({
               x={width - padR - 4}
               y={yRoas(BREAKEVEN_ROAS) - 4}
               textAnchor="end"
-              fontSize={10}
+              fontSize={15}
               fontWeight={500}
               fill="var(--text-muted)"
             >
@@ -269,7 +329,7 @@ export function MmmTrend({
           </>
         )}
         {xTicks.map((t) => (
-          <text key={t.i} x={x(t.i)} y={height - 6} textAnchor="middle" fontSize={10} fill="var(--text-muted)">
+          <text key={t.i} x={x(t.i)} y={height - 8} textAnchor="middle" fontSize={15} fill="var(--text-muted)">
             {t.text}
           </text>
         ))}
@@ -351,14 +411,15 @@ export function ValueColumns({
 }) {
   const { ref, width, height } = useChartSize(520, 240)
   const [hover, setHover] = useState<number | null>(null)
-  const padL = 60
   const padR = 8
   const padT = 22
-  const padB = columns.some((c) => c.sub) ? 38 : 26
-  const innerW = Math.max(120, width - padL - padR)
+  const padB = columns.some((c) => c.sub) ? 48 : 30
   const innerH = Math.max(80, height - padT - padB)
   const values = columns.map((c) => c.value).filter((v): v is number => v !== null)
   const { lo, hi, ticks } = axisWithLabelRoom(values.length ? values : [1])
+  // Sized from the tick labels, so the longest fits beside the plot.
+  const padL = axisPad(ticks.map(format))
+  const innerW = Math.max(120, width - padL - padR)
   const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
   const slot = innerW / Math.max(1, columns.length)
   const barW = Math.max(10, Math.min(56, slot * 0.5))
@@ -372,7 +433,7 @@ export function ValueColumns({
         {ticks.map((t) => (
           <g key={t}>
             <line x1={padL} x2={padL + innerW} y1={y(t)} y2={y(t)} stroke={t === lo ? 'var(--border-default)' : 'var(--border-subtle)'} />
-            <text x={padL - 7} y={y(t) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+            <text x={padL - 7} y={y(t) + TICK_DY} textAnchor="end" fontSize={15} fill="var(--text-muted)">
               {format(t)}
             </text>
           </g>
@@ -405,7 +466,7 @@ export function ValueColumns({
                     x={cx(i)}
                     y={c.value < 0 ? y(c.value) + 13 : y(c.value) - 6}
                     textAnchor="middle"
-                    fontSize={10.5}
+                    fontSize={15}
                     fontWeight={500}
                     fill="var(--text-primary)"
                   >
@@ -414,22 +475,22 @@ export function ValueColumns({
                 </>
               )}
               {c.value === null && (
-                <text x={cx(i)} y={zeroY - 6} textAnchor="middle" fontSize={10} fill="var(--text-muted)">
+                <text x={cx(i)} y={zeroY - 6} textAnchor="middle" fontSize={15} fill="var(--text-muted)">
                   —
                 </text>
               )}
               <text
                 x={cx(i)}
-                y={height - (c.sub ? 22 : 8)}
+                y={height - (c.sub ? 25 : 7)}
                 textAnchor="middle"
-                fontSize={10.5}
+                fontSize={15}
                 fontWeight={c.role === 'idle' ? 500 : 700}
                 fill={c.role === 'idle' ? 'var(--text-muted)' : 'var(--text-primary)'}
               >
                 {c.label}
               </text>
               {c.sub && (
-                <text x={cx(i)} y={height - 8} textAnchor="middle" fontSize={9.5} fill="var(--text-muted)">
+                <text x={cx(i)} y={height - 6} textAnchor="middle" fontSize={15} fill="var(--text-muted)">
                   {c.sub}
                 </text>
               )}
@@ -483,14 +544,15 @@ export function PairedColumns({
 }) {
   const { ref, width, height } = useChartSize(520, 240)
   const [hover, setHover] = useState<number | null>(null)
-  const padL = 60
   const padR = 8
   const padT = 16
-  const padB = 38
-  const innerW = Math.max(120, width - padL - padR)
+  const padB = 48
   const innerH = Math.max(80, height - padT - padB)
   const values = groups.flatMap((g) => [g.with_avg, g.without_avg]).filter((v): v is number => v !== null)
   const { lo, hi, ticks } = axis(values.length ? values : [1])
+  // Sized from the tick labels, so the longest fits beside the plot.
+  const padL = axisPad(ticks.map((t) => axisMoney(t * rate, currency)))
+  const innerW = Math.max(120, width - padL - padR)
   const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
   const slot = innerW / Math.max(1, groups.length)
   const barW = Math.max(8, Math.min(30, slot * 0.3))
@@ -504,7 +566,7 @@ export function PairedColumns({
         {ticks.map((t) => (
           <g key={t}>
             <line x1={padL} x2={padL + innerW} y1={y(t)} y2={y(t)} stroke={t === lo ? 'var(--border-default)' : 'var(--border-subtle)'} />
-            <text x={padL - 7} y={y(t) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+            <text x={padL - 7} y={y(t) + TICK_DY} textAnchor="end" fontSize={15} fill="var(--text-muted)">
               {axisMoney(t * rate, currency)}
             </text>
           </g>
@@ -539,10 +601,10 @@ export function PairedColumns({
                   />
                 ),
               )}
-              <text x={cx(i)} y={height - 22} textAnchor="middle" fontSize={10.5} fontWeight={500} fill="var(--text-primary)">
+              <text x={cx(i)} y={height - 25} textAnchor="middle" fontSize={15} fontWeight={500} fill="var(--text-primary)">
                 {g.label}
               </text>
-              <text x={cx(i)} y={height - 8} textAnchor="middle" fontSize={9.5} fill="var(--text-muted)">
+              <text x={cx(i)} y={height - 6} textAnchor="middle" fontSize={15} fill="var(--text-muted)">
                 {g.difference_display}
               </text>
               <rect
@@ -602,26 +664,36 @@ export function RankedColumns({
   const { ref, width, height } = useChartSize(520, 300)
   const [hover, setHover] = useState<number | null>(null)
   const n = items.length
-  const padL = 60
   const padR = 8
-  const padT = 22
-  const padB = items.some((c) => c.sub) ? 42 : 28
-  const innerW = Math.max(120, width - padL - padR)
-  const innerH = Math.max(80, height - padT - padB)
   const values = items.map((c) => c.value).filter((v): v is number => v !== null)
   const { lo, hi, ticks } = axisWithLabelRoom(values.length ? values : [1])
-  const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
+  // Sized from the tick labels, so the longest fits beside the plot.
+  const padL = axisPad(ticks.map(format))
+  const innerW = Math.max(120, width - padL - padR)
   const slot = innerW / Math.max(1, n)
+  // A value label wider than its slot ("₹245.93 Cr") stands on two lines,
+  // the unit under the figure, so neighbours never run into each other.
+  const valueSplit = items.some((c) => c.value !== null && measure(c.display) > slot - 6)
+  const valueLines = (c: (typeof items)[number]): string[] => {
+    if (c.value === null) return ['—']
+    const at = c.display.lastIndexOf(' ')
+    return valueSplit && at > 0 ? [c.display.slice(0, at), c.display.slice(at + 1)] : [c.display]
+  }
+  const padT = valueSplit ? 22 + LINE_H : 22
+  // A name wider than its slot wraps onto a second line at a space; only a
+  // name too long even for two lines is cut, and the full name is in the
+  // tooltip. Every column gets the same number of lines, so names align.
+  const names = items.map((c) => wrapLabel(c.label, slot - 6))
+  const nameLines = Math.max(1, ...names.map((l) => l.length))
+  const hasSub = items.some((c) => c.sub)
+  const padB = 12 + LINE_H * (nameLines + (hasSub ? 1 : 0))
+  const innerH = Math.max(80, height - padT - padB)
+  const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
   const barW = Math.max(14, Math.min(44, slot * 0.46))
   const cx = (i: number) => padL + slot * i + slot / 2
   const zeroY = y(0)
   const active = hover !== null && hover < n ? hover : null
-  // Names are cut to the slot so neighbours never collide; the full name is
-  // in the tooltip.
-  const maxChars = Math.max(4, Math.floor((slot - 6) / 6))
-  const fit = (s: string) => (s.length > maxChars ? `${s.slice(0, maxChars - 1)}…` : s)
   const TIP_W = 224
-
 
   return (
     <div ref={ref} className="relative min-h-[260px] w-full flex-1">
@@ -629,7 +701,7 @@ export function RankedColumns({
         {ticks.map((t) => (
           <g key={t}>
             <line x1={padL} x2={padL + innerW} y1={y(t)} y2={y(t)} stroke={t === lo ? 'var(--border-default)' : 'var(--border-subtle)'} />
-            <text x={padL - 7} y={y(t) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+            <text x={padL - 7} y={y(t) + TICK_DY} textAnchor="end" fontSize={15} fill="var(--text-muted)">
               {format(t)}
             </text>
           </g>
@@ -658,29 +730,39 @@ export function RankedColumns({
                   className="transition-opacity duration-150"
                 />
               )}
-              <text
-                x={cx(i)}
-                y={c.value === null ? zeroY - 6 : negative ? y(c.value) + 13 : y(c.value) - 6}
-                textAnchor="middle"
-                fontSize={10.5}
-                fontWeight={500}
-                fill={c.value === null ? 'var(--text-muted)' : 'var(--text-primary)'}
-                opacity={active === null || isActive ? 1 : 0.55}
-              >
-                {c.value === null ? '—' : c.display}
-              </text>
-              <text
-                x={cx(i)}
-                y={height - (c.sub ? 23 : 9)}
-                textAnchor="middle"
-                fontSize={10.5}
-                fontWeight={isActive ? 700 : 600}
-                fill={isActive ? 'var(--text-primary)' : 'var(--text-secondary)'}
-              >
-                {fit(c.label)}
-              </text>
+              {valueLines(c).map((line, k, all) => (
+                <text
+                  key={k}
+                  x={cx(i)}
+                  y={
+                    c.value === null
+                      ? zeroY - 6
+                      : negative
+                        ? y(c.value) + 15 + LINE_H * k
+                        : y(c.value) - 6 - LINE_H * (all.length - 1 - k)
+                  }
+                  textAnchor="middle"
+                  fontSize={15}
+                  fill={c.value === null ? 'var(--text-muted)' : 'var(--text-primary)'}
+                  opacity={active === null || isActive ? 1 : 0.55}
+                >
+                  {line}
+                </text>
+              ))}
+              {names[i].map((line, k) => (
+                <text
+                  key={k}
+                  x={cx(i)}
+                  y={height - 6 - LINE_H * ((hasSub ? 1 : 0) + nameLines - 1 - k)}
+                  textAnchor="middle"
+                  fontSize={15}
+                  fill={isActive ? 'var(--text-primary)' : 'var(--text-secondary)'}
+                >
+                  {line}
+                </text>
+              ))}
               {c.sub && (
-                <text x={cx(i)} y={height - 8} textAnchor="middle" fontSize={10} fontWeight={500} fill={c.sub.color}>
+                <text x={cx(i)} y={height - 6} textAnchor="middle" fontSize={15} fontWeight={500} fill={c.sub.color}>
                   {c.sub.text}
                 </text>
               )}
@@ -750,14 +832,15 @@ export function ContextColumns({
   const { ref, width, height } = useChartSize(560, 250)
   const [hover, setHover] = useState<number | null>(null)
   const n = points.length
-  const padL = 60
   const padR = 8
   const padT = 20
-  const padB = 34
-  const innerW = Math.max(120, width - padL - padR)
+  const padB = 48
   const innerH = Math.max(80, height - padT - padB)
   const values = points.map((p) => p.value).filter((v): v is number => v !== null)
   const { lo, hi, ticks } = axisWithLabelRoom(values.length ? values : [1])
+  // Sized from the tick labels, so the longest fits beside the plot.
+  const padL = axisPad(ticks.map(format))
+  const innerW = Math.max(120, width - padL - padR)
   const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
   const zeroY = y(0)
   const slot = innerW / Math.max(1, n)
@@ -772,7 +855,7 @@ export function ContextColumns({
         {ticks.map((t) => (
           <g key={t}>
             <line x1={padL} x2={padL + innerW} y1={y(t)} y2={y(t)} stroke={t === lo ? 'var(--border-default)' : 'var(--border-subtle)'} />
-            <text x={padL - 7} y={y(t) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+            <text x={padL - 7} y={y(t) + TICK_DY} textAnchor="end" fontSize={15} fill="var(--text-muted)">
               {format(t)}
             </text>
           </g>
@@ -810,7 +893,7 @@ export function ContextColumns({
                   x={i === 0 ? cx(i) - barW / 2 : i === n - 1 ? cx(i) + barW / 2 : cx(i)}
                   y={v < 0 ? y(v) + 13 : y(v) - 6}
                   textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
-                  fontSize={10}
+                  fontSize={15}
                   fontWeight={500}
                   fill="var(--text-primary)"
                 >
@@ -819,17 +902,18 @@ export function ContextColumns({
               )}
               <text
                 x={cx(i)}
-                y={height - 19}
+                y={height - 25}
                 textAnchor="middle"
-                fontSize={10}
+                fontSize={15}
                 fontWeight={highlighted ? 700 : 500}
                 fill={highlighted ? 'var(--text-primary)' : 'var(--text-muted)'}
               >
                 {p.month}
               </text>
               {p.year && (
-                <text x={cx(i)} y={height - 7} textAnchor="middle" fontSize={10} fontWeight={500} fill="var(--text-muted)">
-                  {p.year}
+                <text x={cx(i)} y={height - 6} textAnchor="middle" fontSize={15} fontWeight={500} fill="var(--text-muted)">
+                  {/* Too narrow a slot for "2024" beside "2025" prints "’24". */}
+                  {slot < textW(p.year) + 12 ? `’${p.year.slice(-2)}` : p.year}
                 </text>
               )}
               <rect
@@ -895,14 +979,15 @@ export function RunningLines({
   const { ref, width, height } = useChartSize(560, 250)
   const [hover, setHover] = useState<number | null>(null)
   const n = labels.length
-  const padL = 60
   const padR = 16
   const padT = 20
-  const padB = 24
-  const innerW = Math.max(120, width - padL - padR)
+  const padB = 30
   const innerH = Math.max(80, height - padT - padB)
   const all = [...current, ...previous].filter((v): v is number => v !== null)
   const { lo, hi, ticks } = axis(all.length ? all : [1])
+  // Sized from the tick labels, so the longest fits beside the plot.
+  const padL = axisPad(ticks.map(format))
+  const innerW = Math.max(120, width - padL - padR)
   const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
   const step = innerW / Math.max(1, n)
   const x = (i: number) => padL + step * i + step / 2
@@ -918,7 +1003,7 @@ export function RunningLines({
         {ticks.map((t) => (
           <g key={t}>
             <line x1={padL} x2={padL + innerW} y1={y(t)} y2={y(t)} stroke={t === lo ? 'var(--border-default)' : 'var(--border-subtle)'} />
-            <text x={padL - 7} y={y(t) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+            <text x={padL - 7} y={y(t) + TICK_DY} textAnchor="end" fontSize={15} fill="var(--text-muted)">
               {format(t)}
             </text>
           </g>
@@ -937,7 +1022,7 @@ export function RunningLines({
           v === null ? null : <circle key={`p${i}`} cx={x(i)} cy={y(v)} r={active === i || i === n - 1 ? 4 : 2.5} fill={PREV} />,
         )}
         {labels.map((l, i) => (
-          <text key={l} x={x(i)} y={height - 6} textAnchor="middle" fontSize={10} fontWeight={active === i ? 700 : 500} fill="var(--text-muted)">
+          <text key={l} x={x(i)} y={height - 8} textAnchor="middle" fontSize={15} fontWeight={active === i ? 700 : 500} fill="var(--text-muted)">
             {l}
           </text>
         ))}
@@ -1017,6 +1102,10 @@ interface DonutSlice {
 
 const pctText = (p: number) => `${p.toFixed(2)}%`
 
+/** The smallest donut whose hole holds an 18px KPI figure such as
+ *  "₹1,169.66 Cr" beside the 15px label under it. */
+const RING_MIN = 196
+
 /** REVENUE DECOMPOSITION DONUT — the heart of the hub. Three levels:
  *
  *  DRIVERS   Baseline, Festival, Seasonal, Promotion and Ad Spend on one ring,
@@ -1029,8 +1118,9 @@ const pctText = (p: number) => `${p.toFixed(2)}%`
  *            in shades of the channel's colour, with its own legend.
  *
  *  NOTHING MOVES ON HOVER, SELECTION OR NAVIGATION: the summary has a fixed
- *  height and the legend rows a fixed size. A slice too thin to see gets a
- *  minimum width on the ring; its true figure is always the legend's. */
+ *  height and the legend rows a fixed size (a long name takes a second
+ *  line). A slice too thin to see gets a minimum width on the ring; its true
+ *  figure is always the legend's. */
 export function DecompositionDonut({
   slices,
   totalDisplay,
@@ -1126,11 +1216,17 @@ export function DecompositionDonut({
   })
 
   const stacked = width < 480
-  // Below the drivers the legend gets more width for the longer names.
-  const size = Math.max(180, Math.min(stacked ? width - 20 : width * (open ? 0.33 : 0.4), height - 10, open ? 240 : 270))
+  // Below the drivers the legend gets more width for the longer names. The
+  // ring yields to the legend down to RING_MIN, the smallest whose hole
+  // still holds the centre's 18px figure ("₹1,169.66 Cr").
+  const LEGEND_MIN = 290
+  const size = Math.max(
+    RING_MIN,
+    Math.min(stacked ? width - 20 : Math.min(width * (open ? 0.33 : 0.4), width - LEGEND_MIN - 16), height - 10, open ? 240 : 270),
+  )
   const c = size / 2
   const r1 = c - 8
-  const r0 = r1 * 0.62
+  const r0 = r1 * 0.66
   const anySelected = level === 'drivers' && selected.size > 0
   const isOn = (k: string) => hover === k || (level === 'drivers' && selected.has(k as DriverKey))
   const isDim = (k: string) => (hover !== null || anySelected) && !isOn(k)
@@ -1177,7 +1273,7 @@ export function DecompositionDonut({
   )
 
   return (
-    <div ref={ref} className={`relative flex min-h-[280px] w-full flex-1 gap-6 ${stacked ? 'flex-col items-center' : 'items-center'}`}>
+    <div ref={ref} className={`relative flex min-h-[280px] w-full flex-1 gap-4 ${stacked ? 'flex-col items-center' : 'items-center'}`}>
       <div className="relative shrink-0" style={{ width: size, height: size }}>
         <svg
           width={size}
@@ -1218,7 +1314,7 @@ export function DecompositionDonut({
 
       <div className={`relative min-w-0 ${stacked ? 'w-full' : 'flex-1'}`}>
         {/* THE SUMMARY — fixed height, so nothing moves. */}
-        <div className="mb-3 flex h-[72px] flex-col justify-center rounded-[var(--r-md)] bg-surface-muted px-4">
+        <div className="mb-3 flex h-[88px] flex-col justify-center rounded-[var(--r-md)] bg-surface-muted px-4">
           {level === 'sub' ? (
             <>
               <div className="flex items-center justify-between gap-3">
@@ -1226,7 +1322,7 @@ export function DecompositionDonut({
                 <span className="kpi-value text-ink-primary">{channel!.display}</span>
               </div>
               <div className="mt-0.5 flex items-baseline justify-between gap-3 text-sm text-ink-muted">
-                <span className="truncate">{channel!.label} · by sub-channel</span>
+                <span className="line-clamp-2 min-w-0">{channel!.label} · by sub-channel</span>
                 <span className="shrink-0 tabular-nums">{pctText(channel!.pct)} of Ad Spend</span>
               </div>
             </>
@@ -1237,7 +1333,7 @@ export function DecompositionDonut({
                 <span className="kpi-value text-ink-primary">{format(adTotal)}</span>
               </div>
               <div className="mt-0.5 flex items-baseline justify-between gap-3 text-sm text-ink-muted">
-                <span className="truncate">Ad Spend · by channel</span>
+                <span className="line-clamp-2 min-w-0">Ad Spend · by channel</span>
                 <span className="shrink-0 tabular-nums">{pctText((adTotal / revenue) * 100)} of {totalDisplay}</span>
               </div>
             </>
@@ -1248,7 +1344,7 @@ export function DecompositionDonut({
                 <span className="text-md font-medium tabular-nums text-brand-violet">{pctText((pickedValue / revenue) * 100)}</span>
               </div>
               <div className="mt-0.5 flex items-baseline justify-between gap-3 text-sm text-ink-muted">
-                <span className="truncate">From {picked.map((sg) => sg.label).join(' + ')}</span>
+                <span className="line-clamp-2 min-w-0">From {picked.map((sg) => sg.label).join(' + ')}</span>
                 <span className="shrink-0 tabular-nums">of {totalDisplay}</span>
               </div>
             </>
@@ -1262,7 +1358,7 @@ export function DecompositionDonut({
                 <span className="text-md font-medium tabular-nums text-brand-violet">{pctText(((revenue - valueOf('baseline')) / revenue) * 100)}</span>
               </div>
               <div className="mt-0.5 flex items-baseline justify-between gap-3 text-sm text-ink-muted">
-                <span className="truncate">Above baseline · events and ads</span>
+                <span className="line-clamp-2 min-w-0">Above baseline · events and ads</span>
                 <span className="shrink-0 tabular-nums">of {totalDisplay}</span>
               </div>
             </>
@@ -1287,13 +1383,13 @@ export function DecompositionDonut({
                     setHover(null)
                     setPreview(null)
                   }}
-                  className={`grid h-10 w-full items-center gap-x-2 rounded-[var(--r-md)] px-2.5 text-left transition-[background-color,opacity] duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
-                    level === 'drivers' ? 'grid-cols-[12px_minmax(0,1fr)_7rem_4.2rem] text-md' : 'grid-cols-[12px_minmax(0,1fr)_5.4rem_3.7rem] text-base'
+                  className={`grid min-h-10 w-full items-center gap-x-2 py-1 rounded-[var(--r-md)] px-2.5 text-left transition-[background-color,opacity] duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
+                    level === 'drivers' ? 'grid-cols-[12px_minmax(0,1fr)_6.5rem_4.2rem] text-md' : 'grid-cols-[12px_minmax(0,1fr)_6.5rem_4.2rem] text-base'
                   } ${clickable ? 'cursor-pointer' : 'cursor-default'} ${isOn(sg.key) ? 'bg-surface-hover' : ''} ${isDim(sg.key) ? 'opacity-50' : ''}`}
                 >
                   <span className="h-3 w-3 rounded-full" style={{ background: sg.color }} />
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <span className={`truncate ${level === 'drivers' && selected.has(sg.key as DriverKey) ? 'font-medium text-ink-primary' : 'text-ink-secondary'}`}>
+                    <span title={sg.label} className={`line-clamp-2 leading-tight ${level === 'drivers' && selected.has(sg.key as DriverKey) ? 'font-medium text-ink-primary' : 'text-ink-secondary'}`}>
                       {sg.label}
                     </span>
                     {clickable && (
@@ -1386,10 +1482,12 @@ export function ShareDonut({
   })
 
   const stacked = width < 480
-  const size = Math.max(180, Math.min(stacked ? width - 20 : width * 0.36, height - 10, 240))
+  // The ring yields to the legend down to RING_MIN (see DecompositionDonut).
+  const LEGEND_MIN = 300
+  const size = Math.max(RING_MIN, Math.min(stacked ? width - 20 : Math.min(width * 0.36, width - LEGEND_MIN - 16), height - 10, 240))
   const c = size / 2
   const r1 = c - 8
-  const r0 = r1 * 0.62
+  const r0 = r1 * 0.66
   const hovered = hover ? parts.find((p) => p.key === hover) : null
   const tipItem = tip ? parts.find((p) => p.key === tip.key) : null
 
@@ -1441,12 +1539,12 @@ export function ShareDonut({
                   onFocus={() => point(p.key)}
                   onBlur={leave}
                   onClick={onPick ? () => onPick(p.key) : undefined}
-                  className={`grid h-10 w-full grid-cols-[12px_minmax(0,1fr)_5.8rem_3.6rem] items-center gap-x-2 rounded-[var(--r-md)] px-2 text-left text-base transition-[background-color,opacity] duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
+                  className={`grid min-h-10 w-full grid-cols-[12px_minmax(0,1fr)_6rem_4.2rem] py-1 items-center gap-x-2 rounded-[var(--r-md)] px-2 text-left text-base transition-[background-color,opacity] duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
                     onPick ? 'cursor-pointer' : 'cursor-default'
                   } ${on ? 'bg-surface-hover' : ''} ${hover !== null && !on ? 'opacity-50' : ''}`}
                 >
                   <span className="h-3 w-3 rounded-full" style={{ background: p.color }} />
-                  <span className="truncate text-ink-secondary">{p.label}</span>
+                  <span className="line-clamp-2 leading-tight text-ink-secondary" title={p.label}>{p.label}</span>
                   <span className="text-right font-medium tabular-nums text-ink-primary">{p.display}</span>
                   <span className="text-right text-base tabular-nums text-ink-muted">{p.pct.toFixed(2)}%</span>
                 </button>
@@ -1630,7 +1728,7 @@ export function ShareBars({
               onBlur={() => setHover(null)}
               onClick={onPick ? () => onPick(r.key) : undefined}
               onKeyDown={onPick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(r.key) } } : undefined}
-              className={`grid ${onPick ? 'cursor-pointer grid-cols-[1.25rem_minmax(0,9.5rem)_minmax(0,1fr)_auto_14px]' : 'grid-cols-[1.25rem_minmax(0,9.5rem)_minmax(0,1fr)_auto]'} items-center gap-x-3 rounded-[var(--r-sm)] px-2 py-[7px] text-sm transition-[background-color,opacity] duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
+              className={`grid ${onPick ? 'cursor-pointer grid-cols-[1.25rem_minmax(0,12.5rem)_minmax(0,1fr)_auto_14px]' : 'grid-cols-[1.25rem_minmax(0,12.5rem)_minmax(0,1fr)_auto]'} items-center gap-x-3 rounded-[var(--r-sm)] px-2 py-[7px] text-sm transition-[background-color,opacity] duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
                 isActive ? 'bg-surface-hover' : ''
               } ${active && !isActive ? 'opacity-55' : ''}`}
             >

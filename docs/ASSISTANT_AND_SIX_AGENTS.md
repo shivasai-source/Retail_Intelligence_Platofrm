@@ -1,6 +1,6 @@
-# Assistant and Six-Agent Methodology
+# Assistant and Four-Agent Methodology
 
-This guide describes how the conversational Analyst and the six-agent
+This guide describes how the conversational Analyst and the four-agent
 Investigations panel work in this platform. The implementation lives in
 `backend/app/agents/`; the Insights Hub's measured KPIs come from
 `backend/app/tpo/`.
@@ -15,33 +15,32 @@ choosing a scope, writing a finding, or synthesising evidence.
 | User need | Feature | Method |
 |---|---|---|
 | Look up a metric or compare groups | Analyst | Model selects approved data tools; deterministic services calculate results |
-| Find plausible drivers and evidence | Investigations | Planner, six parallel specialist agents, evidence checks, synthesiser |
+| Find plausible drivers and evidence | Investigations | Planner, four parallel specialist agents, evidence checks, synthesiser |
 | Get a business explanation of a saved decision | Decision Brief | Model explains a deterministic decision record; figures are checked against it |
 
-## The six-agent investigation panel
+## The four-agent investigation panel
 
 For investigations over the built-in TPO star schema, every run uses this
-standing panel. The planner may tailor an assignment, but it does not choose
-which members of this panel run. A specialist's data fetch is distinct and is
-prepared by the platform before that specialist is called.
+standing panel of four. The planner briefs each agent for the question, but it
+does not choose which agents run. Each agent's data is fetched by the platform
+before that agent is called.
 
-| Agent | Responsibility | Evidence it reads |
+| Agent | Question it answers | Evidence it reads |
 |---|---|---|
-| Benchmarking Agent (`benchmark`) | Establish whether the selected segment is abnormal | Segment and whole-business KPIs; peer channel and region comparisons |
-| Effectiveness Agent (`mechanic_efficiency`) | Compare promotion mechanics | Mechanic ROI inside the segment and across the business |
-| Diagnostics Agent (`offer_forensics`) | Identify specific weak or strong promotion events | Underperforming and top promotion records, including spend and value at stake |
-| Risk Agent (`risk_exposure`) | Quantify unresolved downside | Below-target events, severity and concentration of exposure |
-| Optimization Agent (`geography`) | Locate differences by place or trade partner | Region, state and retailer breakdowns |
-| Cannibalization Agent (`cannibalization`) | Check movement in related products during promotions | Same-brand-form neighbour sales and the separate validated cannibalization KPI |
+| Performance Agent (`performance`) | Is this segment really underperforming, and when? | Segment and whole-business KPIs; peer channel and region ROI; the monthly trend |
+| Promotion Design Agent (`promotion_design`) | Which offers and events made or lost the money? | Mechanic ROI in the segment and across the business; spend mix by offer; below-target events with the value at stake |
+| Market & Portfolio Agent (`market`) | Where does it break? | ROI by region, state, retailer, category and brand |
+| Cannibalization Agent (`cannibalization`) | Was the lift real, or taken from neighbours? | Same-brand-form neighbour sales and the separate validated cannibalization KPI |
 
-The codebase contains a **nine-member specialist roster** in
-`backend/app/agents/roster.py`. The six above are the fixed star-schema panel in
-`backend/app/agents/star_pipeline.py`. The other roster lenses are spend
-allocation, portfolio and temporal analysis; the planner can consider them,
-but the built-in-data run still uses its fixed six. Uploaded files use a
-separate analysis pipeline and planner, which chooses up to six analyses that
-fit the uploaded file's columns. This distinction explains why documentation
-may refer both to six agents and to nine specialists.
+Each agent reports a one-sentence summary (15-25 words, with the figure that
+proves it), its finding and evidence, and its **contribution to the total
+score**: its evidence unit (measured confidence x how directly its impact
+points at a cause) as a share of the panel's, so the four add up to 100%. The
+synthesis then gives every root cause with its share, a **combined root
+cause** of 3-4 sentences joining them, and **3-4 recommendations**.
+
+Uploaded files use a separate analysis pipeline whose planner chooses up to
+four analyses that fit the file's columns.
 
 ## How an investigation runs
 
@@ -56,7 +55,7 @@ may refer both to six agents and to nine specialists.
 3. **Prepare facts.** Deterministic service functions aggregate the rows each
    specialist needs. The agents receive compact evidence payloads, not raw
    uploaded rows.
-4. **Specialist findings.** The six star-schema specialists run concurrently.
+4. **Specialist findings.** The four star-schema specialists run concurrently.
    Each returns a schema-constrained finding with a headline, explanation,
    evidence and optional chart values. A failure in one lens is reported as an
    unavailable finding and does not cancel the other lenses.
@@ -85,7 +84,7 @@ TPO services and the shared KPI engine. The Analyst does not receive raw CSV
 rows to calculate metrics itself.
 
 The Analyst is not the causal investigation feature. Direct causal questions
-are deflected to Investigations, where six specialist lenses and evidence
+are deflected to Investigations, where four specialist agents and evidence
 checks are available. This avoids presenting a plausible narrative as a
 measured explanation.
 
@@ -116,7 +115,7 @@ measured explanation.
 | Concern | Source |
 |---|---|
 | Investigation API and run progress | `backend/app/routers/investigations.py`, `backend/app/investigation_runs.py` |
-| Built-in-data planner and six-agent orchestration | `backend/app/agents/star_pipeline.py` |
+| Built-in-data planner and four-agent orchestration | `backend/app/agents/star_pipeline.py` |
 | Specialist roles, prompts and fact fetchers | `backend/app/agents/roster.py` |
 | Uploaded-file planner and analyses | `backend/app/agents/pipeline.py`, `backend/app/dataset_store.py` |
 | Model client and structured output | `backend/app/agents/client.py` |

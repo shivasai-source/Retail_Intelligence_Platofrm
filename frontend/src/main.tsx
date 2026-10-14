@@ -6,6 +6,9 @@ import { ToastProvider, ConfirmProvider } from './components/ui'
 import '@fontsource-variable/inter'
 import './index.css'
 import App from './App.tsx'
+import { startSignColor } from './lib/signColor'
+
+startSignColor()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -43,7 +43,7 @@ VALID_ICONS = [
     "calendar", "flow", "zoomIn", "sparkles",
 ]
 INVESTIGATION_TYPES = ["diagnostic", "optimization", "launch", "strategic"]
-MAX_SPECIALISTS = 5
+MAX_SPECIALISTS = 4
 
 PLAN_SCHEMA = {
     "type": "object",
@@ -99,7 +99,13 @@ FINDING_SCHEMA = {
     "additionalProperties": False,
     "required": ["headline", "body", "evidence", "metric", "delta_basis", "impact", "viz_items"],
     "properties": {
-        "headline": {"type": "string", "description": "One line, states the finding"},
+        "headline": {
+            "type": "string",
+            "description": (
+                "The one-line summary: ONE sentence of 15-25 words (about 100-160 characters) "
+                "stating what was found, naming the group and the figure that proves it"
+            ),
+        },
         "body": {"type": "string", "description": "1–2 sentences of explanation"},
         "evidence": {"type": "string", "description": "The specific numbers backing it"},
         "metric": {
@@ -166,32 +172,35 @@ FINDING_SCHEMA = {
 SYNTHESIS_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["root_causes", "summary", "root_cause", "insight_count", "recommendations"],
+    "required": ["root_causes", "summary", "root_cause", "insight_count"],
     "properties": {
-        # WRITTEN FIRST, so the summary below is built from them.
+        # WRITTEN FIRST, so the summary below is built from them. ONE PER
+        # AGENT: each specialist's finding is one cause with one action, and
+        # its share of the problem is that agent's contribution to the total
+        # score (`score_agents`), so the two can never disagree.
         "root_causes": {
             "type": "array",
-            "description": (
-                "Every distinct root cause, 1-5. A cause several specialists support is listed "
-                "ONCE with all of them; otherwise one cause per specialist that found a material driver."
-            ),
+            "description": "Exactly ONE root cause per specialist, one entry for every specialist listed.",
             "items": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["cause", "agents"],
+                "required": ["agent", "cause", "recommendation"],
                 "properties": {
-                    "cause": {"type": "string", "description": "One line, 12-20 words, business terms, with the figure behind it"},
-                    "agents": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "The specialist names, exactly as written in [brackets], whose findings support it",
+                    "agent": {"type": "string", "description": "The specialist's name, exactly as written in [brackets]"},
+                    "cause": {"type": "string", "description": "That specialist's root cause: one line, 12-20 words, business terms, with the figure behind it"},
+                    "recommendation": {
+                        "type": "string",
+                        "description": "ONE concrete action that addresses THIS cause, one sentence, naming the offer, channel, region or product",
                     },
                 },
             },
         },
         "summary": {
             "type": "string",
-            "description": "2-4 sentences covering every root cause above, in order, answering the question",
+            "description": (
+                "3-4 sentences summarising the root causes above and how much each contributes "
+                "to the overall problem, largest first, answering the question"
+            ),
         },
         "root_cause": {"type": "string", "description": "The most likely of the root causes, as one sentence"},
         # KEPT IN THE SCHEMA, DISCARDED ON THE WAY OUT. The strip that renders
@@ -200,11 +209,6 @@ SYNTHESIS_SCHEMA = {
         # `ground_synthesis` — not something the synthesising model is in a
         # position to know, since it never sees how many specialists ran.
         "insight_count": {"type": "integer", "description": "Distinct material insights found"},
-        "recommendations": {
-            "type": "array",
-            "items": {"type": "string"},
-            "description": "2–4 concrete actions",
-        },
     },
 }
 
@@ -268,29 +272,43 @@ Rules:
 - Do NOT subtract, divide or average anything. `delta_basis` takes the two
   figures you are comparing and the platform does the arithmetic; set it to
   null rather than forcing a comparison your table does not contain.
-- Keep headline under 60 characters; it renders on a graph node."""
+- `headline` is your ONE-LINE SUMMARY: one sentence of 15-25 words (about
+  100-160 characters) stating what your table shows, naming the group and the
+  figure that proves it. No second sentence; the body explains it."""
 
 SYNTHESIS_SYSTEM = """You are the lead analyst synthesising specialist findings on a
 trade promotion investigation.
 
-ROOT CAUSES FIRST. List every distinct root cause the findings support and
-name in `agents` the specialist(s) whose findings support it -- exactly as
-their names appear in [brackets]. When several specialists point to the same
-cause, list it ONCE with all of them; otherwise give one cause per specialist
-that found a material driver. Skip a specialist whose finding explains nothing.
-Write each cause as ONE LINE a business reader understands at a glance: 12-20
-words, leading with what went wrong in business terms and carrying the one
-figure that proves it (e.g. "Buy3Get1 returned 1.05x in Modern Trade against
-1.08x elsewhere -- an execution problem, not the offer"). No fragments of a
-few words, no second sentence.
+ONE ROOT CAUSE PER SPECIALIST. Write exactly one entry in `root_causes` for
+EVERY specialist listed, with `agent` set to its name exactly as it appears
+in [brackets]. The cause is what THAT specialist's finding says drives the
+problem, as ONE LINE a business reader understands at a glance: 12-20 words,
+leading with what went wrong in business terms and carrying the one figure
+that proves it (e.g. "Buy3Get1 returned 1.05x in Modern Trade against 1.41x
+elsewhere -- an execution problem, not the offer"). If a specialist found
+nothing wrong, its cause says so plainly ("Neighbouring packs held their
+sales, so cannibalization is not a driver"). No fragments, no second sentence.
 
-THEN THE SUMMARY, built from those root causes: 2-4 sentences that cover EVERY
-root cause in the list, in order, and together answer the user's actual
-question. Introduce nothing in the summary that is not one of the root causes. `root_cause` is the most likely
-of them, weighing findings by the confidence and impact shown against each
-one. Those confidences are MEASURED — they score the evidence each
-specialist worked from and how much of its prose traces back to that evidence —
-so a low one means thin ground, not a hesitant author.
+ONE RECOMMENDATION PER CAUSE. Each entry's `recommendation` is a single
+concrete action a trade-marketing manager could take next that addresses
+THAT cause, naming the offer, channel, region or product it applies to. No
+generic advice. For a cause that rules something out, the action is to keep
+or monitor what is working.
+
+EACH SPECIALIST SHOWS ITS CONTRIBUTION -- its share of the total score,
+already computed and adding up to 100% across the panel. It is measured from
+the specialist's evidence (confidence) and how directly its finding points at
+the problem (impact). Do not change or restate it as your own figure.
+
+THEN THE SUMMARY: 3-4 sentences that summarise the root causes and how much
+each contributes to the overall problem -- largest contribution first, quoting
+the contribution percentages given -- and how they fit together (which drove
+which, which made which worse), answering the user's actual question.
+Introduce nothing in the summary that is not one of the root causes.
+`root_cause` is the cause with the largest contribution, as one sentence.
+The confidences shown are MEASURED — they score the evidence each specialist
+worked from and how much of its prose traces back to that evidence — so a low
+one means thin ground, not a hesitant author.
 Do not introduce numbers that no specialist reported.
 
 Monetary figures are Indian Rupees — write ₹ or "INR", never $.
@@ -443,6 +461,9 @@ async def run_pipeline(
     # there is the difference between weighing evidence and weighing assertion.
     for finding in ok_findings:
         finding.update(finding_confidence(finding, totals.get("rows")))
+    # Each agent's contribution, so the synthesis can say how much each cause
+    # accounts for -- the same figure the page shows beside the agent.
+    score_agents(ok_findings)
 
     # ---- 4. Synthesis ------------------------------------------------------
     import json as _json
@@ -454,7 +475,7 @@ async def run_pipeline(
             f"DATASET TOTALS: {_json.dumps(totals)}\n\n"
             f"SPECIALIST FINDINGS:\n"
             + "\n\n".join(
-                f"[{f['name']}] (confidence {f['confidence']}, impact {f['impact']})\n"
+                f"[{f['name']}] (contribution {f['contribution_pct']}%, confidence {f['confidence']}, impact {f['impact']})\n"
                 f"  {f['headline']}\n  {f['body']}\n  Evidence: {f['evidence']}"
                 for f in ok_findings
             )
@@ -491,30 +512,53 @@ def ground_synthesis(
     out. Anything it writes there is therefore a guess at a figure Python is
     holding, so Python supplies it.
     """
-    return {**synthesis, "insight_count": len(findings), "root_causes": ground_root_causes(synthesis, findings)}
+    if any("contribution_pct" not in f for f in findings):
+        score_agents(findings)
+    # Agents in descending order of contribution: the panel, the graph and
+    # the root causes all read this order.
+    findings.sort(key=lambda f: -(f.get("contribution_pct") or 0))
+    causes = ground_root_causes(synthesis, findings)
+    return {
+        **synthesis,
+        "insight_count": len(findings),
+        "root_causes": causes,
+        "root_cause": causes[0]["cause"] if causes else synthesis.get("root_cause", ""),
+        # One per root cause, in the same order, so action n answers cause n.
+        "recommendations": [c["recommendation"] for c in causes if c.get("recommendation")],
+    }
 
 
 def ground_root_causes(synthesis: dict[str, Any], findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """The model's root causes with each specialist NAME resolved to its key.
+    """ONE ROOT CAUSE PER AGENT, each with one recommendation, its share of the
+    problem equal to that agent's contribution to the total score.
 
-    A name that matches no specialist that actually reported is dropped -- a
-    cause cannot be credited to an agent that did not run. A cause with no
-    text is dropped. With none left, the single `root_cause` stands alone."""
-    by_name = {str(f.get("name", "")).casefold(): f.get("key") or f.get("analysis") for f in findings}
+    The model's entries are matched to agents by NAME; an entry naming no
+    agent that reported is dropped -- a cause cannot be credited to an agent
+    that did not run. An agent the model left out still gets its cause, from
+    its own finding's one-line summary, so every agent has exactly one. An
+    agent whose lens failed has no evidence and no cause. Returned in the
+    order of `findings`, which `ground_synthesis` sorts by contribution."""
+    def name_key(name: Any) -> str:
+        return str(name or "").strip().strip("[]").casefold()
+
+    written = {name_key(item.get("agent")): item for item in synthesis.get("root_causes") or [] if isinstance(item, dict)}
     out: list[dict[str, Any]] = []
-    for item in synthesis.get("root_causes") or []:
-        cause = str((item or {}).get("cause") or "").strip()
+    for f in findings:
+        if f.get("analysis_failed"):
+            continue
+        item = written.get(name_key(f.get("name"))) or {}
+        cause = str(item.get("cause") or "").strip() or str(f.get("headline") or "").strip()
         if not cause:
             continue
-        keys: list[str] = []
-        for name in (item or {}).get("agents") or []:
-            key = by_name.get(str(name).strip().strip("[]").casefold())
-            if key and key not in keys:
-                keys.append(key)
-        out.append({"cause": cause, "agents": keys})
+        out.append({
+            "cause": cause,
+            "agents": [f.get("key") or f.get("analysis")],
+            "share_pct": f.get("contribution_pct") or 0,
+            "recommendation": str(item.get("recommendation") or "").strip(),
+        })
     if not out and synthesis.get("root_cause"):
-        out.append({"cause": str(synthesis["root_cause"]), "agents": []})
-    return score_root_causes(out, findings)
+        out.append({"cause": str(synthesis["root_cause"]), "agents": [], "share_pct": 100, "recommendation": ""})
+    return out
 
 
 #: How strongly a finding's IMPACT says "this explains the problem". A loss or
@@ -524,8 +568,45 @@ def ground_root_causes(synthesis: dict[str, Any], findings: list[dict[str, Any]]
 _IMPACT_WEIGHT = {"negative": 1.0, "risk": 0.9, "moderate": 0.6, "data": 0.4, "strong": 0.3}
 
 
+def _evidence_unit(finding: dict[str, Any]) -> float:
+    """One agent's unit of evidence: how sure its own evidence is, times how
+    directly its finding points at a cause (_IMPACT_WEIGHT)."""
+    conf = float(finding.get("confidence") or 50) / 100
+    return max(conf, 0.05) * _IMPACT_WEIGHT.get(str(finding.get("impact") or "data"), 0.4)
+
+
+def _shares(raw: list[float]) -> list[int]:
+    """Whole percentages proportional to `raw` that add up to exactly 100,
+    rounded by largest remainder."""
+    total = sum(raw) or 1.0
+    exact = [r / total * 100 for r in raw]
+    shares = [int(x) for x in exact]
+    for i in sorted(range(len(exact)), key=lambda i: exact[i] - shares[i], reverse=True)[: 100 - sum(shares)]:
+        shares[i] += 1
+    return shares
+
+
+def score_agents(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Each agent's CONTRIBUTION TO THE TOTAL SCORE, as whole percentages
+    summing to 100, written onto its finding as `contribution_pct`.
+
+    Built from the same unit as the root-cause shares (`_evidence_unit`), so an
+    agent's contribution and the causes it is credited with agree. A lens that
+    failed gathered no evidence and contributes 0."""
+    live = [f for f in findings if not f.get("analysis_failed")]
+    for f in findings:
+        f["contribution_pct"] = 0
+    for f, share in zip(live, _shares([_evidence_unit(f) for f in live])):
+        f["contribution_pct"] = share
+    return findings
+
+
 def score_root_causes(causes: list[dict[str, Any]], findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Each root cause's share of the problem, as whole percentages summing to 100.
+
+    FOR RUNS RECORDED BEFORE ONE-CAUSE-PER-AGENT, whose causes could be shared
+    by several agents. A current run's shares are the agents' contributions
+    (`ground_root_causes`).
 
     THE SCORE. Every agent brings one unit of evidence, worth
 
@@ -544,9 +625,7 @@ def score_root_causes(causes: list[dict[str, Any]], findings: list[dict[str, Any
     by_key = {f.get("key") or f.get("analysis"): f for f in findings}
 
     def unit(key: str) -> float:
-        f = by_key.get(key) or {}
-        conf = float(f.get("confidence") or 50) / 100
-        return max(conf, 0.05) * _IMPACT_WEIGHT.get(str(f.get("impact") or "data"), 0.4)
+        return _evidence_unit(by_key.get(key) or {})
 
     load: dict[str, int] = {}
     for c in causes:
@@ -559,16 +638,12 @@ def score_root_causes(causes: list[dict[str, Any]], findings: list[dict[str, Any
         sum(unit(k) / load[k] for k in c.get("agents") or []) if c.get("agents") else orphan
         for c in causes
     ]
-    total = sum(raw) or 1.0
-    exact = [r / total * 100 for r in raw]
-    shares = [int(x) for x in exact]
-    for i in sorted(range(len(exact)), key=lambda i: exact[i] - shares[i], reverse=True)[: 100 - sum(shares)]:
-        shares[i] += 1
-    return [{**c, "share_pct": s} for c, s in zip(causes, shares)]
+    return [{**c, "share_pct": s} for c, s in zip(causes, _shares(raw))]
 
 
 def enrich_synthesis(run: dict[str, Any]) -> dict[str, Any]:
-    """A stored run as the page now reads it: every root cause with its share.
+    """A stored run as the page now reads it: every root cause with its share,
+    every agent with its contribution to the total score.
 
     Runs recorded before causes were listed get one cause per agent, from
     that agent's own finding; runs recorded before the shares get them now.
@@ -587,7 +662,11 @@ def enrich_synthesis(run: dict[str, Any]) -> dict[str, Any]:
         ]
     if causes and any("share_pct" not in c for c in causes):
         causes = score_root_causes([{k: v for k, v in c.items() if k != "share_pct"} for c in causes], findings)
-    return {**run, "result": {**result, "synthesis": {**synthesis, "root_causes": causes}}}
+    if any("contribution_pct" not in f for f in findings):
+        findings = score_agents([dict(f) for f in findings])
+    # Largest share first, as a current run already is.
+    causes = sorted(causes, key=lambda c: -(c.get("share_pct") or 0))
+    return {**run, "result": {**result, "findings": findings, "synthesis": {**synthesis, "root_causes": causes}}}
 
 
 def assemble_orchestration(

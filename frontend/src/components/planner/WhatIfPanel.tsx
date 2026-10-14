@@ -71,7 +71,7 @@ export function WhatIfPanel({
   return (
     <div className="grid gap-5">
       <div className="grid items-stretch gap-5 @min-[1100px]:grid-cols-[440px_minmax(0,1fr)]">
-        <Panel title={<label htmlFor={id}>Average discount</label>}>
+        <Panel title={<label htmlFor={id}>Average discount</label>} actions={action}>
           <div className="flex items-end gap-3">
             <span className={TYPE.hero}>{value.toFixed(2)}%</span>
             <span
@@ -136,7 +136,7 @@ export function WhatIfPanel({
           </div>
         </Panel>
 
-        <Panel title="Current plan vs scenario" actions={fetching ? <Spinner /> : action}>
+        <Panel title="Current plan vs scenario" actions={fetching ? <Spinner /> : undefined}>
           {result ? (
             <StaleOverlay on={fetching}>
               <FigureCompare

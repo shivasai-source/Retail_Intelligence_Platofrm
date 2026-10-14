@@ -42,7 +42,7 @@ export const LEGEND: { kind: CellKind; label: string }[] = [
  *
  *  A display transform of the real string, not a lookup table — the year is
  *  already the column the cell sits in, so repeating it costs a line of wrap in
- *  a 74px cell. The untouched description stays in the tooltip and in the
+ *  a narrow cell. The untouched description stays in the tooltip and in the
  *  detail panel. */
 function cellLabel(label: string): string {
   return label
@@ -71,13 +71,16 @@ export function PromotionMatrix({
   selected: { month: number; channel: string } | null
   onSelect: (month: number, channel: string) => void
 }) {
-  // Fixed channel column plus twelve equal month columns. `min-w` forces the
-  // horizontal scroll to happen INSIDE this container rather than on the page.
-  const grid = 'grid grid-cols-[168px_repeat(12,minmax(74px,1fr))]'
+  // Fixed channel column plus twelve equal month columns. Each month is wide
+  // enough for its longest single word ("Independence") and "27 products" at
+  // the app's 14px text, so names wrap only between words. `min-w` (184 + 12 x
+  // 124) forces the horizontal scroll to happen INSIDE this container rather
+  // than on the page.
+  const grid = 'grid grid-cols-[184px_repeat(12,minmax(124px,1fr))]'
 
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[1056px]">
+      <div className="min-w-[1672px]">
         <div className={`${grid} border-b border-border-subtle`}>
           {/* Sticky so the channel stays readable while the months scroll —
               without it a horizontally scrolled row is unattributable. */}
@@ -109,7 +112,7 @@ export function PromotionMatrix({
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-medium text-ink-primary">{channel.channel_id}</span>
-                <span className="block truncate text-xs text-ink-muted" title={channel.name}>
+                <span className="block break-words text-xs leading-snug text-ink-muted" title={channel.name}>
                   {channel.name}
                 </span>
                 {/* Cadence is deliberately loud: a weekly channel's monthly
@@ -184,23 +187,23 @@ function MatrixCell({
         selected ? 'ring-2 ring-brand-violet ring-offset-1 ring-offset-surface-card' : ''
       }`}
     >
-      {/* Wrapped over two lines rather than truncated: the label is the
+      {/* Wrapped between words rather than truncated: the label is the
           promotion master's own Promotion_Description, and shortening it here
           would mean inventing a name the data does not carry. */}
       <span
-        className="line-clamp-2 text-2xs font-medium leading-[1.15] [overflow-wrap:anywhere]"
+        className="line-clamp-3 break-words text-2xs font-medium leading-snug"
         style={{ color: STATUS[cell.kind].solid }}
       >
         {cellLabel(cell.label)}
       </span>
       {/* The id is the secondary line: smaller and quieter than the name it
           belongs to, so the eye reads name -> id -> count in that order. */}
-      <span className="line-clamp-2 text-2xs font-medium leading-[1.15] text-ink-muted">
+      <span className="line-clamp-3 break-words text-2xs font-medium leading-snug text-ink-muted">
         {ids || '—'}
       </span>
       {/* The count alone; concurrent regular activity is in the tooltip and
           spelled out in the detail panel, where there is room for it. */}
-      <span className="truncate text-2xs font-medium leading-tight text-ink-secondary">
+      <span className="whitespace-nowrap text-2xs font-medium leading-snug text-ink-secondary">
         {cell.product_count} products
       </span>
     </button>

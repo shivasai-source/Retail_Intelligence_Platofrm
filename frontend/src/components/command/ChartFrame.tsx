@@ -24,7 +24,6 @@ export function ChartFrame({
   onRetry,
   isEmpty,
   emptyMessage,
-  footnote,
   height = 210,
   children,
 }: {
@@ -56,9 +55,6 @@ export function ChartFrame({
   onRetry: () => void
   isEmpty: boolean
   emptyMessage?: string
-  /** Shown under the chart — used for the truncation notice, so a Top-N view
-   *  never implies it is the whole population. */
-  footnote?: ReactNode
   height?: number
   children: ReactNode
 }) {
@@ -93,9 +89,6 @@ export function ChartFrame({
           <Stale when={isFetching} className={fill ? 'flex flex-1 flex-col' : ''}>
             {children}
           </Stale>
-        )}
-        {!error && !isLoading && !isEmpty && footnote && (
-          <p className="mt-2 text-xs text-ink-muted">{footnote}</p>
         )}
       </CardBody>
     </Card>

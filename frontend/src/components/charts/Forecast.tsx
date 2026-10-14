@@ -78,7 +78,7 @@ export function Forecast({
               stroke="var(--border-subtle)"
               strokeDasharray="3 4"
             />
-            <text x={padL - 6} y={y(v) + 3} textAnchor="end" fontSize={10} fill="var(--text-muted)">
+            <text x={padL - 6} y={y(v) + 5} textAnchor="end" fontSize={15} fill="var(--text-muted)">
               {v}
             </text>
           </g>
@@ -122,9 +122,9 @@ export function Forecast({
           <text
             key={wk}
             x={padL + i * step}
-            y={padT + innerH + 18}
+            y={padT + innerH + 20}
             textAnchor="middle"
-            fontSize={10}
+            fontSize={15}
             fill="var(--text-muted)"
           >
             {wk}

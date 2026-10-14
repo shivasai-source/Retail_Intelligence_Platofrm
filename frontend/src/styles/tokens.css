@@ -35,12 +35,12 @@
   /* ===== Sidebar (DARK navy from reference) ===== */
   --sidebar-bg:            #102E4F;
   --sidebar-border:        rgba(255, 255, 255, 0.06);
-  --sidebar-item:          #A9B9CB;
+  --sidebar-item:          #FFFFFF;
   --sidebar-item-hover:    #FFFFFF;
   --sidebar-item-active:   #FFFFFF;
   --sidebar-item-active-bg: rgba(37, 104, 178, 0.45);
   --sidebar-brand:         #FFFFFF;
-  --sidebar-brand-sub:     #A9B9CB;
+  --sidebar-brand-sub:     #FFFFFF;
 
   /* ===== Text ===== */
   --text-primary:   #141515;
