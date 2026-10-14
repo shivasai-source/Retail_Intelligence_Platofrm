@@ -156,7 +156,7 @@ export function Sidebar({
         onFocus={() => setFocused(true)}
         onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setFocused(false) }}
         className={[
-          'group/nav fixed inset-y-0 left-0 z-50 flex h-screen flex-col border-r border-white/[0.06]',
+          'group/nav fixed inset-y-0 left-0 z-50 flex h-screen flex-col border-r border-white/[0.06] md:absolute md:h-full',
           'bg-sidebar-bg text-sidebar-item',
           // Below `md` the drawer is always the full width. From `md` the width
           // is the rail's until the labels are revealed.
@@ -219,7 +219,7 @@ export function Sidebar({
             <img src="/image.png" alt="TransOrg IQ" className="h-10 w-10 shrink-0 object-contain" />
           </Link>
           <Reveal expanded={labelled} className="min-w-0 flex-1">
-            <span className="block truncate text-base font-semibold uppercase tracking-[0.1em] text-sidebar-brand-sub">
+            <span className="block truncate text-base font-medium text-sidebar-brand-sub">
               {brand}
             </span>
           </Reveal>
@@ -276,12 +276,12 @@ export function Sidebar({
                 title={user ? `${user.name} — signed in` : 'Not signed in'}
                 aria-label={user ? `Account menu — ${user.name}` : 'Account menu'}
               >
-                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6B47FF] to-[#8C6EFF] text-xs font-bold text-white">
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[var(--brand-violet)] to-[var(--brand-violet)] text-xs font-medium text-white">
                   {user?.initials}
                 </div>
                 <Reveal expanded={labelled} className="flex min-w-0 flex-1 items-center gap-2">
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-base font-semibold text-sidebar-brand">
+                    <span className="truncate text-base font-medium text-sidebar-brand">
                       {user?.name}
                     </span>
                     <span className="truncate text-xs text-sidebar-brand-sub">
@@ -386,7 +386,7 @@ function NavRow({
       locked
         ? 'cursor-not-allowed text-sidebar-item opacity-40'
         : active
-          ? 'bg-sidebar-item-active-bg font-semibold text-sidebar-item-active [&_svg]:text-[#B7A6FF]'
+          ? 'bg-sidebar-item-active-bg font-medium text-sidebar-item-active [&_svg]:text-[var(--brand-violet-100)]'
           : 'text-sidebar-item hover:bg-white/5 hover:text-sidebar-item-hover',
     ].join(' '),
   }
@@ -429,7 +429,7 @@ function NavRow({
           <Icon name="lock" className="ml-auto h-3.5 w-3.5 shrink-0" />
         ) : (
           item.badge && (
-            <span className="ml-auto shrink-0 rounded-[var(--r-pill)] bg-brand-violet px-1.5 py-px text-2xs font-bold leading-4 text-white">
+            <span className="ml-auto shrink-0 rounded-[var(--r-pill)] bg-brand-violet px-1.5 py-px text-2xs font-medium leading-4 text-white">
               {item.badge}
             </span>
           )
@@ -458,7 +458,7 @@ function NavRow({
         createPortal(
           <span
             role="tooltip"
-            className="fade-in pointer-events-none fixed z-[9999] -translate-y-1/2 whitespace-nowrap rounded-[var(--r-sm)] bg-sidebar-bg px-2.5 py-1.5 text-sm font-semibold text-sidebar-brand shadow-[var(--shadow-lg)] ring-1 ring-white/10"
+            className="fade-in pointer-events-none fixed z-[9999] -translate-y-1/2 whitespace-nowrap rounded-[var(--r-sm)] bg-sidebar-bg px-2.5 py-1.5 text-sm font-medium text-sidebar-brand shadow-[var(--shadow-lg)] ring-1 ring-white/10"
             style={{ top: tip.top, left: tip.left }}
           >
             {locked ? `${item.label} — locked` : item.label}

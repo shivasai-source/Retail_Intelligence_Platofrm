@@ -29,7 +29,7 @@ export function NodeDetailPopover({
           <Icon name={node.icon as IconName} />
         </div>
         <div className="min-w-0">
-          <div className="text-base font-extrabold">{node.label}</div>
+          <div className="text-base font-medium">{node.label}</div>
           {/* The delta moved here from the graph node, where it sat as a bare
               red figure with nothing to read it against. Beside the metric —
               and directly above the bars it is drawn from — it can at least be
@@ -38,7 +38,7 @@ export function NodeDetailPopover({
             <span>{node.metric}</span>
             {node.delta && (
               <span
-                className="inline-flex items-center gap-0.5 font-bold"
+                className="inline-flex items-center gap-0.5 font-medium"
                 style={{
                   color:
                     node.trend === 'down'
@@ -56,7 +56,7 @@ export function NodeDetailPopover({
         </div>
       </div>
 
-      <div className="text-base font-bold leading-[1.4] text-ink-primary">{detail.headline}</div>
+      <div className="text-base font-medium leading-[1.4] text-ink-primary">{detail.headline}</div>
       <p className="mt-2 text-base leading-[1.55] text-ink-secondary">{detail.body}</p>
 
       {detail.viz && detail.viz.type === 'bars' && (
@@ -74,12 +74,12 @@ export function NodeDetailPopover({
               <div key={it.label} className="mb-2.5 last:mb-0">
                 <div className="flex items-baseline justify-between gap-2">
                   <span
-                    className="min-w-0 truncate text-xs font-semibold text-ink-secondary"
+                    className="min-w-0 truncate text-xs font-medium text-ink-secondary"
                     title={it.label}
                   >
                     {it.label}
                   </span>
-                  <span className="shrink-0 text-sm font-extrabold text-ink-primary [font-variant-numeric:tabular-nums]">
+                  <span className="shrink-0 text-sm font-medium text-ink-primary [font-variant-numeric:tabular-nums]">
                     {/* GROUPED, BUT NOT GIVEN A UNIT. The viz carries a `unit`
                         field that every recorded run leaves empty, so the only
                         thing known about a value is its magnitude — printed raw
@@ -110,7 +110,7 @@ export function NodeDetailPopover({
               </div>
             ))
           })()}
-          <div className="mt-0.5 text-right text-2xs font-semibold uppercase tracking-[0.04em] text-ink-muted">
+          <div className="mt-0.5 text-right text-2xs font-medium text-ink-muted">
             {detail.viz.unit}
           </div>
         </div>
@@ -124,7 +124,7 @@ export function NodeDetailPopover({
       <Link
         to="/intelligence"
         onClick={onClose}
-        className="mt-3 flex h-[30px] w-full items-center justify-center gap-2 rounded-[var(--r-md)] bg-brand-violet-50 text-sm font-semibold text-brand-violet hover:bg-brand-violet-100"
+        className="mt-3 flex h-[30px] w-full items-center justify-center gap-2 rounded-[var(--r-md)] bg-brand-violet-50 text-sm font-medium text-brand-violet hover:bg-brand-violet-100"
       >
         View in Intelligence <Icon name="arrowRight" className="h-3.5 w-3.5" />
       </Link>

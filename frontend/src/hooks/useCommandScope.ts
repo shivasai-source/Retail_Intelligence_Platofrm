@@ -28,8 +28,7 @@ export function useEnsureCommandScope(): boolean {
     if (initialised) return
     const years = options.data?.years
     if (!years?.length) return
-    const completed = years.filter((y) => y < new Date().getFullYear())
-    initialise(Math.max(...(completed.length ? completed : years)))
+    initialise(null)
   }, [initialised, options.data?.years, initialise])
   return initialised
 }

@@ -9,8 +9,7 @@
  *  separation between adjacent pairs, normal-vision floor, contrast against
  *  the surface) and passes every check:
  *
- *    light, on #FCFCFB — worst adjacent CVD ΔE 12.5 (protan), normal 23.3
- *    dark,  on #141B2E — worst adjacent CVD ΔE 11.4 (protan), normal 18.9
+ *    The Wipro palette (2026-10-13): navy, blue, amber, green, light blue, red.
  *
  *  The first ordering tried (violet, orange, teal, …) FAILED at ΔE 6.9 between
  *  the pink and the teal; reordering so those two are never adjacent is what
@@ -25,22 +24,22 @@
 
 /** Light-mode series colours, in assignment order. */
 export const CHART_SERIES_LIGHT = [
-  '#6B47FF', // violet — the brand hue, so the first series matches the app
-  '#0D9488', // teal
-  '#F97316', // orange
-  '#2563EB', // blue
-  '#EC4899', // pink
-  '#A16207', // amber
+  '#143A63', // Wipro navy — the brand hue, so the first series matches the app
+  '#2568B2', // Wipro blue
+  '#E4A239', // amber
+  '#559D0A', // green
+  '#7FA7D4', // light blue
+  '#E44439', // red
 ] as const
 
 /** Dark-mode series colours, in the same identity order. */
 export const CHART_SERIES_DARK = [
-  '#857EDD', // violet
-  '#00A78F', // teal
-  '#CB7229', // orange
-  '#6288E1', // blue
-  '#C96598', // pink
-  '#B38400', // amber
+  '#6FA3DD', // navy, lifted for dark
+  '#4D8FD6', // blue
+  '#EDB65E', // amber
+  '#7FC23A', // green
+  '#A9C5E6', // light blue
+  '#EF6B62', // red
 ] as const
 
 /** How many distinct colours exist before a chart must fold the tail into

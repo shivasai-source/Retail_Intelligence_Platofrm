@@ -68,14 +68,14 @@ export function DualLine({
         <path
           d={path(lift)}
           fill="none"
-          stroke="#10B981"
+          stroke="var(--status-success)"
           strokeWidth={2}
           strokeDasharray={800}
           strokeDashoffset={800}
           style={{ animation: 'drawLine 1200ms var(--ease-out) 200ms forwards' }}
         />
         {dots(spend, 'var(--brand-violet)', 'spend')}
-        {dots(lift, '#10B981', 'lift')}
+        {dots(lift, 'var(--status-success)', 'lift')}
         {weeks.map((wk, i) => (
           <text
             key={wk}

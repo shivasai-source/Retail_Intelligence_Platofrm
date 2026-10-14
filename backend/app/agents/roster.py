@@ -12,17 +12,20 @@ service calls, not just a different `by`), and carries its own instructions.
 The orchestrator's job becomes selection — deciding which lenses this question
 actually needs — rather than invention.
 
-The chain they decompose, since ROI = Incremental Sales / Trade Spend:
+FIVE AGENTS, ONE LENS EACH (2026-10-13). There were nine; a review of every
+stored run found three that never ran (spend_allocation, portfolio, temporal)
+and two that read the same promotion events and quoted the same figures in
+35 of 44 runs (offer_forensics, risk_exposure). Their work was folded into
+the agent whose lens it belongs to, so nothing a reader relied on was lost:
 
-    Is it even abnormal?          -> benchmark
-    Where did the money go?       -> spend_allocation
-    Did the offer type convert?   -> mechanic_efficiency
-    Which specific offers failed? -> offer_forensics
-    Which products dragged?       -> portfolio
-    Where did it break?           -> geography
-    Was the "lift" even real?     -> cannibalization
-    Did it decay over time?       -> temporal
-    How much is still exposed?    -> risk_exposure
+    Is it abnormal, now and over time?          -> benchmark            (+ temporal's monthly trend)
+    Which mechanic, and where did spend go?      -> mechanic_efficiency  (+ spend_allocation's spend mix)
+    Which events lost money, and how much?       -> offer_forensics      (+ risk_exposure's loss bands)
+    Where -- place, partner, category, brand?    -> geography            (+ portfolio's category / brand)
+    Was the lift real, or taken from neighbours? -> cannibalization
+
+Older stored runs still name the retired keys; they render from the name,
+description and icon copied into each run.
 
 Each agent compares its segment against the wider business WHERE THAT MATTERS
 for its own lens, rather than relying on the planner to remember to add a
@@ -58,62 +61,74 @@ def _trim(rows: list[dict[str, Any]], keep: tuple[str, ...], limit: int) -> list
 # --- fetchers: each pulls the data its own lens needs -----------------------
 
 def _fetch_benchmark(f: dict[str, Any]) -> dict[str, Any]:
+    t = service.trend(build_filter_state(f), "month")
     return {
-        "question_this_answers": "Is this segment genuinely abnormal, or in line with the business?",
+        "question_this_answers": (
+            "Is this segment genuinely abnormal against the business -- and did it hold, "
+            "fade or spike across the period?"
+        ),
         "kpis": _kpi_compare(f),
         "roi_by_channel_whole_business": run_analysis({}, "channel", "roi").get("groups"),
         "roi_by_region_whole_business": run_analysis({}, "region", "roi").get("groups"),
-    }
-
-
-def _fetch_spend_allocation(f: dict[str, Any]) -> dict[str, Any]:
-    mix = service.promotion_mix(build_filter_state(f))
-    return {
-        "question_this_answers": "Where did the trade spend actually go, and is it concentrated?",
-        "kpis": _kpi_compare(f),
-        "spend_by_mechanic": run_analysis(f, "promotion_mechanic", "trade_spend").get("groups"),
-        "spend_mix_by_offer": _trim(mix.get("slices") or [], ("label", "type", "spend", "pct"), 10),
+        # Folded in from the retired Temporal Analyst: the segment month by month.
+        "monthly_trend": {"labels": t.get("labels"), "series": t.get("series")},
     }
 
 
 def _fetch_mechanic_efficiency(f: dict[str, Any]) -> dict[str, Any]:
+    mix = service.promotion_mix(build_filter_state(f))
     return {
-        "question_this_answers": "Which offer mechanics convert spend into sales, and which destroy it?",
+        "question_this_answers": (
+            "Which offer mechanics convert spend into sales, which destroy it, and where "
+            "did the spend actually go?"
+        ),
         "kpis": _kpi_compare(f),
+        # Each group carries trade_spend, roi and share_pct -- spend and return
+        # in one table, which is why the Spend Allocation Analyst was retired.
         "mechanic_roi_in_segment": run_analysis(f, "promotion_mechanic", "roi").get("groups"),
         "mechanic_roi_whole_business": run_analysis({}, "promotion_mechanic", "roi").get("groups"),
+        "spend_mix_by_offer": _trim(mix.get("slices") or [], ("label", "type", "spend", "pct"), 10),
     }
 
 
 def _fetch_offer_forensics(f: dict[str, Any]) -> dict[str, Any]:
     state = build_filter_state(f)
+    alerts = service.risk_alerts(state, limit=10)
     under = service.underperforming_promotions(state)
     top = service.top_promotions(state, limit=8)
     keep = ("promotion", "product", "channel", "period", "roi_multiple", "vs_target", "trade_spend", "at_stake")
     return {
-        "question_this_answers": "Which individual promotion events failed, and what did they cost?",
-        "worst_events": _trim(under.get("rows") or [], keep + ("primary_cause", "action"), 10),
+        "question_this_answers": (
+            "Which individual promotion events missed the ROI target, how much is at "
+            "stake in total, and which were the worst?"
+        ),
+        # Folded in from the retired Risk Agent: the events below the ROI
+        # target, banded Critical / High / Medium, with the money at stake.
+        "events_by_severity": alerts.get("counts"),
+        "worst_by_stake": _trim(
+            alerts.get("alerts") or [],
+            ("title", "description", "severity", "roi_multiple", "trade_spend",
+             "at_stake", "net_incremental_profit", "sales_less_spend"),
+            8,
+        ),
+        "weakest_events": _trim(under.get("rows") or [], keep + ("primary_cause", "action"), 10),
         "best_events": _trim(top.get("rows") or [], keep, 6),
-    }
-
-
-def _fetch_portfolio(f: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "question_this_answers": "Which categories, brands or products are dragging the segment down?",
-        "kpis": _kpi_compare(f),
-        "roi_by_category": run_analysis(f, "category", "roi").get("groups"),
-        "roi_by_brand": run_analysis(f, "brand", "roi").get("groups"),
-        "spend_by_product": run_analysis(f, "product", "trade_spend").get("groups"),
     }
 
 
 def _fetch_geography(f: dict[str, Any]) -> dict[str, Any]:
     return {
-        "question_this_answers": "Where — which channel, region or retailer — does performance break?",
+        "question_this_answers": (
+            "Where does performance break -- which region, state or retailer -- and is it "
+            "concentrated in particular categories or brands?"
+        ),
         "kpis": _kpi_compare(f),
         "roi_by_region": run_analysis(f, "region", "roi").get("groups"),
         "roi_by_state": run_analysis(f, "state", "roi").get("groups"),
         "roi_by_retailer": run_analysis(f, "retailer", "roi").get("groups"),
+        # Folded in from the retired Portfolio Analyst.
+        "roi_by_category": run_analysis(f, "category", "roi").get("groups"),
+        "roi_by_brand": run_analysis(f, "brand", "roi").get("groups"),
     }
 
 
@@ -153,30 +168,6 @@ def _fetch_cannibalization(f: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _fetch_temporal(f: dict[str, Any]) -> dict[str, Any]:
-    t = service.trend(build_filter_state(f), "month")
-    return {
-        "question_this_answers": "Did performance decay, spike or hold steady across the period?",
-        "kpis": _kpi_compare(f),
-        "granularity": t.get("granularity"),
-        "labels": t.get("labels"),
-        "series": t.get("series"),
-    }
-
-
-def _fetch_risk_exposure(f: dict[str, Any]) -> dict[str, Any]:
-    alerts = service.risk_alerts(build_filter_state(f), limit=10)
-    return {
-        "question_this_answers": "How much money is still at stake, and how severe is the exposure?",
-        "counts_by_severity": alerts.get("counts"),
-        "top_alerts": _trim(
-            alerts.get("alerts") or [],
-            ("title", "description", "severity", "roi_multiple", "trade_spend", "at_stake"),
-            8,
-        ),
-    }
-
-
 @dataclass(frozen=True)
 class Specialist:
     key: str
@@ -192,85 +183,75 @@ ROSTER: tuple[Specialist, ...] = (
     Specialist(
         key="benchmark",
         name="Benchmarking Agent",
-        desc="Compares the segment against the whole business",
+        desc="Compares the segment against the whole business, and over time",
         icon="target",
-        role="Establishes whether there is a problem at all, by comparing the segment to the business norm and to peer channels/regions.",
+        role=(
+            "Establishes whether there is a problem at all -- the segment against the business "
+            "norm and peer channels/regions -- and whether it held, faded or spiked over the period."
+        ),
         focus=(
             "Your job is CALIBRATION. State plainly whether this segment is genuinely "
             "abnormal or merely average, and by how much. If it is close to the norm, say "
-            "so — a confident 'nothing unusual here' is a valuable finding and stops the "
-            "other analysts' results being over-read. Quantify the gap in percentage points."
+            "so -- a confident 'nothing unusual here' is a valuable finding and stops the "
+            "other analysts' results being over-read. Quantify the gap in percentage points. "
+            "Then read `monthly_trend`: if one month carried or dragged the result, or the "
+            "segment faded across the period, name it, because the average then describes "
+            "that month rather than the promotion."
         ),
         fetch=_fetch_benchmark,
     ),
     Specialist(
-        key="spend_allocation",
-        name="Spend Allocation Analyst",
-        desc="Where the trade spend went and how concentrated it is",
-        icon="pieChart",
-        role="Follows the money: which mechanics and offers absorbed the budget, and whether spend is dangerously concentrated.",
-        focus=(
-            "Your job is FOLLOWING THE MONEY. Identify concentration: if one mechanic or "
-            "offer absorbs a large share of spend, that is where the ROI is decided, "
-            "regardless of how any small offer performed. Always report the share of spend "
-            "alongside the ROI — a poor ROI on 2% of budget is trivia; a poor ROI on 50% "
-            "of budget is the story."
-        ),
-        fetch=_fetch_spend_allocation,
-    ),
-    Specialist(
         key="mechanic_efficiency",
         name="Effectiveness Agent",
-        desc="Which offer mechanics convert spend into sales",
+        desc="Which offer mechanics convert spend into sales, and where the spend went",
         icon="tag",
-        role="Tests whether the offer TYPE (discount depth, BOGO, bundle) is the inefficiency.",
+        role=(
+            "Tests whether the offer TYPE (discount depth, BOGO, bundle) is the inefficiency, "
+            "and where the trade spend was concentrated."
+        ),
         focus=(
             "Your job is MECHANIC EFFECTIVENESS. Compare each mechanic's ROI inside the "
             "segment against the same mechanic across the whole business. That difference "
             "is the key signal: a mechanic that works elsewhere but fails here is an "
             "execution or fit problem, whereas one that fails everywhere is a design "
-            "problem. Name which of the two you are seeing."
+            "problem. Name which of the two you are seeing. Always report each mechanic's "
+            "share of spend beside its ROI -- a poor ROI on 2% of budget is trivia; a poor "
+            "ROI on 50% of budget is the story."
         ),
         fetch=_fetch_mechanic_efficiency,
     ),
     Specialist(
         key="offer_forensics",
         name="Diagnostics Agent",
-        desc="The specific promotion events that failed",
+        desc="The specific promotion events that missed target, and the money at stake",
         icon="zoomIn",
-        role="Drills to individual promotion events — the actual offers, products and weeks that lost money.",
+        role=(
+            "Drills to individual promotion events -- the actual offers, products and weeks "
+            "that missed the ROI target -- and sizes the exposure and how severe it is."
+        ),
         focus=(
-            "Your job is SPECIFICS. Everyone else works in aggregates; you name the actual "
-            "offer, product and week that lost money, and the value at stake. Prefer the "
-            "events with the largest trade spend or at_stake — a 0.20 ROI on a few hundred "
-            "rupees is noise next to a 0.96 ROI on lakhs."
+            "Your job is SPECIFICS AND EXPOSURE. Everyone else works in aggregates; you name "
+            "the actual offer, product and week. Lead with `worst_by_stake`: the events "
+            "below the ROI target, banded Critical / High / Medium, with the money at "
+            "stake. Give how many there are, the total at stake and the worst one. If "
+            "every event reached target, say so plainly and name the weakest from "
+            "`weakest_events` instead. Prefer the biggest money -- a 0.20 ROI on a few "
+            "hundred rupees is noise next to a 1.40 ROI on lakhs."
         ),
         fetch=_fetch_offer_forensics,
     ),
     Specialist(
-        key="portfolio",
-        name="Portfolio Analyst",
-        desc="Which categories, brands and products drag performance",
-        icon="package",
-        role="Finds whether the problem is concentrated in particular products rather than the promotion design.",
-        focus=(
-            "Your job is PRODUCT MIX. Determine whether underperformance is broad-based or "
-            "concentrated in specific categories/brands. Broad-based points at the promotion "
-            "design; concentrated points at product fit, pricing or availability. State which."
-        ),
-        fetch=_fetch_portfolio,
-    ),
-    Specialist(
         key="geography",
         name="Optimization Agent",
-        desc="Which channels, regions and retailers break",
+        desc="Which regions, retailers, categories and brands break",
         icon="retailer",
-        role="Localises the problem geographically and by trade partner.",
+        role="Localises the problem by place, trade partner, category and brand.",
         focus=(
             "Your job is LOCALISATION. Narrow the problem to the smallest place that "
-            "explains it — a region, a state, a specific retailer. If performance is even "
-            "across every location, say so: that rules out execution and points back at the "
-            "offer design, which is itself a useful elimination."
+            "explains it -- a region, a state, a specific retailer -- and say whether it is "
+            "concentrated in particular categories or brands. If performance is even "
+            "everywhere, say so: that rules out execution and product fit and points back "
+            "at the offer design, which is itself a useful elimination."
         ),
         fetch=_fetch_geography,
     ),
@@ -299,34 +280,6 @@ ROSTER: tuple[Specialist, ...] = (
             "-- this is co-movement, not attribution."
         ),
         fetch=_fetch_cannibalization,
-    ),
-    Specialist(
-        key="temporal",
-        name="Temporal Analyst",
-        desc="Decay, spikes and timing across the period",
-        icon="history",
-        role="Tests whether performance degraded over time or was driven by a few periods.",
-        focus=(
-            "Your job is TIME. Look for decay (early strength fading), spikes (one period "
-            "carrying the whole result) and volatility. A single extreme month can drag or "
-            "flatter an average — if one period dominates, name it, because the aggregate "
-            "then describes that period rather than the promotion."
-        ),
-        fetch=_fetch_temporal,
-    ),
-    Specialist(
-        key="risk_exposure",
-        name="Risk Agent",
-        desc="Money still at stake and severity of exposure",
-        icon="shield",
-        role="Quantifies remaining downside — how many events are below target and what they put at risk.",
-        focus=(
-            "Your job is EXPOSURE, not diagnosis. Quantify how much is still at risk and "
-            "how concentrated the severe cases are. This is what makes the investigation "
-            "actionable: the reader needs to know the size of the problem in money, not "
-            "only its cause."
-        ),
-        fetch=_fetch_risk_exposure,
     ),
 )
 

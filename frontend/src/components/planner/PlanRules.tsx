@@ -53,12 +53,12 @@ export function PlanRules({
       {rules && rules.channels.length > 0 && (
         <span className="pb-2.5">
         <InfoPopover label="The planning rules" title="The planning rules" width={360}>
-          <div className="mt-1.5 space-y-2 text-[14px] leading-snug text-ink-secondary">
+          <div className="mt-1.5 space-y-2 text-base leading-snug text-ink-secondary">
             <p>Read from the data, per channel:</p>
             <ul className="space-y-1.5">
               {rules.channels.map((c) => (
                 <li key={c.channel_id}>
-                  <span className="font-semibold text-ink-primary">{c.channel}</span> books by the{' '}
+                  <span className="font-medium text-ink-primary">{c.channel}</span> books by the{' '}
                   {c.grain}, leaves {c.gap} {c.grain}
                   {c.gap === 1 ? '' : 's'} between promotions and runs at most {c.max_share_pct.toFixed(2)}% of{' '}
                   {c.grain}s promoted. Offers: {c.menu.map((m) => `${m.depth_pct}%`).join(', ')}

@@ -35,12 +35,12 @@ export function roiTone(roi: number | null | undefined, target: number): RoiTone
   return 'danger'
 }
 
-/** Tailwind text classes for each tone (`font-semibold` included for the
+/** Tailwind text classes for each tone (`font-medium` included for the
  *  judged states, so a muted dash never reads as a verdict). */
 export const ROI_TONE_CLASS: Record<RoiTone, string> = {
-  success: 'font-semibold text-status-success',
-  neutral: 'font-semibold text-ink-primary',
-  danger: 'font-semibold text-status-danger',
+  success: 'font-medium text-status-success',
+  neutral: 'font-medium text-ink-primary',
+  danger: 'font-medium text-status-danger',
   muted: 'text-ink-muted',
 }
 
@@ -87,13 +87,13 @@ export function fmtRoiDelta(v: number | null | undefined, dp = 2): string {
  *  scope's own ROI. The Insights Hub itself reads `meta.severity_bands`,
  *  which follow the reader's target; `medium` here doubles as the last-resort
  *  default target when no payload has answered yet. */
-export const SEVERITY_BANDS = { critical: 1.25, high: 1.4, medium: 1.5 } as const
+export const SEVERITY_BANDS = { critical: 1.0, high: 1.25, medium: 1.5 } as const
 
 export type RoiStanding = 'Critical' | 'High' | 'Medium' | 'On target'
 
 export function standingOf(roi: number | null | undefined): RoiStanding | null {
   if (roi == null || !Number.isFinite(roi)) return null
-  if (roi < SEVERITY_BANDS.critical) return 'Critical'
+  if (roi <= SEVERITY_BANDS.critical) return 'Critical'
   if (roi < SEVERITY_BANDS.high) return 'High'
   if (roi < SEVERITY_BANDS.medium) return 'Medium'
   return 'On target'

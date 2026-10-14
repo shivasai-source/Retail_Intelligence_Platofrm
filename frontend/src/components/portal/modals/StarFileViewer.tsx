@@ -35,7 +35,7 @@ export function StarFileViewer({
         <div className="flex min-w-0 items-center gap-2.5">
           <IconButton icon="chevronLeft" onClick={onBack} />
           <div className="min-w-0">
-            <h3 className="truncate text-md font-bold">{data?.label ?? 'Loading…'}</h3>
+            <h3 className="truncate text-md font-medium">{data?.label ?? 'Loading…'}</h3>
             <div className="mt-0.5 truncate text-sm text-ink-muted">
               {data
                 ? `${data.filename} · ${data.row_count.toLocaleString()} rows · ${data.columns.length} columns · ${fmtSize(data.size_bytes)}`
@@ -54,7 +54,7 @@ export function StarFileViewer({
         )}
 
         {preview.isError && (
-          <div className="m-5 rounded-[var(--r-md)] bg-status-danger-bg p-[10px_12px] text-sm leading-[1.55] text-[#B91C1C]">
+          <div className="m-5 rounded-[var(--r-md)] bg-status-danger-bg p-[10px_12px] text-sm leading-[1.55] text-[var(--pill-danger-ink)]">
             {preview.error instanceof Error ? preview.error.message : "Couldn't read this file."}
           </div>
         )}

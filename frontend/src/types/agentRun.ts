@@ -40,6 +40,9 @@ export interface AgentFinding {
 export interface AgentSynthesis {
   summary: string
   root_cause: string
+  /** Every root cause, each with the agent keys that support it. Absent on a
+   *  run recorded before causes were listed. */
+  root_causes?: { cause: string; agents: string[]; share_pct?: number }[]
   confidence: number
   insight_count: number
   recommendations: string[]
@@ -57,7 +60,8 @@ export interface AgentRunResult {
   global_filters?: Record<string, unknown>
   totals: Record<string, string | number | null>
   findings: AgentFinding[]
-  synthesis: AgentSynthesis
+  /** Null when the run stopped before synthesis, or was refused. */
+  synthesis: AgentSynthesis | null
   // Assembled server-side into the exact shape the graph already renders.
   // Null when the question was refused as out of scope.
   orchestration: Orchestration | null

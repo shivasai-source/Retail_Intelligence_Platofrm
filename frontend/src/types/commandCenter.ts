@@ -82,6 +82,8 @@ export interface Option {
 
 export interface FiltersResponse {
   years: number[]
+  /** Every business week in the data with its first day, for the Period calendar. */
+  calendar?: { year: number; weeks: { week: number; start: string; month: number }[] }[]
   year_labels: Record<string, string>
   months: Option[]
   channels: Option[]
@@ -134,6 +136,13 @@ export interface RiskAlert {
   net_incremental_profit_display: string
   at_stake: number
   at_stake_display: string
+  /** Incremental sales less trade spend — did the extra revenue cover the
+   *  money put in. NOT `net_incremental_profit` above, which also subtracts
+   *  the cost of the extra units, the discount on units that would have sold
+   *  anyway, and the margin taken from sister packs. Positive exactly when
+   *  ROI is above 1.00. */
+  sales_less_spend?: number
+  sales_less_spend_display?: string
   channel: string
   product: string
   /** The week the event ran. A LABEL, not a filter: an event's ROI is measured

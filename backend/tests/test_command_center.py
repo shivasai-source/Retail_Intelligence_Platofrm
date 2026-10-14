@@ -320,13 +320,16 @@ def test_narrowing_by_an_alerts_identifiers_reproduces_its_roi():
 
 
 def test_severity_bands_match_the_spec():
-    """Critical < 1.25 <= High < 1.4 <= Medium < 1.5 <= target achieved.
-    The old 25 / 40 / 50 percent bands, restated as multiples."""
-    assert service._severity(1.1) == "critical"
-    assert service._severity(1.249) == "critical"
-    assert service._severity(1.25) == "high"
-    assert service._severity(1.399) == "high"
-    assert service._severity(1.4) == "medium"
+    """Critical <= 1.0 < High < 1.25 <= Medium < 1.5 <= target achieved.
+
+    Critical is INCLUSIVE at 1.00: a promotion that returned exactly what it
+    spent is the worst band, not the one above it.
+    """
+    assert service._severity(0.5) == "critical"
+    assert service._severity(1.0) == "critical"
+    assert service._severity(1.001) == "high"
+    assert service._severity(1.249) == "high"
+    assert service._severity(1.25) == "medium"
     assert service._severity(1.499) == "medium"
     assert service._severity(1.5) is None
     assert service._severity(None) is None

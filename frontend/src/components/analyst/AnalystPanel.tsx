@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { IconButton, useToast } from '../ui'
 import { AnalystConversation } from './AnalystConversation'
 import { useAnalyst } from '../../hooks/useAnalyst'
+import { useAnalystInbox } from '../../store/analystInbox'
 import { useAnalystLayout, ANALYST_MIN_W, ANALYST_MAX_W } from '../../store/analystLayout'
 import { TO_PANEL, TO_WINDOW, dropHandoff, readHandoff, sendHandoff, takeHandoff } from '../../lib/analystHandoff'
 
@@ -53,6 +54,18 @@ export function AnalystPanel({
 }) {
   const analyst = useAnalyst()
   const { restore } = analyst
+
+  // A QUESTION HANDED OVER FROM INVESTIGATIONS (a figure lookup typed into
+  // its box): open, ask it, and clear the slot so it is asked once.
+  const inbox = useAnalystInbox((s) => s.question)
+  const clearInbox = useAnalystInbox((s) => s.clear)
+  const { ask } = analyst
+  useEffect(() => {
+    if (!inbox) return
+    clearInbox()
+    onOpen?.()
+    void ask(inbox)
+  }, [inbox, clearInbox, onOpen, ask])
   const { show } = useToast()
   const mode = useAnalystLayout((s) => s.mode)
   const width = useAnalystLayout((s) => s.width)

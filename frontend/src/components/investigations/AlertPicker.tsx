@@ -147,7 +147,7 @@ export function AlertPicker({ disabled }: { disabled?: boolean }) {
           >
             <div className="flex flex-col gap-2.5 border-b border-border-subtle p-3">
               <div className="flex items-baseline justify-between gap-2">
-                <div className="text-sm font-bold text-ink-primary">Pick a promotion event to investigate</div>
+                <div className="text-sm font-medium text-ink-primary">Pick a promotion event to investigate</div>
                 {total > 0 && (
                   <span className="text-xs text-ink-muted">
                     {total.toLocaleString()} below ROI target
@@ -182,7 +182,7 @@ export function AlertPicker({ disabled }: { disabled?: boolean }) {
                         setQuery('')
                         setSeverity(sev)
                       }}
-                      className={`inline-flex cursor-pointer items-center gap-1.5 px-2.5 text-xs font-semibold transition-colors ${
+                      className={`inline-flex cursor-pointer items-center gap-1.5 px-2.5 text-xs font-medium transition-colors ${
                         severity === sev && !searching
                           ? 'bg-brand-violet text-white'
                           : 'text-ink-muted hover:bg-surface-hover hover:text-ink-primary'
@@ -225,16 +225,16 @@ export function AlertPicker({ disabled }: { disabled?: boolean }) {
                     >
                       <span className="flex min-w-0 items-center gap-2">
                         {searching && (
-                          <Pill tone={SEVERITY_TONE[a.severity]} className="h-[18px] shrink-0 px-1.5 text-[11px]">
+                          <Pill tone={SEVERITY_TONE[a.severity]} className="h-[18px] shrink-0 px-1.5 text-xs">
                             {a.severity}
                           </Pill>
                         )}
-                        <span className="truncate text-sm font-bold text-ink-primary">{promotionOf(a)}</span>
+                        <span className="truncate text-sm font-medium text-ink-primary">{promotionOf(a)}</span>
                         <span className="shrink-0 text-xs text-ink-muted">
                           {a.channel} · {a.week}
                         </span>
                       </span>
-                      <span className="flex items-baseline justify-end gap-2.5 text-sm font-bold tabular-nums">
+                      <span className="flex items-baseline justify-end gap-2.5 text-sm font-medium tabular-nums">
                         <span className={roi !== null && roi < BREAKEVEN_ROI ? 'text-status-danger' : 'text-ink-primary'}>
                           ROI {fmtRoi(roi)}
                         </span>
@@ -243,7 +243,7 @@ export function AlertPicker({ disabled }: { disabled?: boolean }) {
                           className={ROI_TONE_CLASS[netTone(a.net_incremental_profit, roi)]}
                         >
                           {a.net_incremental_profit_display}
-                          <span className="ml-1 text-xs font-semibold text-ink-muted">net</span>
+                          <span className="ml-1 text-xs font-medium text-ink-muted">net</span>
                         </span>
                       </span>
                       <span className="truncate text-xs text-ink-secondary">{a.product}</span>

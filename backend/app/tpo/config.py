@@ -77,10 +77,15 @@ TARGET_ROI_MAX: float = 2.0
 #: Stated as OFFSETS so the bands travel with the target: at the default 1.50
 #: they are the long-standing 1.25 / 1.40 / 1.50, and a reader who sets 1.70
 #: gets 1.45 / 1.60 / 1.70 -- the same shape, moved.
+#: The three bands, as offsets from the target. At the 1.50 target they read
+#: as the thirds a reader expects:
+#:   Critical  ROI <= 1.00  -- returned no more revenue than it spent
+#:   High      1.00 < ROI < 1.25
+#:   Medium    1.25 <= ROI < 1.50
 SEVERITY_OFFSETS = {
-    "critical": -0.25,  # ROI < target - 0.25
-    "high": -0.10,      # target - 0.25 <= ROI < target - 0.10
-    "medium": 0.0,      # target - 0.10 <= ROI < target
+    "critical": -0.50,  # ROI <= target - 0.50
+    "high": -0.25,      # target - 0.50 < ROI < target - 0.25
+    "medium": 0.0,      # target - 0.25 <= ROI < target
 }
 
 

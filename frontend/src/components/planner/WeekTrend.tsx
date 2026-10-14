@@ -80,7 +80,7 @@ export function WeekTrend({
             { value: 'change', label: 'Profit change', title: `${planLabel} minus the current plan` },
           ]}
         />
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[14px] text-ink-secondary">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-base text-ink-secondary">
           <span className="inline-flex items-center gap-1.5">
             <span className="inline-block h-0.5 w-5 rounded" style={{ background: NOW }} /> {metric === 'change' ? 'Current plan (zero line)' : 'Current plan'}
           </span>
@@ -187,7 +187,7 @@ export function WeekTrend({
 
         {h && hs && hover != null && (
           <div
-            className="pointer-events-none absolute top-2 z-10 min-w-[230px] rounded-[var(--r-md)] border border-border-subtle bg-surface-card px-3 py-2 text-[14px] shadow-[var(--shadow-md)] [font-variant-numeric:tabular-nums]"
+            className="pointer-events-none absolute top-2 z-10 min-w-[230px] rounded-[var(--r-md)] border border-border-subtle bg-surface-card px-3 py-2 text-base shadow-[var(--shadow-md)] [font-variant-numeric:tabular-nums]"
             style={{ left: `${Math.min(80, Math.max(20, (X(hover) / w) * 100))}%`, transform: 'translateX(-50%)' }}
           >
             <div className="text-ink-primary">

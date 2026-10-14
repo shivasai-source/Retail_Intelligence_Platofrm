@@ -92,7 +92,7 @@ export function Forecast({
         <path
           d={line(baseline)}
           fill="none"
-          stroke="#94A3B8"
+          stroke="var(--text-muted)"
           strokeWidth={1.8}
           strokeDasharray="5 4"
           strokeDashoffset={800}
@@ -110,14 +110,14 @@ export function Forecast({
         <path
           d={line(optimized)}
           fill="none"
-          stroke="#10B981"
+          stroke="var(--status-success)"
           strokeWidth={2.4}
           strokeDasharray="6 4"
           strokeDashoffset={800}
           style={{ animation: 'drawLine 1100ms var(--ease-out) 400ms forwards' }}
         />
         {dots(current, 'var(--brand-blue)', 'current')}
-        {dots(optimized, '#10B981', 'optimized')}
+        {dots(optimized, 'var(--status-success)', 'optimized')}
         {weeks.map((wk, i) => (
           <text
             key={wk}

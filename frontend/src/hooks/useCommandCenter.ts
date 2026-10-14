@@ -38,9 +38,15 @@ import type {
  *  Every query keys off the scope it actually uses, so React Query refetches
  *  precisely the panels a given filter can affect and no others.
  */
+/** The period the charts follow: the year, or a custom business-week range. */
+type Span = { year: number | null; from: number | null; to: number | null }
+
 function useScope() {
   const filters = useCommandFilters((s) => s.filters)
   const year = useCommandFilters((s) => s.filters.year)
+  const from = useCommandFilters((s) => s.filters.period_from)
+  const to = useCommandFilters((s) => s.filters.period_to)
+  const span = useMemo<Span>(() => ({ year, from, to }), [year, from, to])
   const currency = useCommandFilters((s) => s.currency)
   // The default year is only known once /filters has answered. Until then the
   // store still reads `year: null`, which is a VALID scope (All Years) — so
@@ -48,7 +54,7 @@ function useScope() {
   // then immediately refetch the real year, doubling first-load traffic.
   const initialised = useCommandFilters((s) => s.initialised)
   const targetRoi = useCommandFilters((s) => s.targetRoi)
-  return { filters, year, currency, targetRoi, enabled: initialised }
+  return { filters, span, currency, targetRoi, enabled: initialised }
 }
 
 /** THE TARGET EVERY ROI ON THE PAGE IS JUDGED AGAINST.
@@ -83,13 +89,15 @@ const CACHED = { staleTime: Infinity, placeholderData: keepPreviousData } as con
  *  as unconstrained and aggregates 2024 + 2025 through the same KPI logic. It
  *  is never sent as an empty string, which would be a different request. */
 function commandQuery(
-  year: number | null,
+  span: Span | null,
   currency?: Currency,
   extra?: Record<string, string | number | string[] | undefined>,
   targetRoi?: number | null,
 ): string {
   const params = new URLSearchParams()
-  if (year !== null && year !== undefined) params.set('year', String(year))
+  if (span?.year != null) params.set('year', String(span.year))
+  if (span?.from != null) params.set('period_from', String(span.from))
+  if (span?.to != null) params.set('period_to', String(span.to))
   if (currency) params.set('currency', currency)
   if (targetRoi !== null && targetRoi !== undefined) params.set('target_roi', String(targetRoi))
   for (const [k, v] of Object.entries(extra ?? {})) {
@@ -105,8 +113,9 @@ function commandQuery(
 
 /** Cache key for a chart: the year scope only, so a Channel or Product change
  *  cannot invalidate it. */
-function key(name: string, year: number | null, currency?: Currency, targetRoi?: number | null) {
-  return ['command-center', name, year ?? 'all', currency ?? null, targetRoi ?? null] as const
+function key(name: string, span: Span, currency?: Currency, targetRoi?: number | null) {
+  const scope = span.from != null || span.to != null ? `${span.from}-${span.to}` : (span.year ?? 'all')
+  return ['command-center', name, scope, currency ?? null, targetRoi ?? null] as const
 }
 
 /** Cache key for a KPI-scoped query: every filter, because every filter moves
@@ -200,34 +209,34 @@ export function useSalesComparison(period: { year: number; month: number } | nul
 }
 
 export function useTrend(granularity: 'week' | 'month') {
-  const { year, currency, targetRoi, enabled } = useScope()
+  const { span, currency, targetRoi, enabled } = useScope()
   return useQuery({
-    queryKey: [...key('trend', year, currency, targetRoi), granularity],
+    queryKey: [...key('trend', span, currency, targetRoi), granularity],
     queryFn: () =>
-      apiFetch<TrendResponse>(`/command-center/trend?${commandQuery(year, currency, { granularity }, targetRoi)}`),
+      apiFetch<TrendResponse>(`/command-center/trend?${commandQuery(span, currency, { granularity }, targetRoi)}`),
     enabled,
     ...CACHED,
   })
 }
 
 export function useRiskAlerts(limit = 20) {
-  const { year, currency, targetRoi, enabled } = useScope()
+  const { span, currency, targetRoi, enabled } = useScope()
   return useQuery({
-    queryKey: [...key('risk-alerts', year, currency, targetRoi), limit],
+    queryKey: [...key('risk-alerts', span, currency, targetRoi), limit],
     queryFn: () =>
-      apiFetch<RiskAlertsResponse>(`/command-center/risk-alerts?${commandQuery(year, currency, { limit }, targetRoi)}`),
+      apiFetch<RiskAlertsResponse>(`/command-center/risk-alerts?${commandQuery(span, currency, { limit }, targetRoi)}`),
     enabled,
     ...CACHED,
   })
 }
 
 export function useUnderperforming(limit = 20) {
-  const { year, currency, targetRoi, enabled } = useScope()
+  const { span, currency, targetRoi, enabled } = useScope()
   return useQuery({
-    queryKey: [...key('underperforming', year, currency, targetRoi), limit],
+    queryKey: [...key('underperforming', span, currency, targetRoi), limit],
     queryFn: () =>
       apiFetch<UnderperformingResponse>(
-        `/command-center/underperforming-promotions?${commandQuery(year, currency, { limit }, targetRoi)}`,
+        `/command-center/underperforming-promotions?${commandQuery(span, currency, { limit }, targetRoi)}`,
       ),
     enabled,
     ...CACHED,
@@ -235,11 +244,11 @@ export function useUnderperforming(limit = 20) {
 }
 
 export function usePromotionMix() {
-  const { year, currency, enabled } = useScope()
+  const { span, currency, enabled } = useScope()
   return useQuery({
-    queryKey: key('promotion-mix', year, currency),
+    queryKey: key('promotion-mix', span, currency),
     queryFn: () =>
-      apiFetch<PromotionMixResponse>(`/command-center/promotion-mix?${commandQuery(year, currency)}`),
+      apiFetch<PromotionMixResponse>(`/command-center/promotion-mix?${commandQuery(span, currency)}`),
     enabled,
     ...CACHED,
   })
@@ -279,7 +288,7 @@ export function useBreakdown(
     enabled?: boolean
   } = {},
 ) {
-  const { filters, year, currency, enabled } = useScope()
+  const { filters, span, currency, enabled } = useScope()
   // Besides year, a 'chart'-scoped request sends ONLY the parameters named
   // here, so a card that does not name a dimension does not send it and its
   // cache survives a change to that filter untouched. A 'page'-scoped request
@@ -288,12 +297,12 @@ export function useBreakdown(
   const query =
     scope === 'page'
       ? `${toQuery(filters, currency)}&${commandQuery(null, undefined, chartParams)}`
-      : commandQuery(year, currency, chartParams)
+      : commandQuery(span, currency, chartParams)
   return useQuery({
     queryKey:
       scope === 'page'
         ? [...fullKey('breakdown', filters, currency), by, metric, limit, promotion ?? null]
-        : [...key('breakdown', year, currency), by, metric, limit, promotion ?? null],
+        : [...key('breakdown', span, currency), by, metric, limit, promotion ?? null],
     queryFn: () => apiFetch<BreakdownResponse>(`/command-center/breakdown?${query}`),
     enabled: enabled && callerEnabled,
     ...CACHED,
@@ -301,12 +310,12 @@ export function useBreakdown(
 }
 
 export function useTopPromotions(limit = 100) {
-  const { year, currency, targetRoi, enabled } = useScope()
+  const { span, currency, targetRoi, enabled } = useScope()
   return useQuery({
-    queryKey: [...key('top-promotions', year, currency, targetRoi), limit],
+    queryKey: [...key('top-promotions', span, currency, targetRoi), limit],
     queryFn: () =>
       apiFetch<TopPromotionsResponse>(
-        `/command-center/top-promotions?${commandQuery(year, currency, { limit }, targetRoi)}`,
+        `/command-center/top-promotions?${commandQuery(span, currency, { limit }, targetRoi)}`,
       ),
     enabled,
     ...CACHED,

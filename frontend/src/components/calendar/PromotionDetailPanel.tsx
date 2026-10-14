@@ -24,7 +24,7 @@ function TypeBadge({ type }: { type: string }) {
   const tone = STATUS[statusForPromotionType(type)]
   return (
     <span
-      className="inline-block rounded-full px-2 py-0.5 text-2xs font-bold uppercase tracking-wide"
+      className="inline-block rounded-full px-2 py-0.5 text-2xs font-medium"
       style={{ background: tone.tint, color: tone.solid }}
     >
       {type}
@@ -40,23 +40,23 @@ function PromotionBody({ promotion }: { promotion: CalendarPromotion }) {
     <div className="mt-3">
       {promotion.metadata_missing && (
         <p className="mb-2 rounded-[var(--r-sm)] border border-status-warning/30 bg-status-warning/10 px-2 py-1.5 text-xs text-ink-secondary">
-          No row for <span className="font-bold">{promotion.promotion_id}</span> in the promotion master —
+          No row for <span className="font-medium">{promotion.promotion_id}</span> in the promotion master —
           showing the id rather than a name.
         </p>
       )}
 
       <dl className="grid grid-cols-[104px_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
         <dt className="text-ink-muted">Promotion Type</dt>
-        <dd className="font-semibold text-ink-primary">{promotion.type}</dd>
+        <dd className="font-medium text-ink-primary">{promotion.type}</dd>
         <dt className="text-ink-muted">Description</dt>
-        <dd className="font-semibold text-ink-primary">{promotion.description}</dd>
+        <dd className="font-medium text-ink-primary">{promotion.description}</dd>
         {/* dim_promotion.Promotion_Name — the mechanic, not a derived label. */}
         <dt className="text-ink-muted">Mechanic</dt>
-        <dd className="font-semibold text-ink-primary">{promotion.mechanic}</dd>
+        <dd className="font-medium text-ink-primary">{promotion.mechanic}</dd>
         {promotion.start && promotion.end && (
           <>
             <dt className="text-ink-muted">Runs</dt>
-            <dd className="font-semibold tabular-nums text-ink-primary">
+            <dd className="font-medium tabular-nums text-ink-primary">
               {fmtDay(promotion.start)} – {fmtDay(promotion.end)}
             </dd>
           </>
@@ -64,13 +64,13 @@ function PromotionBody({ promotion }: { promotion: CalendarPromotion }) {
         {promotion.store_count != null && (
           <>
             <dt className="text-ink-muted">Stores</dt>
-            <dd className="font-semibold text-ink-primary">{promotion.store_count}</dd>
+            <dd className="font-medium text-ink-primary">{promotion.store_count}</dd>
           </>
         )}
         {promotion.weeks && promotion.weeks.length > 0 && (
           <>
             <dt className="text-ink-muted">Business Weeks</dt>
-            <dd className="font-semibold tabular-nums text-ink-primary">
+            <dd className="font-medium tabular-nums text-ink-primary">
               {promotion.weeks.map((w) => `W${String(w).padStart(2, '0')}`).join(', ')}
             </dd>
           </>
@@ -79,7 +79,7 @@ function PromotionBody({ promotion }: { promotion: CalendarPromotion }) {
 
       {promotion.stores && promotion.stores.length > 0 && (
         <details className="mt-3.5 group">
-          <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-wide text-ink-muted hover:text-ink-primary">
+          <summary className="cursor-pointer list-none text-xs font-medium text-ink-muted hover:text-ink-primary">
             Stores ({promotion.stores.length}) <span className="font-normal normal-case group-open:hidden">· show</span>
           </summary>
           <ul className="mt-1.5 flex flex-wrap gap-1">
@@ -87,7 +87,7 @@ function PromotionBody({ promotion }: { promotion: CalendarPromotion }) {
               <li
                 key={s.store_id}
                 title={`${s.name} · ${s.city} · ${s.region}`}
-                className="rounded-full bg-ink-primary/[0.04] px-2 py-0.5 text-xs font-semibold text-ink-secondary"
+                className="rounded-full bg-ink-primary/[0.04] px-2 py-0.5 text-xs font-medium text-ink-secondary"
               >
                 {s.store_id} · {s.city}
               </li>
@@ -96,7 +96,7 @@ function PromotionBody({ promotion }: { promotion: CalendarPromotion }) {
         </details>
       )}
 
-      <p className="mt-3.5 text-xs font-bold uppercase tracking-wide text-ink-muted">
+      <p className="mt-3.5 text-xs font-medium text-ink-muted">
         Products in Promotion ({promotion.product_count})
       </p>
       <ul className="mt-1.5 flex flex-col gap-1">
@@ -109,7 +109,7 @@ function PromotionBody({ promotion }: { promotion: CalendarPromotion }) {
             <span className="grid h-5 w-5 shrink-0 place-items-center rounded-[6px] bg-surface-card text-ink-muted [&_svg]:h-3 [&_svg]:w-3">
               <Icon name="package" />
             </span>
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink-primary">
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink-primary">
               {product.product_id}
             </span>
             <span className="shrink-0 text-xs text-ink-muted">P{product.rank}</span>
@@ -157,7 +157,7 @@ export function PromotionDetailPanel({
           product list can never grow the page. */}
       <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border-subtle px-5 py-4">
         <div className="min-w-0">
-          <h3 className="text-md font-bold">
+          <h3 className="text-md font-medium">
             {detail.month_name} {detail.year} — {channel.channel_id}
           </h3>
           <p className="mt-0.5 truncate text-sm text-ink-muted">
@@ -177,7 +177,7 @@ export function PromotionDetailPanel({
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 @max-[1179px]:max-h-[560px]">
         <div className="flex items-center gap-2">
           <LegendSwatch kind={cell.kind} />
-          <span className="text-base font-bold text-ink-primary">{cell.label}</span>
+          <span className="text-base font-medium text-ink-primary">{cell.label}</span>
         </div>
         <p className="mt-1 text-sm text-ink-muted">
           {cell.promotion_ids.join(' + ') || 'No promotion scheduled'}
@@ -186,7 +186,7 @@ export function PromotionDetailPanel({
             cell. Worded apart from the per-promotion "Products in Promotion
             (n)" heading below, which counts one promotion only — the two are
             different questions and must not read as the same number. */}
-        <p className="mt-1 text-sm font-semibold text-ink-secondary">
+        <p className="mt-1 text-sm font-medium text-ink-secondary">
           {cell.product_count} products · {cell.store_count} stores · {cell.week_count} week{cell.week_count === 1 ? '' : 's'}
         </p>
 
@@ -201,14 +201,14 @@ export function PromotionDetailPanel({
                 make it up before drilling into any single promotion. */}
             {channel.booking === 'week' && weeks.length > 0 && (
               <div className="mt-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">
+                <p className="text-xs font-medium text-ink-muted">
                   Weekly Promotions
                 </p>
                 <div className="mt-1.5 flex flex-col gap-1.5">
                   {weeks.map((week) => (
                     <div key={week.week_key} className="rounded-[var(--r-sm)] border border-border-subtle px-2.5 py-2">
                       <div className="flex items-baseline justify-between gap-2">
-                        <span className="text-sm font-bold text-ink-primary">
+                        <span className="text-sm font-medium text-ink-primary">
                           Week {String(week.week_number).padStart(2, '0')}
                         </span>
                         {week.week_start && (
@@ -222,7 +222,7 @@ export function PromotionDetailPanel({
                             type="button"
                             onClick={() => setOpenId(promotion.promotion_id)}
                             title={`${promotion.description} · ${promotion.mechanic}`}
-                            className={`cursor-pointer rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors ${
+                            className={`cursor-pointer rounded-full border px-2 py-0.5 text-xs font-medium transition-colors ${
                               promotion.promotion_id === openId
                                 ? 'border-brand-violet bg-brand-violet text-white'
                                 : 'border-border-subtle text-ink-secondary hover:bg-surface-hover'
@@ -247,7 +247,7 @@ export function PromotionDetailPanel({
                     key={promotion.promotion_id}
                     type="button"
                     onClick={() => setOpenId(promotion.promotion_id)}
-                    className={`cursor-pointer rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${
+                    className={`cursor-pointer rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
                       promotion.promotion_id === selected?.promotion_id
                         ? 'border-brand-violet bg-brand-violet/10 text-brand-violet'
                         : 'border-border-subtle text-ink-secondary hover:bg-surface-hover'
@@ -262,7 +262,7 @@ export function PromotionDetailPanel({
             {selected && (
               <div className="mt-3 border-t border-border-subtle pt-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-base font-bold text-ink-primary">{selected.description}</span>
+                  <span className="text-base font-medium text-ink-primary">{selected.description}</span>
                   <TypeBadge type={selected.type} />
                 </div>
                 {/* Into the Simulation Studio's Promotion Planner with this
@@ -282,7 +282,7 @@ export function PromotionDetailPanel({
                     })
                     navigate('/simulation')
                   }}
-                  className="mt-3 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-[var(--r-md)] bg-brand-violet px-3 py-2 text-sm font-semibold text-white shadow-[var(--shadow-violet)] transition-colors hover:bg-brand-violet-600 [&_svg]:h-4 [&_svg]:w-4"
+                  className="mt-3 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-[var(--r-md)] bg-brand-violet px-3 py-2 text-sm font-medium text-white shadow-[var(--shadow-violet)] transition-colors hover:bg-brand-violet-600 [&_svg]:h-4 [&_svg]:w-4"
                 >
                   <Icon name="sparkles" /> Simulate this promotion
                 </button>

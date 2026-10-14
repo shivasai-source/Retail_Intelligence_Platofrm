@@ -84,7 +84,7 @@ function Select({ children, ...props }: React.SelectHTMLAttributes<HTMLSelectEle
     <span className="relative inline-flex">
       <select
         {...props}
-        className="h-[23px] cursor-pointer appearance-none rounded-[var(--r-sm)] border border-border-subtle bg-surface-card pl-2 pr-6 text-xs font-semibold text-ink-primary transition-colors hover:bg-surface-hover focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet"
+        className="h-[23px] cursor-pointer appearance-none rounded-[var(--r-sm)] border border-border-subtle bg-surface-card pl-2 pr-6 text-xs font-medium text-ink-primary transition-colors hover:bg-surface-hover focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet"
       >
         {children}
       </select>
@@ -329,7 +329,7 @@ function ComparisonColumns({
                     y={height - 7}
                     textAnchor="middle"
                     fontSize={10}
-                    fontWeight={700}
+                    fontWeight={500}
                     fill="var(--text-muted)"
                   >
                     {p.year_short}
@@ -357,7 +357,7 @@ function ComparisonColumns({
             className="pointer-events-none absolute top-0 z-20 w-48 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
             style={{ left: tooltipLeft(width, padL + slot * active, padL + slot * (active + 1), 192) }}
           >
-            <div className="font-bold text-ink-primary">{series[active].label}</div>
+            <div className="font-medium text-ink-primary">{series[active].label}</div>
             {/* Every measure, not just the one on the axis: the question a
                 hover asks is "what happened that month", and the answer is
                 incomplete in one number. */}
@@ -512,14 +512,14 @@ export function SalesComparisonCard() {
             <div className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-0.5">
               <div className="min-w-0">
                 <div className="truncate text-xs text-ink-muted">{primary.label}</div>
-                <div className="text-lg font-extrabold tabular-nums text-ink-primary">
+                <div className="kpi-value text-ink-primary">
                   {primary.display}
                 </div>
               </div>
               <div className="min-w-0">
                 <div className="truncate text-xs text-ink-muted">{against.label}</div>
                 <div
-                  className={`text-lg font-bold tabular-nums ${
+                  className={`kpi-value ${
                     against.available ? 'text-ink-secondary' : 'text-ink-muted'
                   }`}
                 >
@@ -530,7 +530,7 @@ export function SalesComparisonCard() {
 
             <div className="shrink-0 text-right">
               <span
-                className={`inline-block rounded-full px-2 py-0.5 text-sm font-bold tabular-nums ${tone}`}
+                className={`inline-block rounded-full px-2 py-0.5 text-sm font-medium tabular-nums ${tone}`}
                 title={delta.basis ? `Measured in ${delta.basis}` : undefined}
               >
                 {delta.display}

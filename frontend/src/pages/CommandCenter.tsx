@@ -21,7 +21,6 @@ import { PromotionMixCard } from '../components/command/PromotionMixCard'
 import { SalesComparisonCard } from '../components/command/SalesComparisonCard'
 import { EmptyState as CcEmptyState, ErrorState, KpiSkeleton, PanelSkeleton, Stale } from '../components/command/States'
 import { AddKpiMenu } from '../components/command/AddKpiMenu'
-import { AlertsButton } from '../components/command/AlertsButton'
 import { SERIES_CLASS } from '../components/command/series'
 import { ADDABLE_KPI_ORDER, HERO_TILE_CLASS, readAddedKpis, writeAddedKpis } from '../components/command/kpiDeckState'
 import { TrendPanels, type TrendSeries } from '../components/command/TrendPanels'
@@ -187,16 +186,13 @@ export function CommandCenter() {
   const mixBreakdown = useBreakdown('promotion_mechanic', { limit: 50 })
   const mix = usePromotionMix()
 
-  // Default the period to the most recent COMPLETED year the data contains --
-  // never a hardcoded year a future extract might not have, and not the year
-  // still in progress: F26 holds January to August, and opening on it put
-  // eight months of spend beside twelve on every "vs F25" delta. Only when
-  // the data holds nothing but the running year does that year open.
+  // The page opens on ALL DATA (the reader's choice when the Year pill became
+  // the Period calendar); the calendar narrows it. Gated on /filters having
+  // answered, as before, so the first fetch is the real one.
   useEffect(() => {
     const years = options.data?.years
     if (!years?.length) return
-    const completed = years.filter((y) => y < new Date().getFullYear())
-    initialise(Math.max(...(completed.length ? completed : years)))
+    initialise(null)
   }, [options.data?.years, initialise])
 
   useEffect(() => {
@@ -231,7 +227,7 @@ export function CommandCenter() {
           <div className="insights-loading-preview">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-extrabold leading-[1.1] tracking-[-0.025em]">TPO Insights Hub</h1>
+              <h1 className="text-2xl font-normal leading-[1.1] tracking-[-0.02em]">TPO Insights Hub</h1>
               <div className="mt-2 flex items-center gap-2.5 text-sm font-medium text-ink-muted">
                 <svg className="insights-loading-ring h-[18px] w-[18px] shrink-0 text-brand-violet" viewBox="0 0 24 24" aria-hidden="true">
                   {Array.from({ length: 12 }, (_, i) => {
@@ -279,7 +275,7 @@ export function CommandCenter() {
                 <circle cx="60" cy="60" r="24" fill="var(--surface-card)" stroke="currentColor" strokeWidth="1.5" opacity="0.98" />
                 <path d="M47 68V59M60 68V50M73 68V55" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
               </svg>
-              <p className="mt-5 text-lg font-bold tracking-[-0.015em] text-ink-primary">Preparing your insights</p>
+              <p className="mt-5 text-lg font-normal tracking-[-0.015em] text-ink-primary">Preparing your insights</p>
               <p className="mt-1.5 text-sm text-ink-muted">Organising promotion performance and key signals</p>
               <div className="mx-auto mt-5 flex w-fit items-center gap-1.5" aria-hidden="true">
                 <i className="insights-loading-dot" />
@@ -343,7 +339,7 @@ export function CommandCenter() {
             beneath. */}
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <div className="min-w-0">
-            <h1 className="text-2xl font-extrabold tracking-[-0.025em] leading-[1.1]">TPO Insights Hub</h1>
+            <h1 className="text-2xl font-normal tracking-[-0.02em] leading-[1.1]">TPO Insights Hub</h1>
             {/* ONE SHORT LINE under the title: what this page is for, in
                 seven words, and the period it is showing. The scope's own
                 numbers live in the cards and panels -- a command centre's
@@ -355,10 +351,6 @@ export function CommandCenter() {
             </p>
           </div>
           <div className="ml-auto">
-            <AlertsButton
-              disabled={isEmpty}
-              disabledReason="This filter selection matches no sales rows, so there are no promotion events to judge."
-            />
           </div>
         </div>
 

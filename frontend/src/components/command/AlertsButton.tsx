@@ -33,9 +33,13 @@ import { OPEN_ALERTS_STATE_KEY, buildOpenAlertsIntent } from '../../lib/askWhy'
 export function AlertsButton({
   disabled,
   disabledReason,
+  onOpen,
 }: {
   disabled?: boolean
   disabledReason?: string
+  /** Opens the alerts in place (Investigations). Without it the button
+   *  navigates to Investigations and opens them there. */
+  onOpen?: () => void
 }) {
   const navigate = useNavigate()
   const alerts = useRiskAlerts(ALERT_FETCH_LIMIT)
@@ -71,8 +75,10 @@ export function AlertsButton({
   const badgeNum = total === null ? null : critical > 0 ? critical : total
   const badgeWord = critical > 0 ? 'critical' : 'below target'
   const detail = counts
-    ? `${total!.toLocaleString()} below target — ${counts.critical.toLocaleString()} critical, ${counts.high.toLocaleString()} high, ${counts.medium.toLocaleString()} medium. Open on Investigations.`
-    : 'Set the target ROI and pick an event to investigate'
+    ? total === 0
+      ? 'Every promotion event reached the ROI target'
+      : `${total!.toLocaleString()} below the 1.50x ROI target — ${counts.critical.toLocaleString()} critical, ${counts.high.toLocaleString()} high, ${counts.medium.toLocaleString()} medium.`
+    : 'Promotion events below the 1.50x ROI target -- pick one to investigate'
 
   const label =
     total === null
@@ -87,17 +93,17 @@ export function AlertsButton({
       disabled={disabled}
       title={disabled ? disabledReason : detail}
       aria-label={label}
-      onClick={() => navigate('/investigations', { state: { [OPEN_ALERTS_STATE_KEY]: buildOpenAlertsIntent() } })}
-      className={`group inline-flex h-9 cursor-pointer select-none items-center gap-2 whitespace-nowrap rounded-[var(--r-md)] border pl-3 pr-2 text-sm font-semibold tracking-[-0.005em] shadow-[var(--shadow-sm)] transition-[background-color,border-color,box-shadow] duration-150 hover:shadow-[var(--shadow-md)] active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-violet)] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none ${tone.btn}`}
+      onClick={() => (onOpen ? onOpen() : navigate('/investigations', { state: { [OPEN_ALERTS_STATE_KEY]: buildOpenAlertsIntent() } }))}
+      className={`group inline-flex h-9 cursor-pointer select-none items-center gap-2 whitespace-nowrap rounded-[var(--r-md)] border pl-3 pr-2 text-sm font-medium tracking-[-0.005em] shadow-[var(--shadow-sm)] transition-[background-color,border-color,box-shadow] duration-150 hover:shadow-[var(--shadow-md)] active:translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-violet)] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none ${tone.btn}`}
     >
       <Icon name="alertTriangle" className={`h-4 w-4 stroke-2 ${tone.icon}`} />
       <span>Alerts</span>
       {badgeNum !== null && badgeNum > 0 && !disabled && (
         <span
-          className={`inline-flex h-5 items-center gap-1 rounded-[var(--r-pill)] px-2 text-xs font-bold leading-none tabular-nums ${tone.badge}`}
+          className={`inline-flex h-5 items-center gap-1 rounded-[var(--r-pill)] px-2 text-xs font-medium leading-none tabular-nums ${tone.badge}`}
         >
           {badgeNum.toLocaleString()}
-          <span className="font-semibold capitalize opacity-90">{badgeWord}</span>
+          <span className="font-medium capitalize opacity-90">{badgeWord}</span>
         </span>
       )}
       <Icon

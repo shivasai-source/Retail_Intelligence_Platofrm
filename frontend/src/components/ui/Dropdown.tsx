@@ -177,7 +177,7 @@ export function Dropdown({
                     onSelect(val)
                   }}
                   className={`flex w-full cursor-pointer items-center gap-2 rounded-[var(--r-sm)] px-3 py-2 text-left text-base font-medium hover:bg-surface-hover focus-visible:bg-surface-hover ${
-                    isSelected ? 'font-bold text-brand-violet' : 'text-ink-primary'
+                    isSelected ? 'font-medium text-brand-violet' : 'text-ink-primary'
                   }`}
                 >
                   <span className="flex-1">{o.label}</span>

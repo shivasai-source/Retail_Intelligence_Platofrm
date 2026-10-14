@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react'
 import { Icon } from '../../icons'
 import { LiveStatus, useToast } from '../ui'
 import { useSourceStatus, useSourceSync } from '../../hooks/useDatasets'
+import { SyncSummaryPanel, unchanged } from './SyncSummaryPanel'
+import { SyncOverlay } from './SyncOverlay'
+import { useCommandFilters } from '../../store/commandFilters'
+import type { SourceSyncResult } from '../../types/dataset'
 
 // THE LIVE PILL, WHEN THERE IS SOMETHING TO SYNC FROM.
 //
@@ -39,6 +43,11 @@ export function SyncStatus({
   const sync = useSourceSync()
   const { show } = useToast()
   const [now, setNow] = useState(() => Date.now())
+  /** The last successful sync, shown in the "what changed" panel until closed. */
+  const [summary, setSummary] = useState<SourceSyncResult | null>(null)
+  /** The sync has returned: the overlay's bar fills to 100% for a beat
+   *  before the summary takes its place. */
+  const [finishing, setFinishing] = useState(false)
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 15000)
@@ -57,11 +66,23 @@ export function SyncStatus({
       onSuccess: (r) => {
         setNow(Date.now())
         onSynced()
-        const change =
-          r.rows === r.previous_rows
-            ? `no new rows (${ROWS.format(r.rows)})`
-            : `${ROWS.format(r.previous_rows)} → ${ROWS.format(r.rows)} rows`
-        show(`Synced from ${r.source} · ${change}`, { variant: 'success', duration: 4500 })
+        // THE INSIGHTS HUB OPENS ON THE NEW DATA. A sync can change which
+        // years exist; a period chosen before it may now select nothing, so
+        // the Hub goes back to all of the new data. Left alone when the
+        // source had nothing new ("Already up to date").
+        if (!unchanged(r.before, r.after)) {
+          useCommandFilters.setState((s) => ({
+            filters: { ...s.filters, year: null, month: null, period_from: null, period_to: null },
+            lastTouched: null,
+          }))
+        }
+        // The panel replaces the old toast: it says what the data held
+        // before and what changed, and stays until the reader closes it.
+        setFinishing(true)
+        window.setTimeout(() => {
+          setFinishing(false)
+          setSummary(r)
+        }, 900)
       },
       onError: (e) => {
         show(`Sync failed — the previous data is still loaded. ${e.message}`, { variant: 'error', duration: 7000 })
@@ -77,6 +98,11 @@ export function SyncStatus({
         (last?.rows != null ? ` Loaded now: ${ROWS.format(last.rows)} rows.` : '')
 
   return (
+    <>
+    {(busy || finishing) && (
+      <SyncOverlay kind={source.kind ?? ''} source={source.label ?? 'the source'} items={source.items} done={finishing && !busy} />
+    )}
+    {summary && <SyncSummaryPanel kind={source.kind ?? ''} result={summary} onClose={() => setSummary(null)} />}
     <button
       type="button"
       onClick={onClick}
@@ -92,15 +118,15 @@ export function SyncStatus({
       />
       {busy ? (
         <span>
-          Syncing from <strong className="font-semibold text-ink-primary">{source.label}</strong>…
+          Syncing from <strong className="font-medium text-ink-primary">{source.label}</strong>…
         </span>
       ) : failed ? (
         <span>
-          <strong className="font-bold text-status-warning">Sync failed</strong> · retry
+          <strong className="font-medium text-status-warning">Sync failed</strong> · retry
         </span>
       ) : (
         <span>
-          <strong className="font-bold text-status-success">Live</strong> · synced{' '}
+          <strong className="font-medium text-status-success">Live</strong> · synced{' '}
           {ago(last?.at ?? source.saved_at ?? new Date(now).toISOString(), now)}
         </span>
       )}
@@ -109,5 +135,6 @@ export function SyncStatus({
         className={`h-3.5 w-3.5 stroke-2 ${busy ? 'animate-spin text-brand-violet' : 'text-ink-muted group-hover:text-brand-violet'}`}
       />
     </button>
+    </>
   )
 }

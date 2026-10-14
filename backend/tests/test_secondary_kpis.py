@@ -136,7 +136,7 @@ def test_default_target_is_the_config_default(payload):
     assert payload["meta"]["target_roi"] == config.PROMOTION_TARGET_ROI
     assert payload["meta"]["default_target_roi"] == config.PROMOTION_TARGET_ROI
     assert payload["meta"]["target_roi_range"] == [config.TARGET_ROI_MIN, config.TARGET_ROI_MAX]
-    assert payload["meta"]["severity_bands"] == {"critical": 1.25, "high": 1.4, "medium": 1.5}
+    assert payload["meta"]["severity_bands"] == {"critical": 1.0, "high": 1.25, "medium": 1.5}
 
 
 def test_target_reaches_only_what_is_judged_against_it():
@@ -152,10 +152,15 @@ def test_target_reaches_only_what_is_judged_against_it():
     assert moved["secondary"]["net_incremental_profit"]["value"] == base["secondary"]["net_incremental_profit"]["value"]
     assert "1.75" in moved["kpis"]["promotion_roi"]["info"]["meaning"]
     assert "1.75" in moved["secondary"]["target_hit_rate"]["info"]["formula"]
-    assert moved["meta"]["severity_bands"] == {"critical": 1.5, "high": 1.65, "medium": 1.75}
+    assert moved["meta"]["severity_bands"] == {"critical": 1.25, "high": 1.5, "medium": 1.75}
 
 
 def test_hit_rate_and_alert_counts_agree_at_any_target():
+    """The card's numerator is the payload's, at every target.
+
+    The bands and `target_achieved` partition the events: an event is either
+    below the target, in exactly one band, or at it.
+    """
     state = FilterState.build(year=2025)
     for target in (1.2, 1.5, 1.9):
         counts = service.risk_alerts(state, target=target)["counts"]

@@ -82,11 +82,11 @@ export function SettingsPage({
           <CardHeader title="Profile" />
           <div className="p-5">
             <div className="mb-3.5 flex items-center gap-3.5 border-b border-border-subtle pb-4">
-              <div className="grid h-[54px] w-[54px] shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,#7C5CFF,#4F7CFF)] text-lg font-extrabold text-white">
+              <div className="grid h-[54px] w-[54px] shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,var(--brand-violet),var(--brand-blue))] text-lg font-normal text-white">
                 {user?.initials}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-md font-extrabold text-ink-primary">{user?.name}</div>
+                <div className="text-md font-medium text-ink-primary">{user?.name}</div>
                 <div className="truncate text-base text-ink-muted">
                   {user?.email || 'No email recorded'}
                 </div>
@@ -102,11 +102,11 @@ export function SettingsPage({
             <div className="flex flex-col">
               <div className="flex justify-between border-b border-dashed border-border-subtle py-2.5 text-base">
                 <span className="text-ink-muted">Region</span>
-                <span className="font-bold text-ink-primary">{D.profile.region}</span>
+                <span className="font-medium text-ink-primary">{D.profile.region}</span>
               </div>
               <div className="flex justify-between py-2.5 text-base">
                 <span className="text-ink-muted">Timezone</span>
-                <span className="font-bold text-ink-primary">{D.profile.timezone}</span>
+                <span className="font-medium text-ink-primary">{D.profile.timezone}</span>
               </div>
             </div>
           </div>
@@ -118,7 +118,7 @@ export function SettingsPage({
             {preferences.map(([k, v], i, arr) => (
               <div key={k} className={`flex justify-between py-2.5 text-base ${i < arr.length - 1 ? 'border-b border-dashed border-border-subtle' : ''}`}>
                 <span className="text-ink-muted">{k}</span>
-                <span className="font-bold text-ink-primary">{v}</span>
+                <span className="font-medium text-ink-primary">{v}</span>
               </div>
             ))}
           </div>
@@ -135,7 +135,7 @@ export function SettingsPage({
                 <span className="grid place-items-center text-ink-muted [&_svg]:h-[18px] [&_svg]:w-[18px]">
                   <Icon name="x" />
                 </span>
-                <span className="font-semibold text-ink-secondary">{i}</span>
+                <span className="font-medium text-ink-secondary">{i}</span>
                 <Pill tone="neutral" className="ml-auto">
                   Not connected
                 </Pill>

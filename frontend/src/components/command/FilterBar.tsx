@@ -3,6 +3,7 @@ import { Button, Dropdown, IconButton } from '../ui'
 import { Icon } from '../../icons'
 import { useCommandFilters, type FilterStoreHook, type ListFilterKey } from '../../store/commandFilters'
 import { MultiSelect, SelectionChips, type MultiOption } from './MultiSelect'
+import { PeriodPicker } from '../planner/PeriodPicker'
 import type { Currency, FiltersResponse, Option } from '../../types/commandCenter'
 
 /** Where the More Filters panel sits, relative to its button.
@@ -246,13 +247,48 @@ export function FilterBar({
   // Brand and Product sit on the bar, so they are not counted twice.
   const onBar: string[] = studio
     ? ['year', 'channel', 'category', 'brand', 'product', 'month', 'promotion', 'promotion_type']
-    : ['year']
+    : ['year', 'month', 'period_from', 'period_to']
   const activeCount = Object.entries(filters).filter(
     ([key, value]) =>
       !onBar.includes(key) && (Array.isArray(value) ? value.length > 0 : value !== null),
   ).length
 
   const yearLabel = filters.year ? String(filters.year) : 'All Years'
+
+  // THE PERIOD, as the calendar sees it: a custom range, or the selected
+  // year's own weeks, or nothing (all data).
+  const calendar = options.calendar ?? []
+  const weeksOf = (y: number) => calendar.find((c) => c.year === y)?.weeks ?? []
+  type WeekKey = [number, number]
+  const asKey = (code: number): WeekKey => [Math.floor(code / 100), code % 100]
+  let periodStart: WeekKey | null = null
+  let periodEnd: WeekKey | null = null
+  if (filters.period_from != null && filters.period_to != null) {
+    periodStart = asKey(filters.period_from)
+    periodEnd = asKey(filters.period_to)
+  } else if (filters.year != null && weeksOf(filters.year).length) {
+    const ws = weeksOf(filters.year)
+    periodStart = [filters.year, ws[0].week]
+    periodEnd = [filters.year, ws[ws.length - 1].week]
+  }
+  /** Apply a range. Exactly one whole year is held as `year`, so the year's
+   *  own comparisons and labels ("F25 (Annual)") read it as before. */
+  const applyPeriod = (a: WeekKey, b: WeekKey) => {
+    const ws = weeksOf(a[0])
+    const wholeYear = a[0] === b[0] && ws.length > 0 && a[1] === ws[0].week && b[1] === ws[ws.length - 1].week
+    store.setState((s) => ({
+      filters: {
+        ...s.filters,
+        year: wholeYear ? a[0] : null,
+        month: null,
+        period_from: wholeYear ? null : a[0] * 100 + a[1],
+        period_to: wholeYear ? null : b[0] * 100 + b[1],
+      },
+      lastTouched: 'year',
+    }))
+  }
+  const clearPeriod = () =>
+    store.setState((s) => ({ filters: { ...s.filters, year: null, month: null, period_from: null, period_to: null }, lastTouched: 'year' }))
 
   return (
     <>
@@ -274,22 +310,48 @@ export function FilterBar({
         role="group"
         aria-label={groupLabel}
       >
-        <Dropdown
-          selected={yearLabel}
-          options={[{ label: 'All Years' }, ...years.map((y) => ({ label: y.name }))]}
-          onSelect={(picked) => {
-            if (picked === 'All Years') return set('year', null)
-            const match = years.find((y) => y.name === picked)
-            set('year', match ? Number(match.code) : null)
-          }}
-          trigger={
-            <Button variant="secondary" size="pill" className="cursor-pointer">
-              <Icon name="filter" />
-              <span>{yearLabel}</span>
-              <Icon name="chevronDown" />
-            </Button>
-          }
-        />
+        {studio || !calendar.length ? (
+          <Dropdown
+            selected={yearLabel}
+            options={[{ label: 'All Years' }, ...years.map((y) => ({ label: y.name }))]}
+            onSelect={(picked) => {
+              if (picked === 'All Years') return set('year', null)
+              const match = years.find((y) => y.name === picked)
+              set('year', match ? Number(match.code) : null)
+            }}
+            trigger={
+              <Button variant="secondary" size="pill" className="cursor-pointer">
+                <Icon name="filter" />
+                <span>{yearLabel}</span>
+                <Icon name="chevronDown" />
+              </Button>
+            }
+          />
+        ) : (
+          <PeriodPicker
+            calendar={calendar}
+            start={periodStart}
+            end={periodEnd}
+            onApply={applyPeriod}
+            onClear={clearPeriod}
+            monthsOnly
+            renderTrigger={({ open, label, toggle }) => (
+              <Button
+                variant={open ? 'primary' : 'secondary'}
+                size="pill"
+                className="cursor-pointer"
+                onClick={toggle}
+                aria-haspopup="dialog"
+                aria-expanded={open}
+                title="Choose the period"
+              >
+                <Icon name="calendar" />
+                <span>{label}</span>
+                <Icon name="chevronDown" className={open ? 'rotate-180 transition-transform' : 'transition-transform'} />
+              </Button>
+            )}
+          />
+        )}
 
         <FilterMulti label="Channel" dimension="channel" options={options.channels} store={store} />
 
@@ -347,7 +409,7 @@ export function FilterBar({
             className="panel-enter cc-filter-surface absolute top-full z-30 mt-2 max-h-[min(70vh,560px)] overflow-y-auto rounded-[var(--r-lg)] border border-border-subtle p-4 shadow-[var(--shadow-lg)]"
           >
             <div className="mb-3 flex items-center justify-between gap-3">
-              <span className="text-base font-bold text-ink-primary">Additional Filters</span>
+              <span className="text-base font-medium text-ink-primary">Additional Filters</span>
               <Button
                 variant="ghost"
                 size="sm"
@@ -362,8 +424,6 @@ export function FilterBar({
             <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2 @max-[640px]:grid-cols-1">
               {!studio && (
                 <>
-                  <FilterSelect label="Month" allLabel="All Months" value={filters.month ? String(filters.month) : null}
-                    options={options.months} onChange={(v) => set('month', v ? Number(v) : null)} size="sm" />
                   <FilterMulti label="Category" allLabel="All Categories" dimension="category"
                     options={toOptions(options.categories)} size="sm" store={store} />
                   <FilterMulti label="Brand" dimension="brand" options={toOptions(options.brands)} size="sm" store={store} />
@@ -429,7 +489,7 @@ function CurrencyToggle({ currency, onChange }: { currency: Currency; onChange: 
           // shell, so a third of the control's height was a dead strip that
           // looked clickable and was not. Filling the shell makes the visible
           // pill and the hit target the same rectangle.
-          className={`h-full cursor-pointer rounded-[calc(var(--r-md)-3px)] px-2.5 text-sm font-semibold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet ${
+          className={`h-full cursor-pointer rounded-[calc(var(--r-md)-3px)] px-2.5 text-sm font-medium transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet ${
             currency === code
               ? 'bg-brand-violet text-white shadow-[var(--shadow-card-soft)]'
               : 'text-ink-muted hover:bg-surface-hover hover:text-ink-primary'

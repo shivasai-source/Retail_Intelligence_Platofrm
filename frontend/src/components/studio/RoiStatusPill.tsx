@@ -18,7 +18,7 @@ export const ROI_STATUS_LABEL: Record<'success' | 'warning' | 'danger' | 'neutra
 export function RoiStatusPill({ tone }: { tone: 'success' | 'warning' | 'danger' | 'neutral' }) {
   const arrow = tone === 'success' ? 'arrowUp' : tone === 'danger' ? 'arrowDown' : null
   return (
-    <Pill tone={tone as PillTone} size="md" className="font-bold">
+    <Pill tone={tone as PillTone} size="md" className="font-medium">
       {arrow && <Icon name={arrow} className="h-3.5 w-3.5" />}
       {ROI_STATUS_LABEL[tone]}
     </Pill>

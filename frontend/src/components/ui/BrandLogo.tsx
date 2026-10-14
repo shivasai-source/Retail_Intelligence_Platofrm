@@ -20,7 +20,7 @@ export function BrandLogo({ logo, name }: { logo: string; name: string }) {
   const l = LOGO[logo]
   if (!l) {
     return (
-      <div className="grid h-full w-full place-items-center rounded-[6px] bg-[linear-gradient(135deg,#7C5CFF,#4F7CFF)] text-xs font-extrabold text-white">
+      <div className="grid h-full w-full place-items-center rounded-[6px] bg-[linear-gradient(135deg,#143A63,#2568B2)] text-xs font-medium text-white">
         {name[0]}
       </div>
     )

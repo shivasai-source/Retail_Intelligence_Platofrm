@@ -122,7 +122,7 @@ export function RiskAlertsPanel({
               aria-selected={on}
               disabled={counts[s] === 0}
               onClick={() => setSeverity(s)}
-              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--r-md)] px-2.5 py-1 text-sm font-semibold transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet disabled:cursor-not-allowed disabled:opacity-40 ${
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--r-md)] px-2.5 py-1 text-sm font-medium transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet disabled:cursor-not-allowed disabled:opacity-40 ${
                 on
                   ? 'bg-brand-violet text-white'
                   : 'text-ink-muted hover:bg-surface-hover hover:text-ink-primary'
@@ -139,8 +139,8 @@ export function RiskAlertsPanel({
         })}
         {/* The denominator the three bands are cut from, at the strip's far
             end where it has room; see the card header in pages/CommandCenter. */}
-        <span className="ml-auto whitespace-nowrap text-xs font-semibold text-ink-muted">
-          {data.counts.target_achieved} of {data.counts.total_events} at target
+        <span className="ml-auto whitespace-nowrap text-xs font-medium text-ink-muted">
+          {data.counts.target_achieved.toLocaleString()} of {data.counts.total_events.toLocaleString()} at target
         </span>
       </div>
 
@@ -175,7 +175,7 @@ export function RiskAlertsPanel({
               <button
                 type="button"
                 onClick={() => setListing(active)}
-                className="inline-flex cursor-pointer items-center gap-1 rounded-[var(--r-sm)] px-1.5 py-1 text-sm font-semibold text-brand-violet transition-colors duration-150 hover:bg-brand-violet-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet [&_svg]:h-3 [&_svg]:w-3"
+                className="inline-flex cursor-pointer items-center gap-1 rounded-[var(--r-sm)] px-1.5 py-1 text-sm font-medium text-brand-violet transition-colors duration-150 hover:bg-brand-violet-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet [&_svg]:h-3 [&_svg]:w-3"
               >
                 View all {counts[active].toLocaleString()} {active.toLowerCase()} alerts
                 <Icon name="arrowRight" />
@@ -210,8 +210,7 @@ function AlertRow({
   alert: RiskAlert
   onSelect: (alert: RiskAlert) => void
   delayMs: number
-  /** `meta.target_roi` — what the row's ROI is judged against. */
-  targetRoi: number
+  targetRoi?: number
   /** Open the detail box ABOVE the row. For the last row of a scrolling
    *  list, where a box below it would be clipped by the list's edge. */
   flip?: boolean
@@ -241,30 +240,37 @@ function AlertRow({
           stake -- is in the detail box below, which opens on hover or
           keyboard focus. The aria-label above carries the same detail for
           assistive tech. */}
-      <div className="flex min-w-0 items-baseline justify-between gap-3">
-        <span className="truncate text-base font-bold text-ink-primary">{promotionOf(a)}</span>
-        {/* The two figures that say how the event did: the ROI it returned,
+      {/* THE OFFER AND WHAT IT RAN ON. The offer name alone repeats down the
+          list -- six rows reading "10% Discount" -- because one offer runs on
+          many products; the product and channel are what tell them apart. */}
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <span className="min-w-0">
+          <span className="block truncate text-base font-medium text-ink-primary">{promotionOf(a)}</span>
+          <span className="block truncate text-sm text-ink-muted">
+            {a.product} · {a.channel}
+          </span>
+        </span>
+        {/* THE TWO FIGURES THAT SAY HOW THE EVENT DID: the ROI it returned,
             judged against the target, and the money behind that ratio —
-            incremental sales less trade spend, the event's net incremental
-            profit — green when the promotion made money, red when it lost
-            it, and plain ink when the ROI beside it prints as break-even (see
-            netTone). Both are the backend's own values and display strings;
-            nothing is computed or formatted here. */}
-        <span className="flex shrink-0 items-baseline gap-2.5 text-sm font-bold tabular-nums">
-          <span className={ROI_TONE_CLASS[roiTone(roi, targetRoi)]}>ROI {fmtRoi(roi)}</span>
+            incremental sales less trade spend, green when the extra revenue
+            covered the money put in and red when it did not. Both are the
+            backend's own values and display strings; nothing is computed or
+            formatted here. The event's net incremental profit, which is a
+            stricter figure, is in the detail box below. */}
+        <span className="flex shrink-0 items-baseline gap-2.5 text-sm font-medium tabular-nums">
+          <span className={ROI_TONE_CLASS[roiTone(roi, targetRoi ?? 1.5)]}>ROI {fmtRoi(roi)}</span>
           <span
             title="Incremental sales − trade spend"
-            className={ROI_TONE_CLASS[netTone(a.net_incremental_profit, roi)]}
+            className={ROI_TONE_CLASS[netTone(a.sales_less_spend, roi)]}
           >
-            {a.net_incremental_profit_display}
-            <span className="ml-1 text-xs font-semibold text-ink-muted">net</span>
+            {a.sales_less_spend_display}
           </span>
         </span>
       </div>
 
       {/* No severity pill: the row already sits under the severity tab it
           belongs to, and the icon tint says the same thing again. */}
-      <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-brand-violet [&_svg]:h-3 [&_svg]:w-3">
+      <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-brand-violet [&_svg]:h-3 [&_svg]:w-3">
         Ask why
         <Icon name="arrowRight" />
       </span>
@@ -282,12 +288,13 @@ function AlertRow({
           flip ? 'bottom-[calc(100%-4px)]' : 'top-[calc(100%-4px)]'
         }`}
       >
-        <div className="truncate font-semibold text-ink-primary">{a.product}</div>
+        <div className="truncate font-medium text-ink-primary">{a.week}</div>
         <div className="mt-0.5 flex items-baseline justify-between gap-4 text-ink-muted">
-          <span className="truncate">
-            {a.channel} · {a.week}
-          </span>
+          <span className="shrink-0 tabular-nums">{a.trade_spend_display} spent</span>
           <span className="shrink-0 tabular-nums">{a.at_stake_display} at stake</span>
+        </div>
+        <div className="mt-0.5 tabular-nums text-ink-muted">
+          {a.net_incremental_profit_display} net incremental profit
         </div>
       </div>
     </button>
@@ -324,7 +331,7 @@ function SeverityListModal({
         <>
           <div className="flex items-center justify-between border-b border-border-subtle p-[16px_20px]">
             <div>
-              <h3 className="text-md font-bold">{severity} risk alerts</h3>
+              <h3 className="text-md font-medium">{severity} risk alerts</h3>
               <div className="mt-0.5 text-sm text-ink-muted">
                 {/* The cap is named, not hidden: a band of several hundred
                     events would otherwise read as though it held only these. */}

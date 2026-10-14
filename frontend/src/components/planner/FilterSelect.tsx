@@ -37,15 +37,27 @@ export function FilterSelect({
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [place, setPlace] = useState({ left: 0, top: 0 })
+  const [place, setPlace] = useState({ left: 0, top: 0, maxH: 600 })
   const anchorRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
+  // Sit under the button and never run past the bottom of the window (a
+  // short window or a 90% zoom): re-measured on resize and scroll.
   useLayoutEffect(() => {
-    if (!open || !anchorRef.current) return
-    const r = anchorRef.current.getBoundingClientRect()
-    setPlace({ left: Math.max(8, Math.min(r.left, window.innerWidth - PANEL_W - 8)), top: r.bottom + 6 })
+    if (!open) return
+    const measure = () => {
+      if (!anchorRef.current) return
+      const r = anchorRef.current.getBoundingClientRect()
+      setPlace({ left: Math.max(8, Math.min(r.left, window.innerWidth - PANEL_W - 8)), top: r.bottom + 6, maxH: Math.max(240, window.innerHeight - r.bottom - 14) })
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    window.addEventListener('scroll', measure, true)
+    return () => {
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('scroll', measure, true)
+    }
   }, [open])
 
   useEffect(() => {
@@ -106,15 +118,15 @@ export function FilterSelect({
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={`group inline-flex h-10 cursor-pointer items-center gap-2 rounded-[var(--r-md)] border px-3 text-[14px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet disabled:cursor-not-allowed disabled:opacity-60 [&_svg]:h-4 [&_svg]:w-4 ${
+        className={`group inline-flex h-10 cursor-pointer items-center gap-2 rounded-[var(--r-md)] border px-3 text-base transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet disabled:cursor-not-allowed disabled:opacity-60 [&_svg]:h-4 [&_svg]:w-4 ${
           active || open
             ? 'border-brand-violet/50 bg-brand-violet-50 text-brand-violet'
             : 'border-border-default bg-surface-card text-ink-secondary hover:border-border-strong hover:bg-surface-hover'
         }`}
       >
         <Icon name={icon} />
-        <span className="font-semibold">{label}</span>
-        <span className={`max-w-[160px] truncate font-semibold ${active ? 'text-brand-violet' : 'text-ink-primary'}`}>{summary}</span>
+        <span className="font-medium">{label}</span>
+        <span className={`max-w-[160px] truncate font-medium ${active ? 'text-brand-violet' : 'text-ink-primary'}`}>{summary}</span>
         {disabled ? <Icon name="lock" /> : <Icon name="chevronDown" />}
       </button>
 
@@ -124,13 +136,13 @@ export function FilterSelect({
             ref={panelRef}
             role="dialog"
             aria-label={`Choose ${label.toLowerCase()}`}
-            className="dd-enter fixed z-[9999] flex flex-col font-semibold overflow-hidden rounded-[var(--r-lg)] border border-border-default bg-surface-card shadow-[var(--shadow-lg)]"
-            style={{ left: place.left, top: place.top, width: PANEL_W, maxWidth: 'calc(100vw - 16px)' }}
+            className="dd-enter fixed z-[9999] flex flex-col font-medium overflow-hidden rounded-[var(--r-lg)] border border-border-default bg-surface-card shadow-[var(--shadow-lg)]"
+            style={{ left: place.left, top: place.top, width: PANEL_W, maxWidth: 'calc(100vw - 16px)', maxHeight: place.maxH }}
           >
-            <div className="flex items-center justify-between gap-2 border-b border-border-subtle px-4 py-3">
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-4 py-3">
               <div>
-                <div className="text-[14px] font-semibold text-ink-primary">{label}</div>
-                <div className="text-[14px] text-ink-muted">
+                <div className="text-base font-medium text-ink-primary">{label}</div>
+                <div className="text-base text-ink-muted">
                   {active ? `${selected.length} of ${options.length} selected` : `All ${options.length}`}
                 </div>
               </div>
@@ -138,14 +150,14 @@ export function FilterSelect({
                 <button
                   type="button"
                   onClick={() => onChange([])}
-                  className="cursor-pointer rounded-[var(--r-sm)] px-2 py-1 text-[14px] font-semibold text-brand-violet hover:bg-brand-violet/[0.08]"
+                  className="cursor-pointer rounded-[var(--r-sm)] px-2 py-1 text-base font-medium text-brand-violet hover:bg-brand-violet/[0.08]"
                 >
                   Clear
                 </button>
               )}
             </div>
 
-            <div className="px-3 pt-3">
+            <div className="shrink-0 px-3 pt-3">
               <label className="flex h-10 items-center gap-2 rounded-[var(--r-md)] border border-border-default bg-surface-card px-3 focus-within:border-brand-violet [&_svg]:h-4 [&_svg]:w-4">
                 <Icon name="search" className="text-ink-muted" />
                 <input
@@ -154,7 +166,7 @@ export function FilterSelect({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={`Search ${label.toLowerCase()}`}
-                  className="w-full bg-transparent text-[14px] text-ink-primary outline-none placeholder:text-ink-muted focus:outline-none focus-visible:outline-none"
+                  className="w-full bg-transparent text-base text-ink-primary outline-none placeholder:text-ink-muted focus:outline-none focus-visible:outline-none"
                 />
                 {query && (
                   <button type="button" aria-label="Clear search" onClick={() => setQuery('')} className="cursor-pointer text-ink-muted hover:text-ink-primary">
@@ -168,18 +180,18 @@ export function FilterSelect({
               <button
                 type="button"
                 onClick={selectVisible}
-                className="mx-3 mt-2 flex cursor-pointer items-center gap-2.5 rounded-[var(--r-sm)] px-2 py-1.5 text-left text-[14px] font-semibold text-ink-secondary hover:bg-surface-hover"
+                className="mx-3 mt-2 flex shrink-0 cursor-pointer items-center gap-2.5 rounded-[var(--r-sm)] px-2 py-1.5 text-left text-base font-medium text-ink-secondary hover:bg-surface-hover"
               >
                 <Check on={allVisibleOn} />
                 {query ? `Select all ${visible.length} shown` : 'Select all'}
               </button>
             )}
 
-            <div className="mt-1 overflow-y-auto px-3 pb-2" style={{ maxHeight: LIST_MAX_H }} role="listbox" aria-multiselectable="true">
+            <div className="mt-1 min-h-0 flex-1 overflow-y-auto px-3 pb-2" style={{ maxHeight: LIST_MAX_H }} role="listbox" aria-multiselectable="true">
               {groups.map(({ group, items }) => (
                 <div key={group || '_'}>
                   {group && (
-                    <div className="sticky top-0 z-10 bg-surface-card px-2 pb-1 pt-2.5 text-[14px] font-semibold uppercase tracking-wide text-ink-muted">{group}</div>
+                    <div className="sticky top-0 z-10 bg-surface-card px-2 pb-1 pt-2.5 text-base font-medium text-ink-muted">{group}</div>
                   )}
                   {items.map((o) => {
                     const on = chosen.has(o.code)
@@ -195,22 +207,22 @@ export function FilterSelect({
                       >
                         <Check on={on} />
                         <span className="min-w-0 flex-1">
-                          <span className={`block truncate text-[14px] ${on ? 'text-brand-violet' : 'text-ink-primary'}`}>{main}</span>
-                          {sub && <span className="block truncate text-[14px] text-ink-muted">{sub}</span>}
+                          <span className={`block truncate text-base ${on ? 'text-brand-violet' : 'text-ink-primary'}`}>{main}</span>
+                          {sub && <span className="block truncate text-base text-ink-muted">{sub}</span>}
                         </span>
                       </button>
                     )
                   })}
                 </div>
               ))}
-              {visible.length === 0 && <div className="px-2 py-6 text-center text-[14px] text-ink-muted">Nothing matches “{query}”</div>}
+              {visible.length === 0 && <div className="px-2 py-6 text-center text-base text-ink-muted">Nothing matches “{query}”</div>}
             </div>
 
-            <div className="flex items-center justify-end border-t border-border-subtle px-3 py-2.5">
+            <div className="flex shrink-0 items-center justify-end border-t border-border-subtle px-3 py-2.5">
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="h-9 cursor-pointer rounded-[var(--r-md)] bg-brand-violet px-4 text-[14px] font-semibold text-white hover:bg-brand-violet-600"
+                className="h-9 cursor-pointer rounded-[var(--r-md)] bg-brand-violet px-4 text-base font-medium text-white hover:bg-brand-violet-600"
               >
                 Done
               </button>

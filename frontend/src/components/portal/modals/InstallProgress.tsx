@@ -87,8 +87,8 @@ export function InstallProgress({
         <span className="text-brand-violet [&_svg]:h-[15px] [&_svg]:w-[15px]">
           <Icon name={done ? 'checkCircle' : 'download'} />
         </span>
-        <span className="min-w-0 flex-1 truncate text-sm font-bold">{done ? 'Loaded' : shownLabel}</span>
-        <span className="shrink-0 text-sm font-bold tabular-nums text-brand-violet">{pct}%</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium">{done ? 'Loaded' : shownLabel}</span>
+        <span className="shrink-0 text-sm font-medium tabular-nums text-brand-violet">{pct}%</span>
       </div>
 
       <div

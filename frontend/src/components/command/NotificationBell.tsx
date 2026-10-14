@@ -8,7 +8,7 @@ import { useAlertHandoff } from '../../hooks/useAlertHandoff'
 import { ALERT_FETCH_LIMIT, alertHeadline, topAlerts } from './riskRanking'
 import { OPEN_ALERTS_STATE_KEY, buildOpenAlertsIntent } from '../../lib/askWhy'
 import type { RiskAlert } from '../../types/commandCenter'
-import { ROI_TONE_CLASS, fmtRoi, roiTone } from '../../lib/roi'
+import { ROI_TONE_CLASS, fmtRoi, netTone, roiTone } from '../../lib/roi'
 
 /** The header's notification centre.
  *
@@ -162,9 +162,9 @@ export function NotificationBell() {
             style={{ left: coords.left, top: coords.top, width: coords.width }}
           >
             <div className="flex items-center justify-between border-b border-border-subtle px-4 py-2.5">
-              <span className="text-base font-bold text-ink-primary">Notifications</span>
+              <span className="text-base font-medium text-ink-primary">Notifications</span>
               {total > 0 && (
-                <span className="rounded-full bg-status-danger-bg px-2 py-0.5 text-xs font-bold tabular-nums text-status-danger">
+                <span className="rounded-full bg-status-danger-bg px-2 py-0.5 text-xs font-medium tabular-nums text-status-danger">
                   {total}
                 </span>
               )}
@@ -192,7 +192,7 @@ export function NotificationBell() {
                     setOpen(false)
                     navigate('/investigations', { state: { [OPEN_ALERTS_STATE_KEY]: buildOpenAlertsIntent() } })
                   }}
-                  className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-[var(--r-sm)] px-1.5 py-1 font-semibold text-brand-violet transition-colors hover:bg-brand-violet-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet [&_svg]:h-3 [&_svg]:w-3"
+                  className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-[var(--r-sm)] px-1.5 py-1 font-medium text-brand-violet transition-colors hover:bg-brand-violet-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet [&_svg]:h-3 [&_svg]:w-3"
                 >
                   View all alerts
                   <Icon name="arrowRight" />
@@ -237,7 +237,7 @@ function PanelBody({
         <span className="grid h-9 w-9 place-items-center rounded-full bg-status-success-bg text-status-success [&_svg]:h-[18px] [&_svg]:w-[18px]">
           <Icon name="check" />
         </span>
-        <span className="text-base font-bold text-ink-primary">No active alerts</span>
+        <span className="text-base font-medium text-ink-primary">No active alerts</span>
         <span className="text-sm text-ink-muted">Everything looks good.</span>
       </div>
     )
@@ -257,7 +257,6 @@ function Message({ text }: { text: string }) {
 }
 
 function AlertRow({ alert, onSelect, targetRoi }: { alert: RiskAlert; onSelect: (a: RiskAlert) => void; targetRoi: number }) {
-  const roi = alert.roi_multiple
   return (
     <button
       type="button"
@@ -276,11 +275,11 @@ function AlertRow({ alert, onSelect, targetRoi }: { alert: RiskAlert; onSelect: 
 
       <span className="min-w-0">
         <span className="flex items-baseline gap-1.5">
-          <span className="truncate text-base font-bold text-ink-primary">
+          <span className="truncate text-base font-medium text-ink-primary">
             {alertHeadline(alert)}
           </span>
           <span
-            className="shrink-0 text-2xs font-bold uppercase tracking-[0.03em]"
+            className="shrink-0 text-2xs font-medium"
             style={{ color: TONE_FG[alert.tone] }}
           >
             {alert.severity}
@@ -290,12 +289,12 @@ function AlertRow({ alert, onSelect, targetRoi }: { alert: RiskAlert; onSelect: 
           {alert.product_id} · {alert.channel}
         </span>
         <span className="mt-0.5 flex items-center gap-1.5 text-xs tabular-nums">
-          <span
-            className={`font-bold ${ROI_TONE_CLASS[roiTone(roi, targetRoi)]}`}
-          >
-            ROI {fmtRoi(roi)}
+          <span className={`font-medium ${ROI_TONE_CLASS[roiTone(alert.roi_multiple ?? 0, targetRoi)]}`}>
+            ROI {fmtRoi(alert.roi_multiple ?? 0)}
           </span>
-          <span className="truncate text-ink-muted">· {alert.at_stake_display} at stake</span>
+          <span className={`truncate ${ROI_TONE_CLASS[netTone(alert.sales_less_spend, alert.roi_multiple)]}`}>
+            · {alert.sales_less_spend_display}
+          </span>
         </span>
         {/* The business week the event ran. The API carries no timestamp, so no
             relative time is shown — see the note at the top of this file. */}

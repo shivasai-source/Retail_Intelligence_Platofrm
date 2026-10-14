@@ -35,7 +35,7 @@ export function AnalystButton({ onClick, open }: { onClick: () => void; open: bo
       tabIndex={open ? -1 : 0}
       aria-hidden={open}
       title="Ask the Analyst about your data"
-      className={`group fixed bottom-6 right-6 z-[110] grid h-14 w-14 place-items-center rounded-full bg-brand-violet text-white shadow-[0_10px_28px_rgba(107,71,255,0.34)] transition-all duration-200 ease-[var(--ease-out)] hover:bg-brand-violet-600 hover:shadow-[0_14px_34px_rgba(107,71,255,0.42)] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet/60 focus-visible:ring-offset-2 motion-safe:hover:-translate-y-0.5 ${
+      className={`group fixed bottom-6 right-6 z-[110] grid h-14 w-14 place-items-center rounded-full bg-brand-violet text-white shadow-[0_10px_28px_rgba(20,58,99,0.34)] transition-all duration-200 ease-[var(--ease-out)] hover:bg-brand-violet-600 hover:shadow-[0_14px_34px_rgba(20,58,99,0.42)] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet/60 focus-visible:ring-offset-2 motion-safe:hover:-translate-y-0.5 ${
         open
           ? 'pointer-events-none scale-90 opacity-0'
           : 'cursor-pointer scale-100 opacity-100'
@@ -46,7 +46,7 @@ export function AnalystButton({ onClick, open }: { onClick: () => void; open: bo
           that was aimed at the circle. */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute right-full mr-3 whitespace-nowrap rounded-[var(--r-md)] bg-ink-primary px-2.5 py-1.5 text-sm font-semibold text-white opacity-0 shadow-[var(--shadow-card-soft)] transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+        className="pointer-events-none absolute right-full mr-3 whitespace-nowrap rounded-[var(--r-md)] bg-ink-primary px-2.5 py-1.5 text-sm font-medium text-white opacity-0 shadow-[var(--shadow-card-soft)] transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
       >
         Ask Analyst
       </span>

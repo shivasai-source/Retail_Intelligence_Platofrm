@@ -33,7 +33,7 @@ export function ProgressStrip({
     // properties of the run itself.
     <Card className="fade-in mt-4 grid grid-cols-[2fr_1fr_1fr_auto] items-center gap-6 p-[20px_24px] @max-[1000px]:grid-cols-1 @max-[1000px]:gap-4">
       <div>
-        <div className="mb-1.5 text-md font-bold text-ink-primary">Investigation Progress</div>
+        <div className="mb-1.5 text-md font-medium text-ink-primary">Investigation Progress</div>
         <div className="flex items-center gap-2.5">
           <div className="h-2.5 flex-1 overflow-hidden rounded [background:var(--surface-muted)]">
             <div
@@ -41,7 +41,7 @@ export function ProgressStrip({
               style={{ width: `${pct}%` }}
             />
           </div>
-          <span className="text-lg font-extrabold text-ink-primary [font-variant-numeric:tabular-nums]">{pct}%</span>
+          <span className="text-lg font-normal text-ink-primary [font-variant-numeric:tabular-nums]">{pct}%</span>
         </div>
         <div className="mt-1.5 text-base text-ink-muted">{sub}</div>
       </div>
@@ -66,8 +66,8 @@ export function ProgressStrip({
 function Stat({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
     <div>
-      <div className="text-base font-semibold text-ink-muted">{label}</div>
-      <div className="mt-0.5 text-2xl font-extrabold leading-tight text-ink-primary [font-variant-numeric:tabular-nums]">
+      <div className="text-base font-medium text-ink-muted">{label}</div>
+      <div className="kpi-value mt-0.5 text-ink-primary">
         {value}
       </div>
       <div className="mt-0.5 text-sm text-ink-muted">{sub}</div>

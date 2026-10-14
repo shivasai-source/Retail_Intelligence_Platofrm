@@ -31,7 +31,7 @@ export function Segmented<T extends string>({
           aria-checked={value === o.key}
           title={o.title}
           onClick={() => onChange(o.key)}
-          className={`cursor-pointer px-2 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
+          className={`cursor-pointer px-2 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
             value === o.key
               ? 'bg-brand-violet text-white'
               : 'text-ink-muted hover:bg-surface-hover hover:text-ink-primary'

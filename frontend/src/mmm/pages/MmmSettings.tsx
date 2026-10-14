@@ -62,7 +62,7 @@ function MmmDatasetCard() {
               className={`flex justify-between gap-4 py-2.5 text-base ${i < rows.length - 1 ? 'border-b border-dashed border-border-subtle' : ''}`}
             >
               <span className="shrink-0 text-ink-muted">{k}</span>
-              <span className="truncate font-bold text-ink-primary" title={v}>
+              <span className="truncate font-medium text-ink-primary" title={v}>
                 {v}
               </span>
             </div>

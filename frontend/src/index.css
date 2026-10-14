@@ -16,26 +16,29 @@
 ============================================================================ */
 @theme {
   /* ===== Type scale — THE ONLY FONT SIZES IN THE APP =====
+     2026-10-13: one step up at the small end (body 13 -> 14px) so every page
+     reads at the size Simulation Studio does; one-off px sizes were folded
+     onto these steps.
      Every module reads from these steps. Before this the app used
      22 ad-hoc `text-[Npx]` values plus Tailwind's own six, so the same
      kind of label rendered at 11px on one screen and 11.5px on another.
      Sizes are px (not rem) because the whole design is px-based; the
      line-heights are unitless so they scale with the step. */
-  --text-2xs: 10px;   --text-2xs--line-height: 1.4;   /* micro / eyebrow labels */
-  --text-xs: 11px;    --text-xs--line-height: 1.4;    /* chart axes, meta */
-  --text-sm: 12px;    --text-sm--line-height: 1.45;   /* secondary text, pills */
-  --text-base: 13px;  --text-base--line-height: 1.45; /* body, tables */
-  --text-md: 15px;    --text-md--line-height: 1.4;    /* card titles */
+  --text-2xs: 11px;   --text-2xs--line-height: 1.4;   /* micro / eyebrow labels */
+  --text-xs: 12px;    --text-xs--line-height: 1.4;    /* chart axes, meta */
+  --text-sm: 13px;    --text-sm--line-height: 1.45;   /* secondary text, pills */
+  --text-base: 14px;  --text-base--line-height: 1.45; /* body, tables */
+  --text-md: 16px;    --text-md--line-height: 1.4;    /* card titles */
   --text-lg: 18px;    --text-lg--line-height: 1.35;   /* section headings */
-  --text-xl: 21px;    --text-xl--line-height: 1.2;    /* KPI values */
+  --text-xl: 22px;    --text-xl--line-height: 1.2;    /* KPI values */
   --text-2xl: 26px;   --text-2xl--line-height: 1.15;  /* page titles */
   /* The ninth step, and the only one no module uses: sign-in is the one
      screen in the product with no density pressure -- a single card on an
      empty page -- and 26px read there as just another card title rather
      than as the page's one statement. */
-  --text-3xl: 32px;   --text-3xl--line-height: 1.1;   /* the sign-in greeting */
+  --text-3xl: 30px;   --text-3xl--line-height: 1.1;   /* the sign-in greeting */
 
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
   /* Brand — kept as brand-* (not violet/blue/indigo) because those bare
      names collide with Tailwind's own built-in color palette, which
@@ -49,6 +52,7 @@
   --color-brand-indigo: var(--brand-indigo);
 
   /* Surfaces */
+  --color-canvas: var(--canvas);
   --color-surface-page: var(--surface-page);
   --color-surface-card: var(--surface-card);
   --color-surface-muted: var(--surface-muted);
@@ -143,11 +147,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-h1, h2, h3, h4, h5, h6 { font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
+/* Large and light, small and medium: titles get size, not weight. */
+h1, h2, h3, h4, h5, h6 { font-weight: 500; color: var(--text-primary); letter-spacing: -0.01em; }
+h1, h2 { font-weight: 400; }
 h1 { font-size: 26px; line-height: 1.15; letter-spacing: -0.02em; }
-h2 { font-size: 21px; line-height: 1.2; }
+h2 { font-size: 22px; line-height: 1.2; }
 h3 { font-size: 18px; line-height: 1.35; }
-h4 { font-size: 15px; line-height: 1.4; }
+h4 { font-size: 16px; line-height: 1.4; }
 
 ::selection { background: var(--brand-violet); color: white; }
 
@@ -207,6 +213,18 @@ h4 { font-size: 15px; line-height: 1.4; }
 .analyst-dots i:nth-child(3) { animation-delay: 0.3s; }
 @media (prefers-reduced-motion: reduce) {
   .analyst-backdrop, .analyst-panel, .analyst-turn, .analyst-dots i, .insights-loading-ring, .insights-loading-card, .insights-loading-orbit, .insights-loading-pulse, .insights-loading-dot { animation: none; }
+}
+
+/* THE KPI VALUE. One style for every business figure on a KPI card, on every
+   page -- the Insights Hub tile's own: 22px, normal weight, tight tracking,
+   tabular numerals. Colour stays contextual (ink, violet hero, red danger),
+   set beside the class, never inside it. */
+.kpi-value {
+  font-size: var(--text-xl);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
 }
 
 .fade-in    { animation: fadeIn 220ms var(--ease-out) both; }

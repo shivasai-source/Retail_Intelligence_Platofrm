@@ -21,16 +21,16 @@ export function Kpi({
     <div
       className={`relative flex flex-col gap-1.5 overflow-hidden rounded-[var(--r-lg)] border border-border-subtle bg-surface-card p-[18px_20px] ${className}`}
     >
-      <div className="flex items-center gap-1.5 text-sm font-semibold text-ink-muted">
+      <div className="flex items-center gap-1.5 text-sm font-medium text-ink-muted">
         {icon && <Icon name={icon} className="h-3.5 w-3.5" />}
         {label}
       </div>
-      <div className="text-2xl font-bold tracking-[-0.02em] text-ink-primary [font-variant-numeric:tabular-nums]">
+      <div className="kpi-value text-ink-primary">
         {value}
       </div>
       {delta && (
         <div
-          className={`inline-flex items-center gap-1 text-sm font-semibold [&_svg]:h-3 [&_svg]:w-3 [&_svg]:shrink-0 ${
+          className={`inline-flex items-center gap-1 text-sm font-medium [&_svg]:h-3 [&_svg]:w-3 [&_svg]:shrink-0 ${
             deltaDirection === 'up'
               ? 'text-status-success'
               : deltaDirection === 'down'

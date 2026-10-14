@@ -225,7 +225,7 @@ export function TrendPanels({
               textAnchor="end"
               fontSize={10}
               fill="var(--text-muted)"
-              fontWeight={700}
+              fontWeight={500}
             >
               Target {fmtRoi(targetRoi)}
             </text>
@@ -291,12 +291,12 @@ export function TrendPanels({
           className="pointer-events-none absolute top-2 z-20 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
           style={{ left: tipLeft, width: TOOLTIP_W }}
         >
-          <div className="flex items-center justify-between gap-2 font-bold text-ink-primary">
+          <div className="flex items-center justify-between gap-2 font-medium text-ink-primary">
             <span>
               {periodWord} {calendarYear(labels[active])}
             </span>
             {roiAt !== null && roiAt < targetRoi && (
-              <span className="text-[11px] font-semibold text-status-danger">Below target</span>
+              <span className="text-xs font-medium text-status-danger">Below target</span>
             )}
           </div>
           {show.sales && <Row swatch={SERIES.incremental} k="Incremental Sales" v={data.display.incremental_sales[active]} />}
@@ -325,7 +325,7 @@ function Row({ k, v, swatch, dashed }: { k: string; v: string; swatch?: string; 
         )}
         <span className="truncate">{k}</span>
       </span>
-      <span className="shrink-0 font-semibold tabular-nums text-ink-primary">{v}</span>
+      <span className="shrink-0 font-medium tabular-nums text-ink-primary">{v}</span>
     </div>
   )
 }

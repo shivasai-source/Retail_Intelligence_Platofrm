@@ -5,8 +5,8 @@ import type { Accelerator } from '../../types/orchestration'
 type LiveState = 'queued' | 'progress' | 'done'
 
 const STATUS_STYLES: Record<LiveState, string> = {
-  done: 'bg-status-success-bg text-[#047857]',
-  progress: 'bg-status-warning-bg text-[#B45309]',
+  done: 'bg-status-success-bg text-[var(--pill-success-ink)]',
+  progress: 'bg-status-warning-bg text-[var(--pill-warning-ink)]',
   queued: 'bg-surface-muted text-ink-muted',
 }
 const ICON_STYLES: Record<LiveState, { bg: string; fg: string }> = {
@@ -28,7 +28,7 @@ const ICON_STYLES: Record<LiveState, { bg: string; fg: string }> = {
  *  specialist key, which is identical in both places. Anything not listed —
  *  a specialist added later — falls back to whatever the API sent.
  */
-const PLAIN_DESC: Record<string, string> = {
+export const PLAIN_DESC: Record<string, string> = {
   benchmark:
     "Compares this segment's ROI with the rest of the business, and with every other channel and region.",
   spend_allocation:
@@ -92,13 +92,13 @@ export function AccelList({
               <Icon name={a.icon as IconName} />
             </div>
             <div className="min-w-0">
-              <div className="text-base font-bold text-ink-primary">{a.name}</div>
+              <div className="text-base font-medium text-ink-primary">{a.name}</div>
               <div className="mt-0.5 text-sm leading-snug text-ink-muted">
                 {PLAIN_DESC[a.key] ?? a.desc}
               </div>
             </div>
             <span
-              className={`inline-flex items-center gap-1.5 rounded-[var(--r-pill)] px-2.5 py-1 text-xs font-bold ${STATUS_STYLES[state]}`}
+              className={`inline-flex items-center gap-1.5 rounded-[var(--r-pill)] px-2.5 py-1 text-xs font-medium ${STATUS_STYLES[state]}`}
             >
               {state === 'done' && <Icon name="checkCircle" className="h-[13px] w-[13px]" />}
               {state === 'progress' && <Spinner />}

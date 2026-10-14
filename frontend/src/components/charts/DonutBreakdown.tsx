@@ -82,9 +82,9 @@ export function DonutBreakdown({
           <div className="pointer-events-none absolute inset-0 grid place-items-center">
             <div className="text-center">
               {centerValue && (
-                <div className="text-lg font-extrabold text-ink-primary">{centerValue}</div>
+                <div className="text-lg font-normal text-ink-primary">{centerValue}</div>
               )}
-              {centerLabel && <div className="mt-0.5 text-2xs font-semibold text-ink-muted">{centerLabel}</div>}
+              {centerLabel && <div className="mt-0.5 text-2xs font-medium text-ink-muted">{centerLabel}</div>}
             </div>
           </div>
         )}
@@ -95,7 +95,7 @@ export function DonutBreakdown({
             <div className="flex items-center gap-2 text-base">
               <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
               <span className="min-w-0 flex-1 truncate text-ink-secondary">{s.key}</span>
-              <span className="shrink-0 font-semibold tabular-nums text-ink-primary">
+              <span className="shrink-0 font-medium tabular-nums text-ink-primary">
                 {decimals === undefined ? s.pct : s.pct.toFixed(decimals)}%
               </span>
               {s.value && (

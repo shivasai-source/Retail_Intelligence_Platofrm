@@ -12,7 +12,7 @@ export function ConnectModalHeader({ logo, title, subtitle, onClose }: { logo: R
       <div className="flex items-center gap-2.5">
         <div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-[9px]">{logo}</div>
         <div>
-          <h3 className="text-md font-bold">{title}</h3>
+          <h3 className="text-md font-medium">{title}</h3>
           <div className="mt-0.5 text-sm text-ink-muted">{subtitle}</div>
         </div>
       </div>
@@ -23,7 +23,7 @@ export function ConnectModalHeader({ logo, title, subtitle, onClose }: { logo: R
 
 export function ErrorBox({ message }: { message: string }) {
   if (!message) return null
-  return <div className="mb-3 rounded-[var(--r-sm)] bg-status-danger-bg p-[8px_12px] text-base text-[#B91C1C]">{message}</div>
+  return <div className="mb-3 rounded-[var(--r-sm)] bg-status-danger-bg p-[8px_12px] text-base text-[var(--pill-danger-ink)]">{message}</div>
 }
 
 export function InfoNote({ children }: { children: ReactNode }) {
@@ -58,7 +58,7 @@ export function ResultList({ items, onSelect }: { items: { key: string; icon: Ic
         <button
           key={it.key}
           onClick={() => onSelect(it.key)}
-          className="flex w-full items-center gap-2.5 rounded-[var(--r-md)] bg-surface-muted p-[9px_11px] text-left text-base font-semibold text-ink-primary hover:bg-brand-violet-50 hover:text-brand-violet [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0 [&_svg]:text-ink-muted"
+          className="flex w-full items-center gap-2.5 rounded-[var(--r-md)] bg-surface-muted p-[9px_11px] text-left text-base font-medium text-ink-primary hover:bg-brand-violet-50 hover:text-brand-violet [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0 [&_svg]:text-ink-muted"
         >
           <Icon name={it.icon} />
           <span className="min-w-0 flex-1 truncate">{it.label}</span>
@@ -71,7 +71,7 @@ export function ResultList({ items, onSelect }: { items: { key: string; icon: Ic
 
 export function Breadcrumb({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="mb-2 inline-flex items-center gap-1 text-sm font-bold text-brand-violet">
+    <button onClick={onClick} className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-brand-violet">
       <Icon name="chevronLeft" className="h-3.5 w-3.5" /> {label}
     </button>
   )
@@ -85,7 +85,7 @@ export function ProxyTable({ columns, rows }: { columns: string[]; rows: (string
         <thead>
           <tr>
             {columns.map((c) => (
-              <th key={c} className="sticky top-0 whitespace-nowrap bg-surface-muted p-[7px_10px] text-left font-bold text-ink-secondary">
+              <th key={c} className="sticky top-0 whitespace-nowrap bg-surface-muted p-[7px_10px] text-left font-medium text-ink-secondary">
                 {c}
               </th>
             ))}

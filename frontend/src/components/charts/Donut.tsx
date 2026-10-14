@@ -6,7 +6,7 @@ export function Donut({
   size = 88,
   stroke = 8,
   track = 'rgba(255,255,255,0.08)',
-  fill = '#34D399',
+  fill = 'var(--status-success)',
 }: {
   value: number
   size?: number

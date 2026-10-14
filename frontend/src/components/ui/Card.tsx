@@ -30,7 +30,7 @@ export function CardHeader({
       className={`flex min-h-[52px] items-center justify-between gap-3 border-b border-border-subtle px-5 py-3 ${className}`}
     >
       <div>
-        <h3 className="text-md font-bold">{title}</h3>
+        <h3 className="text-md font-medium">{title}</h3>
         {subtitle && <div className="mt-0.5 text-sm text-ink-muted">{subtitle}</div>}
       </div>
       {actions}

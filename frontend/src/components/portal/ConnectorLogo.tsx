@@ -142,7 +142,7 @@ export function ConnectorLogo({
   ].join(' ')
 
   if (!logo) {
-    return <span className={`${chip} text-xs font-bold tracking-tight text-[#475569]`}>{mark}</span>
+    return <span className={`${chip} text-xs font-medium tracking-tight text-[#475569]`}>{mark}</span>
   }
 
   return (

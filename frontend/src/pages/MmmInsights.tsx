@@ -74,7 +74,7 @@ export function MmmInsights() {
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <div className="min-w-0">
             {/* Type steps copied from CommandCenter's title, not re-chosen. */}
-            <h1 className="text-2xl font-extrabold tracking-[-0.025em] leading-[1.1]">MMM Insights Hub</h1>
+            <h1 className="text-2xl font-normal tracking-[-0.02em] leading-[1.1]">MMM Insights Hub</h1>
             <p className="mt-1.5 text-base text-ink-muted">
               Where marketing investment meets its return
               <span className="text-ink-disabled"> · </span>

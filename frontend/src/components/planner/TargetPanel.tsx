@@ -58,7 +58,7 @@ export function TargetPanel({
             <span className={`flex items-center gap-1 ${TYPE.eyebrow}`}>
               Grow profit % by
               <InfoPopover label="How the target works" title="How the target works" width={300}>
-                <div className="mt-1.5 space-y-1.5 text-[14px] leading-snug text-ink-secondary">
+                <div className="mt-1.5 space-y-1.5 text-base leading-snug text-ink-secondary">
                   <p>
                     <b>Profit % = (SP − CP) ÷ CP × 100</b>
                   </p>
@@ -95,7 +95,7 @@ export function TargetPanel({
 
       {error && (
         <Panel>
-          <div className="text-[17px] font-semibold text-ink-primary">Could not work out the target</div>
+          <div className="text-md font-medium text-ink-primary">Could not work out the target</div>
           <div className={`mt-1 ${TYPE.label}`}>{error.message}</div>
         </Panel>
       )}
@@ -248,7 +248,7 @@ function TargetVerdict({
           <Icon name={reachable ? 'checkCircle' : 'alertTriangle'} />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-[19px] font-semibold text-ink-primary">
+          <div className="text-lg font-normal text-ink-primary">
             Growing Profit % by +{t}% is <span className={tone.text}>{reachable ? 'reachable' : 'out of reach'}</span>
           </div>
           <div className={`mt-1 ${TYPE.label}`}>

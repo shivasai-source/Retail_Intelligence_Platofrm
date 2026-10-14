@@ -178,7 +178,7 @@ export function ReportCenterPage({
     <>
       <div className="fade-in flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-[-0.02em]">Reports</h1>
+          <h1 className="text-2xl font-normal tracking-[-0.02em]">Reports</h1>
           <p className="mt-1.5 text-base text-ink-muted">
             Generated business reports and analysis
           </p>
@@ -320,7 +320,7 @@ function EmptyState({ filtered, sourceHint }: { filtered: boolean; sourceHint: s
         <div className="mx-auto mb-3 grid h-10 w-10 place-items-center rounded-full bg-surface-muted text-ink-muted [&_svg]:h-5 [&_svg]:w-5">
           <Icon name="file" />
         </div>
-        <div className="text-base font-bold text-ink-primary">
+        <div className="text-base font-medium text-ink-primary">
           {filtered ? 'No reports match these filters' : 'No reports generated yet'}
         </div>
         <div className="mt-1 text-base leading-[1.55] text-ink-secondary">
@@ -358,7 +358,7 @@ function ReportRow({
         </span>
       </Td>
       <Td className="whitespace-nowrap">
-        <span className="inline-flex items-center rounded-[var(--r-pill)] bg-brand-violet-50 px-2 py-0.5 text-xs font-bold text-brand-violet">
+        <span className="inline-flex items-center rounded-[var(--r-pill)] bg-brand-violet-50 px-2 py-0.5 text-xs font-medium text-brand-violet">
           {report.module_label}
         </span>
       </Td>
@@ -473,7 +473,7 @@ function StatusPill({ report }: { report: ReportRecord }) {
     report.status === 'ready' ? 'Ready' : report.status === 'failed' ? 'Failed' : 'Generating'
   return (
     <span
-      className={`inline-flex items-center rounded-[var(--r-pill)] px-2 py-0.5 text-xs font-bold ${tone}`}
+      className={`inline-flex items-center rounded-[var(--r-pill)] px-2 py-0.5 text-xs font-medium ${tone}`}
       title={report.error ?? undefined}
     >
       {label}
@@ -503,10 +503,10 @@ function ReportPreviewModal({
       <div className="flex flex-col gap-4">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-xs font-semibold uppercase tracking-[0.1em] text-brand-violet">
+            <div className="text-xs font-medium text-brand-violet">
               {brandLabel} · Report Center
             </div>
-            <div className="truncate text-lg font-extrabold text-ink-primary" title={report.name}>
+            <div className="truncate text-lg font-normal text-ink-primary" title={report.name}>
               {report.name}
             </div>
           </div>
@@ -531,7 +531,7 @@ function ReportPreviewModal({
         </div>
 
         {preview?.headline && (
-          <div className="rounded-[var(--r-md)] bg-surface-muted p-[10px_12px] text-base font-semibold text-ink-primary">
+          <div className="rounded-[var(--r-md)] bg-surface-muted p-[10px_12px] text-base font-medium text-ink-primary">
             {preview.headline}
           </div>
         )}
@@ -544,7 +544,7 @@ function ReportPreviewModal({
 
         {preview?.kpis?.length > 0 && (
           <div>
-            <div className="mb-1.5 text-xs font-semibold uppercase tracking-[0.04em] text-ink-muted">
+            <div className="mb-1.5 text-xs font-medium text-ink-muted">
               Key KPIs
             </div>
             <Table>
@@ -572,7 +572,7 @@ function ReportPreviewModal({
 
         {preview?.highlights?.length > 0 && (
           <div>
-            <div className="mb-1.5 text-xs font-semibold uppercase tracking-[0.04em] text-ink-muted">
+            <div className="mb-1.5 text-xs font-medium text-ink-muted">
               Summary
             </div>
             <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-base @max-[620px]:grid-cols-1">
@@ -585,7 +585,7 @@ function ReportPreviewModal({
 
         {preview?.narrative?.length > 0 && (
           <div>
-            <div className="mb-1.5 text-xs font-semibold uppercase tracking-[0.04em] text-ink-muted">
+            <div className="mb-1.5 text-xs font-medium text-ink-muted">
               Recommendation
             </div>
             <ul className="flex flex-col gap-1.5">
@@ -611,7 +611,7 @@ function Line({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <span className="shrink-0 text-ink-muted">{label}</span>
-      <span className="truncate text-right font-semibold text-ink-primary" title={value}>
+      <span className="truncate text-right font-medium text-ink-primary" title={value}>
         {value}
       </span>
     </div>

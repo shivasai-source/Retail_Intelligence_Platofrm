@@ -305,6 +305,21 @@ def inspect_columns(sources: list[tuple[str, list[str]]]) -> dict[str, Any]:
     }
 
 
+def _file_facts(data: bytes) -> dict[str, Any]:
+    """Rows, size and a content fingerprint of one CSV, for "which file
+    changed". Line endings are normalised first: the same data saved with
+    CRLF instead of LF is not a change."""
+    import hashlib
+
+    body = data.replace(b"\r\n", b"\n").rstrip(b"\n")
+    lines = body.count(b"\n") + 1 if body else 0
+    return {
+        "rows": max(0, lines - 1),
+        "size_bytes": len(data),
+        "digest": hashlib.blake2b(body, digest_size=16).hexdigest(),
+    }
+
+
 def _to_csv_bytes(item: Classified) -> bytes:
     """The bytes to write. Excel uploads are converted to CSV, because the
     loader opens these six paths with `csv.DictReader` and nothing else."""
@@ -619,12 +634,23 @@ def replace(items: list[Classified], unrecognised: list[str] | None = None) -> d
     payloads = [(item, _to_csv_bytes(item)) for item in items]
 
     from app.tpo.loader import get_store
+    # Each table as it was before this replace, to say which files changed.
+    previous: dict[str, dict[str, Any]] = {}
+    for item, _ in payloads:
+        current = folder / item.target_name
+        if current.is_file():
+            try:
+                previous[item.target_name] = _file_facts(current.read_bytes())
+            except OSError:
+                pass
 
     with _install_lock:
         try:
             previous_rows = get_store().row_count if is_locked() else 0
+            before = snapshot(get_store()) if is_locked() else None
         except Exception:
             previous_rows = 0
+            before = None
 
         staged: list[tuple[Path, Path]] = []
         try:
@@ -647,6 +673,7 @@ def replace(items: list[Classified], unrecognised: list[str] | None = None) -> d
                 _replace_with_retry(temp, target)
             reset_caches()
             rows = get_store().row_count
+            after = snapshot(get_store())
         except Exception as e:
             for temp, _ in staged:
                 temp.unlink(missing_ok=True)
@@ -663,19 +690,30 @@ def replace(items: list[Classified], unrecognised: list[str] | None = None) -> d
         for backup, _ in backups:
             backup.unlink(missing_ok=True)
 
+    def _entry(item: Classified, payload: bytes) -> dict[str, Any]:
+        now = _file_facts(payload)
+        was = previous.get(item.target_name)
+        return {
+            "role": item.role,
+            "filename": item.target_name,
+            "original_name": item.original_name,
+            "matched_by": item.matched_by,
+            "size_bytes": len(payload),
+            "rows": now["rows"],
+            "previous_rows": was["rows"] if was else None,
+            "previous_size_bytes": was["size_bytes"] if was else None,
+            # None when there was no earlier copy to compare with.
+            "changed": None if was is None else was["digest"] != now["digest"],
+        }
+
     return {
-        "installed": [
-            {
-                "role": item.role,
-                "filename": item.target_name,
-                "original_name": item.original_name,
-                "matched_by": item.matched_by,
-                "size_bytes": len(payload),
-            }
-            for item, payload in payloads
-        ],
+        "installed": [_entry(item, payload) for item, payload in payloads],
         "rows": rows,
         "previous_rows": previous_rows,
+        # What the data covered before the swap and after it, for the
+        # "what changed" panel a sync opens (see `snapshot`).
+        "before": before,
+        "after": after,
         "data_dir": str(folder),
     }
 
@@ -751,6 +789,27 @@ def reset() -> dict[str, Any]:
             temp.unlink(missing_ok=True)
         reset_caches()
     return {"removed": removed, "data_dir": str(folder)}
+
+
+def snapshot(store) -> dict[str, Any]:
+    """What a loaded dataset covers: its rows, the span of days, and how many
+    business weeks, products, stores, channels and promotions it holds. Data
+    shape only -- no KPI figures. Compared before and after a sync."""
+    weeks = set(zip(store.year, store.week))
+    starts = store.dims.week_start
+    days = sorted(d for key in weeks for d in store.dims.week_dates.get(key, ()))
+    stores_seen = set(store.store_code)
+    promos_seen = {c for c in set(store.promo_code) if store.promotions[c].is_promotional}
+    return {
+        "rows": store.row_count,
+        "first_day": days[0].isoformat() if days else None,
+        "last_day": (starts.get(max(weeks)) or days[-1]).isoformat() if days else None,
+        "weeks": len(weeks),
+        "products": len(set(store.product_code)),
+        "stores": len(stores_seen),
+        "channels": len({store.stores[c].channel_id for c in stores_seen}),
+        "promotions": len(promos_seen),
+    }
 
 
 def is_locked() -> bool:

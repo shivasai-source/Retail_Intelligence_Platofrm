@@ -80,19 +80,19 @@ export function Login() {
             mark and a wordmark in title case, not a shout in capitals. */}
         <div className="flex items-center gap-2.5">
           <img src="/image.png" alt="" className="h-9 w-9" />
-          <span className="text-md font-bold tracking-[-0.01em] text-ink-primary">TransOrg Analytics</span>
+          <span className="text-md font-medium tracking-[-0.01em] text-ink-primary">TransOrg Analytics</span>
         </div>
 
         {/* Eyebrow names the product; the heading greets the person; the line
             beneath says what to do. One idea per line, largest to smallest. */}
-        <div className="mt-8 text-sm font-bold uppercase tracking-[0.14em] text-brand-violet">Retail Intelligence Platform</div>
+        <div className="mt-8 text-sm font-medium text-brand-violet">Retail Intelligence Platform</div>
         {/* `!text-3xl`, not `text-3xl`: index.css states `h1 { font-size: 26px }`
             as a bare element rule, and an unlayered rule beats anything in
             Tailwind's utilities layer. Moving those base rules into
             `@layer base` is the real fix, but it would also let the text-*
             utilities on ~20 headings across the frozen modules finally
             apply — shrinking most of them — so it is not this page's to make. */}
-        <h1 className="mt-2 !text-3xl font-extrabold tracking-[-0.025em]">Welcome back</h1>
+        <h1 className="mt-2 !text-3xl font-normal tracking-[-0.02em]">Welcome back</h1>
         <p className="mt-2 text-md leading-[1.55] text-ink-muted">
           Sign in to pick your workspace up where you left it.
         </p>
@@ -171,7 +171,7 @@ export function Login() {
             {/* CAPS LOCK IS THE COMMONEST WRONG PASSWORD, and the one thing a
                 masked field cannot show. Said before the attempt, not after. */}
             {capsLock && (
-              <p className="mt-1.5 flex items-center gap-1.5 text-sm font-semibold text-status-warning">
+              <p className="mt-1.5 flex items-center gap-1.5 text-sm font-medium text-status-warning">
                 <Icon name="alertTriangle" className="h-3.5 w-3.5 shrink-0" />
                 Caps Lock is on.
               </p>
@@ -185,7 +185,7 @@ export function Login() {
             <button
               type="button"
               onClick={() => show('Password reset is coming soon. Ask your administrator in the meantime.', { variant: 'info' })}
-              className="cursor-pointer rounded-[var(--r-sm)] text-base font-semibold text-brand-violet transition-colors hover:text-brand-violet-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet"
+              className="cursor-pointer rounded-[var(--r-sm)] text-base font-medium text-brand-violet transition-colors hover:text-brand-violet-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet"
             >
               Forgot password?
             </button>
@@ -234,7 +234,7 @@ export function Login() {
 function LoginField({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor={htmlFor} className="text-base font-semibold text-ink-secondary">
+      <label htmlFor={htmlFor} className="text-base font-medium text-ink-secondary">
         {label}
       </label>
       {children}

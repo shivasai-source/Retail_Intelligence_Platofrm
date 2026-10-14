@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useBreakdown, useFilterOptions, useTargetRoi, useTopPromotions } from '../../hooks/useCommandCenter'
 import { useCommandFilters } from '../../store/commandFilters'
+import { monthPeriodLabel } from '../planner/PeriodPicker'
 import { ChartFrame } from './ChartFrame'
 import { Segmented } from './Segmented'
 import { SERIES, SERIES_CLASS } from './series'
@@ -152,10 +153,10 @@ function MetricRows({
           <div className="flex items-baseline justify-between gap-2 text-sm">
             <span className="flex min-w-0 items-baseline gap-1.5">
               <span className="tabular-nums text-ink-muted">{i + 1}</span>
-              <span className="truncate font-semibold text-ink-primary">{g.label}</span>
+              <span className="truncate font-medium text-ink-primary">{g.label}</span>
             </span>
             <span className="shrink-0 tabular-nums">
-              <span className="font-bold text-ink-primary">{perfDisplay(g, metric)}</span>
+              <span className="font-medium text-ink-primary">{perfDisplay(g, metric)}</span>
               {/* Ranking BY ROI already prints it in the value slot, so the
                   second copy is dropped rather than shown twice. */}
               {metric !== 'roi' && (
@@ -516,7 +517,7 @@ function RoiDotPlot({
             stroke="var(--brand-violet)"
             strokeDasharray="3 3"
           />
-          <text x={x(targetRoi)} y={padT - 8} textAnchor="middle" fontSize={10} fontWeight={600} fill="var(--brand-violet)">
+          <text x={x(targetRoi)} y={padT - 8} textAnchor="middle" fontSize={10} fontWeight={500} fill="var(--brand-violet)">
             Target {fmtRoi(targetRoi)}
           </text>
 
@@ -540,7 +541,7 @@ function RoiDotPlot({
                 />
                 <text x={6} y={cy + 4} fontSize={11} fill="var(--text-primary)">
                   <tspan fill="var(--text-disabled)">{i + 1}</tspan>
-                  <tspan dx={6} fontWeight={600}>
+                  <tspan dx={6} fontWeight={500}>
                     {name}
                   </tspan>
                   {channel && <tspan fill="var(--text-muted)">{` · ${channel}`}</tspan>}
@@ -557,7 +558,7 @@ function RoiDotPlot({
                   strokeWidth={2}
                   className="transition-[r] duration-150"
                 />
-                <text x={cx + 11} y={cy + 4} fontSize={10} fontWeight={700} fill={ROI_TONE_VAR[tone]}>
+                <text x={cx + 11} y={cy + 4} fontSize={10} fontWeight={500} fill={ROI_TONE_VAR[tone]}>
                   {r.roi_display}
                 </text>
                 <rect
@@ -582,7 +583,7 @@ function RoiDotPlot({
             className="pointer-events-none absolute right-0 z-20 w-52 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
             style={y(active) < padT + innerH / 2 ? { bottom: padB } : { top: padT }}
           >
-            <div className="font-bold text-ink-primary">{rows[active].promotion}</div>
+            <div className="font-medium text-ink-primary">{rows[active].promotion}</div>
             <div className="text-ink-muted">
               {rows[active].channel} · {rows[active].period}
             </div>
@@ -772,7 +773,7 @@ function Dumbbell({
                   opacity={isActive ? 1 : 0}
                   className="transition-opacity duration-150"
                 />
-                <text x={6} y={cy + 4} fontSize={11} fontWeight={600} fill="var(--text-primary)">
+                <text x={6} y={cy + 4} fontSize={11} fontWeight={500} fill="var(--text-primary)">
                   {fitLabel(g.label, labelW - 8)}
                 </text>
 
@@ -795,7 +796,7 @@ function Dumbbell({
                 {xi !== null && (
                   <>
                     <circle cx={xi} cy={cy} r={6} fill={SERIES.incremental} stroke="var(--surface-card)" strokeWidth={2} />
-                    <text x={xi} y={cy - 10} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--text-primary)">
+                    <text x={xi} y={cy - 10} textAnchor="middle" fontSize={10} fontWeight={500} fill="var(--text-primary)">
                       {g.incremental_sales_display}
                       {share !== null && (
                         <tspan fontWeight={400} fill="var(--text-muted)">{` · ${share.toFixed(2)}%`}</tspan>
@@ -804,7 +805,7 @@ function Dumbbell({
                   </>
                 )}
 
-                <text x={padL + innerW + 12} y={cy + 4} fontSize={11} fontWeight={700} fill={ROI_TONE_VAR[tone]}>
+                <text x={padL + innerW + 12} y={cy + 4} fontSize={11} fontWeight={500} fill={ROI_TONE_VAR[tone]}>
                   {fmtRoi(g.roi)}
                 </text>
 
@@ -986,7 +987,7 @@ function MetricTable({
     }
     return (
       <div className="min-w-0">
-        <div className={`text-right text-sm tabular-nums ${ranked ? 'font-bold text-ink-primary' : 'text-ink-secondary'}`}>
+        <div className={`text-right text-sm tabular-nums ${ranked ? 'font-medium text-ink-primary' : 'text-ink-secondary'}`}>
           {perfDisplay(g, m)}
         </div>
         <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-ink-primary/[0.05]">
@@ -1001,7 +1002,7 @@ function MetricTable({
 
   const head = (m: PerfMetric) => (
     <div
-      className={`text-right text-[11px] font-bold uppercase tracking-[0.06em] ${
+      className={`text-right text-xs font-medium ${
         m === metric ? 'text-brand-violet' : 'text-ink-muted'
       }`}
       aria-sort={m === metric ? 'descending' : undefined}
@@ -1014,7 +1015,7 @@ function MetricTable({
   return (
     <div role="table" aria-label="Top products" className="grid grid-cols-[minmax(0,1fr)_8.5rem_7.5rem_3.5rem] gap-x-4">
       <div role="row" className="contents">
-        <div role="columnheader" className="text-[11px] font-bold uppercase tracking-[0.06em] text-ink-muted">
+        <div role="columnheader" className="text-xs font-medium text-ink-muted">
           Product
         </div>
         {head('incremental_sales')}
@@ -1030,7 +1031,7 @@ function MetricTable({
         >
           <div role="cell" className="flex min-w-0 items-center gap-1.5 border-t border-border-subtle py-2 text-sm group-hover:bg-surface-hover">
             <span className="tabular-nums text-ink-muted">{i + 1}</span>
-            <span className="truncate font-semibold text-ink-primary">{g.label}</span>
+            <span className="truncate font-medium text-ink-primary">{g.label}</span>
           </div>
           <div role="cell" className="border-t border-border-subtle py-2 group-hover:bg-surface-hover">{cell(g, 'incremental_sales')}</div>
           <div role="cell" className="border-t border-border-subtle py-2 group-hover:bg-surface-hover">{cell(g, 'trade_spend')}</div>
@@ -1316,7 +1317,7 @@ function MetricColumns({
                   y={v !== null && v < 0 ? Math.max(y(v), zeroY) + 13 : Math.min(y(v ?? 0), zeroY) - 7}
                   textAnchor="middle"
                   fontSize={10}
-                  fontWeight={700}
+                  fontWeight={500}
                   fill="var(--text-primary)"
                 >
                   {label}
@@ -1329,7 +1330,7 @@ function MetricColumns({
                   y={isRoi ? height - 14 : height - 21}
                   textAnchor="middle"
                   fontSize={11}
-                  fontWeight={600}
+                  fontWeight={500}
                   fill="var(--text-primary)"
                 >
                   {fitLabel(g.label, slot - 6)}
@@ -1340,7 +1341,7 @@ function MetricColumns({
                     y={height - 7}
                     textAnchor="middle"
                     fontSize={10}
-                    fontWeight={700}
+                    fontWeight={500}
                     fill={ROI_TONE_VAR[roiTone(g.roi, targetRoi)]}
                   >
                     {fmtRoi(g.roi)}
@@ -1372,7 +1373,7 @@ function MetricColumns({
               left: tooltipLeft(width, padL + slot * active, padL + slot * (active + 1), TIP_W),
             }}
           >
-            <div className="font-bold text-ink-primary">{groups[active].label}</div>
+            <div className="font-medium text-ink-primary">{groups[active].label}</div>
             {/* Every measure, not just the one on the axis; the swatch marks
                 the one the columns are drawing. */}
             <TipRow
@@ -1410,7 +1411,7 @@ export function TipRow({ k, v, swatch }: { k: string; v: string; swatch?: string
         {swatch && <span className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: swatch }} />}
         <span className="truncate">{k}</span>
       </span>
-      <span className="shrink-0 font-semibold tabular-nums text-ink-primary">{v}</span>
+      <span className="shrink-0 font-medium tabular-nums text-ink-primary">{v}</span>
     </div>
   )
 }
@@ -1449,6 +1450,8 @@ export function SalesByRegionSection() {
   const { symbol } = useDisplay()
   const year = useCommandFilters((s) => s.filters.year)
   const month = useCommandFilters((s) => s.filters.month)
+  const periodFrom = useCommandFilters((s) => s.filters.period_from)
+  const periodTo = useCommandFilters((s) => s.filters.period_to)
   const channel = useCommandFilters((s) => s.filters.channel)
 
   const q = useBreakdown('region', { limit: REGION_LIMIT, scope: 'page' })
@@ -1465,7 +1468,16 @@ export function SalesByRegionSection() {
   // result.
   const rows = useMemo(() => rankBy(q.data?.groups ?? [], metric), [q.data, metric])
 
-  const yearLabel = year === null ? 'All years' : String(year)
+  const yearLabel =
+    periodFrom != null && periodTo != null
+      ? monthPeriodLabel(
+          [Math.floor(periodFrom / 100), periodFrom % 100],
+          [Math.floor(periodTo / 100), periodTo % 100],
+          options.data?.calendar ?? [],
+        )
+      : year === null
+        ? 'All data'
+        : String(year)
   const monthLabel =
     month === null
       ? 'all months'
@@ -1483,8 +1495,8 @@ export function SalesByRegionSection() {
     <ChartFrame
       fill
       title="Sales by Region"
-      hint={`The selected metric by geography, ranked, with ROI under every region. Follows the page filter bar — every control on it, including Month and Channel under More Filters. Currently showing ${cut}.`}
-      actions={rows.length > 0 ? <span className="text-xs font-semibold text-ink-muted">{count}</span> : null}
+      hint={`The selected metric by geography, ranked, with ROI under every region. Follows the page filter bar — every control on it, the Period included. Currently showing ${cut}.`}
+      actions={rows.length > 0 ? <span className="text-xs font-medium text-ink-muted">{count}</span> : null}
       controls={<PerfMetricSelect value={metric} onChange={setMetric} label="Region metric" />}
       isLoading={q.isLoading}
       isFetching={q.isFetching}

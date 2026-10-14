@@ -38,7 +38,7 @@ export function LiveStatus({ label, className = '' }: { label: string; className
     >
       <span className="inline-block h-[7px] w-[7px] animate-[liveDot_1.4s_infinite] rounded-full bg-status-success" />
       <span>
-        <strong className="font-bold text-status-success">Live</strong> · refreshed {label}
+        <strong className="font-medium text-status-success">Live</strong> · refreshed {label}
       </span>
     </span>
   )

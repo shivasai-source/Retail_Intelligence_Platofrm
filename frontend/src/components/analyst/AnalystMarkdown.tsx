@@ -22,7 +22,7 @@ function inline(text: string, keyPrefix: string): ReactNode[] {
     i % 2 === 1 ? (
       // The figures that answer the question. Tabular numerals so a column of
       // them lines up, which is most of what this bold is used for.
-      <strong key={`${keyPrefix}-b${i}`} className="font-bold text-ink-primary tabular-nums">
+      <strong key={`${keyPrefix}-b${i}`} className="font-medium text-ink-primary tabular-nums">
         {piece}
       </strong>
     ) : (
@@ -67,13 +67,13 @@ export function AnalystMarkdown({ text }: { text: string }) {
         // A ranking can be longer than the panel is wide; it scrolls on its own
         // rather than widening the thread.
         <div key={`tbl-${i}`} className="my-2.5 overflow-x-auto rounded-[10px] border border-border-subtle">
-          <table className="w-full border-collapse text-[13px]">
+          <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
                 {head.map((h, hi) => (
                   <th
                     key={hi}
-                    className={`border-b border-border-default bg-surface-page px-2.5 py-2 text-xs font-bold uppercase tracking-[0.04em] text-ink-secondary ${
+                    className={`border-b border-border-default bg-surface-page px-2.5 py-2 text-xs font-medium text-ink-secondary ${
                       hi === 0 ? 'text-left' : 'text-right'
                     }`}
                   >

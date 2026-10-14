@@ -130,9 +130,9 @@ export function AnalystChart({ spec }: { spec: AnalystChartSpec }) {
       <figcaption className="mb-2 flex items-start justify-between gap-2">
         <div className="min-w-0">
           {spec.title && (
-            <div className="truncate text-[13px] font-bold text-ink-primary">{spec.title}</div>
+            <div className="truncate text-sm font-medium text-ink-primary">{spec.title}</div>
           )}
-          {spec.unit && <div className="truncate text-[11px] text-ink-muted">{spec.unit}</div>}
+          {spec.unit && <div className="truncate text-xs text-ink-muted">{spec.unit}</div>}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           {/* THE TABLE VIEW is not a nicety: it is how the figures stay available
@@ -171,16 +171,16 @@ export function AnalystChart({ spec }: { spec: AnalystChartSpec }) {
       )}
 
       {spec.type === 'histogram' && spec.axis_label && !showTable && (
-        <p className="mt-1.5 text-center text-[10px] text-ink-muted">{spec.axis_label} →</p>
+        <p className="mt-1.5 text-center text-2xs text-ink-muted">{spec.axis_label} →</p>
       )}
       {spec.independent_scales && !showTable && (
-        <p className="mt-2 text-[11px] text-ink-disabled">
+        <p className="mt-2 text-xs text-ink-disabled">
           Each series is scaled to its own maximum — compare a series across groups, not
           between series.
         </p>
       )}
       {spec.truncated && (
-        <p className="mt-2 text-[11px] text-ink-disabled">
+        <p className="mt-2 text-xs text-ink-disabled">
           Showing the largest groups; the rest are grouped as “Other”.
         </p>
       )}
@@ -202,7 +202,7 @@ function ToolbarButton({
       onClick={onClick}
       aria-pressed={pressed}
       disabled={disabled}
-      className="shrink-0 cursor-pointer rounded-[var(--r-sm)] px-1.5 py-0.5 text-[11px] font-semibold text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet disabled:cursor-default disabled:opacity-50"
+      className="shrink-0 cursor-pointer rounded-[var(--r-sm)] px-1.5 py-0.5 text-xs font-medium text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet disabled:cursor-default disabled:opacity-50"
     >
       {children}
     </button>
@@ -223,7 +223,7 @@ interface MarkProps {
 function Tip({ text, x, y }: { text: string; x: string; y: string }) {
   return (
     <div
-      className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-[var(--r-sm)] bg-ink-primary px-1.5 py-1 text-[10px] font-semibold text-surface-card shadow-[var(--shadow-lg)]"
+      className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-[var(--r-sm)] bg-ink-primary px-1.5 py-1 text-2xs font-medium text-surface-card shadow-[var(--shadow-lg)]"
       style={{ left: x, top: y }}
     >
       {text}
@@ -277,7 +277,7 @@ function Bars({
               x={BAR_W}
               y={y + 9}
               fontSize="10"
-              fontWeight="600"
+              fontWeight="500"
               textAnchor="end"
               fill="var(--text-primary)"
             >
@@ -425,7 +425,7 @@ function Line({
             onMouseLeave={() => setHover(null)}
           >
             {hover === i && (
-              <div className="pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2 whitespace-nowrap rounded-[var(--r-sm)] bg-ink-primary px-1.5 py-1 text-[10px] font-semibold text-surface-card shadow-[var(--shadow-lg)]">
+              <div className="pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2 whitespace-nowrap rounded-[var(--r-sm)] bg-ink-primary px-1.5 py-1 text-2xs font-medium text-surface-card shadow-[var(--shadow-lg)]">
                 {p.label}: {label(i)}
               </div>
             )}
@@ -434,7 +434,7 @@ function Line({
       </div>
       <div className="mt-1 flex">
         {points.map((p, i) => (
-          <div key={i} className="min-w-0 flex-1 truncate text-center text-[9px] text-ink-muted" title={p.label}>
+          <div key={i} className="min-w-0 flex-1 truncate text-center text-2xs text-ink-muted" title={p.label}>
             {/* Only the ends and the hovered point are labelled — a label on
                 every tick is noise at this width. */}
             {i === 0 || i === points.length - 1 || hover === i ? p.label : ''}
@@ -487,7 +487,7 @@ function MultiSeries({
           never colour alone, so each swatch is paired with its metric name. */}
       <div className="mb-1.5 flex flex-wrap gap-x-3 gap-y-1">
         {series.map((s, si) => (
-          <span key={s.name} className="flex items-center gap-1 text-[10px] text-ink-secondary">
+          <span key={s.name} className="flex items-center gap-1 text-2xs text-ink-secondary">
             <span
               className="h-2 w-2 shrink-0 rounded-[2px]"
               style={{ background: seriesColor(si, colors) }}
@@ -551,10 +551,10 @@ function MultiSeries({
         </svg>
         {hover !== null && labels[hover] && (
           <div
-            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-[var(--r-sm)] bg-ink-primary px-1.5 py-1 text-[10px] text-surface-card shadow-[var(--shadow-lg)]"
+            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-[var(--r-sm)] bg-ink-primary px-1.5 py-1 text-2xs text-surface-card shadow-[var(--shadow-lg)]"
             style={{ left: `${((hover + 0.5) / labels.length) * 100}%`, top: '0px' }}
           >
-            <span className="font-semibold">{labels[hover]}</span>
+            <span className="font-medium">{labels[hover]}</span>
             {series.map((s, si) => (
               <span key={s.name} className="ml-1.5">
                 {s.name.split('(')[0].trim()}: {s.displays?.[hover] ?? fmtNumber(s.values[hover] ?? 0)}
@@ -696,7 +696,7 @@ function Pie({
         {points.map((p, i) => (
           <div
             key={i}
-            className="flex items-baseline gap-1.5 text-[11px]"
+            className="flex items-baseline gap-1.5 text-xs"
             onMouseEnter={() => setHover(i)}
             onMouseLeave={() => setHover(null)}
           >
@@ -710,7 +710,7 @@ function Pie({
             {/* The share AND the amount: a percentage alone makes the reader
                 ask "of what?", and the figure is what they came for. */}
             <span className="shrink-0 tabular-nums text-ink-muted">{label(i)}</span>
-            <span className="shrink-0 font-semibold tabular-nums text-ink-primary">
+            <span className="shrink-0 font-medium tabular-nums text-ink-primary">
               {((Math.max(0, p.value) / total) * 100).toFixed(2)}%
             </span>
           </div>
@@ -734,12 +734,12 @@ function Table({
   if (spec.series?.length && spec.labels?.length) {
     return (
       <div className="max-h-[220px] overflow-y-auto">
-        <table className="w-full border-collapse text-[11px]">
+        <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="border-b border-border-subtle">
-              <th className="py-1 pr-2 text-left font-semibold text-ink-muted">Group</th>
+              <th className="py-1 pr-2 text-left font-medium text-ink-muted">Group</th>
               {spec.series.map((s) => (
-                <th key={s.name} className="py-1 text-right font-semibold text-ink-muted">
+                <th key={s.name} className="py-1 text-right font-medium text-ink-muted">
                   {s.name.split('(')[0].trim()}
                 </th>
               ))}
@@ -750,7 +750,7 @@ function Table({
               <tr key={name} className="border-b border-border-subtle last:border-0">
                 <td className="py-1 pr-2 text-ink-secondary">{name}</td>
                 {spec.series!.map((s) => (
-                  <td key={s.name} className="py-1 text-right font-semibold tabular-nums text-ink-primary">
+                  <td key={s.name} className="py-1 text-right font-medium tabular-nums text-ink-primary">
                     {s.displays?.[i] ?? fmtNumber(s.values[i] ?? 0)}
                   </td>
                 ))}
@@ -764,12 +764,12 @@ function Table({
 
   return (
     <div className="max-h-[220px] overflow-y-auto">
-      <table className="w-full border-collapse text-[11px]">
+      <table className="w-full border-collapse text-xs">
         <tbody>
           {points.map((p, i) => (
             <tr key={i} className="border-b border-border-subtle last:border-0">
               <td className="py-1 pr-2 text-ink-secondary">{p.label}</td>
-              <td className="py-1 text-right font-semibold tabular-nums text-ink-primary">{label(i)}</td>
+              <td className="py-1 text-right font-medium tabular-nums text-ink-primary">{label(i)}</td>
             </tr>
           ))}
         </tbody>

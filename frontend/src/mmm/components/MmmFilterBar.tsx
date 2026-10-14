@@ -208,7 +208,7 @@ export function MmmFilterBar({ options, year }: { options: MmmFilterOptions | un
             className="panel-enter cc-filter-surface absolute top-full z-30 mt-2 rounded-[var(--r-lg)] border border-border-subtle p-4 shadow-[var(--shadow-lg)]"
           >
             <div className="mb-3 flex items-center justify-between gap-3">
-              <span className="text-base font-bold text-ink-primary">Custom date range</span>
+              <span className="text-base font-medium text-ink-primary">Custom date range</span>
               {custom && (
                 <Button variant="ghost" size="sm" className="cursor-pointer !text-brand-violet" onClick={clearRange}>
                   <Icon name="x" />

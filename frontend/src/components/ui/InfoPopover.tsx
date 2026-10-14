@@ -107,7 +107,7 @@ export function InfoPopover({
             className="dd-enter fixed z-[9999] rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-left shadow-[var(--shadow-lg)]"
             style={{ left: coords.left, top: coords.top, width }}
           >
-            <div className="text-sm font-bold text-ink-primary">{title}</div>
+            <div className="text-sm font-medium text-ink-primary">{title}</div>
             {children}
           </div>,
           document.body,
@@ -122,7 +122,7 @@ export function InfoPopover({
 export function InfoBlock({ label, children }: { label: string; children: ReactNode }) {
   return (
     <>
-      <div className="mt-1.5 text-2xs font-semibold uppercase tracking-wide text-ink-muted">{label}</div>
+      <div className="mt-1.5 text-2xs font-medium text-ink-muted">{label}</div>
       <div className="mt-0.5 rounded-[var(--r-sm)] bg-ink-primary/[0.04] px-1.5 py-1 text-xs leading-snug text-ink-secondary [font-variant-numeric:tabular-nums]">
         {children}
       </div>

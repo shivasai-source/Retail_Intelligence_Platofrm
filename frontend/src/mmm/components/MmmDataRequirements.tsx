@@ -64,8 +64,8 @@ export function MmmDataRequirements({
             </span>
           )}
           <div className="min-w-0">
-            <h3 className="text-[19px] font-bold">Data requirements</h3>
-            <p className="mt-0.5 text-[14px] text-ink-muted">
+            <h3 className="text-lg font-normal">Data requirements</h3>
+            <p className="mt-0.5 text-base text-ink-muted">
               What the daily file’s {MMM_COLUMNS.length} columns must contain.
             </p>
           </div>
@@ -78,7 +78,7 @@ export function MmmDataRequirements({
           aria-label="Requirements"
           className="overflow-y-auto border-r border-border-subtle bg-surface-muted/40 p-3 @max-[760px]:border-b @max-[760px]:border-r-0"
         >
-          <div className="px-3 pb-2 pt-1 text-[13px] font-semibold text-ink-muted">Column groups</div>
+          <div className="px-3 pb-2 pt-1 text-sm font-medium text-ink-muted">Column groups</div>
           {MMM_GROUPS.map((group) => {
             const cols = columnsIn(group)
             const required = cols.filter((c) => c.required).length
@@ -119,7 +119,7 @@ export function MmmDataRequirements({
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle p-[14px_24px]">
         {onBack ? (
           <>
-            <span className="text-[13px] text-ink-muted">The file you already picked is kept.</span>
+            <span className="text-sm text-ink-muted">The file you already picked is kept.</span>
             <Button variant="primary" onClick={onBack}>
               Back to upload
             </Button>
@@ -127,7 +127,7 @@ export function MmmDataRequirements({
         ) : (
           <>
             {autoOpened && onDontShowAgain ? (
-              <label className="flex cursor-pointer items-center gap-2 text-[13px] text-ink-muted">
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-muted">
                 <input
                   type="checkbox"
                   checked={dontShow}
@@ -190,10 +190,10 @@ function NavItem({
         <Icon name={icon} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className={`block text-[14px] font-semibold leading-snug ${active ? 'text-ink-primary' : 'text-ink-secondary'}`}>
+        <span className={`block text-base font-medium leading-snug ${active ? 'text-ink-primary' : 'text-ink-secondary'}`}>
           {label}
         </span>
-        <span className="block text-[12.5px] text-ink-muted">{sub}</span>
+        <span className="block text-sm text-ink-muted">{sub}</span>
       </span>
     </button>
   )
@@ -216,8 +216,8 @@ function GroupPane({ group }: { group: MmmGroup }) {
     <>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h4 className="text-[18px] font-bold text-ink-primary">{GROUP_LABELS[group]}</h4>
-          <p className="mt-1 text-[14px] leading-[1.55] text-ink-secondary">{GROUP_PURPOSE[group]}</p>
+          <h4 className="text-lg font-normal text-ink-primary">{GROUP_LABELS[group]}</h4>
+          <p className="mt-1 text-base leading-[1.55] text-ink-secondary">{GROUP_PURPOSE[group]}</p>
         </div>
         <div className="flex shrink-0 gap-2">
           <Button variant="secondary" onClick={copyHeaders}>
@@ -231,10 +231,10 @@ function GroupPane({ group }: { group: MmmGroup }) {
 
       <table className="mt-5 w-full border-collapse">
         <thead>
-          <tr className="border-b border-border-default text-left text-[13px] text-ink-muted">
-            <th className="w-[34%] pb-2.5 pr-4 font-semibold">Column</th>
-            <th className="w-[20%] pb-2.5 pr-4 font-semibold">Example</th>
-            <th className="pb-2.5 font-semibold">Description</th>
+          <tr className="border-b border-border-default text-left text-sm text-ink-muted">
+            <th className="w-[34%] pb-2.5 pr-4 font-medium">Column</th>
+            <th className="w-[20%] pb-2.5 pr-4 font-medium">Example</th>
+            <th className="pb-2.5 font-medium">Description</th>
           </tr>
         </thead>
         <tbody>
@@ -242,17 +242,17 @@ function GroupPane({ group }: { group: MmmGroup }) {
             <tr key={c.name} className="border-b border-border-subtle align-top last:border-b-0">
               <td className="py-3 pr-4">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="font-mono text-[14px] font-semibold text-ink-primary">{c.name}</span>
+                  <span className="font-mono text-base font-medium text-ink-primary">{c.name}</span>
                   {c.required && (
-                    <span className="rounded-[var(--r-pill)] bg-brand-violet-50 px-1.5 py-px text-[11px] font-bold text-brand-violet">
+                    <span className="rounded-[var(--r-pill)] bg-brand-violet-50 px-1.5 py-px text-xs font-medium text-brand-violet">
                       Required
                     </span>
                   )}
                 </div>
-                <div className="mt-0.5 text-[12.5px] text-ink-muted">{COLUMN_TYPE_LABELS[c.type]}</div>
+                <div className="mt-0.5 text-sm text-ink-muted">{COLUMN_TYPE_LABELS[c.type]}</div>
               </td>
-              <td className="py-3 pr-4 font-mono text-[14px] text-ink-secondary">{c.example || '—'}</td>
-              <td className="py-3 text-[14px] leading-[1.55] text-ink-secondary">{c.description}</td>
+              <td className="py-3 pr-4 font-mono text-base text-ink-secondary">{c.example || '—'}</td>
+              <td className="py-3 text-base leading-[1.55] text-ink-secondary">{c.description}</td>
             </tr>
           ))}
         </tbody>
@@ -264,19 +264,19 @@ function GroupPane({ group }: { group: MmmGroup }) {
 function RulesPane() {
   return (
     <>
-      <h4 className="text-[18px] font-bold text-ink-primary">Formatting rules</h4>
-      <p className="mt-1 text-[14px] leading-[1.55] text-ink-secondary">
+      <h4 className="text-lg font-normal text-ink-primary">Formatting rules</h4>
+      <p className="mt-1 text-base leading-[1.55] text-ink-secondary">
         Most upload problems come from one of these. Check them before you upload.
       </p>
       <ol className="mt-5 flex flex-col">
         {MMM_RULES.map((rule, i) => (
           <li key={rule.title} className="flex gap-4 border-b border-border-subtle py-3.5 last:border-b-0">
-            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-violet-50 text-[13px] font-bold text-brand-violet">
+            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-brand-violet-50 text-sm font-medium text-brand-violet">
               {i + 1}
             </span>
             <div className="min-w-0">
-              <div className="text-[15px] font-semibold text-ink-primary">{rule.title}</div>
-              <p className="mt-0.5 text-[14px] leading-[1.55] text-ink-secondary">{rule.body}</p>
+              <div className="text-base font-medium text-ink-primary">{rule.title}</div>
+              <p className="mt-0.5 text-base leading-[1.55] text-ink-secondary">{rule.body}</p>
             </div>
           </li>
         ))}

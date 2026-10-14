@@ -108,7 +108,7 @@ def to_state(scope: dict[str, Any]) -> FilterState:
     TypeError, i.e. a 500 on what is really a malformed request. Every rejection
     from this function is a 422 naming the key at fault.
     """
-    unknown = sorted(set(scope) - set(DIMENSIONS))
+    unknown = sorted(set(scope) - set(DIMENSIONS) - {"period_from", "period_to"})
     if unknown:
         raise ValueError(
             f"Unknown filter dimension(s) in scope: {', '.join(unknown)}. "
@@ -116,7 +116,7 @@ def to_state(scope: dict[str, Any]) -> FilterState:
         )
 
     period = {}
-    for key in ("year", "month"):
+    for key in ("year", "month", "period_from", "period_to"):
         value = scope.get(key)
         if value is None:
             continue
@@ -128,7 +128,7 @@ def to_state(scope: dict[str, Any]) -> FilterState:
             )
         period[key] = value
 
-    lists = {k: v for k, v in scope.items() if k not in ("year", "month")}
+    lists = {k: v for k, v in scope.items() if k not in ("year", "month", "period_from", "period_to")}
     for key, value in lists.items():
         if value is None or isinstance(value, (list, tuple, set, frozenset)):
             continue
@@ -171,6 +171,8 @@ def filename(module: Module, state: FilterState, extension: str,
     if module.scoped_stem:
         if state.year:
             parts.append(str(state.year))
+        if state.period_from and state.period_to:
+            parts.append(f"{state.period_from // 100}W{state.period_from % 100:02d}-{state.period_to // 100}W{state.period_to % 100:02d}")
         if state.month:
             parts.append(MONTHS[state.month - 1][:3])
         # THE CHANNEL TOO, when one is selected. Without it two exports of the

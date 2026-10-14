@@ -216,7 +216,7 @@ export function DatabricksModal({
             <BrandLogo logo="databricks" name={connector.name} />
           </div>
           <div>
-            <h3 className="text-md font-bold">{locked ? 'Your dataset' : 'Load dataset from Databricks'}</h3>
+            <h3 className="text-md font-medium">{locked ? 'Your dataset' : 'Load dataset from Databricks'}</h3>
             <div className="mt-0.5 text-sm text-ink-muted">
               {locked
                 ? 'All 6 tables loaded · view or reset'
@@ -239,7 +239,7 @@ export function DatabricksModal({
         {/* ---------------- LOADED: view / reset, no picker ---------------- */}
         {!status.isLoading && locked && (
           <>
-            <div className="mb-3.5 flex items-start gap-2 rounded-[var(--r-md)] bg-status-success-bg p-[10px_12px] text-sm leading-[1.5] text-[#047857] [&_svg]:mt-px [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0">
+            <div className="mb-3.5 flex items-start gap-2 rounded-[var(--r-md)] bg-status-success-bg p-[10px_12px] text-sm leading-[1.5] text-[var(--pill-success-ink)] [&_svg]:mt-px [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0">
               <Icon name="checkCircle" />
               <span>
                 All 6 tables are loaded and every dashboard is reading from them. To load a different
@@ -249,9 +249,9 @@ export function DatabricksModal({
             <div className="flex flex-col gap-2">
               {installed.map((f) => (
                 <div key={f.role} className="flex items-center gap-2.5 rounded-[var(--r-md)] bg-surface-muted p-[9px_12px]">
-                  <Icon name="database" className="h-4 w-4 shrink-0 text-[#047857]" />
+                  <Icon name="database" className="h-4 w-4 shrink-0 text-[var(--pill-success-ink)]" />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-base font-semibold">{f.label}</div>
+                    <div className="truncate text-base font-medium">{f.label}</div>
                     <div className="mt-px truncate text-xs leading-[1.45] text-ink-muted">
                       {f.filename} · {fmtSize(f.size_bytes)}
                     </div>
@@ -326,7 +326,7 @@ export function DatabricksModal({
                     <button
                       key={name}
                       onClick={() => openCatalog(name)}
-                      className="flex items-center gap-2.5 rounded-[var(--r-md)] bg-surface-muted p-[9px_11px] text-left text-base font-semibold hover:bg-brand-violet-50 hover:text-brand-violet"
+                      className="flex items-center gap-2.5 rounded-[var(--r-md)] bg-surface-muted p-[9px_11px] text-left text-base font-medium hover:bg-brand-violet-50 hover:text-brand-violet"
                     >
                       <Icon name="database" className="h-4 w-4 text-ink-muted" />
                       <span className="min-w-0 flex-1 truncate">{name}</span>
@@ -345,7 +345,7 @@ export function DatabricksModal({
               <div className="mt-3.5">
                 <button
                   onClick={() => { setCatalog(null); setSchemas(null) }}
-                  className="mb-2 inline-flex items-center gap-1 text-sm font-bold text-brand-violet"
+                  className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-brand-violet"
                 >
                   <Icon name="chevronLeft" className="h-3.5 w-3.5" /> All catalogs
                 </button>
@@ -358,7 +358,7 @@ export function DatabricksModal({
                     <button
                       key={name}
                       onClick={() => openSchema(name)}
-                      className="flex items-center gap-2.5 rounded-[var(--r-md)] bg-surface-muted p-[9px_11px] text-left text-base font-semibold hover:bg-brand-violet-50 hover:text-brand-violet"
+                      className="flex items-center gap-2.5 rounded-[var(--r-md)] bg-surface-muted p-[9px_11px] text-left text-base font-medium hover:bg-brand-violet-50 hover:text-brand-violet"
                     >
                       <Icon name="folder" className="h-4 w-4 text-ink-muted" />
                       <span className="min-w-0 flex-1 truncate">{name}</span>
@@ -377,7 +377,7 @@ export function DatabricksModal({
               <div className="mt-3.5">
                 <button
                   onClick={() => { setSchema(null); setTables(null) }}
-                  className="mb-2 inline-flex items-center gap-1 text-sm font-bold text-brand-violet"
+                  className="mb-2 inline-flex items-center gap-1 text-sm font-medium text-brand-violet"
                 >
                   <Icon name="chevronLeft" className="h-3.5 w-3.5" /> All schemas
                 </button>
@@ -420,12 +420,12 @@ export function DatabricksModal({
             {picked.length > 0 && (
               <div className="mt-3.5">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-sm font-bold">
+                  <span className="text-sm font-medium">
                     {picked.length} table{picked.length === 1 ? '' : 's'} selected
                   </span>
                   <button
                     onClick={() => { setPicked([]); setInspection(null) }}
-                    className="text-xs font-semibold text-ink-muted hover:text-[#B91C1C]"
+                    className="text-xs font-medium text-ink-muted hover:text-[var(--pill-danger-ink)]"
                   >
                     Clear all
                   </button>
@@ -439,27 +439,27 @@ export function DatabricksModal({
                       <div key={full} className="flex items-center gap-2.5 rounded-[var(--r-md)] bg-surface-muted p-[9px_12px]">
                         <Icon
                           name={!inspection ? 'grid' : ok ? 'check' : 'info'}
-                          className={`h-4 w-4 shrink-0 ${!inspection ? 'text-ink-muted' : ok ? 'text-[#047857]' : 'text-[#B91C1C]'}`}
+                          className={`h-4 w-4 shrink-0 ${!inspection ? 'text-ink-muted' : ok ? 'text-[var(--pill-success-ink)]' : 'text-[var(--pill-danger-ink)]'}`}
                         />
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-base font-semibold">{t.name}</div>
+                          <div className="truncate text-base font-medium">{t.name}</div>
                           <div className="mt-px truncate text-xs leading-[1.45]">
                             {!inspection ? (
                               <span className="text-ink-muted">{full}</span>
                             ) : ok && found?.role ? (
-                              <span className="text-[#047857]">{STAR_ROLE_LABELS[found.role]}</span>
+                              <span className="text-[var(--pill-success-ink)]">{STAR_ROLE_LABELS[found.role]}</span>
                             ) : found?.recognised && found.role ? (
-                              <span className="text-[#B91C1C]">
+                              <span className="text-[var(--pill-danger-ink)]">
                                 {STAR_ROLE_LABELS[found.role]} — missing {found.missing_columns.join(', ')}
                               </span>
                             ) : (
-                              <span className="text-[#B91C1C]">Not one of the 6 tables — remove it</span>
+                              <span className="text-[var(--pill-danger-ink)]">Not one of the 6 tables — remove it</span>
                             )}
                           </div>
                         </div>
                         <button
                           onClick={() => toggle(t)}
-                          className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-status-danger-bg hover:text-[#B91C1C]"
+                          className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-status-danger-bg hover:text-[var(--pill-danger-ink)]"
                         >
                           <Icon name="x" className="h-3.5 w-3.5" />
                         </button>

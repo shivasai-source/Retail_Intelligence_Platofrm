@@ -29,11 +29,11 @@ function greeting(): string {
 function Orb({ size = 36, live = false }: { size?: number; live?: boolean }) {
   return (
     <span
-      className="relative grid shrink-0 place-items-center rounded-full text-white shadow-[0_4px_14px_rgba(107,71,255,0.35)]"
+      className="relative grid shrink-0 place-items-center rounded-full text-white shadow-[0_4px_14px_rgba(20,58,99,0.35)]"
       style={{
         width: size,
         height: size,
-        background: 'radial-gradient(circle at 30% 25%, #9D86FF 0%, #6B47FF 45%, #3B5BDB 100%)',
+        background: 'radial-gradient(circle at 30% 25%, var(--brand-violet) 0%, var(--brand-violet) 45%, var(--brand-blue) 100%)',
       }}
     >
       {live && (
@@ -114,8 +114,8 @@ export function AnalystConversation({
         <Orb size={40} live={busy} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-md font-extrabold leading-tight text-ink-primary">Analyst</h2>
-            <span className="rounded-[var(--r-pill)] bg-brand-violet-50 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-brand-violet">
+            <h2 className="text-md font-medium leading-tight text-ink-primary">Analyst</h2>
+            <span className="rounded-[var(--r-pill)] bg-brand-violet-50 px-1.5 py-px text-2xs font-medium text-brand-violet">
               Beta
             </span>
           </div>
@@ -134,7 +134,7 @@ export function AnalystConversation({
           <button
             type="button"
             onClick={clear}
-            className="cursor-pointer rounded-[var(--r-sm)] px-2.5 py-1 text-sm font-semibold text-ink-secondary transition-colors hover:bg-surface-hover hover:text-ink-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet"
+            className="cursor-pointer rounded-[var(--r-sm)] px-2.5 py-1 text-sm font-medium text-ink-secondary transition-colors hover:bg-surface-hover hover:text-ink-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet"
           >
             Clear
           </button>
@@ -161,7 +161,7 @@ export function AnalystConversation({
       {/* COMPOSER */}
       <div className="border-t border-border-subtle bg-surface-card px-3.5 pb-3 pt-3.5">
         <div className={column}>
-          <div className="flex items-end gap-2 rounded-[14px] border border-border-default bg-surface-card p-2 pl-3 shadow-[var(--shadow-card-soft)] transition-[border-color,box-shadow] focus-within:border-brand-violet focus-within:shadow-[0_0_0_3px_rgba(107,71,255,0.12)]">
+          <div className="flex items-end gap-2 rounded-[14px] border border-border-default bg-surface-card p-2 pl-3 shadow-[var(--shadow-card-soft)] transition-[border-color,box-shadow] focus-within:border-brand-violet focus-within:shadow-[0_0_0_3px_rgba(20,58,99,0.12)]">
             <textarea
               ref={inputRef}
               rows={1}
@@ -177,7 +177,7 @@ export function AnalystConversation({
               }}
               placeholder="Ask me anything — e.g. ROI by channel for 2025"
               aria-label="Ask the Analyst a question"
-              className="max-h-[140px] min-h-[28px] flex-1 resize-none bg-transparent px-1.5 py-0.5 text-[14px] leading-6 text-ink-primary !outline-none placeholder:text-ink-muted"
+              className="max-h-[140px] min-h-[28px] flex-1 resize-none bg-transparent px-1.5 py-0.5 text-base leading-6 text-ink-primary !outline-none placeholder:text-ink-muted"
             />
             <button
               type="button"
@@ -218,7 +218,7 @@ function MemoryMeter({ usage, onReset }: { usage: MemoryUsage; onReset: () => vo
   const tight = pct >= 80
   return (
     <div className="mt-2 flex items-center gap-2 px-1">
-      <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-ink-secondary">
+      <span className="shrink-0 text-xs font-medium text-ink-secondary">
         Memory
       </span>
       <div
@@ -237,12 +237,12 @@ function MemoryMeter({ usage, onReset }: { usage: MemoryUsage; onReset: () => vo
           }}
         />
       </div>
-      <span className="shrink-0 tabular-nums text-[11px] font-bold text-ink-secondary">{pct}%</span>
+      <span className="shrink-0 tabular-nums text-xs font-medium text-ink-secondary">{pct}%</span>
       <button
         type="button"
         onClick={onReset}
         title="Forget what this conversation established, but keep the messages on screen"
-        className="shrink-0 cursor-pointer rounded-[var(--r-sm)] px-1.5 py-0.5 text-[11px] font-bold text-ink-secondary transition-colors hover:bg-surface-hover hover:text-brand-violet focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet"
+        className="shrink-0 cursor-pointer rounded-[var(--r-sm)] px-1.5 py-0.5 text-xs font-medium text-ink-secondary transition-colors hover:bg-surface-hover hover:text-brand-violet focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet"
       >
         Reset
       </button>
@@ -260,29 +260,29 @@ function Empty({ name, onPick }: { name: string; onPick: (q: string) => void }) 
         <div className="mx-auto mb-4 w-fit">
           <Orb size={56} />
         </div>
-        <h3 className="text-xl font-extrabold tracking-[-0.015em] text-ink-primary">
+        <h3 className="text-xl font-normal tracking-[-0.015em] text-ink-primary">
           {greeting()}
           {name ? `, ${name}` : ''}.
         </h3>
-        <p className="mx-auto mt-2 max-w-[36ch] text-[14px] font-medium leading-relaxed text-ink-secondary">
+        <p className="mx-auto mt-2 max-w-[36ch] text-base font-medium leading-relaxed text-ink-secondary">
           What would you like to know about your promotions today? Ask about spend, sales or ROI, by year,
           channel, region, brand or promotion.
         </p>
       </div>
-      <div className="mb-2.5 px-0.5 text-xs font-bold uppercase tracking-[0.08em] text-ink-secondary">Try asking</div>
+      <div className="mb-2.5 px-0.5 text-xs font-medium text-ink-secondary">Try asking</div>
       <div className="grid grid-cols-2 gap-2">
         {STARTERS.map(({ kind, icon, q }) => (
           <button
             key={q}
             type="button"
             onClick={() => onPick(q)}
-            className="group flex cursor-pointer flex-col gap-2 rounded-[var(--r-lg)] border border-border-subtle bg-surface-card p-3.5 text-left shadow-[var(--shadow-card-soft)] transition-all duration-150 hover:-translate-y-0.5 hover:border-brand-violet hover:shadow-[0_6px_18px_rgba(107,71,255,0.14)] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet/60"
+            className="group flex cursor-pointer flex-col gap-2 rounded-[var(--r-lg)] border border-border-subtle bg-surface-card p-3.5 text-left shadow-[var(--shadow-card-soft)] transition-all duration-150 hover:-translate-y-0.5 hover:border-brand-violet hover:shadow-[0_6px_18px_rgba(20,58,99,0.14)] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet/60"
           >
-            <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.05em] text-brand-violet">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-brand-violet">
               <Icon name={icon} className="h-3.5 w-3.5 shrink-0" />
               {kind}
             </span>
-            <span className="text-[14px] font-semibold leading-snug text-ink-primary">{q}</span>
+            <span className="text-base font-medium leading-snug text-ink-primary">{q}</span>
           </button>
         ))}
       </div>
@@ -297,10 +297,10 @@ function Bubble({ message }: { message: AnalystMessage }) {
   if (message.role === 'user') {
     return (
       <div className="analyst-turn flex flex-col items-end">
-        <span className="mb-1.5 mr-1 text-xs font-bold text-ink-secondary">You</span>
+        <span className="mb-1.5 mr-1 text-xs font-medium text-ink-secondary">You</span>
         <div
-          className="max-w-[85%] whitespace-pre-wrap rounded-[16px] rounded-tr-[6px] px-4 py-2.5 text-[14px] font-medium leading-relaxed text-white shadow-[0_4px_14px_rgba(107,71,255,0.25)]"
-          style={{ background: 'linear-gradient(135deg, #7C5CFF 0%, #5B3FE6 100%)' }}
+          className="max-w-[85%] whitespace-pre-wrap rounded-[16px] rounded-tr-[6px] px-4 py-2.5 text-base font-medium leading-relaxed text-white shadow-[0_4px_14px_rgba(20,58,99,0.25)]"
+          style={{ background: 'linear-gradient(135deg, var(--brand-violet) 0%, var(--brand-violet) 100%)' }}
         >
           {message.content}
         </div>
@@ -311,7 +311,7 @@ function Bubble({ message }: { message: AnalystMessage }) {
   if (message.pending) {
     return (
       <AssistantTurn live>
-        <div className="inline-flex items-center gap-3 rounded-[16px] rounded-tl-[6px] border border-border-subtle bg-surface-card px-4 py-3 text-[14px] font-medium text-ink-secondary shadow-[var(--shadow-card-soft)]">
+        <div className="inline-flex items-center gap-3 rounded-[16px] rounded-tl-[6px] border border-border-subtle bg-surface-card px-4 py-3 text-base font-medium text-ink-secondary shadow-[var(--shadow-card-soft)]">
           <span className="analyst-dots flex items-center gap-1.5" aria-hidden="true">
             <i />
             <i />
@@ -329,7 +329,7 @@ function Bubble({ message }: { message: AnalystMessage }) {
   return (
     <AssistantTurn>
       <div
-        className={`rounded-[16px] rounded-tl-[6px] px-4 py-3.5 text-[14px] leading-[1.65] text-ink-primary shadow-[var(--shadow-card-soft)] ${
+        className={`rounded-[16px] rounded-tl-[6px] px-4 py-3.5 text-base leading-[1.65] text-ink-primary shadow-[var(--shadow-card-soft)] ${
           message.error
             ? 'border border-status-danger/30 bg-status-danger/5 text-ink-primary'
             : 'border border-border-subtle bg-surface-card text-ink-primary'
@@ -353,7 +353,7 @@ function AssistantTurn({ live = false, children }: { live?: boolean; children: R
     <div className="analyst-turn">
       <div className="mb-1.5 flex items-center gap-2">
         <Orb size={24} live={live} />
-        <span className="text-xs font-bold text-ink-primary">Analyst</span>
+        <span className="text-xs font-medium text-ink-primary">Analyst</span>
       </div>
       {children}
     </div>

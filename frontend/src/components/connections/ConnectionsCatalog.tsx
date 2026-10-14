@@ -94,7 +94,7 @@ export function ConnectionsCatalog({
               type="button"
               onClick={() => setFamily(f.value)}
               aria-pressed={family === f.value}
-              className={`rounded-[var(--r-md)] px-3 py-1 text-sm font-semibold transition-colors duration-150 ${
+              className={`rounded-[var(--r-md)] px-3 py-1 text-sm font-medium transition-colors duration-150 ${
                 family === f.value
                   ? 'bg-brand-violet text-white'
                   : 'text-ink-secondary hover:bg-surface-muted hover:text-ink-primary'
@@ -115,7 +115,7 @@ export function ConnectionsCatalog({
           {grouped.map(({ category, items }) => (
             <section key={category}>
               <div className="mb-3 flex items-center gap-2">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-ink-muted">{category}</h3>
+                <h3 className="text-xs font-medium text-ink-muted">{category}</h3>
                 <span className="text-sm text-ink-muted">{items.length}</span>
               </div>
 
@@ -166,14 +166,14 @@ function ConnectorTile({
         available
           ? 'cursor-pointer hover:-translate-y-px hover:shadow-[var(--shadow-md)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-violet)]'
           : 'cursor-not-allowed opacity-55',
-        connected ? 'border-[#A7D8C4]' : 'border-border-subtle',
+        connected ? 'border-[var(--border-strong)]' : 'border-border-subtle',
         available && !connected ? 'hover:border-brand-violet' : '',
       ].join(' ')}
     >
       <div className="flex items-start gap-3">
         <ConnectorLogo connectorId={entry.id} label={entry.label} mark={entry.mark} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-base font-bold text-ink-primary">{entry.label}</div>
+          <div className="truncate text-base font-medium text-ink-primary">{entry.label}</div>
           <div className="mt-0.5 text-sm text-ink-muted">{FAMILY_LABEL[entry.family]}</div>
         </div>
         {!available ? (
@@ -188,7 +188,7 @@ function ConnectorTile({
       <p className="line-clamp-3 text-sm leading-[1.55] text-ink-secondary">{entry.description}</p>
 
       {available && (
-        <span className="mt-auto flex items-center gap-1.5 pt-1 text-sm font-bold text-brand-violet [&_svg]:h-3.5 [&_svg]:w-3.5">
+        <span className="mt-auto flex items-center gap-1.5 pt-1 text-sm font-medium text-brand-violet [&_svg]:h-3.5 [&_svg]:w-3.5">
           <Icon name={entry.special ? 'database' : 'plus'} />
           {connected ? 'Browse / reconnect' : entry.special ? 'Connect account' : 'Upload files'}
         </span>

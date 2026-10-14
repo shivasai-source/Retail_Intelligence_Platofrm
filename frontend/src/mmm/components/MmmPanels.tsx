@@ -35,7 +35,7 @@ function Select({ children, ...props }: React.SelectHTMLAttributes<HTMLSelectEle
     <span className="relative inline-flex">
       <select
         {...props}
-        className="h-[23px] cursor-pointer appearance-none rounded-[var(--r-sm)] border border-border-subtle bg-surface-card pl-2 pr-6 text-xs font-semibold text-ink-primary transition-colors hover:bg-surface-hover focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet"
+        className="h-[23px] cursor-pointer appearance-none rounded-[var(--r-sm)] border border-border-subtle bg-surface-card pl-2 pr-6 text-xs font-medium text-ink-primary transition-colors hover:bg-surface-hover focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet"
       >
         {children}
       </select>
@@ -457,7 +457,7 @@ export function ComparisonCard({
             const w = i > 0 ? shownWindows[i - 1] : null
             return (
               <>
-                <div className="font-bold text-ink-primary">{w ? (ytd ? 'YTD a year ago' : w.full) : ytd ? 'Year to date' : 'Selected period'}</div>
+                <div className="font-medium text-ink-primary">{w ? (ytd ? 'YTD a year ago' : w.full) : ytd ? 'Year to date' : 'Selected period'}</div>
                 <div className="text-ink-muted">{periodOf(i) || '—'}</div>
                 <TipRow swatch={FILL[columns[i].role]} k={spec.label} v={columns[i].display} />
                 {w ? (
@@ -483,18 +483,18 @@ export function ComparisonCard({
           <div className="grid min-w-0 grid-cols-2 gap-x-4">
             <div className="min-w-0">
               <div className="truncate text-xs text-ink-muted" title={cmp.period_label}>{footer?.now ?? cmp.period_label}</div>
-              <div className="text-lg font-extrabold tabular-nums text-ink-primary">{current.display}</div>
+              <div className="text-lg font-normal tabular-nums text-ink-primary">{current.display}</div>
             </div>
             <div className="min-w-0">
               <div className="truncate text-xs text-ink-muted" title={win.period_label}>{footer?.then ?? (win.period_label || win.full)}</div>
-              <div className={`text-lg font-bold tabular-nums ${win.available ? 'text-ink-secondary' : 'text-ink-muted'}`}>
+              <div className={`text-lg font-normal tabular-nums ${win.available ? 'text-ink-secondary' : 'text-ink-muted'}`}>
                 {win.available ? against?.display : '—'}
               </div>
             </div>
           </div>
           <div className="shrink-0 text-right">
             <span
-              className={`inline-block rounded-full px-2 py-0.5 text-sm font-bold tabular-nums ${tone}`}
+              className={`inline-block rounded-full px-2 py-0.5 text-sm font-medium tabular-nums ${tone}`}
               title={delta?.basis ? `Measured in ${delta.basis}` : undefined}
             >
               {win.available ? (delta?.display ?? '—') : '—'}
@@ -697,7 +697,7 @@ export function ChannelCard({ data }: { data: MmmHub }) {
               <Icon name="chevronLeft" /> All channels
             </Button>
             <span className="text-ink-disabled">/</span>
-            <span className="font-bold text-ink-primary">{family}</span>
+            <span className="font-medium text-ink-primary">{family}</span>
             <span className="text-ink-muted">
               · {subs.length} sub-channel{subs.length === 1 ? '' : 's'}
             </span>
@@ -835,7 +835,7 @@ export function DecompositionCard({ data }: { data: MmmHub }) {
                 // A selected chip wears its driver's own hue — tinted fill,
                 // full-colour edge — so chip, slice and legend read as one.
                 style={on ? { borderColor: dr.color, background: `color-mix(in srgb, ${dr.color} 14%, var(--surface-card))` } : undefined}
-                className={`inline-flex h-8 cursor-pointer items-center gap-2 rounded-[var(--r-pill)] border px-3.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet ${
+                className={`inline-flex h-8 cursor-pointer items-center gap-2 rounded-[var(--r-pill)] border px-3.5 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet ${
                   on ? 'text-ink-primary' : 'border-border-subtle text-ink-muted hover:bg-surface-hover hover:text-ink-primary'
                 }`}
               >
@@ -851,7 +851,7 @@ export function DecompositionCard({ data }: { data: MmmHub }) {
                 setDrilled(false)
                 setSelected(new Set())
               }}
-              className="ml-1 cursor-pointer text-sm font-semibold text-brand-violet hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet"
+              className="ml-1 cursor-pointer text-sm font-medium text-brand-violet hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet"
             >
               Clear
             </button>
@@ -1004,7 +1004,7 @@ export function BaselineCard({ data }: { data: MmmHub }) {
                       <div className="text-xs font-normal text-ink-muted">{what}</div>
                     </Td>
                     <Td className="tabular-nums text-ink-muted">{days}</Td>
-                    <Td className={`text-right tabular-nums ${step === 'R − Z' ? 'font-bold text-ink-primary' : ''}`}>{value}</Td>
+                    <Td className={`text-right tabular-nums ${step === 'R − Z' ? 'font-medium text-ink-primary' : ''}`}>{value}</Td>
                   </Tr>
                 ))}
               </tbody>
@@ -1015,7 +1015,7 @@ export function BaselineCard({ data }: { data: MmmHub }) {
               <span className="text-sm text-ink-muted">
                 Baseline revenue · {b.scope_days.toLocaleString()} days
               </span>
-              <span className="text-lg font-extrabold tabular-nums text-ink-primary">{b.total_display}</span>
+              <span className="text-lg font-normal tabular-nums text-ink-primary">{b.total_display}</span>
             </div>
             {b.widened && (
               <Caveat>

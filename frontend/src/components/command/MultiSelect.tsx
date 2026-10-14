@@ -140,7 +140,7 @@ export function MultiSelect({
               onClick={onClear}
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onClear())}
               className={`flex cursor-pointer items-center gap-2 rounded-[var(--r-sm)] px-3 py-2 text-base font-medium transition-colors hover:bg-surface-hover focus:bg-surface-hover focus:outline-none ${
-                selected.length === 0 ? 'font-bold text-brand-violet' : 'text-ink-primary'
+                selected.length === 0 ? 'font-medium text-brand-violet' : 'text-ink-primary'
               }`}
             >
               <span className="flex-1">{allLabel}</span>
@@ -160,7 +160,7 @@ export function MultiSelect({
                   onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onToggle(o.code))}
                   className={`flex cursor-pointer items-center gap-2 rounded-[var(--r-sm)] px-3 py-2 text-base font-medium transition-colors focus:outline-none ${
                     i === active ? 'bg-surface-hover' : ''
-                  } ${isSelected ? 'font-bold text-brand-violet' : 'text-ink-primary'}`}
+                  } ${isSelected ? 'font-medium text-brand-violet' : 'text-ink-primary'}`}
                 >
                   {/* A checkbox affordance, so multi-select reads as multi-select
                       rather than as a list that mysteriously keeps its highlight. */}
@@ -211,7 +211,7 @@ export function SelectionChips({
       {shown.map((code) => (
         <span
           key={code}
-          className="chip-enter inline-flex items-center gap-1 rounded-[var(--r-sm)] bg-brand-violet-50 px-1.5 py-0.5 text-xs font-semibold text-brand-violet"
+          className="chip-enter inline-flex items-center gap-1 rounded-[var(--r-sm)] bg-brand-violet-50 px-1.5 py-0.5 text-xs font-medium text-brand-violet"
         >
           {nameOf(code)}
           <button
@@ -228,7 +228,7 @@ export function SelectionChips({
         </span>
       ))}
       {overflow > 0 && (
-        <span className="rounded-[var(--r-sm)] bg-ink-primary/[0.06] px-1.5 py-0.5 text-xs font-semibold text-ink-secondary">
+        <span className="rounded-[var(--r-sm)] bg-ink-primary/[0.06] px-1.5 py-0.5 text-xs font-medium text-ink-secondary">
           +{overflow}
         </span>
       )}

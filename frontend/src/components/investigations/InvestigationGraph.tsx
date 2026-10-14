@@ -46,7 +46,7 @@ export function InvestigationGraph({
       <div
         ref={ref}
         className={`relative overflow-hidden ${expanded ? 'min-h-0 flex-1' : 'h-[560px]'}`}
-        style={{ background: 'radial-gradient(circle at 50% 50%, rgba(124,92,255,0.04), transparent 70%)' }}
+        style={{ background: 'radial-gradient(circle at 50% 50%, rgba(20,58,99,0.04), transparent 70%)' }}
       >
         {/* ONE transform for the whole stage. Zooming a wrapper keeps the
             layout in real pixels, so the edge geometry and the node
@@ -124,9 +124,9 @@ export function InvestigationGraph({
                   invited comparison between numbers that are not comparable.
                   It leads the popover instead, where the bars it came from are
                   directly underneath it. */}
-              <div className="text-base font-extrabold leading-tight tracking-[-0.01em] text-ink-primary">{nodeTitle(n.label)}</div>
+              <div className="text-base font-medium leading-tight tracking-[-0.01em] text-ink-primary">{nodeTitle(n.label)}</div>
               {n.delta && (
-                <div className="mt-1 inline-flex items-center gap-0.5 text-base font-bold" style={{ color: trendColor }}>
+                <div className="mt-1 inline-flex items-center gap-0.5 text-base font-medium" style={{ color: trendColor }}>
                   <Icon name={n.trend === 'down' ? 'arrowDown' : 'arrowUp'} className="h-3 w-3" />
                   <span>{n.delta}</span>
                 </div>
@@ -141,11 +141,11 @@ export function InvestigationGraph({
             left: size.width / 2,
             top: size.height / 2,
             transform: 'translate(-50%, -50%)',
-            background: 'linear-gradient(135deg, #4F3CCC 0%, #6B47FF 100%)',
-            boxShadow: '0 16px 32px -8px rgba(124, 92, 255, 0.55)',
+            background: 'linear-gradient(135deg, var(--brand-violet) 0%, var(--brand-violet) 100%)',
+            boxShadow: '0 16px 32px -8px rgba(20,58,99, 0.55)',
           }}
         >
-          <div className="text-lg font-extrabold tracking-[-0.01em]">{center.label}</div>
+          <div className="text-lg font-normal tracking-[-0.01em]">{center.label}</div>
           <div className="mt-0.5 text-base opacity-[0.78]">{center.sub}</div>
         </div>
         </div>

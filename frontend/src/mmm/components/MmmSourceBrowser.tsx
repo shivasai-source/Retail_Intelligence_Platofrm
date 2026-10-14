@@ -43,7 +43,7 @@ function NotIngested({ kind, items }: { kind: string; items: string[] }) {
       <div className="flex items-start gap-2 [&_svg]:mt-px [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0">
         <Icon name="info" />
         <div className="min-w-0">
-          <div className="text-base font-bold text-ink-primary">
+          <div className="text-base font-medium text-ink-primary">
             {items.length} {kind}
             {items.length === 1 ? '' : 's'} selected — not imported
           </div>
@@ -93,7 +93,7 @@ function Row({
         <span className="block truncate text-base text-ink-primary">{label}</span>
         {sub && <span className="block truncate text-2xs text-ink-muted">{sub}</span>}
       </span>
-      {selected && <Icon name="check" className="h-4 w-4 shrink-0 text-[#047857]" />}
+      {selected && <Icon name="check" className="h-4 w-4 shrink-0 text-[var(--pill-success-ink)]" />}
     </button>
   )
 }
@@ -187,7 +187,7 @@ export function MmmSourceBrowser({ mode, onClose }: { mode: Mode; onClose: () =>
     <Modal open onClose={onClose} maxWidthClassName="max-w-[620px]">
       <div className="flex items-start justify-between gap-3 border-b border-border-subtle p-[16px_20px]">
         <div className="min-w-0">
-          <h2 className="text-md font-bold">{TITLE[mode]}</h2>
+          <h2 className="text-md font-medium">{TITLE[mode]}</h2>
           <p className="mt-0.5 text-sm text-ink-muted">
             Browse what this source holds. Installing from it into MMM is not built yet.
           </p>
@@ -241,7 +241,7 @@ export function MmmSourceBrowser({ mode, onClose }: { mode: Mode; onClose: () =>
           <>
             {!container ? (
               <>
-                <div className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-muted">
+                <div className="mb-2 text-xs font-medium text-ink-muted">
                   Containers ({containers?.length ?? 0})
                 </div>
                 <div className="flex flex-col gap-1">
@@ -258,11 +258,11 @@ export function MmmSourceBrowser({ mode, onClose }: { mode: Mode; onClose: () =>
                     setContainer(null)
                     setPicked([])
                   }}
-                  className="mb-2 flex items-center gap-1 text-sm font-semibold text-brand-violet [&_svg]:h-3.5 [&_svg]:w-3.5"
+                  className="mb-2 flex items-center gap-1 text-sm font-medium text-brand-violet [&_svg]:h-3.5 [&_svg]:w-3.5"
                 >
                   <Icon name="chevronLeft" /> All containers
                 </button>
-                <div className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-muted">
+                <div className="mb-2 text-xs font-medium text-ink-muted">
                   {container} · {azBlobs.data?.files.length ?? 0} files
                 </div>
                 <div className="flex flex-col gap-1">
@@ -285,7 +285,7 @@ export function MmmSourceBrowser({ mode, onClose }: { mode: Mode; onClose: () =>
           <>
             {!catalog ? (
               <>
-                <div className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-muted">
+                <div className="mb-2 text-xs font-medium text-ink-muted">
                   Catalogs ({catalogs?.length ?? 0})
                 </div>
                 <div className="flex flex-col gap-1">
@@ -299,11 +299,11 @@ export function MmmSourceBrowser({ mode, onClose }: { mode: Mode; onClose: () =>
                 <button
                   type="button"
                   onClick={() => setCatalog(null)}
-                  className="mb-2 flex items-center gap-1 text-sm font-semibold text-brand-violet [&_svg]:h-3.5 [&_svg]:w-3.5"
+                  className="mb-2 flex items-center gap-1 text-sm font-medium text-brand-violet [&_svg]:h-3.5 [&_svg]:w-3.5"
                 >
                   <Icon name="chevronLeft" /> All catalogs
                 </button>
-                <div className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-muted">
+                <div className="mb-2 text-xs font-medium text-ink-muted">
                   {catalog} · schemas ({schemas?.length ?? 0})
                 </div>
                 <div className="flex flex-col gap-1">
@@ -320,11 +320,11 @@ export function MmmSourceBrowser({ mode, onClose }: { mode: Mode; onClose: () =>
                     setSchema(null)
                     setPicked([])
                   }}
-                  className="mb-2 flex items-center gap-1 text-sm font-semibold text-brand-violet [&_svg]:h-3.5 [&_svg]:w-3.5"
+                  className="mb-2 flex items-center gap-1 text-sm font-medium text-brand-violet [&_svg]:h-3.5 [&_svg]:w-3.5"
                 >
                   <Icon name="chevronLeft" /> {catalog}
                 </button>
-                <div className="mb-2 text-xs font-bold uppercase tracking-wide text-ink-muted">
+                <div className="mb-2 text-xs font-medium text-ink-muted">
                   {catalog}.{schema} · {dbxTables.data?.tables.length ?? 0} tables
                 </div>
                 <div className="flex flex-col gap-1">
@@ -353,7 +353,7 @@ export function MmmSourceBrowser({ mode, onClose }: { mode: Mode; onClose: () =>
         {error && (
           <div
             role="alert"
-            className="mt-3 rounded-[var(--r-md)] bg-status-danger-bg p-[10px_12px] text-sm leading-[1.5] text-[#B91C1C]"
+            className="mt-3 rounded-[var(--r-md)] bg-status-danger-bg p-[10px_12px] text-sm leading-[1.5] text-[var(--pill-danger-ink)]"
           >
             {error}
           </div>

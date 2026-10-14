@@ -6,17 +6,17 @@ import { InfoBlock, InfoPopover } from './InfoPopover'
 // Decision), distinct from the generic `.kpi` tile (see ui/Kpi.tsx) used elsewhere
 // (e.g. the simulate-recommendation modal).
 const TINTS: Record<string, { bg: string; fg: string }> = {
-  lavender: { bg: '#ECE6FF', fg: '#7C5CFF' },
-  sky: { bg: '#E1ECFF', fg: '#4F7CFF' },
-  violet: { bg: '#ECE6FF', fg: '#6B47FF' },
-  amber: { bg: '#FEF1D7', fg: '#F59E0B' },
-  mint: { bg: '#D8F3E6', fg: '#10B981' },
-  rose: { bg: '#FFE4E6', fg: '#F43F5E' },
+  lavender: { bg: 'var(--brand-violet-50)', fg: 'var(--brand-violet)' },
+  sky: { bg: 'var(--brand-blue-50)', fg: 'var(--brand-blue)' },
+  violet: { bg: 'var(--brand-violet-50)', fg: 'var(--brand-violet)' },
+  amber: { bg: 'var(--status-warning-bg)', fg: 'var(--status-warning)' },
+  mint: { bg: 'var(--status-success-bg)', fg: 'var(--status-success)' },
+  rose: { bg: 'var(--status-danger-bg)', fg: 'var(--status-danger)' },
   // The Insights Hub's second row. Three tints the first row does not use,
   // so the nine cards stay tellable apart at a glance.
-  teal: { bg: '#CCEFE9', fg: '#14B8A6' },
-  peach: { bg: '#FFE4D1', fg: '#F97316' },
-  lemon: { bg: '#FFF4CF', fg: '#CA8A04' },
+  teal: { bg: 'var(--brand-blue-50)', fg: 'var(--brand-blue)' },
+  peach: { bg: 'var(--status-warning-bg)', fg: 'var(--status-warning)' },
+  lemon: { bg: 'var(--status-warning-bg)', fg: 'var(--status-warning)' },
 }
 
 // Six columns: the Insights Hub carries six addable KPI cards, and a reader
@@ -151,13 +151,13 @@ export function TpoKpiTile({
         >
           <span className={narrow ? 'line-clamp-2 break-words' : 'truncate'}>{label}</span>
         </div>
-        <div className="mt-2.5 text-xl font-bold leading-[1.15] tracking-[-0.015em] text-ink-primary opacity-90 transition-opacity duration-[220ms] group-hover/kpi:opacity-100 [font-variant-numeric:tabular-nums]">
+        <div className="kpi-value mt-2.5 text-ink-primary opacity-90 transition-opacity duration-[220ms] group-hover/kpi:opacity-100">
           {value}
         </div>
         <div className="mt-2.5 inline-flex items-center gap-1 text-sm text-ink-muted [&_svg]:h-3 [&_svg]:w-3">
           {trend && <Icon name={trend === 'up' ? 'arrowUp' : 'arrowDown'} className={tone} />}
           <span>
-            <strong className={`font-bold ${tone}`}>{delta}</strong> {deltaSub}
+            <strong className={`font-medium ${tone}`}>{delta}</strong> {deltaSub}
           </span>
         </div>
 

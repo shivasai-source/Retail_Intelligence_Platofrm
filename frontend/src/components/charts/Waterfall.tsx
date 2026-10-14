@@ -8,10 +8,10 @@ export interface WaterfallItem {
 }
 
 const PALETTE: Record<WaterfallItem['type'], string> = {
-  positive: '#10B981',
-  negative: '#EF4444',
-  total: '#1F2937',
-  base: '#94A3B8',
+  positive: 'var(--status-success)',
+  negative: 'var(--status-danger)',
+  total: 'var(--text-primary)',
+  base: 'var(--text-muted)',
 }
 
 // Ported from js/components/charts.js Charts.waterfall / Charts.createWaterfall — merged
@@ -81,7 +81,7 @@ export function Waterfall({
           const xL = cx - barW / 2
           const yTop = y(b.top)
           const hgt = Math.max(2, y(b.bot) - y(b.top))
-          const color = PALETTE[b.type] || '#94A3B8'
+          const color = PALETTE[b.type] || 'var(--text-muted)'
           const valLabel = b.value.toFixed(2)
           const next = bars[i + 1]
 
@@ -113,8 +113,8 @@ export function Waterfall({
                 y={yTop - 6}
                 textAnchor="middle"
                 fontSize={12}
-                fontWeight={800}
-                fill={b.type === 'negative' ? '#B91C1C' : b.type === 'total' ? '#1F2937' : b.type === 'base' ? '#475569' : '#047857'}
+                fontWeight={500}
+                fill={b.type === 'negative' ? 'var(--pill-danger-ink)' : b.type === 'total' ? 'var(--text-primary)' : b.type === 'base' ? 'var(--text-secondary)' : 'var(--pill-success-ink)'}
               >
                 {valLabel}
               </text>
@@ -134,7 +134,7 @@ export function Waterfall({
                 textAnchor="middle"
                 fontSize={10}
                 fill="var(--text-secondary)"
-                fontWeight={600}
+                fontWeight={500}
               >
                 {line1}
               </text>
@@ -145,7 +145,7 @@ export function Waterfall({
                   textAnchor="middle"
                   fontSize={10}
                   fill="var(--text-secondary)"
-                  fontWeight={600}
+                  fontWeight={500}
                 >
                   {line2}
                 </text>

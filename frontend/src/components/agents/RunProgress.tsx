@@ -75,7 +75,7 @@ export function PhaseRail({ phases, current }: { phases: readonly RunPhase[]; cu
           <div key={phase.key} className="flex items-center gap-1.5">
             {i > 0 && <span aria-hidden className="h-px w-3 bg-border-strong" />}
             <span
-              className={`inline-flex items-center gap-1 text-xs font-bold ${
+              className={`inline-flex items-center gap-1 text-xs font-medium ${
                 state === 'done'
                   ? 'text-status-success'
                   : state === 'active'

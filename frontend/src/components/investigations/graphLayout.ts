@@ -11,17 +11,17 @@ export interface ImpactStyle {
 export function impactStyle(impact: OrchNode['impact']): ImpactStyle {
   switch (impact) {
     case 'strong':
-      return { color: '#4F7CFF', dash: 'none', accent: 'var(--brand-blue)', bg: 'rgba(79,124,255,0.1)' }
+      return { color: 'var(--brand-blue)', dash: 'none', accent: 'var(--brand-blue)', bg: 'rgba(37,104,178,0.1)' }
     case 'moderate':
-      return { color: '#4F7CFF', dash: '6 4', accent: 'var(--brand-blue)', bg: 'rgba(79,124,255,0.1)' }
+      return { color: 'var(--brand-blue)', dash: '6 4', accent: 'var(--brand-blue)', bg: 'rgba(37,104,178,0.1)' }
     case 'negative':
-      return { color: '#EF4444', dash: '6 4', accent: 'var(--status-danger)', bg: 'rgba(239,68,68,0.08)' }
+      return { color: 'var(--status-danger)', dash: '6 4', accent: 'var(--status-danger)', bg: 'rgba(228,68,57,0.08)' }
     case 'risk':
-      return { color: '#F97316', dash: '6 4', accent: '#F97316', bg: 'rgba(249,115,22,0.08)' }
+      return { color: 'var(--status-warning)', dash: '6 4', accent: 'var(--status-warning)', bg: 'rgba(228,162,57,0.08)' }
     case 'data':
-      return { color: '#9CA3AF', dash: '4 4', accent: 'var(--text-muted)', bg: 'var(--surface-muted)' }
+      return { color: 'var(--text-disabled)', dash: '4 4', accent: 'var(--text-muted)', bg: 'var(--surface-muted)' }
     default:
-      return { color: '#9CA3AF', dash: 'none', accent: 'var(--text-muted)', bg: 'var(--surface-muted)' }
+      return { color: 'var(--text-disabled)', dash: 'none', accent: 'var(--text-muted)', bg: 'var(--surface-muted)' }
   }
 }
 

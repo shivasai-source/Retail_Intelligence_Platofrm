@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.agents import analyst_memory
-from app.agents.analyst import AnalystError, answer, deflect_why
+from app.agents.analyst import AnalystError, answer, deflect_why, route_question
 from app.agents.client import AgentConfigError
 from app.deps import current_user
 
@@ -37,6 +37,17 @@ class AskRequest(BaseModel):
     # `None` and `{}` both mean "a fresh conversation", which is what the
     # reader's Reset sends.
     memory: dict[str, Any] | None = None
+
+
+class RouteRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+
+
+@router.post("/route")
+def route(body: RouteRequest, _user: dict[str, Any] = Depends(current_user)) -> dict[str, str]:
+    """Which page answers this question: "analyst" (the Insights Hub's figure
+    lookups) or "investigation". No model is called; see `route_question`."""
+    return {"target": route_question(body.question)}
 
 
 @router.post("/ask")

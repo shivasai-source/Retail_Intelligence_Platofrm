@@ -105,7 +105,7 @@ export function EmptyState({
         <div className="mx-auto grid h-9 w-9 place-items-center rounded-full bg-ink-primary/[0.05] text-ink-muted [&_svg]:h-4 [&_svg]:w-4">
           <Icon name={icon} />
         </div>
-        <p className="mt-3 text-base font-semibold text-ink-primary">{message}</p>
+        <p className="mt-3 text-base font-medium text-ink-primary">{message}</p>
         {hint && <p className="mt-1 text-sm text-ink-muted">{hint}</p>}
         {onClear && (
           <Button variant="ghost" size="sm" className="mt-3 cursor-pointer !text-brand-violet" onClick={onClear}>
@@ -148,7 +148,7 @@ export function ErrorState({
           <div className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-tint-lavender text-tint-lavender-icon [&_svg]:h-5 [&_svg]:w-5">
             <Icon name="database" />
           </div>
-          <p className="mt-3 text-md font-bold text-ink-primary">No dataset loaded</p>
+          <p className="mt-3 text-md font-medium text-ink-primary">No dataset loaded</p>
           <p className="mt-1 text-base text-ink-muted">
             The six star-schema tables are no longer in place, so there is nothing to show. Upload them
             again through the connector to continue.
@@ -167,7 +167,7 @@ export function ErrorState({
         <div className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-status-danger-bg text-status-danger [&_svg]:h-5 [&_svg]:w-5">
           <Icon name="alertTriangle" />
         </div>
-        <p className="mt-3 text-md font-bold text-ink-primary">Unable to load data</p>
+        <p className="mt-3 text-md font-medium text-ink-primary">Unable to load data</p>
         <p className="mt-1 text-base text-ink-muted">Please try again.</p>
         <p className="mt-2 break-words text-xs text-ink-muted/80">{detail}</p>
         <Button variant="secondary" size="sm" className="mt-4 cursor-pointer" onClick={onRetry} disabled={retrying}>

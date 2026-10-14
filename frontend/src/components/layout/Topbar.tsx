@@ -51,7 +51,7 @@ export function Topbar({
   }
 
   return (
-    <header className="sticky top-0 z-10 flex h-[var(--topbar-h)] items-center gap-2 border-b border-border-subtle bg-surface-page pl-4 pr-4 sm:gap-4 sm:pl-8 sm:pr-7">
+    <header className="sticky top-0 z-10 flex h-[var(--topbar-h)] shrink-0 items-center gap-2 border-b border-border-subtle bg-surface-page pl-4 pr-4 sm:gap-4 sm:pl-8 sm:pr-6 md:pl-10">
       {onMenuClick && <IconButton icon="menu" title="Menu" onClick={onMenuClick} className="-ml-1.5 md:hidden" />}
       <div className="flex min-w-0 items-center gap-2 text-base text-ink-muted">
         {crumbs.map((c, i) => {
@@ -73,7 +73,7 @@ export function Topbar({
                   {c.label}
                 </Link>
               ) : (
-                <span className={`truncate ${isLast ? 'font-semibold text-ink-primary' : ''}`}>{c.label}</span>
+                <span className={`truncate ${isLast ? 'font-medium text-ink-primary' : ''}`}>{c.label}</span>
               )}
               {!isLast && <Icon name="chevronRight" className="h-3.5 w-3.5 shrink-0 text-ink-disabled" />}
             </span>
@@ -106,7 +106,7 @@ export function Topbar({
           trigger={
             <button
               type="button"
-              className="ml-1 grid h-9 w-9 cursor-pointer place-items-center rounded-full bg-gradient-to-br from-[#6B47FF] to-[#8C6EFF] text-sm font-bold text-white"
+              className="ml-1 grid h-9 w-9 cursor-pointer place-items-center rounded-full bg-gradient-to-br from-[var(--brand-violet)] to-[var(--brand-violet)] text-sm font-medium text-white"
               title={user ? `${user.name} — signed in` : 'Not signed in'}
               aria-label={user ? `Account menu — ${user.name}` : 'Account menu'}
             >

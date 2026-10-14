@@ -132,7 +132,7 @@ export function PowerBiModal({
                 <button
                   key={w.id}
                   onClick={() => openWorkspace(w)}
-                  className="flex items-center gap-2.5 rounded-[var(--r-md)] bg-surface-muted p-[9px_11px] text-left text-base font-semibold hover:bg-brand-violet-50 hover:text-brand-violet"
+                  className="flex items-center gap-2.5 rounded-[var(--r-md)] bg-surface-muted p-[9px_11px] text-left text-base font-medium hover:bg-brand-violet-50 hover:text-brand-violet"
                 >
                   <Icon name="folder" className="h-4 w-4 text-ink-muted" />
                   <span className="flex-1">{w.name}</span>

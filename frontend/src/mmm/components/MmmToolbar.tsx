@@ -61,7 +61,7 @@ export function MmmCurrencyToggle() {
           aria-checked={currency === code}
           aria-label={code === 'INR' ? 'Indian rupees' : 'US dollars'}
           onClick={() => setCurrency(code)}
-          className={`h-full cursor-pointer rounded-[calc(var(--r-md)-3px)] px-2.5 text-sm font-semibold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet ${
+          className={`h-full cursor-pointer rounded-[calc(var(--r-md)-3px)] px-2.5 text-sm font-medium transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet ${
             currency === code
               ? 'bg-brand-violet text-white shadow-[var(--shadow-card-soft)]'
               : 'text-ink-muted hover:bg-surface-hover hover:text-ink-primary'

@@ -64,7 +64,7 @@ export function Home() {
             trigger={
               <button
                 type="button"
-                className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-full bg-[linear-gradient(135deg,#6B47FF,#8C6EFF)] text-sm font-bold text-white"
+                className="grid h-9 w-9 shrink-0 cursor-pointer place-items-center rounded-full bg-[linear-gradient(135deg,var(--brand-violet),var(--brand-violet))] text-sm font-medium text-white"
                 title={user.name}
                 aria-label={`Account menu — ${user.name}`}
               >
@@ -88,7 +88,7 @@ export function Home() {
           <div className="min-w-0 flex-1">
             {/* The person's name as they gave it -- capitals shout, and mangle
                 names that are not meant to be uppercased. */}
-            <h2 className="mb-2 text-2xl font-extrabold tracking-[-0.02em] sm:text-3xl">Good to see you, {user.name}.</h2>
+            <h2 className="mb-2 text-2xl font-normal tracking-[-0.02em] sm:text-3xl">Good to see you, {user.name}.</h2>
             {/* ONE LINE. The sentence measures 1059px at this size, and the
                 column it sits in is 1286px wide at 1366 and 1200px at 1280, so
                 the cap is what was wrapping it — 72ch is 582px. Raised to clear

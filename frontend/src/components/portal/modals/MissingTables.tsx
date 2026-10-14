@@ -29,7 +29,7 @@ export function MissingTables({ inspection }: { inspection: StarInspectResult })
 
   return (
     <div className="mt-3.5 rounded-[var(--r-md)] bg-status-danger-bg p-[11px_13px]">
-      <div className="mb-2 flex items-center gap-1.5 text-sm font-bold text-[#B91C1C] [&_svg]:h-[14px] [&_svg]:w-[14px]">
+      <div className="mb-2 flex items-center gap-1.5 text-sm font-medium text-[var(--pill-danger-ink)] [&_svg]:h-[14px] [&_svg]:w-[14px]">
         <Icon name="alertTriangle" />
         Not ready to load — {ready} of {STAR_ROLES.length} tables ready
       </div>
@@ -39,13 +39,13 @@ export function MissingTables({ inspection }: { inspection: StarInspectResult })
           {missing.map(({ role, label, required_columns }) => {
             const broken = incomplete.find((f) => f.role === role)
             return (
-              <li key={role} className="text-xs leading-[1.5] text-[#B91C1C]">
+              <li key={role} className="text-xs leading-[1.5] text-[var(--pill-danger-ink)]">
                 <strong>{label}</strong>
                 {broken ? (
                   <>
                     {' — '}
                     <span className="opacity-90">{broken.filename}</span> is missing{' '}
-                    <span className="font-semibold">{broken.missing_columns.join(', ')}</span>
+                    <span className="font-medium">{broken.missing_columns.join(', ')}</span>
                   </>
                 ) : (
                   <>
@@ -60,7 +60,7 @@ export function MissingTables({ inspection }: { inspection: StarInspectResult })
       )}
 
       {unrecognised.length > 0 && (
-        <div className="mt-2 border-t border-[#B91C1C]/20 pt-2 text-xs leading-[1.5] text-[#B91C1C]">
+        <div className="mt-2 border-t border-[var(--pill-danger-ink)]/20 pt-2 text-xs leading-[1.5] text-[var(--pill-danger-ink)]">
           <strong>Not one of the 6 tables</strong>
           <div className="mt-px opacity-80">
             {unrecognised.map((f) => f.filename).join(', ')} — remove to continue.

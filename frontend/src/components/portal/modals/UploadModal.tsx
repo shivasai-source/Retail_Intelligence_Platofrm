@@ -169,7 +169,7 @@ export function UploadModal({
             <BrandLogo logo="excel" name={connector.name} />
           </div>
           <div>
-            <h3 className="text-md font-bold">{locked ? 'Your dataset' : 'Upload your dataset'}</h3>
+            <h3 className="text-md font-medium">{locked ? 'Your dataset' : 'Upload your dataset'}</h3>
             <div className="mt-0.5 text-sm text-ink-muted">
               {locked ? 'All 6 tables loaded · view or reset' : 'All 6 tables · recognised by their column headers'}
             </div>
@@ -188,7 +188,7 @@ export function UploadModal({
         {/* ---------------- LOADED: view / reset, no dropzone ---------------- */}
         {!status.isLoading && locked && (
           <>
-            <div className="mb-3.5 flex items-start gap-2 rounded-[var(--r-md)] bg-status-success-bg p-[10px_12px] text-sm leading-[1.5] text-[#047857] [&_svg]:mt-px [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0">
+            <div className="mb-3.5 flex items-start gap-2 rounded-[var(--r-md)] bg-status-success-bg p-[10px_12px] text-sm leading-[1.5] text-[var(--pill-success-ink)] [&_svg]:mt-px [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0">
               <Icon name="checkCircle" />
               <span>
                 All 6 tables are loaded and every dashboard is reading from them. To load a different
@@ -202,9 +202,9 @@ export function UploadModal({
                   key={f.role}
                   className="flex items-center gap-2.5 rounded-[var(--r-md)] bg-surface-muted p-[9px_12px]"
                 >
-                  <Icon name="database" className="h-4 w-4 shrink-0 text-[#047857]" />
+                  <Icon name="database" className="h-4 w-4 shrink-0 text-[var(--pill-success-ink)]" />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-base font-semibold">{f.label}</div>
+                    <div className="truncate text-base font-medium">{f.label}</div>
                     <div className="mt-px truncate text-xs leading-[1.45] text-ink-muted">
                       {f.filename} · {fmtSize(f.size_bytes)}
                     </div>
@@ -252,7 +252,7 @@ export function UploadModal({
             <button
               type="button"
               onClick={() => setShowGuide(true)}
-              className="mt-2.5 inline-flex items-center gap-1.5 text-sm font-bold text-brand-violet hover:underline [&_svg]:h-3.5 [&_svg]:w-3.5"
+              className="mt-2.5 inline-flex items-center gap-1.5 text-sm font-medium text-brand-violet hover:underline [&_svg]:h-3.5 [&_svg]:w-3.5"
             >
               <Icon name="book" /> Not sure what to upload? See what each file needs
             </button>
@@ -269,21 +269,21 @@ export function UploadModal({
                     >
                       <Icon
                         name={ok ? 'check' : c.undetermined ? 'file' : 'info'}
-                        className={`h-4 w-4 shrink-0 ${ok ? 'text-[#047857]' : c.undetermined ? 'text-ink-muted' : 'text-[#B91C1C]'}`}
+                        className={`h-4 w-4 shrink-0 ${ok ? 'text-[var(--pill-success-ink)]' : c.undetermined ? 'text-ink-muted' : 'text-[var(--pill-danger-ink)]'}`}
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-base font-semibold">{c.file.name}</div>
+                        <div className="truncate text-base font-medium">{c.file.name}</div>
                         <div className="mt-px text-xs leading-[1.45]">
                           {ok && c.role ? (
-                            <span className="text-[#047857]">{STAR_ROLE_LABELS[c.role]}</span>
+                            <span className="text-[var(--pill-success-ink)]">{STAR_ROLE_LABELS[c.role]}</span>
                           ) : c.role ? (
-                            <span className="text-[#B91C1C]">
+                            <span className="text-[var(--pill-danger-ink)]">
                               {STAR_ROLE_LABELS[c.role]} — missing {c.missingColumns.join(', ')}
                             </span>
                           ) : c.undetermined ? (
                             <span className="text-ink-muted">Excel workbook — checked on upload</span>
                           ) : (
-                            <span className="text-[#B91C1C]">
+                            <span className="text-[var(--pill-danger-ink)]">
                               Not one of the 6 tables — remove it, it can't be uploaded
                             </span>
                           )}
@@ -292,8 +292,8 @@ export function UploadModal({
                       <span className="shrink-0 text-xs text-ink-muted">{fmtSize(c.file.size)}</span>
                       <button
                         onClick={() => setClassified((prev) => prev.filter((_, idx) => idx !== i))}
-                        className={`grid h-5 w-5 shrink-0 place-items-center rounded-full hover:bg-status-danger-bg hover:text-[#B91C1C] ${
-                          extra ? 'text-[#B91C1C]' : 'text-ink-muted'
+                        className={`grid h-5 w-5 shrink-0 place-items-center rounded-full hover:bg-status-danger-bg hover:text-[var(--pill-danger-ink)] ${
+                          extra ? 'text-[var(--pill-danger-ink)]' : 'text-ink-muted'
                         }`}
                       >
                         <Icon name="x" className="h-3.5 w-3.5" />
@@ -308,11 +308,11 @@ export function UploadModal({
                 the fix (remove it) differs from "upload the missing table". */}
             {extras.length > 0 && (
               <div className="mt-3.5 rounded-[var(--r-md)] bg-status-danger-bg p-[11px_13px]">
-                <div className="mb-1.5 flex items-center gap-1.5 text-sm font-bold text-[#B91C1C] [&_svg]:h-[14px] [&_svg]:w-[14px]">
+                <div className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-[var(--pill-danger-ink)] [&_svg]:h-[14px] [&_svg]:w-[14px]">
                   <Icon name="alertTriangle" />
                   {extras.length} file{extras.length > 1 ? 's are' : ' is'} not one of the 6 tables
                 </div>
-                <div className="text-xs leading-[1.5] text-[#B91C1C]">
+                <div className="text-xs leading-[1.5] text-[var(--pill-danger-ink)]">
                   Only the 6 standard tables can be uploaded. Remove{' '}
                   {extras.map((c) => `'${c.file.name}'`).join(', ')} to continue.
                 </div>
@@ -322,7 +322,7 @@ export function UploadModal({
             {/* What is still needed, named table by table. */}
             {classified.length > 0 && missingRoles.length > 0 && undetermined.length === 0 && (
               <div className="mt-3.5 rounded-[var(--r-md)] bg-status-danger-bg p-[11px_13px]">
-                <div className="mb-1.5 flex items-center gap-1.5 text-sm font-bold text-[#B91C1C] [&_svg]:h-[14px] [&_svg]:w-[14px]">
+                <div className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-[var(--pill-danger-ink)] [&_svg]:h-[14px] [&_svg]:w-[14px]">
                   <Icon name="info" />
                   {missingRoles.length} of 6 tables still missing — upload to continue the pipeline
                 </div>
@@ -330,7 +330,7 @@ export function UploadModal({
                   {missingRoles.map((role) => {
                     const incomplete = incompleteFiles.find((c) => c.role === role)
                     return (
-                      <li key={role} className="text-xs leading-[1.5] text-[#B91C1C]">
+                      <li key={role} className="text-xs leading-[1.5] text-[var(--pill-danger-ink)]">
                         <strong>{STAR_ROLE_LABELS[role]}</strong>
                         {duplicated.includes(role) ? (
                           <> — uploaded more than once, keep one</>
@@ -365,7 +365,7 @@ export function UploadModal({
         />
 
         {error && (
-          <div className="mt-3.5 rounded-[var(--r-md)] bg-status-danger-bg p-[10px_12px] text-sm leading-[1.55] text-[#B91C1C]">
+          <div className="mt-3.5 rounded-[var(--r-md)] bg-status-danger-bg p-[10px_12px] text-sm leading-[1.55] text-[var(--pill-danger-ink)]">
             {error}
           </div>
         )}

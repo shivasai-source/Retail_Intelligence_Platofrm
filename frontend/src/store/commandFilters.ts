@@ -23,6 +23,12 @@ import type { Currency, FiltersResponse } from '../types/commandCenter'
 export interface CommandFilters {
   year: number | null
   month: number | null
+  /** A custom period from the Period calendar, each end a business week as
+   *  year * 100 + week (202611 = week 11 of 2026), inclusive. A whole year is
+   *  held as `year` instead, so everything keyed on the year reads it as
+   *  before. Null for both is "all data". */
+  period_from: number | null
+  period_to: number | null
   channel: string[]
   retailer: string[]
   region: string[]
@@ -56,6 +62,8 @@ export const MULTI_SELECT: ReadonlySet<ListFilterKey> = new Set<ListFilterKey>([
 export const EMPTY_FILTERS: CommandFilters = {
   year: null,
   month: null,
+  period_from: null,
+  period_to: null,
   channel: [],
   retailer: [],
   region: [],
@@ -122,7 +130,9 @@ interface CommandFilterStore {
   setTargetRoi: (target: number | null) => void
   toggleExpanded: () => void
   reset: () => void
-  initialise: (year: number) => void
+  /** Mark the store ready, seeding the default period: a year, or null for
+   *  all data (the Insights Hub's default since the Period calendar). */
+  initialise: (year: number | null) => void
   /** Replace the selection wholesale — a scope carried in from another page.
    *  Marks the store initialised so the default-year seeding cannot then
    *  overwrite the carried year. */
@@ -249,6 +259,26 @@ export function createFilterStore(persistKey?: string) {
       // what guarantees the pass always makes progress or stops.
       let changed = prune(protectedKey)
       if (!changed && protectedKey !== null) changed = prune(null)
+
+      // THE PERIOD MUST EXIST IN THE DATA. A sync can replace the dataset
+      // with one that covers different years (2024-2026 became 2024-2025),
+      // and a period in the missing year selected nothing: every panel went
+      // blank. Such a period falls back to all data.
+      const calendar = options.calendar
+      if (calendar?.length) {
+        const weeks = new Set(calendar.flatMap((c) => c.weeks.map((w) => c.year * 100 + w.week)))
+        const gone = (key: number | null) => key !== null && !weeks.has(key)
+        if (gone(next.period_from) || gone(next.period_to)) {
+          next.period_from = null
+          next.period_to = null
+          changed = true
+        }
+        if (next.year !== null && !calendar.some((c) => c.year === next.year)) {
+          next.year = null
+          next.month = null
+          changed = true
+        }
+      }
 
       return changed ? { filters: next } : s
     }),

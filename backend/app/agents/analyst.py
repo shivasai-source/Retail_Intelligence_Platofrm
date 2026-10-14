@@ -25,7 +25,7 @@ import json
 import logging
 import re
 from datetime import date
-from typing import Any
+from typing import Any, Literal
 
 from app.agents import analyst_knowledge as knowledge
 from app.agents import analyst_memory as memory_store
@@ -88,6 +88,46 @@ def deflect_why(question: str) -> str | None:
     if not text:
         return None
     return WHY_DEFLECTION if text.startswith(_WHY_OPENERS) else None
+
+
+# --- which page answers a question ------------------------------------------
+#
+# The other half of the "why" line. Investigations takes a typed question too,
+# and a plain figure lookup ("ROI by channel in 2025", "how much did we spend
+# in March") is this bot's job, not a six-specialist run's. `route_question`
+# tells the Investigations box where a question belongs, so it can hand a
+# lookup to the Insights Hub Analyst instead of planning an investigation.
+#
+# Deliberately conservative: a question is sent to the Analyst only when it
+# OPENS like a lookup and carries no sign of a causal or diagnostic ask.
+# Anything unsure stays with Investigations, which is what the reader typed it
+# into.
+
+_LOOKUP_OPENERS = (
+    "what is", "what's", "what was", "what were", "what are", "whats",
+    "how much", "how many", "show ", "show me", "list ", "give me",
+    "tell me the", "tell me how much", "which ", "top ", "total ",
+    "compare ", "get ", "find the", "display ",
+)
+
+#: Words that make a question an investigation, wherever they appear.
+_INVESTIGATIVE = (
+    "why", "cause", "caus", "driver", "driving", "drove", "underperform",
+    "decline", "declin", "drop", "dropp", "fell", "fall", "worse", "weak",
+    "explain", "root", "led to", "because", "despite", "investigat",
+    "diagnos", "went wrong", "fail", "hurt", "impact of", "affect",
+)
+
+
+def route_question(question: str) -> Literal["analyst", "investigation"]:
+    """Where a question belongs: the Analyst for a figure lookup,
+    Investigations for anything causal or unsure."""
+    text = " ".join((question or "").casefold().split())
+    if not text or deflect_why(text):
+        return "investigation"
+    if any(word in text for word in _INVESTIGATIVE):
+        return "investigation"
+    return "analyst" if text.startswith(_LOOKUP_OPENERS) else "investigation"
 
 
 # --- tools -------------------------------------------------------------------

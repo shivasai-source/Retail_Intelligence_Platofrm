@@ -41,10 +41,10 @@ export function RequireDataset({ children }: { children: ReactNode }) {
     return (
       <div className="grid min-h-screen place-items-center bg-surface-page p-6">
         <div className="max-w-[420px] rounded-[var(--r-xl)] border border-border-subtle bg-surface-card p-6 text-center shadow-[var(--shadow-sm)]">
-          <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-[11px] bg-status-danger-bg text-[#B91C1C] [&_svg]:h-5 [&_svg]:w-5">
+          <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-[11px] bg-status-danger-bg text-[var(--pill-danger-ink)] [&_svg]:h-5 [&_svg]:w-5">
             <Icon name="info" />
           </div>
-          <h2 className="text-md font-bold">Can't reach the server</h2>
+          <h2 className="text-md font-medium">Can't reach the server</h2>
           <p className="mt-1.5 text-base leading-[1.6] text-ink-muted">
             The backend isn't responding. Start it with{' '}
             <code className="rounded bg-surface-muted px-1 py-0.5 text-sm">uvicorn app.main:app --reload --port 8100</code>{' '}
@@ -52,7 +52,7 @@ export function RequireDataset({ children }: { children: ReactNode }) {
           </p>
           <button
             onClick={() => refetch()}
-            className="mt-4 rounded-[var(--r-md)] bg-brand-violet px-4 py-2 text-base font-bold text-white"
+            className="mt-4 rounded-[var(--r-md)] bg-brand-violet px-4 py-2 text-base font-medium text-white"
           >
             Retry
           </button>
@@ -75,7 +75,7 @@ export function RequireDataset({ children }: { children: ReactNode }) {
               <Icon name="database" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-md font-bold">Upload your dataset to continue</h2>
+              <h2 className="text-md font-medium">Upload your dataset to continue</h2>
               <p className="mt-1 text-base leading-[1.6] text-ink-muted">
                 The platform reads six core tables. All of them are required — every dashboard, KPI and report is
                 built from them, so nothing can load until the full set is in place. Files are matched on their
@@ -87,8 +87,8 @@ export function RequireDataset({ children }: { children: ReactNode }) {
 
         <div className="p-[16px_24px]">
           <div className="mb-2.5 flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wide text-ink-muted">Required tables</span>
-            <span className="text-sm font-semibold text-ink-muted">{present} of {total} present</span>
+            <span className="text-xs font-medium text-ink-muted">Required tables</span>
+            <span className="text-sm font-medium text-ink-muted">{present} of {total} present</span>
           </div>
           <div className="flex flex-col gap-1.5">
             {status.files.map((f) => (
@@ -98,13 +98,13 @@ export function RequireDataset({ children }: { children: ReactNode }) {
               >
                 <span
                   className={`grid h-4 w-4 shrink-0 place-items-center rounded-full ${
-                    f.present ? 'bg-[#047857] text-white' : 'border border-border-strong'
+                    f.present ? 'bg-[var(--pill-success-ink)] text-white' : 'border border-border-strong'
                   } [&_svg]:h-2.5 [&_svg]:w-2.5`}
                 >
                   {f.present && <Icon name="check" />}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className={`truncate text-base ${f.present ? 'font-semibold' : 'text-ink-muted'}`}>
+                  <div className={`truncate text-base ${f.present ? 'font-medium' : 'text-ink-muted'}`}>
                     {f.label ?? STAR_ROLE_LABELS[f.role]}
                   </div>
                   {!f.present && (
@@ -123,12 +123,12 @@ export function RequireDataset({ children }: { children: ReactNode }) {
               lives on Data Connections, which also offers Azure and Databricks
               — so the way there is on the gate rather than only the one
               connector the gate can raise itself. */}
-          <Link to="/connections" className="text-sm font-semibold text-brand-violet hover:underline">
+          <Link to="/connections" className="text-sm font-medium text-brand-violet hover:underline">
             Browse all connectors
           </Link>
           <button
             onClick={() => setUploadOpen(true)}
-            className="flex items-center gap-1.5 rounded-[var(--r-md)] bg-brand-violet px-4 py-2 text-base font-bold text-white [&_svg]:h-[13px] [&_svg]:w-[13px]"
+            className="flex items-center gap-1.5 rounded-[var(--r-md)] bg-brand-violet px-4 py-2 text-base font-medium text-white [&_svg]:h-[13px] [&_svg]:w-[13px]"
           >
             <Icon name="plus" /> Upload all 6 files
           </button>

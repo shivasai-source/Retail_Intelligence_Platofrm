@@ -73,7 +73,7 @@ export function GroupedBar({
                 width={barW}
                 height={mounted ? padT + innerH - yA : 0}
                 rx={2}
-                fill={aBelow ? '#EF4444' : '#10B981'}
+                fill={aBelow ? 'var(--status-danger)' : 'var(--status-success)'}
                 opacity={0.85}
                 style={{
                   transition: `y 900ms cubic-bezier(0.16,1,0.3,1) ${i * 40}ms, height 900ms cubic-bezier(0.16,1,0.3,1) ${i * 40}ms`,
@@ -97,7 +97,7 @@ export function GroupedBar({
                 textAnchor="middle"
                 fontSize={11}
                 fill="var(--text-secondary)"
-                fontWeight={600}
+                fontWeight={500}
               >
                 {lab}
               </text>
@@ -106,8 +106,8 @@ export function GroupedBar({
                 y={yA - 6}
                 textAnchor="middle"
                 fontSize={11}
-                fill={aBelow ? '#B91C1C' : '#047857'}
-                fontWeight={700}
+                fill={aBelow ? 'var(--pill-danger-ink)' : 'var(--pill-success-ink)'}
+                fontWeight={500}
               >
                 {actual[i].toFixed(2)}
               </text>

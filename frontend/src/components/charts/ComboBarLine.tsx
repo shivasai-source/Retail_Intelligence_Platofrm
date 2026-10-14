@@ -82,10 +82,10 @@ export function ComboBarLine({
             {v}
           </text>
         ))}
-        <text x={padL - 24} y={padT - 4} fontSize={10} fill="var(--text-muted)" fontWeight={600}>
+        <text x={padL - 24} y={padT - 4} fontSize={10} fill="var(--text-muted)" fontWeight={500}>
           ROI
         </text>
-        <text x={padL + innerW + 14} y={padT - 4} fontSize={10} fill="var(--text-muted)" fontWeight={600}>
+        <text x={padL + innerW + 14} y={padT - 4} fontSize={10} fill="var(--text-muted)" fontWeight={500}>
           Amount (Cr)
         </text>
 

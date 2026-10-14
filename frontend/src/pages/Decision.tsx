@@ -83,7 +83,9 @@ export function Decision() {
       onSuccess: (saved) => {
         load(saved)
         setSavedId(null)
-        window.scrollTo({ top: 0, behavior: 'smooth' })
+        // The app frame's <main> is the scroll container, not the window.
+        const scroller = document.querySelector('[data-scroll-root]') ?? window
+        scroller.scrollTo({ top: 0, behavior: 'smooth' })
       },
       onError: (e) => show(e.message, { duration: 4000 }),
     })
@@ -94,7 +96,7 @@ export function Decision() {
   return (
     <AppShell activeKey="decision" crumbs={crumbs}>
       <div className="fade-in flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-        <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-[-0.02em]">
+        <h1 className="flex items-center gap-2 text-2xl font-normal tracking-[-0.02em]">
           Decision Center <Icon name="sparkles" className="h-5 w-5 text-brand-violet" />
         </h1>
         <div className="flex items-center gap-2">
@@ -130,7 +132,7 @@ export function Decision() {
       {loadedFrom && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[var(--r-lg)] border border-brand-violet-100 bg-brand-violet-50 px-4 py-2.5 text-base">
           <span>
-            <span className="font-semibold text-brand-violet">Reviewing a saved decision</span>
+            <span className="font-medium text-brand-violet">Reviewing a saved decision</span>
             <span className="font-medium text-ink-secondary"> · {shortId(loadedFrom)}</span>
           </span>
           <Button variant="secondary" size="sm" onClick={clear}>
@@ -141,9 +143,9 @@ export function Decision() {
 
       {scenarios.length === 0 ? (
         <div className="mt-6 rounded-[var(--r-lg)] border border-dashed border-border-default bg-surface-card px-6 py-14 text-center">
-          <div className="text-md font-bold text-ink-primary">No scenarios on the board</div>
+          <div className="text-md font-medium text-ink-primary">No scenarios on the board</div>
           <div className="mt-1 text-base text-ink-secondary">
-            Build a scenario in Simulation Studio and press <strong className="font-semibold text-ink-secondary">Add to Decision Center</strong>. Up to {MAX_SCENARIOS} at a time.
+            Build a scenario in Simulation Studio and press <strong className="font-medium text-ink-secondary">Add to Decision Center</strong>. Up to {MAX_SCENARIOS} at a time.
           </div>
           <Button variant="primary" className="mt-5" onClick={() => navigate('/simulation')}>
             <Icon name="flow" /> Open Simulation Studio
@@ -171,7 +173,7 @@ export function Decision() {
                   className="flex min-h-[220px] cursor-pointer flex-col items-center justify-center gap-2 rounded-[var(--r-lg)] border border-dashed border-border-default text-ink-muted transition-colors hover:border-brand-violet hover:text-brand-violet"
                 >
                   <Icon name="plus" className="h-5 w-5" />
-                  <span className="text-base font-semibold">Scenario {i + 1}</span>
+                  <span className="text-base font-medium">Scenario {i + 1}</span>
                   <span className="text-sm">Add from Simulation Studio</span>
                 </button>
               ),
@@ -194,7 +196,7 @@ export function Decision() {
             <CardBody>
               <div className="grid grid-cols-[1fr_auto] items-end gap-4 @max-[760px]:grid-cols-1">
                 <div>
-                  <label htmlFor="rationale" className="text-base font-bold text-ink-primary">
+                  <label htmlFor="rationale" className="text-base font-medium text-ink-primary">
                     Rationale
                   </label>
                   <Textarea
@@ -284,12 +286,12 @@ function ScenarioCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-lg font-extrabold text-ink-primary">Scenario {scenario.slot}</span>
+            <span className="text-lg font-normal text-ink-primary">Scenario {scenario.slot}</span>
             {chosen && <Pill tone="violet">Chosen</Pill>}
           </div>
           {/* The scope in full, up to two lines: which year, channel and
               product this scenario is for is what tells the cards apart. */}
-          <div className="mt-1 line-clamp-2 text-base font-semibold leading-[1.45] text-ink-primary [text-wrap:balance]" title={scenario.scope.label}>
+          <div className="mt-1 line-clamp-2 text-base font-medium leading-[1.45] text-ink-primary [text-wrap:balance]" title={scenario.scope.label}>
             {scenario.scope.label}
           </div>
         </div>
@@ -311,8 +313,8 @@ function ScenarioCard({
           const v = kpi(k)
           return v ? (
             <div key={k} className="rounded-[var(--r-md)] border border-border-subtle px-3 py-2">
-              <div className="text-xs font-semibold uppercase tracking-[0.05em] text-ink-muted">{name}</div>
-              <div className="mt-0.5 truncate text-base font-bold text-ink-primary [font-variant-numeric:tabular-nums]" title={v.value}>
+              <div className="text-xs font-medium text-ink-muted">{name}</div>
+              <div className="mt-0.5 truncate text-base font-medium text-ink-primary [font-variant-numeric:tabular-nums]" title={v.value}>
                 {v.value}
               </div>
             </div>
@@ -341,13 +343,13 @@ function Figure({ label, kpi, best, showTone }: { label: string; kpi?: ScenarioK
       {/* The verdict pill sits beside the label, not after the value, so a
           narrow card never wraps it under the number. */}
       <div className="flex min-h-7 flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="flex items-center gap-1.5 text-base font-bold text-ink-secondary">
+        <span className="flex items-center gap-1.5 text-base font-medium text-ink-secondary">
           {label}
           {best && <Icon name="checkCircle" className="h-3.5 w-3.5 text-status-success" />}
         </span>
         {showTone && kpi.tone && <RoiStatusPill tone={kpi.tone} />}
       </div>
-      <div className="mt-1 text-xl font-extrabold tracking-[-0.01em] text-ink-primary [font-variant-numeric:tabular-nums]">{kpi.value}</div>
+      <div className="kpi-value mt-1 text-ink-primary">{kpi.value}</div>
       <ChangeLine sub={kpi.sub} />
     </div>
   )
@@ -367,19 +369,19 @@ function ChangeLine({ sub }: { sub?: string }) {
   const down = /^[-−]/.test(change) || /\([-−]/.test(change)
   const up = !down && (/^\+/.test(change) || /\(\+/.test(change))
   if (!up && !down) {
-    return <div className="mt-1.5 text-sm font-bold text-ink-secondary">Same as current plan</div>
+    return <div className="mt-1.5 text-sm font-medium text-ink-secondary">Same as current plan</div>
   }
   return (
     <div className="mt-1.5 leading-tight">
       <div
-        className={`flex items-center gap-1 text-base font-bold [font-variant-numeric:tabular-nums] ${
+        className={`flex items-center gap-1 text-base font-medium [font-variant-numeric:tabular-nums] ${
           up ? 'text-[var(--pill-success-ink)]' : 'text-[var(--pill-danger-ink)]'
         }`}
       >
         <Icon name={up ? 'arrowUp' : 'arrowDown'} className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate" title={change}>{change}</span>
       </div>
-      <div className="mt-0.5 text-sm font-bold text-ink-secondary">vs current plan</div>
+      <div className="mt-0.5 text-sm font-medium text-ink-secondary">vs current plan</div>
     </div>
   )
 }
@@ -390,7 +392,7 @@ function HistoryRow({ decision, active, onOpen }: { decision: BoardDecisionSumma
     <li className={`flex flex-wrap items-center justify-between gap-3 px-5 py-3 ${active ? 'bg-brand-violet-50/40' : ''}`}>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2 text-base">
-          <span className="font-bold text-ink-primary">
+          <span className="font-medium text-ink-primary">
             {decision.chosen_slot ? `Scenario ${decision.chosen_slot}` : 'No scenario chosen'}
           </span>
           {decision.chosen_label && <span className="font-medium text-ink-secondary">· {decision.chosen_label}</span>}

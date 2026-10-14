@@ -28,21 +28,21 @@ function EventRow({ event }: { event: UpcomingEvent }) {
         className="grid h-10 w-10 shrink-0 place-items-center rounded-[var(--r-sm)]"
         style={{ background: tone.tint }}
       >
-        <span className="text-base font-extrabold leading-none tabular-nums" style={{ color: tone.solid }}>
+        <span className="text-base font-medium leading-none tabular-nums" style={{ color: tone.solid }}>
           {day}
         </span>
-        <span className="mt-0.5 text-2xs font-bold leading-none tracking-wide" style={{ color: tone.solid }}>
+        <span className="mt-0.5 text-2xs font-medium leading-none" style={{ color: tone.solid }}>
           {month}
         </span>
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-bold text-ink-primary" title={event.name}>
+        <p className="truncate text-sm font-medium text-ink-primary" title={event.name}>
           {event.name}
         </p>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
           {/* Labelled as well as coloured — the status is never colour-only. */}
           <span
-            className="rounded-full px-1.5 py-px font-bold uppercase tracking-wide"
+            className="rounded-full px-1.5 py-px font-medium"
             style={{ background: tone.tint, color: tone.solid }}
           >
             {event.type}
@@ -88,7 +88,7 @@ export function UpcomingEventsPanel({
     <div className="flex min-h-0 flex-1 flex-col">
       {/* Fixed header — only the list below it scrolls. */}
       <div className="shrink-0 border-b border-border-subtle px-5 py-4">
-        <h3 className="text-md font-bold">Upcoming</h3>
+        <h3 className="text-md font-medium">Upcoming</h3>
         <p className="mt-0.5 truncate text-sm text-ink-muted" title={contextLabel}>
           {contextLabel}
         </p>
@@ -112,7 +112,7 @@ export function UpcomingEventsPanel({
             <button
               type="button"
               onClick={onToggleExpanded}
-              className="shrink-0 cursor-pointer border-t border-border-subtle px-5 py-2.5 text-sm font-semibold text-brand-violet transition-colors hover:bg-surface-hover"
+              className="shrink-0 cursor-pointer border-t border-border-subtle px-5 py-2.5 text-sm font-medium text-brand-violet transition-colors hover:bg-surface-hover"
             >
               {expanded ? 'Show less' : `View more events (${total})`}
             </button>

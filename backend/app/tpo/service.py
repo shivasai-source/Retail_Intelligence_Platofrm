@@ -265,6 +265,8 @@ def comparison_label(previous_state: FilterState | None, store) -> str | None:
     span the current year covers -- so the card says what it compared with."""
     if previous_state is None:
         return None
+    if previous_state.period_from is not None or previous_state.period_to is not None:
+        return range_label(previous_state, store)
     label = F.fiscal_label(previous_state.year)
     cap = previous_state.through_week
     if cap is None or previous_state.month is not None or previous_state.week is not None:
@@ -274,6 +276,40 @@ def comparison_label(previous_state: FilterState | None, store) -> str | None:
         return label
     last = max(days)
     return "Jan" + ("" if last.month == 1 else f"–{last:%b}") + f" {label}"
+
+
+def range_label(state: FilterState, store=None) -> str:
+    """A custom period by its MONTHS -- "Mar 2026", "Mar – Jun 2026",
+    "Nov 2025 – Feb 2026", or "2025" for one whole year. The Insights Hub
+    names periods in months and years only, never days.
+
+    A business week belongs to the month that holds most of its days (its
+    4th day, or its last for a short week) -- the rule the Period calendar
+    picks months by, so the label names the months the reader clicked."""
+    from app.tpo.filters import business_calendar
+
+    store = store or get_store()
+    dates = store.dims.week_dates
+
+    def month_of(key: int | None):
+        if key is None:
+            return None
+        days = sorted(dates.get((key // 100, key % 100), ()))
+        return days[min(3, len(days) - 1)] if days else None
+
+    lo, hi = state.period_from, state.period_to
+    if lo is not None and hi is not None and lo // 100 == hi // 100:
+        weeks = next((y["weeks"] for y in business_calendar(store) if y["year"] == lo // 100), [])
+        if weeks and lo % 100 == weeks[0]["week"] and hi % 100 == weeks[-1]["week"]:
+            return str(lo // 100)
+    a, b = month_of(lo), month_of(hi)
+    if a is None or b is None:
+        return "Custom period"
+    if (a.year, a.month) == (b.year, b.month):
+        return f"{a:%b %Y}"
+    if a.year == b.year:
+        return f"{a:%b} – {b:%b %Y}"
+    return f"{a:%b %Y} – {b:%b %Y}"
 
 
 def offer_label(promotion) -> str:
@@ -302,8 +338,8 @@ def _meta(
     target: float = config.PROMOTION_TARGET_ROI,
 ) -> dict[str, Any]:
     return {
-        "period": F.period_label(state.year, state.month),
-        "period_label": F.fiscal_label(state.year),
+        "period": range_label(state) if state.period_from or state.period_to else F.period_label(state.year, state.month),
+        "period_label": range_label(state) if state.period_from or state.period_to else F.fiscal_label(state.year),
         "comparison_period": comparison,
         "currency": currency,
         "base_currency": config.BASE_CURRENCY,
@@ -750,7 +786,6 @@ class PromotionEvent:
     baseline_discount: float = 0.0
     promotion_cost: float = 0.0
     margin_impact: float = 0.0
-
     @property
     def period(self) -> str:
         """"2025-W33", or "2025-W31 – W35" for a run of weeks."""
@@ -891,7 +926,10 @@ def _severity(roi_multiple: float | None, target: float = config.PROMOTION_TARGE
     if roi_multiple is None:
         return None
     bands = config.severity_bands(target)
-    if roi_multiple < bands["critical"]:
+    # INCLUSIVE AT THE CRITICAL CEILING. At the 1.50 target that ceiling is
+    # 1.00, and an ROI of exactly 1.00 returned precisely what it spent --
+    # critical, not merely high.
+    if roi_multiple <= bands["critical"]:
         return "critical"
     if roi_multiple < bands["high"]:
         return "high"
@@ -949,6 +987,15 @@ def risk_alerts(
                 # the event's own figures (PromotionEvent.net_incremental_profit).
                 "net_incremental_profit": event.net_incremental_profit,
                 "net_incremental_profit_display": F.money(event.net_incremental_profit, currency),
+                # INCREMENTAL SALES LESS TRADE SPEND, the plain "did the extra
+                # revenue cover the money put in" figure. It is NOT the net
+                # incremental profit above it: this counts every extra rupee of
+                # revenue, where that one also subtracts the cost of the extra
+                # units, the discount given on units that would have sold
+                # anyway, and the margin taken from sister packs. Positive
+                # exactly when ROI is above 1.00.
+                "sales_less_spend": round(event.incremental_sales - event.trade_spend, 2),
+                "sales_less_spend_display": F.money(event.incremental_sales - event.trade_spend, currency),
                 "at_stake": event.at_stake,
                 "at_stake_display": F.money(event.at_stake, currency),
                 "channel": event.channel_name,
@@ -1314,7 +1361,7 @@ def _period_totals(state: FilterState) -> dict[tuple[int, int], dict[str, float 
         exactly zero to Trade Spend, so it is unaffected.
     They are the same rows unless an Offer or Promotion-type filter is active.
     """
-    period_free = state.replace(year=None, month=None, week=None)
+    period_free = state.replace(year=None, month=None, week=None, period_from=None, period_to=None)
 
     sales: dict[str, float] = defaultdict(float)
     for row in rows_for(period_free):

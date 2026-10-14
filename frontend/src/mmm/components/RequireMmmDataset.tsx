@@ -33,10 +33,10 @@ export function RequireMmmDataset({ children }: { children: ReactNode }) {
     return (
       <div className="grid min-h-screen place-items-center bg-surface-page p-6">
         <div className="max-w-[420px] rounded-[var(--r-xl)] border border-border-subtle bg-surface-card p-6 text-center shadow-[var(--shadow-sm)]">
-          <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-[11px] bg-status-danger-bg text-[#B91C1C] [&_svg]:h-5 [&_svg]:w-5">
+          <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-[11px] bg-status-danger-bg text-[var(--pill-danger-ink)] [&_svg]:h-5 [&_svg]:w-5">
             <Icon name="info" />
           </div>
-          <h2 className="text-md font-bold">Can't reach the server</h2>
+          <h2 className="text-md font-medium">Can't reach the server</h2>
           <p className="mt-1.5 text-base leading-[1.6] text-ink-muted">
             The backend isn't responding. Start it with{' '}
             <code className="rounded bg-surface-muted px-1 py-0.5 text-sm">uvicorn app.main:app --reload --port 8100</code>{' '}
@@ -44,7 +44,7 @@ export function RequireMmmDataset({ children }: { children: ReactNode }) {
           </p>
           <button
             onClick={() => refetch()}
-            className="mt-4 rounded-[var(--r-md)] bg-brand-violet px-4 py-2 text-base font-bold text-white"
+            className="mt-4 rounded-[var(--r-md)] bg-brand-violet px-4 py-2 text-base font-medium text-white"
           >
             Retry
           </button>
@@ -64,7 +64,7 @@ export function RequireMmmDataset({ children }: { children: ReactNode }) {
               <Icon name="database" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-md font-bold">Upload your MMM dataset to continue</h2>
+              <h2 className="text-md font-medium">Upload your MMM dataset to continue</h2>
               <p className="mt-1 text-base leading-[1.6] text-ink-muted">
                 MMM reads one daily file: Date, Revenue and spend per media channel, plus optional
                 promotion and calendar columns. Columns are matched on their headers, so it doesn't
@@ -76,8 +76,8 @@ export function RequireMmmDataset({ children }: { children: ReactNode }) {
 
         <div className="p-[16px_24px]">
           <div className="mb-2.5 flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wide text-ink-muted">MMM dataset</span>
-            <span className="text-sm font-semibold text-ink-muted">
+            <span className="text-xs font-medium text-ink-muted">MMM dataset</span>
+            <span className="text-sm font-medium text-ink-muted">
               {status.complete ? 1 : 0} of 1 file present
             </span>
           </div>
@@ -93,12 +93,12 @@ export function RequireMmmDataset({ children }: { children: ReactNode }) {
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-border-subtle p-[14px_24px]">
-          <Link to={MMM_ROUTES.connections} className="text-sm font-semibold text-brand-violet hover:underline">
+          <Link to={MMM_ROUTES.connections} className="text-sm font-medium text-brand-violet hover:underline">
             Browse all connectors
           </Link>
           <button
             onClick={() => setUploadOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-[var(--r-md)] bg-brand-violet px-4 py-2 text-base font-bold text-white [&_svg]:h-4 [&_svg]:w-4"
+            className="inline-flex items-center gap-1.5 rounded-[var(--r-md)] bg-brand-violet px-4 py-2 text-base font-medium text-white [&_svg]:h-4 [&_svg]:w-4"
           >
             <Icon name="plus" /> Upload MMM file
           </button>

@@ -8,12 +8,12 @@ import type { Direction, Impact, Offer } from '../../types/planner'
 
 /** THE STUDIO'S TYPE SCALE -- one style per role, on every panel.
  *
- *  ONE WEIGHT FOR EVERYTHING: every figure and every word is semibold,
- *  whatever its size, so nothing reads bolder than its neighbour; size and
- *  colour carry the hierarchy. ONE SCALE: 30px for the one figure a card is
- *  about, 22px for values in boxes and the strip, 17px for card titles,
- *  15px for every figure in a table or list, 14px for every word and every
- *  control, 13px uppercase for section labels. Controls are 40px tall.
+ *  LARGE AND LIGHT, SMALL AND MEDIUM: big figures are regular weight with
+ *  tight tracking; labels are medium; section labels are small, muted and in
+ *  sentence case. 30px for the one figure a card is about, 22px for values in
+ *  boxes and the strip, 17px card titles, 15px for figures in tables and
+ *  lists, 14px for words and controls, 13px for section labels. Controls are
+ *  40px tall.
  *
  *    hero    the one figure a panel is about (the lever, the gain)
  *    value   a headline figure: tiles, answer cards
@@ -22,12 +22,12 @@ import type { Direction, Impact, Offer } from '../../types/planner'
  *    label   what a figure is
  *    eyebrow a section label */
 export const TYPE = {
-  hero: 'text-[30px] font-semibold leading-none tracking-[-0.02em] text-brand-violet [font-variant-numeric:tabular-nums]',
-  value: 'text-[22px] font-semibold leading-tight text-ink-primary [font-variant-numeric:tabular-nums]',
-  cell: 'text-[15px] font-semibold text-ink-primary [font-variant-numeric:tabular-nums]',
-  delta: 'text-[14px] font-semibold [font-variant-numeric:tabular-nums]',
-  label: 'text-[14px] font-semibold text-ink-secondary',
-  eyebrow: 'text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-muted',
+  hero: 'kpi-value text-brand-violet',
+  value: 'kpi-value text-ink-primary',
+  cell: 'text-base text-ink-primary [font-variant-numeric:tabular-nums]',
+  delta: 'text-base font-medium [font-variant-numeric:tabular-nums]',
+  label: 'text-base font-medium text-ink-secondary',
+  eyebrow: 'text-sm font-medium text-ink-muted',
 } as const
 
 /** Abbreviated money for an axis tick or a slider readout. Every figure that
@@ -59,12 +59,12 @@ export function toneClass(direction: Direction, lowerIsBetter = false): string {
 /** THE STUDIO'S CONTROL HEIGHT AND RADIUS -- every filter, segmented group and
  *  chip is 36px tall with the same radius and type, so the bar and the panels
  *  read as one set of controls. */
-const CONTROL = 'h-10 text-[14px] font-semibold'
+const CONTROL = 'h-10 text-base font-medium'
 
 /** The shared Button at the Studio's control size (40px, 14px), so every
  *  button sits level with the filters, chips and segmented groups. */
 export function StudioButton({ className = '', ...props }: ComponentProps<typeof Button>) {
-  return <Button {...props} className={`!h-10 !text-[14px] ${className}`} />
+  return <Button {...props} className={`!h-10 !text-base ${className}`} />
 }
 
 /** A segmented control: one bordered group, the active segment solid violet. */
@@ -252,7 +252,7 @@ export function Panel({ title, actions, children, className = '', tone }: { titl
     >
       {(title || actions) && (
         <header className="flex h-[64px] items-center justify-between gap-3 border-b border-border-subtle px-6">
-          {title && <h3 className="text-[17px] font-semibold text-ink-primary">{title}</h3>}
+          {title && <h3 className="text-md font-medium text-ink-primary">{title}</h3>}
           {actions}
         </header>
       )}

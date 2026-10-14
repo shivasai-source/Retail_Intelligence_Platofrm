@@ -81,7 +81,7 @@ export function PromotionMatrix({
         <div className={`${grid} border-b border-border-subtle`}>
           {/* Sticky so the channel stays readable while the months scroll —
               without it a horizontally scrolled row is unattributable. */}
-          <div className="sticky left-0 z-20 bg-surface-card px-3 py-2.5 text-xs font-bold uppercase tracking-wide text-ink-muted">
+          <div className="sticky left-0 z-20 bg-surface-card px-3 py-2.5 text-xs font-medium text-ink-muted">
             Channel
           </div>
           {data.months.map((m) => (
@@ -89,7 +89,7 @@ export function PromotionMatrix({
               key={m.month}
               /* The month being viewed is marked here as well as on the cell,
                  so the column stays identifiable while the eye is in the panel. */
-              className={`px-1 py-2.5 text-center text-sm font-bold transition-colors ${
+              className={`px-1 py-2.5 text-center text-sm font-medium transition-colors ${
                 selected?.month === m.month
                   ? 'rounded-t-[var(--r-sm)] bg-brand-violet/[0.08] text-brand-violet'
                   : 'text-ink-secondary'
@@ -108,7 +108,7 @@ export function PromotionMatrix({
                 <Icon name={CHANNEL_ICON[channel.channel_id] ?? 'grid'} />
               </span>
               <span className="min-w-0">
-                <span className="block text-sm font-bold text-ink-primary">{channel.channel_id}</span>
+                <span className="block text-sm font-medium text-ink-primary">{channel.channel_id}</span>
                 <span className="block truncate text-xs text-ink-muted" title={channel.name}>
                   {channel.name}
                 </span>
@@ -117,7 +117,7 @@ export function PromotionMatrix({
                     channel's is the plan itself. */}
                 <span
                   title={channel.booking === 'week' ? 'Promotions run as single weeks in a store' : 'Promotions run for a whole month in a store'}
-                  className={`mt-0.5 inline-block rounded-full px-1.5 py-px text-2xs font-bold uppercase tracking-wide ${
+                  className={`mt-0.5 inline-block rounded-full px-1.5 py-px text-2xs font-medium ${
                     channel.booking === 'week'
                       ? 'bg-status-info/10 text-status-info'
                       : 'bg-ink-primary/[0.06] text-ink-muted'
@@ -166,7 +166,7 @@ function MatrixCell({
     return (
       <div
         title="The data does not reach this month yet"
-        className="m-1 flex min-h-[80px] items-center justify-center rounded-[var(--r-sm)] border border-dashed border-border-subtle text-2xs font-semibold text-ink-disabled"
+        className="m-1 flex min-h-[80px] items-center justify-center rounded-[var(--r-sm)] border border-dashed border-border-subtle text-2xs font-medium text-ink-disabled"
       >
         No data
       </div>
@@ -188,19 +188,19 @@ function MatrixCell({
           promotion master's own Promotion_Description, and shortening it here
           would mean inventing a name the data does not carry. */}
       <span
-        className="line-clamp-2 text-2xs font-bold leading-[1.15] [overflow-wrap:anywhere]"
+        className="line-clamp-2 text-2xs font-medium leading-[1.15] [overflow-wrap:anywhere]"
         style={{ color: STATUS[cell.kind].solid }}
       >
         {cellLabel(cell.label)}
       </span>
       {/* The id is the secondary line: smaller and quieter than the name it
           belongs to, so the eye reads name -> id -> count in that order. */}
-      <span className="line-clamp-2 text-2xs font-semibold leading-[1.15] text-ink-muted">
+      <span className="line-clamp-2 text-2xs font-medium leading-[1.15] text-ink-muted">
         {ids || '—'}
       </span>
       {/* The count alone; concurrent regular activity is in the tooltip and
           spelled out in the detail panel, where there is room for it. */}
-      <span className="truncate text-2xs font-semibold leading-tight text-ink-secondary">
+      <span className="truncate text-2xs font-medium leading-tight text-ink-secondary">
         {cell.product_count} products
       </span>
     </button>

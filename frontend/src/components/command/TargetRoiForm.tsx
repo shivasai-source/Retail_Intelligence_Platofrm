@@ -122,7 +122,7 @@ export function TargetRoiForm({
           type="button"
           aria-label={`Decrease by ${STEP.toFixed(2)}`}
           onClick={() => nudge(-STEP)}
-          className="grid w-10 cursor-pointer place-items-center rounded-[var(--r-md)] border border-border-subtle text-lg font-semibold text-ink-secondary transition-colors hover:bg-surface-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet"
+          className="grid w-10 cursor-pointer place-items-center rounded-[var(--r-md)] border border-border-subtle text-lg font-normal text-ink-secondary transition-colors hover:bg-surface-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet"
         >
           −
         </button>
@@ -140,13 +140,13 @@ export function TargetRoiForm({
               if (e.key === 'ArrowUp') { e.preventDefault(); nudge(STEP) }
               if (e.key === 'ArrowDown') { e.preventDefault(); nudge(-STEP) }
             }}
-            className={`h-11 w-full rounded-[var(--r-md)] border bg-surface-card text-center text-xl font-bold tracking-[-0.015em] text-ink-primary outline-none transition-[border-color,box-shadow] duration-150 [font-variant-numeric:tabular-nums] focus:ring-2 ${
+            className={`h-11 w-full rounded-[var(--r-md)] border bg-surface-card text-center text-xl font-normal tracking-[-0.015em] text-ink-primary outline-none transition-[border-color,box-shadow] duration-150 [font-variant-numeric:tabular-nums] focus:ring-2 ${
               valid
                 ? 'border-border-default focus:border-brand-violet focus:ring-brand-violet/30'
                 : 'border-status-danger text-status-danger focus:ring-status-danger/30'
             }`}
           />
-          <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-2xs font-semibold uppercase tracking-wide text-ink-muted">
+          <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-2xs font-medium text-ink-muted">
             ×
           </span>
         </div>
@@ -154,7 +154,7 @@ export function TargetRoiForm({
           type="button"
           aria-label={`Increase by ${STEP.toFixed(2)}`}
           onClick={() => nudge(STEP)}
-          className="grid w-10 cursor-pointer place-items-center rounded-[var(--r-md)] border border-border-subtle text-lg font-semibold text-ink-secondary transition-colors hover:bg-surface-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet"
+          className="grid w-10 cursor-pointer place-items-center rounded-[var(--r-md)] border border-border-subtle text-lg font-normal text-ink-secondary transition-colors hover:bg-surface-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet"
         >
           +
         </button>
@@ -166,11 +166,11 @@ export function TargetRoiForm({
       <div
         id={errorId}
         role={valid ? undefined : 'alert'}
-        className={`mt-2 min-h-[18px] text-xs ${valid ? 'text-ink-muted' : 'font-semibold text-status-danger'}`}
+        className={`mt-2 min-h-[18px] text-xs ${valid ? 'text-ink-muted' : 'font-medium text-status-danger'}`}
       >
         {valid ? (
           <>
-            = <strong className="font-semibold text-ink-secondary">{netReturn}% net return</strong> on every rupee of trade spend
+            = <strong className="font-medium text-ink-secondary">{netReturn}% net return</strong> on every rupee of trade spend
             {netReturn === 0 ? ' · break-even' : ''}
           </>
         ) : (
@@ -188,7 +188,7 @@ export function TargetRoiForm({
         onChange={(e) => setDraft(Number(e.target.value).toFixed(2))}
         className="mt-3 w-full cursor-pointer accent-brand-violet"
       />
-      <div className="mt-1 flex justify-between text-2xs font-semibold text-ink-muted [font-variant-numeric:tabular-nums]">
+      <div className="mt-1 flex justify-between text-2xs font-medium text-ink-muted [font-variant-numeric:tabular-nums]">
         <span>{lo.toFixed(2)}</span>
         <span>{hi.toFixed(2)}</span>
       </div>
@@ -202,7 +202,7 @@ export function TargetRoiForm({
               key={preset}
               type="button"
               onClick={() => setDraft(preset.toFixed(2))}
-              className={`cursor-pointer rounded-[var(--r-pill)] border px-2.5 py-1 text-xs font-semibold transition-colors [font-variant-numeric:tabular-nums] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet ${
+              className={`cursor-pointer rounded-[var(--r-pill)] border px-2.5 py-1 text-xs font-medium transition-colors [font-variant-numeric:tabular-nums] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet ${
                 active
                   ? 'border-brand-violet bg-brand-violet text-white'
                   : 'border-border-subtle text-ink-secondary hover:border-brand-violet-100 hover:bg-brand-violet-50 hover:text-brand-violet'
@@ -223,7 +223,7 @@ export function TargetRoiForm({
             onApply(null)
             show(`Target ROI back to the default ${fmtRoi(target.defaultValue)}`, { duration: 2200 })
           }}
-          className="cursor-pointer text-xs font-semibold text-ink-muted transition-colors hover:text-ink-primary disabled:cursor-default disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet"
+          className="cursor-pointer text-xs font-medium text-ink-muted transition-colors hover:text-ink-primary disabled:cursor-default disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet"
         >
           Reset to {fmtRoi(target.defaultValue)}
         </button>
@@ -231,7 +231,7 @@ export function TargetRoiForm({
           type="button"
           onClick={apply}
           aria-disabled={!valid}
-          className={`inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-[var(--r-md)] px-4 text-sm font-semibold text-white transition-[background-color,opacity] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet ${
+          className={`inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-[var(--r-md)] px-4 text-sm font-medium text-white transition-[background-color,opacity] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet ${
             valid ? 'bg-brand-violet hover:bg-brand-violet-600' : 'bg-brand-violet opacity-45'
           }`}
         >

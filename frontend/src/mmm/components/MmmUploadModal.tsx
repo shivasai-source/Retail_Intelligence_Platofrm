@@ -136,7 +136,7 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
             <BrandLogo logo="excel" name="Excel / Shared Drives" />
           </div>
           <div>
-            <h3 className="text-md font-bold">{showDropzone ? 'Upload your MMM dataset' : 'Your MMM dataset'}</h3>
+            <h3 className="text-md font-medium">{showDropzone ? 'Upload your MMM dataset' : 'Your MMM dataset'}</h3>
             <div className="mt-0.5 text-sm text-ink-muted">
               {showDropzone
                 ? 'One daily file · columns are matched on their headers'
@@ -157,7 +157,7 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
         {/* ---------------- LOADED ---------------- */}
         {s && loaded && !replacing && (
           <>
-            <div className="mb-3.5 flex items-start gap-2 rounded-[var(--r-md)] bg-status-success-bg p-[10px_12px] text-sm leading-[1.5] text-[#047857] [&_svg]:mt-px [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0">
+            <div className="mb-3.5 flex items-start gap-2 rounded-[var(--r-md)] bg-status-success-bg p-[10px_12px] text-sm leading-[1.5] text-[var(--pill-success-ink)] [&_svg]:mt-px [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0">
               <Icon name="checkCircle" />
               <span>
                 Every MMM page is reading from this file. Uploading another file replaces it.
@@ -165,9 +165,9 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
             </div>
             <div className="rounded-[var(--r-md)] bg-surface-muted p-[12px_14px]">
               <div className="flex items-center gap-2.5">
-                <Icon name="database" className="h-4 w-4 shrink-0 text-[#047857]" />
+                <Icon name="database" className="h-4 w-4 shrink-0 text-[var(--pill-success-ink)]" />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-base font-semibold">{s.source_name ?? 'MMM daily dataset'}</div>
+                  <div className="truncate text-base font-medium">{s.source_name ?? 'MMM daily dataset'}</div>
                   <div className="mt-px text-xs text-ink-muted">
                     {s.rows.toLocaleString()} days · {s.period.from} – {s.period.to} · {s.media_channels} media
                     channels · {fmtSize(s.size_bytes)}
@@ -182,7 +182,7 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
                   <li key={g.key} className="flex items-center gap-2 text-sm">
                     <Icon
                       name={g.present ? 'check' : 'info'}
-                      className={`h-3.5 w-3.5 shrink-0 ${g.present ? 'text-[#047857]' : 'text-ink-muted'}`}
+                      className={`h-3.5 w-3.5 shrink-0 ${g.present ? 'text-[var(--pill-success-ink)]' : 'text-ink-muted'}`}
                     />
                     <span className={g.present ? 'text-ink-primary' : 'text-ink-muted'}>{g.label}</span>
                     <span className="ml-auto text-xs text-ink-muted">
@@ -229,7 +229,7 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               onClick={() => setGuide(true)}
-              className="mt-2.5 inline-flex items-center gap-1.5 text-sm font-bold text-brand-violet hover:underline [&_svg]:h-3.5 [&_svg]:w-3.5"
+              className="mt-2.5 inline-flex items-center gap-1.5 text-sm font-medium text-brand-violet hover:underline [&_svg]:h-3.5 [&_svg]:w-3.5"
             >
               <Icon name="book" /> Not sure what to upload? See every column and download a template
             </button>
@@ -239,15 +239,15 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
                 <div className="flex items-center gap-2.5">
                   <Icon
                     name={check?.ok ? 'check' : check ? 'info' : 'file'}
-                    className={`h-4 w-4 shrink-0 ${check?.ok ? 'text-[#047857]' : check ? 'text-[#B91C1C]' : 'text-ink-muted'}`}
+                    className={`h-4 w-4 shrink-0 ${check?.ok ? 'text-[var(--pill-success-ink)]' : check ? 'text-[var(--pill-danger-ink)]' : 'text-ink-muted'}`}
                   />
-                  <span className="min-w-0 flex-1 truncate text-base font-semibold">{picked.file.name}</span>
+                  <span className="min-w-0 flex-1 truncate text-base font-medium">{picked.file.name}</span>
                   <span className="shrink-0 text-xs text-ink-muted">{fmtSize(picked.file.size)}</span>
                   <button
                     type="button"
                     onClick={() => setPicked(null)}
                     aria-label="Remove file"
-                    className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-status-danger-bg hover:text-[#B91C1C]"
+                    className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-status-danger-bg hover:text-[var(--pill-danger-ink)]"
                   >
                     <Icon name="x" className="h-3.5 w-3.5" />
                   </button>
@@ -259,7 +259,7 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
                   </div>
                 )}
                 {picked.checkError && (
-                  <div className="mt-2 pl-[26px] text-xs text-[#B91C1C]">{picked.checkError}</div>
+                  <div className="mt-2 pl-[26px] text-xs text-[var(--pill-danger-ink)]">{picked.checkError}</div>
                 )}
 
               </div>
@@ -280,7 +280,7 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
         />
 
         {error && (
-          <div className="mt-3.5 rounded-[var(--r-md)] bg-status-danger-bg p-[10px_12px] text-sm leading-[1.55] text-[#B91C1C]">
+          <div className="mt-3.5 rounded-[var(--r-md)] bg-status-danger-bg p-[10px_12px] text-sm leading-[1.55] text-[var(--pill-danger-ink)]">
             {error}
           </div>
         )}
@@ -381,7 +381,7 @@ function GroupChecklist({
       count: `${4 - calendarMissing}/4`,
     },
   ]
-  const tone = { ok: 'text-[#047857]', warn: 'text-[#B45309]', bad: 'text-[#B91C1C]', none: 'text-ink-muted' } as const
+  const tone = { ok: 'text-[var(--pill-success-ink)]', warn: 'text-[var(--pill-warning-ink)]', bad: 'text-[var(--pill-danger-ink)]', none: 'text-ink-muted' } as const
   const icon = { ok: 'check', warn: 'info', bad: 'x', none: 'info' } as const
   return (
     <div className="mt-2.5 flex flex-col gap-2">
@@ -389,7 +389,7 @@ function GroupChecklist({
         <div key={r.key} className="flex items-center gap-2.5 rounded-[var(--r-md)] bg-surface-muted p-[9px_12px]">
           <Icon name={icon[r.state]} className={`h-4 w-4 shrink-0 ${tone[r.state]}`} />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-base font-semibold">{r.title}</div>
+            <div className="truncate text-base font-medium">{r.title}</div>
             <div className={`mt-px text-xs leading-[1.45] ${r.state === 'ok' ? 'text-ink-muted' : tone[r.state]}`}>{r.detail}</div>
           </div>
           {r.count && <span className="shrink-0 text-xs text-ink-muted">{r.count}</span>}
@@ -422,7 +422,7 @@ function MmmDataViewer({ onBack, onClose }: { onBack: () => void; onClose: () =>
         <div className="flex min-w-0 items-center gap-2.5">
           <IconButton icon="chevronLeft" title="Back" onClick={onBack} />
           <div className="min-w-0">
-            <h3 className="text-md font-bold">MMM daily dataset</h3>
+            <h3 className="text-md font-medium">MMM daily dataset</h3>
             <div className="mt-0.5 text-sm text-ink-muted">
               {data ? `First ${data.rows.length} of ${data.total.toLocaleString()} days · ${data.columns.length} columns` : 'Loading…'}
             </div>
@@ -436,13 +436,13 @@ function MmmDataViewer({ onBack, onClose }: { onBack: () => void; onClose: () =>
             <Spinner />
           </div>
         ) : preview.isError ? (
-          <div className="p-5 text-sm text-[#B91C1C]">{preview.error.message}</div>
+          <div className="p-5 text-sm text-[var(--pill-danger-ink)]">{preview.error.message}</div>
         ) : (
           <table className="w-max border-collapse text-xs">
             <thead className="sticky top-0 bg-surface-card">
               <tr>
                 {data?.columns.map((c) => (
-                  <th key={c} className="whitespace-nowrap border-b border-border-default px-3 py-2 text-left font-semibold text-ink-muted">
+                  <th key={c} className="whitespace-nowrap border-b border-border-default px-3 py-2 text-left font-medium text-ink-muted">
                     {c}
                   </th>
                 ))}

@@ -33,19 +33,19 @@ export function DatasetStrip({
   return (
     <div
       className={`fade-in-up mb-6 flex flex-wrap items-center gap-4 rounded-[var(--r-xl)] border p-[16px_20px] ${
-        complete ? 'border-[#A7D8C4] bg-status-success-bg' : 'border-border-subtle bg-surface-card'
+        complete ? 'border-[var(--border-strong)] bg-status-success-bg' : 'border-border-subtle bg-surface-card'
       }`}
     >
       <span
         className={`grid h-11 w-11 shrink-0 place-items-center rounded-[11px] [&_svg]:h-5 [&_svg]:w-5 ${
-          complete ? 'bg-[#047857] text-white' : 'bg-tint-lavender text-tint-lavender-icon'
+          complete ? 'bg-[var(--pill-success-ink)] text-white' : 'bg-tint-lavender text-tint-lavender-icon'
         }`}
       >
         <Icon name={complete ? 'checkCircle' : 'database'} />
       </span>
 
       <div className="min-w-[240px] flex-1">
-        <div className="text-md font-bold">{headline}</div>
+        <div className="text-md font-medium">{headline}</div>
         <p className="mt-0.5 text-base leading-[1.55] text-ink-muted">{body}</p>
       </div>
 

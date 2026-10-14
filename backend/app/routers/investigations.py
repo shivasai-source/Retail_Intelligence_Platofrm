@@ -14,7 +14,8 @@ from app.data_loader import InvestigationType, load
 from app.dataset_store import get_dataset, load_frame
 from app.deps import current_user
 from app.investigation_history import append_history, read_history
-from app.investigation_runs import create_run, get_run, list_runs, update_run
+from app.agents.pipeline import enrich_synthesis
+from app.investigation_runs import create_run, get_run, list_runs, run_kind, update_run
 
 log = logging.getLogger(__name__)
 
@@ -188,9 +189,14 @@ def get_investigation_runs(user: dict[str, Any] = Depends(current_user)) -> list
 @router.get("/investigations/runs/{run_id}")
 def get_investigation_run(run_id: str, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     run = get_run(run_id)
-    if not run or run.get("owner") != user["email_key"]:
+    # Promotion Intelligence keeps its runs in the same store. One of those is
+    # not an investigation -- it has no synthesis or findings -- and the
+    # workspace must never be handed one: it would render nothing it expects.
+    # A 404 makes the page drop the stale pointer and return to its prompt.
+    if not run or run.get("owner") != user["email_key"] or run_kind(run) != "investigation":
         raise HTTPException(404, "Run not found.")
-    return run
+    # Every root cause with its share of the problem -- older runs included.
+    return enrich_synthesis(run)
 
 
 @router.get("/investigations/{type}")

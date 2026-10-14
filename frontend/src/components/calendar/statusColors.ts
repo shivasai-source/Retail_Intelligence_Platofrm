@@ -30,31 +30,31 @@ export interface StatusColor {
 
 export const STATUS: Record<CellKind, StatusColor> = {
   regular: {
-    solid: '#16A34A',
-    tint: 'rgba(22, 163, 74, 0.08)',
-    hover: 'rgba(22, 163, 74, 0.14)',
-    border: 'rgba(22, 163, 74, 0.30)',
+    solid: 'var(--status-success)',
+    tint: 'rgba(85,157,10, 0.08)',
+    hover: 'rgba(85,157,10, 0.14)',
+    border: 'rgba(85,157,10, 0.30)',
   },
   seasonal: {
-    solid: '#7C3AED',
-    tint: 'rgba(124, 58, 237, 0.08)',
-    hover: 'rgba(124, 58, 237, 0.14)',
-    border: 'rgba(124, 58, 237, 0.30)',
+    solid: 'var(--brand-violet)',
+    tint: 'rgba(20,58,99, 0.08)',
+    hover: 'rgba(20,58,99, 0.14)',
+    border: 'rgba(20,58,99, 0.30)',
   },
   festival: {
-    solid: '#D97706',
-    tint: 'rgba(217, 119, 6, 0.10)',
-    hover: 'rgba(217, 119, 6, 0.16)',
-    border: 'rgba(217, 119, 6, 0.32)',
+    solid: 'var(--status-warning)',
+    tint: 'rgba(228,162,57, 0.10)',
+    hover: 'rgba(228,162,57, 0.16)',
+    border: 'rgba(228,162,57, 0.32)',
   },
   no_data: {
-    solid: '#CBD5E1',
+    solid: 'var(--border-strong)',
     tint: 'transparent',
     hover: 'rgba(148, 163, 184, 0.06)',
     border: 'rgba(148, 163, 184, 0.35)',
   },
   none: {
-    solid: '#94A3B8',
+    solid: 'var(--text-muted)',
     tint: 'rgba(148, 163, 184, 0.08)',
     hover: 'rgba(148, 163, 184, 0.14)',
     border: 'rgba(148, 163, 184, 0.30)',
@@ -84,10 +84,10 @@ export function statusForPromotionType(type: string): CellKind {
  *  wherever the meaning lines up so the panel stays one colour system. Review
  *  has no promotion-status equivalent and keeps its own blue. */
 const REVIEW_BLUE: StatusColor = {
-  solid: '#2563EB',
-  tint: 'rgba(37, 99, 235, 0.10)',
-  hover: 'rgba(37, 99, 235, 0.16)',
-  border: 'rgba(37, 99, 235, 0.30)',
+  solid: 'var(--brand-blue)',
+  tint: 'rgba(37,104,178, 0.10)',
+  hover: 'rgba(37,104,178, 0.16)',
+  border: 'rgba(37,104,178, 0.30)',
 }
 
 export function toneForEventType(type: string): StatusColor {

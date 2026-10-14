@@ -151,7 +151,7 @@ export function Calendar() {
                       setYearChosen(true)
                       setSelected(null)
                     }}
-                    className={`cursor-pointer px-3 text-sm font-bold tabular-nums transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
+                    className={`cursor-pointer px-3 text-sm font-medium tabular-nums transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
                       y === year
                         ? 'bg-brand-violet text-white'
                         : 'text-ink-secondary hover:bg-brand-violet/[0.08] hover:text-brand-violet'

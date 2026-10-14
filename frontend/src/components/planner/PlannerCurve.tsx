@@ -14,7 +14,7 @@ import type { CurvePoint, CurveResponse } from '../../types/planner'
  *  not drawn as a band: the chart stays plain. */
 
 const CURRENT = 'var(--brand-blue)'
-const SCENARIO = '#10B981'
+const SCENARIO = 'var(--status-success)'
 const LINE = 'var(--brand-violet)'
 
 export function PlannerCurve({
@@ -51,7 +51,7 @@ export function PlannerCurve({
           setHover={setHover}
         />
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-[14px] text-ink-muted">
+      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-base text-ink-muted">
         <span className="inline-flex items-center gap-1.5">
           <span className="inline-block h-0.5 w-4 rounded" style={{ background: LINE }} /> Each discount
         </span>
@@ -124,7 +124,7 @@ function Panel({
 
   return (
     <div ref={ref} className="relative">
-      <div className="mb-1 text-[14px] font-semibold text-ink-primary">{title}</div>
+      <div className="mb-1 text-base font-medium text-ink-primary">{title}</div>
       <svg
         viewBox={`0 0 ${w} ${height}`}
         width="100%"
@@ -161,7 +161,7 @@ function Panel({
             {x}%
           </text>
         ))}
-        <text x={padL + innerW / 2} y={height - 4} textAnchor="middle" fontSize={13} fontWeight={600} fill="var(--text-secondary)">
+        <text x={padL + innerW / 2} y={height - 4} textAnchor="middle" fontSize={13} fontWeight={500} fill="var(--text-secondary)">
           Average discount
         </text>
 
@@ -178,7 +178,7 @@ function Panel({
         <path d={path} fill="none" stroke={LINE} strokeWidth={2.4} strokeLinejoin="round" strokeLinecap="round" />
 
         <line x1={X(today)} x2={X(today)} y1={padT - 4} y2={padT + innerH} stroke={CURRENT} strokeWidth={1.4} strokeDasharray="4 3" />
-        <text x={X(today) + (today > mid ? -6 : 6)} y={padT - 10} textAnchor={today > mid ? 'end' : 'start'} fontSize={13} fontWeight={600} fill={CURRENT}>
+        <text x={X(today) + (today > mid ? -6 : 6)} y={padT - 10} textAnchor={today > mid ? 'end' : 'start'} fontSize={13} fontWeight={500} fill={CURRENT}>
           Current {today.toFixed(2)}%
         </text>
 
@@ -190,7 +190,7 @@ function Panel({
               y={Y(bestPt.v) - 12}
               textAnchor="middle"
               fontSize={13}
-              fontWeight={600}
+              fontWeight={500}
               fill="var(--text-secondary)"
               stroke="var(--surface-card)"
               strokeWidth={4}
@@ -212,18 +212,18 @@ function Panel({
       </svg>
       {hovered && (
         <div
-          className="pointer-events-none absolute top-7 z-10 rounded-[var(--r-md)] border border-border-subtle bg-surface-card px-3 py-2 text-[14px] shadow-[var(--shadow-md)] [font-variant-numeric:tabular-nums]"
+          className="pointer-events-none absolute top-7 z-10 rounded-[var(--r-md)] border border-border-subtle bg-surface-card px-3 py-2 text-base shadow-[var(--shadow-md)] [font-variant-numeric:tabular-nums]"
           style={{ left: `${Math.min(78, Math.max(22, (X(hovered.discount_pct) / w) * 100))}%`, transform: 'translateX(-50%)' }}
         >
-          <div className="font-semibold text-ink-primary">{hovered.discount_pct.toFixed(2)}% average discount</div>
+          <div className="font-medium text-ink-primary">{hovered.discount_pct.toFixed(2)}% average discount</div>
           <div className="mt-0.5 text-ink-secondary">
-            Profit <span className="font-semibold text-ink-primary">{hovered.profit.display}</span>
+            Profit <span className="font-medium text-ink-primary">{hovered.profit.display}</span>
           </div>
           <div className="text-ink-secondary">
-            Revenue <span className="font-semibold text-ink-primary">{hovered.revenue.display}</span>
+            Revenue <span className="font-medium text-ink-primary">{hovered.revenue.display}</span>
           </div>
           <div className="text-ink-secondary">
-            ROI <span className="font-semibold text-ink-primary">{hovered.roi.display}</span>
+            ROI <span className="font-medium text-ink-primary">{hovered.roi.display}</span>
           </div>
           {hovered.profit_range && (
             <div className="mt-1 border-t border-border-subtle pt-1 text-ink-secondary">

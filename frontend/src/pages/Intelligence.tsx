@@ -149,7 +149,7 @@ function SectionLoading({ loading }: { loading: boolean }) {
 function PageTitle() {
   return (
     <div className="fade-in">
-      <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-[-0.02em]">
+      <h1 className="flex items-center gap-2 text-2xl font-normal tracking-[-0.02em]">
         Promotion Intelligence <Icon name="sparkles" className="h-5 w-5 text-brand-violet" />
       </h1>
       <p className="mt-1.5 text-base text-ink-muted">
@@ -167,14 +167,14 @@ function NoInvestigation() {
         <div className="grid h-12 w-12 place-items-center rounded-xl bg-brand-violet-50 text-brand-violet">
           <Icon name="sparkles" className="h-6 w-6" />
         </div>
-        <h2 className="text-lg font-extrabold">Start with an investigation</h2>
+        <h2 className="text-lg font-normal">Start with an investigation</h2>
         <p className="max-w-[460px] text-base leading-[1.6] text-ink-muted">
           Promotion Intelligence goes deeper on a root cause an investigation has already found — the mechanism behind it,
           which channels and regions it hits hardest, and what it's worth. It needs an investigation to build on.
         </p>
         <Link
           to="/investigations"
-          className="mt-1 inline-flex items-center gap-2 rounded-[var(--r-md)] bg-brand-violet px-4 py-2 text-base font-semibold text-white"
+          className="mt-1 inline-flex items-center gap-2 rounded-[var(--r-md)] bg-brand-violet px-4 py-2 text-base font-medium text-white"
         >
           <Icon name="search" className="h-4 w-4" /> Run an investigation
         </Link>
@@ -183,61 +183,6 @@ function NoInvestigation() {
   )
 }
 
-/** What each tab holds once the analysis lands, in tab order. Worded from
- *  what the tab actually renders, so the preview promises nothing the page
- *  does not then show. */
-const LAYERS: { label: string; desc: string; icon: Parameters<typeof Icon>[0]['name'] }[] = [
-  { label: 'Synthesis', desc: 'The headline answer to your question, and the key insights behind it.', icon: 'sparkles' },
-  { label: 'Mechanism', desc: 'The discount saturation curve, sales against target by month, and ROI by mechanic.', icon: 'gauge' },
-  { label: 'Drivers', desc: 'The root cause split into weighted drivers, with a confidence score.', icon: 'layers' },
-  { label: 'Channels & Regions', desc: 'Where it hits hardest — by channel, region and retailer.', icon: 'retailer' },
-  { label: 'Portfolio', desc: 'The same figures by category, brand and product.', icon: 'package' },
-  { label: 'Exposure', desc: 'Risk alerts by severity, and the trade spend at stake.', icon: 'shield' },
-  { label: 'Recommendations', desc: 'Actions Simulation can model, what not to do, and their combined impact.', icon: 'target' },
-]
-
-/** THE PAGE BEFORE THE ANALYSIS HAS RUN. The tabs stay hidden until there is
- *  something in them, which left the space under the KPIs blank; this fills it
- *  with what the header's "Go deeper" will produce. Deliberately no button of
- *  its own — the header's is the single way in. */
-function DeepenPreview() {
-  return (
-    <Card className="fade-in mt-[14px]">
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-border-subtle p-[12px_20px]">
-        <h2 className="text-base font-bold text-ink-primary">What going deeper adds</h2>
-        <div className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-ink-muted">
-          {DEEPEN_PHASES.map((p, i) => (
-            <span key={p.key} className="flex items-center gap-1.5">
-              {i > 0 && <Icon name="chevronRight" className="h-3 w-3" />}
-              <span className="rounded-full bg-surface-muted px-2.5 py-1 text-ink-secondary">{p.label}</span>
-            </span>
-          ))}
-          <span className="ml-1.5 flex items-center gap-1">
-            <Icon name="clock" className="h-3.5 w-3.5" /> about a minute
-          </span>
-        </div>
-      </div>
-      <div className="grid grid-cols-4 gap-3 p-[16px_20px] @max-[900px]:grid-cols-2">
-        {LAYERS.map((l, i) => (
-          <div
-            key={l.label}
-            className={`flex items-start gap-3 rounded-[var(--r-md)] border border-border-subtle bg-surface-muted p-[12px_14px] ${
-              i === 0 ? 'col-span-2' : ''
-            }`}
-          >
-            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-violet-50 text-brand-violet [&_svg]:h-4 [&_svg]:w-4">
-              <Icon name={l.icon} />
-            </div>
-            <div className="min-w-0">
-              <div className="text-sm font-bold text-ink-primary">{l.label}</div>
-              <div className="mt-0.5 text-sm leading-[1.5] text-ink-muted">{l.desc}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </Card>
-  )
-}
 
 const DEEPEN_PHASES = [
   { key: 'compute', label: 'Compute' },
@@ -316,12 +261,12 @@ function DeepeningState({
         <div className="flex items-center gap-3">
           <Spinner className="h-4 w-4 text-brand-violet" />
           <div className="min-w-0 flex-1">
-            <div className="text-base font-semibold">{heading}</div>
+            <div className="text-base font-medium">{heading}</div>
             <div className="mt-0.5 text-sm text-ink-muted">
               Going deeper on the investigation's finding
             </div>
           </div>
-          <span className="shrink-0 text-md font-extrabold tabular-nums text-brand-violet">{pct}%</span>
+          <span className="shrink-0 text-md font-medium tabular-nums text-brand-violet">{pct}%</span>
         </div>
 
         <div className="mt-3">
@@ -350,10 +295,10 @@ function DeepeningState({
                       : 'bg-border-strong'
                 }`}
               />
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold">{s.name}</span>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">{s.name}</span>
               <span className="truncate text-xs text-ink-muted">{s.desc}</span>
               <span
-                className={`shrink-0 text-xs font-semibold ${
+                className={`shrink-0 text-xs font-medium ${
                   s.status === 'done'
                     ? 'text-status-success'
                     : s.status === 'running'
@@ -474,7 +419,7 @@ export function Intelligence() {
       <div className="fade-in flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-[-0.02em]">
+            <h1 className="flex items-center gap-2 text-2xl font-normal tracking-[-0.02em]">
               Promotion Intelligence <Icon name="sparkles" className="h-5 w-5 text-brand-violet" />
             </h1>
           </div>
@@ -508,7 +453,7 @@ export function Intelligence() {
             question={investigation.question}
             questionCaption="Deepening your investigation"
             trailing={
-              <Link to="/investigations" className="whitespace-nowrap text-sm font-semibold text-brand-violet">
+              <Link to="/investigations" className="whitespace-nowrap text-sm font-medium text-brand-violet">
                 ← Back to investigation
               </Link>
             }
@@ -518,12 +463,12 @@ export function Intelligence() {
         <Card className="fade-in mt-[14px]">
           <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2 p-[14px_20px]">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.06em] text-brand-violet">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-brand-violet">
                 <Icon name="sparkles" className="h-3.5 w-3.5" /> Deepening your investigation
               </div>
-              <div className="mt-1 text-md font-bold leading-[1.45] text-ink-primary">{investigation.question}</div>
+              <div className="mt-1 text-md font-medium leading-[1.45] text-ink-primary">{investigation.question}</div>
             </div>
-            <Link to="/investigations" className="shrink-0 self-center whitespace-nowrap text-sm font-semibold text-brand-violet">
+            <Link to="/investigations" className="shrink-0 self-center whitespace-nowrap text-sm font-medium text-brand-violet">
               ← Back to investigation
             </Link>
           </div>
@@ -546,13 +491,13 @@ export function Intelligence() {
               value: fmtCr(k.trade_spend),
               sub: describeScope(investigation.scope, channelNames),
               icon: 'wallet' as const,
-              tint: { bg: '#ECE6FF', fg: '#7C5CFF' },
+              tint: { bg: 'var(--brand-violet-50)', fg: 'var(--brand-violet)' },
             },
             {
               label: 'Incremental Sales',
               value: fmtCr(k.incremental_sales),
               icon: 'barChart' as const,
-              tint: { bg: '#E1ECFF', fg: '#4F7CFF' },
+              tint: { bg: 'var(--brand-blue-50)', fg: 'var(--brand-blue)' },
               // No sub-line: the "target is 1.50 × trade spend" it carried
               // restated the ROI card beside it.
               sub: null,
@@ -561,7 +506,7 @@ export function Intelligence() {
               label: 'Promotion ROI',
               value: fmtRoi(roi),
               icon: 'target' as const,
-              tint: { bg: '#ECE6FF', fg: '#6B47FF' },
+              tint: { bg: 'var(--brand-violet-50)', fg: 'var(--brand-violet)' },
               sub:
                 gapToTarget != null && gapToTarget > 0
                   ? `${fmtRoi(gapToTarget)} below target`
@@ -585,9 +530,9 @@ export function Intelligence() {
                 {/* THE LABEL LEADS, THE NUMBER FOLLOWS: the name in bold, the
                     value in regular weight, so a reader sees what each card
                     is before how big it is. */}
-                <div className="text-sm font-bold text-ink-primary">{c.label}</div>
+                <div className="text-sm font-medium text-ink-primary">{c.label}</div>
                 <div
-                  className={`mt-0.5 text-xl font-normal tabular-nums ${c.danger ? 'text-status-danger' : 'text-ink-primary'}`}
+                  className={`kpi-value mt-0.5 ${c.danger ? 'text-status-danger' : 'text-ink-primary'}`}
                 >
                   {c.value}
                 </div>
@@ -601,7 +546,7 @@ export function Intelligence() {
       )}
 
       {run?.status === 'error' && (
-        <div className="mt-3.5 rounded-[var(--r-md)] bg-status-danger-bg p-[10px_14px] text-base text-[#B91C1C]">
+        <div className="mt-3.5 rounded-[var(--r-md)] bg-status-danger-bg p-[10px_14px] text-base text-[var(--pill-danger-ink)]">
           Analysis failed — {run.error}
         </div>
       )}
@@ -611,11 +556,9 @@ export function Intelligence() {
       )}
 
       {/* THE LAYERS APPEAR ONLY ONCE THE ANALYSIS HAS RUN. The header's "Go
-          deeper" is the one way in: before it is clicked the page shows the
-          investigation and its KPIs, while it runs the progress card above,
-          and when it lands the tabs. A second "Go deeper" card inside the
-          tabs used to duplicate the header button. */}
-      {!result && !analysing && <DeepenPreview />}
+          deeper" is the one way in. Before it is clicked the page shows the
+          investigation and its KPIs and nothing else -- the "What going deeper
+          adds" preview that sat here was removed at the user's request. */}
 
       {result && (
         <div className="fade-in mt-[14px]">
@@ -708,7 +651,7 @@ export function Intelligence() {
                     <DriversPanel drivers={analysis.drivers} />
                     {analysis.uncertainties.length > 0 && (
                       <div className="mt-4 rounded-[var(--r-md)] bg-surface-muted p-[12px_14px]">
-                        <div className="text-xs font-bold uppercase tracking-[0.06em] text-ink-muted">
+                        <div className="text-xs font-medium text-ink-muted">
                           What this analysis cannot determine
                         </div>
                         <ul className="mt-1.5 flex flex-col gap-1">

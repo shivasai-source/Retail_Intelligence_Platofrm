@@ -65,5 +65,5 @@ export function parseSegments(text: string): Segment[] {
 // figure matters"; whether it is good or bad is the sentence's job.
 export function toneClass(tone: Tone): string {
   if (!tone) return ''
-  return 'rounded-[3px] px-0.5 font-bold text-ink-primary bg-[linear-gradient(180deg,rgba(15,23,42,0)_60%,rgba(15,23,42,0.07)_60%)]'
+  return 'rounded-[3px] px-0.5 font-medium text-ink-primary bg-[linear-gradient(180deg,rgba(15,23,42,0)_60%,rgba(15,23,42,0.07)_60%)]'
 }

@@ -34,7 +34,7 @@ export function AiAnswerCard({
         {/* The title alone. The question used to sit under it; the hero
             block at the top of the page already carries it in full. */}
         <div className="min-w-0 flex-1">
-          <h3 className="text-md font-bold">Investigation Synthesis</h3>
+          <h3 className="text-md font-medium">Investigation Synthesis</h3>
         </div>
         {/* B9 removed the "{confidence}% confidence" badge that stood here.
             It printed an authored 82-87%; nothing in this project computes a
@@ -63,14 +63,14 @@ export function AiAnswerCard({
         {specialists.map((name) => (
           <span
             key={name}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface-card py-1 px-3 text-sm font-semibold text-ink-primary shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border-subtle bg-surface-card py-1 px-3 text-sm font-medium text-ink-primary shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
           >
             <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-status-success" />
             {name}
           </span>
         ))}
         <span className="flex-1" />
-        <Link to="/investigations" className="text-base font-semibold text-brand-violet hover:underline">
+        <Link to="/investigations" className="text-base font-medium text-brand-violet hover:underline">
           View full investigation →
         </Link>
       </div>

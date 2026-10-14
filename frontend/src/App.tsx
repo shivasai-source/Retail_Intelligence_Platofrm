@@ -13,6 +13,7 @@ import { Settings } from './pages/Settings'
 import { AnalystWindow } from './pages/AnalystWindow'
 import { RequireAuth } from './components/RequireAuth'
 import { RequireDataset } from './components/RequireDataset'
+import { RouteErrorBoundary } from './components/ErrorBoundary'
 import { mmmRoutes } from './mmm/routes'
 
 // HashRouter matches the vanilla app's `#/command`-style routes verbatim (see
@@ -31,6 +32,9 @@ import { mmmRoutes } from './mmm/routes'
 function App() {
   return (
     <HashRouter>
+      {/* Any page that throws while rendering shows the error screen instead
+          of a white page; moving to another route clears it. */}
+      <RouteErrorBoundary>
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
@@ -48,6 +52,7 @@ function App() {
         <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      </RouteErrorBoundary>
     </HashRouter>
   )
 }

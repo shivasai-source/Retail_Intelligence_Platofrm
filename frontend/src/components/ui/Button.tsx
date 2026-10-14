@@ -6,7 +6,7 @@ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'violet-soft'
 export type ButtonSize = 'sm' | 'md' | 'pill' | 'lg'
 
 const base =
-  'inline-flex items-center justify-center gap-2 rounded-[var(--r-md)] font-semibold ' +
+  'inline-flex items-center justify-center gap-2 rounded-[var(--r-md)] font-medium ' +
   'tracking-[-0.005em] whitespace-nowrap select-none border border-transparent cursor-pointer ' +
   'transition-[background,color,transform,box-shadow] duration-150 active:translate-y-px ' +
   'disabled:cursor-not-allowed [&_svg]:w-4 [&_svg]:h-4 [&_svg]:stroke-2 focus-visible:outline-2 ' +
@@ -19,7 +19,7 @@ const variants: Record<ButtonVariant, string> = {
   secondary:
     'bg-surface-card text-ink-primary border-border-default hover:bg-surface-hover hover:border-border-strong',
   ghost: 'bg-transparent text-ink-secondary hover:bg-surface-hover hover:text-ink-primary',
-  'violet-soft': 'bg-brand-violet-50 text-brand-violet hover:bg-[#E6DEFF]',
+  'violet-soft': 'bg-brand-violet-50 text-brand-violet hover:bg-[var(--brand-violet-50)]',
 }
 
 const sizes: Record<ButtonSize, string> = {

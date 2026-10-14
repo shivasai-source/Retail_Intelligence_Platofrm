@@ -286,6 +286,8 @@ def build_filter_state(raw: dict[str, Any] | None) -> FilterState:
         year=_bounded_int(raw.get("year"), 1900, 2200),
         month=_bounded_int(raw.get("month"), 1, 12),
         week=_bounded_int(raw.get("week"), 1, 53),
+        period_from=_bounded_int(raw.get("period_from"), 190001, 220053),
+        period_to=_bounded_int(raw.get("period_to"), 190001, 220053),
         **lists,
     )
 

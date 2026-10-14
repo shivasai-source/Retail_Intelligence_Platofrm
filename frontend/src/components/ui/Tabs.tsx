@@ -22,7 +22,7 @@ export function Tabs({
           <button
             key={t.key}
             onClick={() => onChange(t.key)}
-            className={`-mb-px inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-4 py-2.5 text-base font-semibold transition-colors duration-150 ${
+            className={`-mb-px inline-flex cursor-pointer items-center gap-1.5 border-b-2 px-4 py-2.5 text-base font-medium transition-colors duration-150 ${
               isActive
                 ? 'border-brand-violet text-brand-violet'
                 : 'border-transparent text-ink-muted hover:text-ink-primary'
@@ -31,7 +31,7 @@ export function Tabs({
             {t.label}
             {t.count !== undefined && (
               <span
-                className={`rounded-[var(--r-pill)] px-1.5 text-xs font-semibold ${
+                className={`rounded-[var(--r-pill)] px-1.5 text-xs font-medium ${
                   isActive ? 'bg-brand-violet-50 text-brand-violet' : 'bg-surface-muted text-ink-secondary'
                 }`}
               >

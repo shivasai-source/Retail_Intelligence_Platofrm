@@ -5,7 +5,9 @@ import type { CommandFilters } from '../store/commandFilters'
 export type ApiFilters = {
   year?: number
   month?: number
-} & Partial<Record<keyof Omit<CommandFilters, 'year' | 'month'>, string[]>>
+  period_from?: number
+  period_to?: number
+} & Partial<Record<keyof Omit<CommandFilters, 'year' | 'month' | 'period_from' | 'period_to'>, string[]>>
 
 /** The Insights Hub's filter state, as the API wants it in a body.
  *

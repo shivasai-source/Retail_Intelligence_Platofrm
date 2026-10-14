@@ -120,11 +120,9 @@ export function PromotionPlanner() {
 
   return (
     <AppShell activeKey="simulation" crumbs={crumbs}>
-      {/* One weight for the whole page: every text and figure is semibold;
-          size and colour carry the hierarchy. */}
-      <div className="font-semibold">
+      <div>
       <div className="fade-in flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
-        <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-[-0.02em]">
+        <h1 className="flex items-center gap-2 text-2xl font-normal tracking-[-0.02em]">
           Simulation Studio <Icon name="sparkles" className="h-5 w-5 text-brand-violet" />
           {sd && <HowItWorks model={sd.model} />}
         </h1>
@@ -164,13 +162,13 @@ export function PromotionPlanner() {
 
       {origin && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[var(--r-lg)] border border-brand-violet-100 bg-brand-violet-50 px-4 py-2.5">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-[14px]">
-            <span className="inline-flex items-center gap-1.5 font-semibold text-brand-violet [&_svg]:h-4 [&_svg]:w-4">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-base">
+            <span className="inline-flex items-center gap-1.5 font-medium text-brand-violet [&_svg]:h-4 [&_svg]:w-4">
               <Icon name={origin.source === 'calendar' ? 'calendar' : 'investigations'} />
               {origin.source === 'calendar' ? 'From the calendar' : 'From Promotion Intelligence'}
             </span>
             {[origin.title, ...origin.facts].filter(Boolean).map((f) => (
-              <span key={f} className="flex items-center gap-x-2 font-semibold text-ink-primary">
+              <span key={f} className="flex items-center gap-x-2 font-medium text-ink-primary">
                 <span className="text-ink-muted">·</span>
                 <span className="max-w-[420px] truncate" title={f}>
                   {f}
@@ -192,7 +190,7 @@ export function PromotionPlanner() {
       )}
 
       {((summary.isPending && effective) || (!effective && options.isPending)) && (
-        <div className="mt-6 flex items-center gap-3 text-[14px] text-ink-muted">
+        <div className="mt-6 flex items-center gap-3 text-base text-ink-muted">
           <Spinner /> Loading…
         </div>
       )}
@@ -200,10 +198,10 @@ export function PromotionPlanner() {
       {summary.isError && (
         <Card className="mt-4">
           <CardBody>
-            <div className="text-[17px] font-semibold text-ink-primary">
+            <div className="text-md font-medium text-ink-primary">
               {summaryError?.status === 422 ? 'Nothing to plan here' : 'Could not read this selection'}
             </div>
-            <div className="mt-1 text-[14px] text-ink-muted">{summary.error.message}</div>
+            <div className="mt-1 text-base text-ink-muted">{summary.error.message}</div>
             {summaryError?.status !== 422 && (
               <Button variant="secondary" className="mt-3" onClick={() => summary.refetch()}>
                 <Icon name="refresh" /> Retry
@@ -217,7 +215,7 @@ export function PromotionPlanner() {
         <>
           <CurrentPlan summary={sd} />
 
-          <div className="mt-5 [&_button]:!text-[15px]">
+          <div className="mt-5 [&_button]:!text-base">
             <Tabs tabs={TABS} active={tab} onChange={(k) => setTab(k as PlannerTab)} />
           </div>
 
@@ -237,8 +235,8 @@ export function PromotionPlanner() {
             ) : (
               <Card>
                 <CardBody>
-                  <div className="text-[17px] font-semibold text-ink-primary">No promotion runs here</div>
-                  <div className="mt-1 text-[14px] text-ink-muted">Widen the period, or use Best plan with "Allow more".</div>
+                  <div className="text-md font-medium text-ink-primary">No promotion runs here</div>
+                  <div className="mt-1 text-base text-ink-muted">Widen the period, or use Best plan with "Allow more".</div>
                 </CardBody>
               </Card>
             ))}
@@ -299,8 +297,8 @@ function CurrentPlan({ summary: s }: { summary: SummaryResponse }) {
   return (
     <div className="fade-in mt-4 rounded-[var(--r-lg)] border border-border-subtle bg-surface-card shadow-[var(--shadow-card-soft)]">
       <div className="flex flex-wrap items-baseline gap-x-3 border-b border-border-subtle px-5 py-3">
-        <span className="text-[17px] font-semibold text-ink-primary">Current plan</span>
-        <span className="text-[14px] text-ink-muted">
+        <span className="text-md font-medium text-ink-primary">Current plan</span>
+        <span className="text-base text-ink-muted">
           {s.scope.weeks} weeks · {s.scope.product_stores.toLocaleString()} product-stores · {c.promotions.display} promotions · {s.scope.channels.length} channel{s.scope.channels.length === 1 ? '' : 's'}
         </span>
       </div>
@@ -325,11 +323,11 @@ function CurrentPlan({ summary: s }: { summary: SummaryResponse }) {
               <span
                 key={o.id}
                 title={`${o.name} · ${o.depth_pct}% · ${o.runs.toLocaleString()} runs · ${o.product_stores} product-stores · ROI ${o.roi}`}
-                className="inline-flex items-center gap-1.5 rounded-full border bg-surface-card px-2.5 py-1 text-[14px]"
+                className="inline-flex items-center gap-1.5 rounded-full border bg-surface-card px-2.5 py-1 text-base"
                 style={{ borderColor: col.border }}
               >
                 <span className="h-2 w-2 rounded-full" style={{ background: col.border }} />
-                <span className="font-semibold text-ink-primary">{o.name.replace(/\s+\d{2}$/, '')}</span>
+                <span className="font-medium text-ink-primary">{o.name.replace(/\s+\d{2}$/, '')}</span>
                 <span className="text-ink-muted">{o.runs.toLocaleString()}</span>
               </span>
             )
@@ -345,7 +343,7 @@ function HowItWorks({ model: m }: { model: SummaryResponse['model'] }) {
   const held = m.festival_backtest.events ?? []
   return (
     <InfoPopover label="How it works" title="How it works" width={360}>
-      <ul className="mt-1.5 list-disc space-y-1 pl-4 text-[14px] font-semibold leading-snug text-ink-secondary">
+      <ul className="mt-1.5 list-disc space-y-1 pl-4 text-base font-medium leading-snug text-ink-secondary">
         <li>Baseline: {m.baseline}, per product, store and week.</li>
         <li>
           Lift: hierarchical Bayes, sampled with NUTS — {m.curve}, pooled across {m.groups} brand × channel groups.

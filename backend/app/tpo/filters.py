@@ -118,6 +118,12 @@ class FilterState:
     #: reader: `comparison()` sets it so a previous year is read over the same
     #: span the current year's data covers.
     through_week: int | None = None
+    #: A business-week range, inclusive, each end as year * 100 + week
+    #: (202603 = week 3 of 2026). The Insights Hub's Period calendar sets it
+    #: for any span that is not one whole year (a whole year is sent as
+    #: `year`, so everything keyed on the year reads it unchanged).
+    period_from: int | None = None
+    period_to: int | None = None
     channel: frozenset[str] | None = None      # Channel_Id, e.g. "CH002"
     retailer: frozenset[str] | None = None     # dim_geo_store.Retailer
     region: frozenset[str] | None = None
@@ -132,11 +138,24 @@ class FilterState:
     promotion_type: frozenset[str] | None = None
 
     @classmethod
-    def build(cls, year: int | None = None, month: int | None = None, week: int | None = None, **lists: Sequence[str] | None) -> "FilterState":
+    def build(
+        cls,
+        year: int | None = None,
+        month: int | None = None,
+        week: int | None = None,
+        period_from: int | None = None,
+        period_to: int | None = None,
+        **lists: Sequence[str] | None,
+    ) -> "FilterState":
         unknown = set(lists) - set(DIMENSIONS)
         if unknown:
             raise ValueError(f"Unknown filter dimension(s): {sorted(unknown)}")
-        return cls(year=year, month=month, week=week, **{k: _norm(v) for k, v in lists.items()})
+        if period_from is not None and period_to is not None and period_from > period_to:
+            period_from, period_to = period_to, period_from
+        return cls(
+            year=year, month=month, week=week, period_from=period_from, period_to=period_to,
+            **{k: _norm(v) for k, v in lists.items()},
+        )
 
     def replace(self, **changes: Any) -> "FilterState":
         return _replace(self, **changes)
@@ -164,6 +183,16 @@ class FilterState:
         same part of the calendar as week N of the next. A complete year is
         compared whole.
         """
+        if self.period_from is not None or self.period_to is not None:
+            # A custom period is compared with the same business weeks one
+            # year earlier -- 15 Mar-10 Jun 2026 with 15 Mar-10 Jun 2025.
+            # Business weeks are numbered from 1 January in every year, so
+            # week N spans the same part of the calendar in both.
+            start_year = (self.period_from or self.period_to) // 100
+            if start_year - 1 not in set(store.years()):
+                return None
+            shift = lambda key: None if key is None else key - 100
+            return self.replace(period_from=shift(self.period_from), period_to=shift(self.period_to))
         if self.year is None:
             return None
         previous = self.year - 1
@@ -201,6 +230,10 @@ class FilterState:
             value = getattr(self, name)
             if value:
                 out[name] = value if isinstance(value, int) else sorted(value)
+        if self.period_from is not None:
+            out["period_from"] = self.period_from
+        if self.period_to is not None:
+            out["period_to"] = self.period_to
         return out
 
 
@@ -267,6 +300,7 @@ def _matching_indices(store: FactStore, state: FilterState, *, keep_baseline: bo
 
     year, month, week = state.year, state.month, state.week
     through_week = state.through_week
+    lo, hi = state.period_from, state.period_to
     year_col, month_col, week_col = store.year, store.month, store.week
     product_col, store_col, promo_col = store.product_code, store.store_code, store.promo_code
     promoted_col = store.promoted
@@ -279,6 +313,10 @@ def _matching_indices(store: FactStore, state: FilterState, *, keep_baseline: bo
         if month is not None and month_col[i] != month:
             continue
         if through_week is not None and week_col[i] > through_week:
+            continue
+        if lo is not None and year_col[i] * 100 + week_col[i] < lo:
+            continue
+        if hi is not None and year_col[i] * 100 + week_col[i] > hi:
             continue
         if week is not None and week_col[i] != week:
             # THE BASELINE IS READ FROM THE WEEKS THE PROMOTION WAS NOT RUNNING,
@@ -420,6 +458,7 @@ def _present_values(state: FilterState) -> dict[str, set[str]]:
     store_masks, product_masks, promotion_masks = _fail_masks(store, state)
     year_bit, month_bit = BITS["year"], BITS["month"]
     year, month = state.year, state.month
+    lo, hi = state.period_from, state.period_to
 
     # Flags rather than sets: codes are small dense integers, so a bytearray
     # write is O(1) and avoids hashing on every one of 205,920 rows.
@@ -431,6 +470,11 @@ def _present_values(state: FilterState) -> dict[str, set[str]]:
     seen_month: dict[str, set[int]] = defaultdict(set)
 
     for i in range(store.row_count):
+        # The period is a hard bound: options outside it are not offered.
+        if lo is not None or hi is not None:
+            key_w = store.year[i] * 100 + store.week[i]
+            if (lo is not None and key_w < lo) or (hi is not None and key_w > hi):
+                continue
         mask = store_masks[store.store_code[i]] | product_masks[store.product_code[i]] \
             | promotion_masks[store.promo_code[i]]
         if year is not None and store.year[i] != year:
@@ -503,6 +547,28 @@ def _present_values(state: FilterState) -> dict[str, set[str]]:
     return values
 
 
+_CALENDAR: dict[int, list[dict[str, Any]]] = {}
+
+
+def business_calendar(store) -> list[dict[str, Any]]:
+    """[{year, weeks: [{week, start, month}]}] for every business week the
+    fact rows hold, in order. Computed once per loaded store."""
+    cached = _CALENDAR.get(id(store))
+    if cached is not None:
+        return cached
+    starts = store.dims.week_start
+    years: dict[int, list[dict[str, Any]]] = {}
+    for y, w in sorted({(int(y), int(w)) for y, w in zip(store.year, store.week)}):
+        day = starts.get((y, w))
+        if day is None:
+            continue
+        years.setdefault(y, []).append({"week": w, "start": day.isoformat(), "month": day.month})
+    out = [{"year": y, "weeks": ws} for y, ws in sorted(years.items())]
+    _CALENDAR.clear()
+    _CALENDAR[id(store)] = out
+    return out
+
+
 #: bit -> dimension name, for decoding a single-failure mask.
 _DIM_OF_BIT = {BITS[name]: name for name in DIMENSIONS}
 
@@ -538,6 +604,10 @@ def options_for(state: FilterState) -> dict[str, Any]:
 
     return {
         "years": years,
+        # Every business week in the data with its first day -- what the
+        # Period calendar draws. The whole extent, not cascaded: the period
+        # is chosen first and everything else narrows to it.
+        "calendar": business_calendar(store),
         "months": [{"code": str(m), "name": MONTHS[m - 1]} for m in months],
         "channels": [
             {"code": code, "name": store.dims.channels[code].name if code in store.dims.channels else code}

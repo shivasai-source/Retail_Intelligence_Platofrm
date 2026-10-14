@@ -228,7 +228,7 @@ export function MmmTrend({
               y={yRoas(BREAKEVEN_ROAS) - 4}
               textAnchor="end"
               fontSize={10}
-              fontWeight={700}
+              fontWeight={500}
               fill="var(--text-muted)"
             >
               Break-even {BREAKEVEN_ROAS.toFixed(2)}x
@@ -291,12 +291,12 @@ export function MmmTrend({
           className="pointer-events-none absolute top-2 z-20 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
           style={{ left: tipLeft, width: TIP_W }}
         >
-          <div className="flex items-center justify-between gap-2 font-bold text-ink-primary">
+          <div className="flex items-center justify-between gap-2 font-medium text-ink-primary">
             <span className="truncate">
               {periodWord} {trend.labels[active]}
             </span>
             {roasAt !== null && roasAt < BREAKEVEN_ROAS && (
-              <span className="shrink-0 text-[11px] font-semibold text-status-danger">Below break-even</span>
+              <span className="shrink-0 text-xs font-medium text-status-danger">Below break-even</span>
             )}
           </div>
           {show('revenue') && <TipRow swatch={MMM_SERIES.revenue} k="Revenue" v={trend.revenue_display[active]} />}
@@ -406,7 +406,7 @@ export function ValueColumns({
                     y={c.value < 0 ? y(c.value) + 13 : y(c.value) - 6}
                     textAnchor="middle"
                     fontSize={10.5}
-                    fontWeight={700}
+                    fontWeight={500}
                     fill="var(--text-primary)"
                   >
                     {c.display}
@@ -539,7 +539,7 @@ export function PairedColumns({
                   />
                 ),
               )}
-              <text x={cx(i)} y={height - 22} textAnchor="middle" fontSize={10.5} fontWeight={700} fill="var(--text-primary)">
+              <text x={cx(i)} y={height - 22} textAnchor="middle" fontSize={10.5} fontWeight={500} fill="var(--text-primary)">
                 {g.label}
               </text>
               <text x={cx(i)} y={height - 8} textAnchor="middle" fontSize={9.5} fill="var(--text-muted)">
@@ -563,7 +563,7 @@ export function PairedColumns({
           className="pointer-events-none absolute top-0 z-20 w-56 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
           style={{ left: tooltipLeft(width, padL + slot * active, padL + slot * (active + 1), 224) }}
         >
-          <div className="font-bold text-ink-primary">{groups[active].label}</div>
+          <div className="font-medium text-ink-primary">{groups[active].label}</div>
           <TipRow swatch={FILL.current} k={`With · ${groups[active].with_days.toLocaleString()} days`} v={groups[active].with_avg_display} />
           <TipRow swatch={FILL.against} k={`Without · ${groups[active].without_days.toLocaleString()} days`} v={groups[active].without_avg_display} />
           <TipRow k="Difference" v={groups[active].difference_display} />
@@ -663,7 +663,7 @@ export function RankedColumns({
                 y={c.value === null ? zeroY - 6 : negative ? y(c.value) + 13 : y(c.value) - 6}
                 textAnchor="middle"
                 fontSize={10.5}
-                fontWeight={700}
+                fontWeight={500}
                 fill={c.value === null ? 'var(--text-muted)' : 'var(--text-primary)'}
                 opacity={active === null || isActive ? 1 : 0.55}
               >
@@ -680,7 +680,7 @@ export function RankedColumns({
                 {fit(c.label)}
               </text>
               {c.sub && (
-                <text x={cx(i)} y={height - 8} textAnchor="middle" fontSize={10} fontWeight={700} fill={c.sub.color}>
+                <text x={cx(i)} y={height - 8} textAnchor="middle" fontSize={10} fontWeight={500} fill={c.sub.color}>
                   {c.sub.text}
                 </text>
               )}
@@ -703,7 +703,7 @@ export function RankedColumns({
           className="pointer-events-none absolute top-0 z-20 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
           style={{ left: tooltipLeft(width, padL + slot * active, padL + slot * (active + 1), TIP_W), width: TIP_W }}
         >
-          <div className="font-bold text-ink-primary">{items[active].label}</div>
+          <div className="font-medium text-ink-primary">{items[active].label}</div>
           {items[active].details.map(([k, v, swatch]) => (
             <TipRow key={k} k={k} v={v} swatch={swatch} />
           ))}
@@ -811,7 +811,7 @@ export function ContextColumns({
                   y={v < 0 ? y(v) + 13 : y(v) - 6}
                   textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
                   fontSize={10}
-                  fontWeight={700}
+                  fontWeight={500}
                   fill="var(--text-primary)"
                 >
                   {p.display}
@@ -828,7 +828,7 @@ export function ContextColumns({
                 {p.month}
               </text>
               {p.year && (
-                <text x={cx(i)} y={height - 7} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--text-muted)">
+                <text x={cx(i)} y={height - 7} textAnchor="middle" fontSize={10} fontWeight={500} fill="var(--text-muted)">
                   {p.year}
                 </text>
               )}
@@ -853,7 +853,7 @@ export function ContextColumns({
           className="pointer-events-none absolute top-0 z-20 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
           style={{ left: tooltipLeft(width, padL + slot * active, padL + slot * (active + 1), TIP_W), width: TIP_W }}
         >
-          <div className="font-bold text-ink-primary">{points[active].title}</div>
+          <div className="font-medium text-ink-primary">{points[active].title}</div>
           {points[active].details.map(([k, v, swatch]) => (
             <TipRow key={k} k={k} v={v} swatch={swatch} />
           ))}
@@ -960,7 +960,7 @@ export function RunningLines({
           className="pointer-events-none absolute top-0 z-20 rounded-[var(--r-md)] border border-border-default bg-surface-card p-2.5 text-xs shadow-[var(--shadow-lg)]"
           style={{ left: tooltipLeft(width, x(active) - step / 2, x(active) + step / 2, TIP_W, 8), width: TIP_W }}
         >
-          <div className="font-bold text-ink-primary">Jan – {labels[active]} (to date)</div>
+          <div className="font-medium text-ink-primary">Jan – {labels[active]} (to date)</div>
           <TipRow swatch="var(--brand-violet)" k={currentName} v={current[active] === null ? '—' : format(current[active] as number)} />
           <TipRow swatch={PREV} k={previousName} v={previous[active] === null ? '—' : format(previous[active] as number)} />
         </div>
@@ -985,7 +985,9 @@ export const DRIVERS = [
   { key: 'baseline', label: 'Baseline', color: 'color-mix(in srgb, var(--text-secondary) 38%, var(--surface-card))' },
   { key: 'festival', label: 'Festival', color: 'var(--brand-violet)' },
   { key: 'seasonal', label: 'Seasonal', color: 'var(--tint-teal-icon)' },
-  { key: 'promotion', label: 'Promotion', color: 'var(--tint-rose-icon)' },
+  // Light blue, not red: in this palette red means 'bad', and promotion
+  // revenue is not.
+  { key: 'promotion', label: 'Promotion', color: 'color-mix(in srgb, var(--brand-blue) 45%, var(--surface-card))' },
   { key: 'media', label: 'Ad Spend', color: SERIES.spend },
 ] as const
 export type DriverKey = (typeof DRIVERS)[number]['key']
@@ -1165,7 +1167,7 @@ export function DecompositionDonut({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex cursor-pointer items-center gap-1 rounded-[var(--r-sm)] text-sm font-semibold text-brand-violet hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet"
+      className="inline-flex cursor-pointer items-center gap-1 rounded-[var(--r-sm)] text-sm font-medium text-brand-violet hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet"
     >
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden="true">
         <path d="m15 18-6-6 6-6" />
@@ -1207,8 +1209,8 @@ export function DecompositionDonut({
         {/* The centre in HTML, in TPO's donut type (components/charts/DonutBreakdown). */}
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
           <div className="max-w-[62%] text-center">
-            <div className="text-xl font-extrabold tabular-nums text-ink-primary">{centre.value}</div>
-            <div className="mt-0.5 text-sm font-semibold leading-tight text-ink-muted">{centre.label}</div>
+            <div className="kpi-value text-ink-primary">{centre.value}</div>
+            <div className="mt-0.5 text-sm font-medium leading-tight text-ink-muted">{centre.label}</div>
             {centre.sub && <div className="text-sm tabular-nums text-ink-muted">{centre.sub}</div>}
           </div>
         </div>
@@ -1221,7 +1223,7 @@ export function DecompositionDonut({
             <>
               <div className="flex items-center justify-between gap-3">
                 {back('Ad Spend', () => setChannel(null))}
-                <span className="text-xl font-extrabold tabular-nums text-ink-primary">{channel!.display}</span>
+                <span className="kpi-value text-ink-primary">{channel!.display}</span>
               </div>
               <div className="mt-0.5 flex items-baseline justify-between gap-3 text-sm text-ink-muted">
                 <span className="truncate">{channel!.label} · by sub-channel</span>
@@ -1232,7 +1234,7 @@ export function DecompositionDonut({
             <>
               <div className="flex items-center justify-between gap-3">
                 {back('All drivers', () => onDrill(false))}
-                <span className="text-xl font-extrabold tabular-nums text-ink-primary">{format(adTotal)}</span>
+                <span className="kpi-value text-ink-primary">{format(adTotal)}</span>
               </div>
               <div className="mt-0.5 flex items-baseline justify-between gap-3 text-sm text-ink-muted">
                 <span className="truncate">Ad Spend · by channel</span>
@@ -1242,8 +1244,8 @@ export function DecompositionDonut({
           ) : anySelected ? (
             <>
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-xl font-extrabold tabular-nums text-ink-primary">{format(pickedValue)}</span>
-                <span className="text-md font-bold tabular-nums text-brand-violet">{pctText((pickedValue / revenue) * 100)}</span>
+                <span className="kpi-value text-ink-primary">{format(pickedValue)}</span>
+                <span className="text-md font-medium tabular-nums text-brand-violet">{pctText((pickedValue / revenue) * 100)}</span>
               </div>
               <div className="mt-0.5 flex items-baseline justify-between gap-3 text-sm text-ink-muted">
                 <span className="truncate">From {picked.map((sg) => sg.label).join(' + ')}</span>
@@ -1256,8 +1258,8 @@ export function DecompositionDonut({
             // already states total revenue).
             <>
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-xl font-extrabold tabular-nums text-ink-primary">{format(revenue - valueOf('baseline'))}</span>
-                <span className="text-md font-bold tabular-nums text-brand-violet">{pctText(((revenue - valueOf('baseline')) / revenue) * 100)}</span>
+                <span className="kpi-value text-ink-primary">{format(revenue - valueOf('baseline'))}</span>
+                <span className="text-md font-medium tabular-nums text-brand-violet">{pctText(((revenue - valueOf('baseline')) / revenue) * 100)}</span>
               </div>
               <div className="mt-0.5 flex items-baseline justify-between gap-3 text-sm text-ink-muted">
                 <span className="truncate">Above baseline · events and ads</span>
@@ -1291,7 +1293,7 @@ export function DecompositionDonut({
                 >
                   <span className="h-3 w-3 rounded-full" style={{ background: sg.color }} />
                   <span className="flex min-w-0 items-center gap-1.5">
-                    <span className={`truncate ${level === 'drivers' && selected.has(sg.key as DriverKey) ? 'font-semibold text-ink-primary' : 'text-ink-secondary'}`}>
+                    <span className={`truncate ${level === 'drivers' && selected.has(sg.key as DriverKey) ? 'font-medium text-ink-primary' : 'text-ink-secondary'}`}>
                       {sg.label}
                     </span>
                     {clickable && (
@@ -1300,7 +1302,7 @@ export function DecompositionDonut({
                       </svg>
                     )}
                   </span>
-                  <span className="text-right font-semibold tabular-nums text-ink-primary">{sg.display}</span>
+                  <span className="text-right font-medium tabular-nums text-ink-primary">{sg.display}</span>
                   <span className="text-right text-base tabular-nums text-ink-muted">{pctText(sg.pct)}</span>
                 </Row>
               </li>
@@ -1318,7 +1320,7 @@ export const PART_COLORS = [
   SERIES.spend,
   'var(--brand-blue)',
   'var(--tint-teal-icon)',
-  'var(--tint-coral-icon)',
+  'color-mix(in srgb, var(--brand-blue) 45%, var(--surface-card))',
   'var(--tint-lemon-icon)',
   'var(--brand-violet)',
   'var(--tint-mint-icon)',
@@ -1413,8 +1415,8 @@ export function ShareDonut({
         </svg>
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
           <div className="max-w-[60%] text-center">
-            <div className="text-xl font-extrabold tabular-nums text-ink-primary">{hovered ? hovered.display : totalDisplay}</div>
-            <div className="mt-0.5 text-sm font-semibold leading-tight text-ink-muted">{hovered ? hovered.label : totalLabel}</div>
+            <div className="kpi-value text-ink-primary">{hovered ? hovered.display : totalDisplay}</div>
+            <div className="mt-0.5 text-sm font-medium leading-tight text-ink-muted">{hovered ? hovered.label : totalLabel}</div>
             {hovered && <div className="text-sm tabular-nums text-ink-muted">{hovered.pct.toFixed(2)}%</div>}
           </div>
         </div>
@@ -1445,7 +1447,7 @@ export function ShareDonut({
                 >
                   <span className="h-3 w-3 rounded-full" style={{ background: p.color }} />
                   <span className="truncate text-ink-secondary">{p.label}</span>
-                  <span className="text-right font-semibold tabular-nums text-ink-primary">{p.display}</span>
+                  <span className="text-right font-medium tabular-nums text-ink-primary">{p.display}</span>
                   <span className="text-right text-base tabular-nums text-ink-muted">{p.pct.toFixed(2)}%</span>
                 </button>
               </li>
@@ -1454,12 +1456,12 @@ export function ShareDonut({
         </ul>
         {tipItem && tip && (
           <FloatingTip anchor={tip.anchor} width={tipItem.mix ? 320 : 256}>
-            <div className="font-bold text-ink-primary">{tipItem.label}</div>
+            <div className="font-medium text-ink-primary">{tipItem.label}</div>
             {tipItem.details.map(([k, v, sw]) => (
               <TipRow key={k} k={k} v={v} swatch={sw} />
             ))}
             {tipItem.mix && <EventMix title="Active days" days={tipItem.mix.days} of={tipItem.mix.of} events={tipItem.mix.events} limit={5} />}
-            {hint && <div className="mt-1.5 border-t border-border-subtle pt-1.5 font-semibold text-brand-violet">{hint}</div>}
+            {hint && <div className="mt-1.5 border-t border-border-subtle pt-1.5 font-medium text-brand-violet">{hint}</div>}
           </FloatingTip>
         )}
       </div>
@@ -1534,8 +1536,8 @@ export function EventMix({
   const folded = combos.slice(shown.length)
   const foldedDays = folded.reduce((t, e) => t + e.days, 0)
   const row = (label: string, d: number, pct: number, strong = false, key = label) => (
-    <div key={key} className="flex items-baseline justify-between gap-3 text-[11px] leading-[1.5]">
-      <span className={`min-w-0 truncate ${strong ? 'font-semibold text-ink-primary' : 'text-ink-secondary'}`} title={label}>
+    <div key={key} className="flex items-baseline justify-between gap-3 text-xs leading-[1.5]">
+      <span className={`min-w-0 truncate ${strong ? 'font-medium text-ink-primary' : 'text-ink-secondary'}`} title={label}>
         {label}
       </span>
       <span className="shrink-0 tabular-nums text-ink-primary">
@@ -1545,11 +1547,11 @@ export function EventMix({
   )
   return (
     <div className="mt-1.5 border-t border-border-subtle pt-1.5">
-      <div className="mb-0.5 flex items-baseline justify-between font-bold text-ink-primary">
+      <div className="mb-0.5 flex items-baseline justify-between font-medium text-ink-primary">
         <span>{title}</span>
-        <span className="font-semibold text-ink-muted">{of !== undefined ? `${days} of ${of} days` : `${days} days`}</span>
+        <span className="font-medium text-ink-muted">{of !== undefined ? `${days} of ${of} days` : `${days} days`}</span>
       </div>
-      {days === 0 && <div className="text-[11px] text-ink-muted">No ad spend in this period.</div>}
+      {days === 0 && <div className="text-xs text-ink-muted">No ad spend in this period.</div>}
       {shown.map((e) => row(e.label, e.days, e.pct))}
       {folded.length > 0 && row(`Other combinations (${folded.length})`, foldedDays, days ? (foldedDays / days) * 100 : 0, false, '__other')}
       {only && (
@@ -1633,7 +1635,7 @@ export function ShareBars({
               } ${active && !isActive ? 'opacity-55' : ''}`}
             >
               <span className="text-right tabular-nums text-ink-muted">{i + 1}</span>
-              <span className="truncate font-semibold text-ink-primary" title={r.label}>
+              <span className="truncate font-medium text-ink-primary" title={r.label}>
                 {r.label}
               </span>
               <span className="h-2.5 overflow-hidden rounded-full bg-surface-muted">
@@ -1647,7 +1649,7 @@ export function ShareBars({
                   }}
                 />
               </span>
-              <span className="min-w-[5.5rem] text-right font-bold tabular-nums text-ink-primary">
+              <span className="min-w-[5.5rem] text-right font-medium tabular-nums text-ink-primary">
                 {r.display}
                 {r.share && <span className="ml-1 text-xs font-medium text-ink-muted">{r.share}</span>}
               </span>
@@ -1660,12 +1662,12 @@ export function ShareBars({
       </ul>
       {active && activeRow?.details && (
         <FloatingTip anchor={active.anchor} width={activeRow.mix ? 320 : 240}>
-          <div className="font-bold text-ink-primary">{activeRow.label}</div>
+          <div className="font-medium text-ink-primary">{activeRow.label}</div>
           {activeRow.details.map(([k, v, swatch]) => (
             <TipRow key={k} k={k} v={v} swatch={swatch} />
           ))}
           {activeRow.mix && <EventMix title="Active days" days={activeRow.mix.days} of={activeRow.mix.of} events={activeRow.mix.events} limit={5} />}
-          {hint && <div className="mt-1.5 border-t border-border-subtle pt-1.5 font-semibold text-brand-violet">{hint}</div>}
+          {hint && <div className="mt-1.5 border-t border-border-subtle pt-1.5 font-medium text-brand-violet">{hint}</div>}
         </FloatingTip>
       )}
     </div>

@@ -173,8 +173,8 @@ YOUR TEAM:
 HOW TO ASSIGN — this decides whether the investigation is a real RCA:
 
   - Pick %d or fewer. Prefer a CHAIN over a crowd: one that establishes whether
-    the problem is real, one or two that localise it, one that names specifics,
-    one that quantifies what is at stake. Four well-chosen beats six overlapping.
+    the problem is real, one or two that localise it, one that names the
+    specific events and what they lost.
   - ALWAYS include `benchmark` on a diagnostic question. Without it nobody can
     tell whether a bad-looking number is actually unusual, and every other
     finding risks being over-read.
@@ -183,9 +183,9 @@ HOW TO ASSIGN — this decides whether the investigation is a real RCA:
     retailer, that tension is the most informative thing the investigation can
     produce. Picking four lenses that all point the same way tells you nothing.
   - Match the lens to the question. "Why did ROI fall" wants benchmark +
-    mechanic_efficiency + spend_allocation. "Where is money leaking" wants
-    offer_forensics + risk_exposure. "Is our lift real" wants cannibalization.
-    "Did it fade" wants temporal.
+    mechanic_efficiency. "Where is money leaking" wants offer_forensics.
+    "Is our lift real" wants cannibalization. "Did it fade" wants benchmark,
+    which reads the monthly trend.
   - `assignment` must be specific to THIS question, naming what that specialist
     should look for. Not "analyse mechanics" but "check whether Buy3Get1 fails
     only in the South or everywhere".
@@ -489,8 +489,9 @@ async def run_star_pipeline(
                 "investigation_type": plan.get("investigation_type", "diagnostic"),
             }
 
-    # THE STANDING PANEL. Every investigation runs these six, in this order, so
-    # the Investigation Graph shows the same six agents every time.
+    # THE STANDING PANEL. Every investigation runs these five, in this order, so
+    # the agents panel shows the same five every time (nine became five on
+    # 2026-10-13 -- see the roster's docstring).
     #
     # It used to be whatever subset the planner chose, capped at MAX_SPECIALISTS.
     # That made the panel vary run to run — an alert-driven question ("Why did X
@@ -499,14 +500,13 @@ async def run_star_pipeline(
     # The neighbour check is not an optional lens; it is part of reading a
     # promotion, so it is no longer left to the question's wording.
     #
-    # The planner still BRIEFS the panel: where it assigned one of the six, that
+    # The planner still BRIEFS the panel: where it assigned one of the five, that
     # assignment is kept verbatim. Only the choice of who runs is fixed.
     PANEL: tuple[tuple[str, str], ...] = (
         ("benchmark", "Establish whether this segment is genuinely abnormal."),
         ("mechanic_efficiency", "Find which mechanics under- and over-perform here."),
-        ("offer_forensics", "Examine how the offers themselves were constructed."),
-        ("risk_exposure", "Quantify how much money is still at stake."),
-        ("geography", "Find where this performs best and worst."),
+        ("offer_forensics", "Name the events that lost money and size the total loss."),
+        ("geography", "Find where -- and in which categories or brands -- this performs best and worst."),
         ("cannibalization", "Check whether same-brand-form neighbours lost sales while it ran."),
     )
     briefs: dict[str, str] = {}
@@ -641,7 +641,7 @@ async def run_star_pipeline(
         temperature=0.3,
     )
     # The findings this run actually produced, counted rather than asserted --
-    # the panel is fixed at six, but a specialist can fail and drop out.
+    # the panel is fixed at five, but a specialist can fail and drop out.
     synthesis = ground_synthesis(synthesis, findings)
     synthesis.update(synthesis_confidence(findings, attempted=len(specialists)))
 

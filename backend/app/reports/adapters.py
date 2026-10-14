@@ -35,6 +35,13 @@ from app.tpo.loader import MONTHS, get_store
 
 from app.reports.model import Column, KpiEntry, ReportDoc, Section, Table
 
+
+def _period_text(state: FilterState) -> str:
+    """The period in words: a custom range as its dates, else the year/month."""
+    if state.period_from or state.period_to:
+        return service.range_label(state)
+    return F.period_label(state.year, state.month)
+
 # --- shared scope description -----------------------------------------------
 
 #: Every filter dimension, in the order a reader expects, with the label the
@@ -111,7 +118,7 @@ def filter_rows(state: FilterState) -> tuple[tuple[str, str], ...]:
 
 def scope_line(state: FilterState) -> str:
     """The one-line scope for the cover and the running footer."""
-    parts = [F.period_label(state.year, state.month)]
+    parts = [_period_text(state)]
     if state.channel:
         parts.append(_channel_names(sorted(state.channel)))
     else:
@@ -140,7 +147,7 @@ def base_meta(state: FilterState, currency: str, source: str, extra: tuple = ())
         ("Currency",
          "INR" if currency == "INR"
          else f"{currency}, converted once at display from base currency INR"),
-        ("Data period", F.period_label(state.year, state.month)),
+        ("Data period", _period_text(state)),
         ("Source", source),
         ("Report status", "Generated from the current application view"),
         *extra,
@@ -854,7 +861,20 @@ def investigation(state: FilterState, currency: str, options: dict[str, Any]) ->
     return doc.with_sections(
         Section("Investigation", "kv", tuple(about)),
         Section("Summary", "text", tuple(p for p in (_text(synthesis.get("summary")),) if p)),
-        Section("Root cause", "text", tuple(p for p in (_text(synthesis.get("root_cause")),) if p)),
+        # Every root cause when the run listed them (one per agent, or one shared
+        # by several); a run from before that carries just the one.
+        Section(
+            "Root causes" if len(synthesis.get("root_causes") or []) > 1 else "Root cause",
+            "text",
+            tuple(
+                (f"{i}. {_text(rc.get('cause'))}" + (f" ({rc['share_pct']}%)" if rc.get("share_pct") is not None else ""))
+                if len(synthesis.get("root_causes") or []) > 1
+                else _text(rc.get("cause"))
+                for i, rc in enumerate(synthesis.get("root_causes") or [], 1)
+                if _text(rc.get("cause"))
+            )
+            or tuple(p for p in (_text(synthesis.get("root_cause")),) if p),
+        ),
         Section("Recommended actions", "table", table=actions),
         Section("Specialist findings", "table", table=specialists, landscape=True, page_break=True),
     )

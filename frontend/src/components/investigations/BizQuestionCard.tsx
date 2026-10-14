@@ -26,10 +26,10 @@ import { SEVERITY_BANDS, standingOf, type RoiStanding } from '../../lib/roi'
 // are danger, Medium is warning. Matched here so the same event reads the
 // same colour on both pages.
 const STANDING_CLASSES: Record<RoiStanding, string> = {
-  Critical: 'bg-status-danger-bg text-[#B91C1C]',
-  High: 'bg-status-danger-bg text-[#B91C1C]',
-  Medium: 'bg-status-warning-bg text-[#B45309]',
-  'On target': 'bg-status-success-bg text-[#047857]',
+  Critical: 'bg-status-danger-bg text-[var(--pill-danger-ink)]',
+  High: 'bg-status-danger-bg text-[var(--pill-danger-ink)]',
+  Medium: 'bg-status-warning-bg text-[var(--pill-warning-ink)]',
+  'On target': 'bg-status-success-bg text-[var(--pill-success-ink)]',
 }
 
 export function BizQuestionCard({
@@ -76,10 +76,10 @@ export function BizQuestionCard({
       {question && (
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2 border-b border-[color-mix(in_srgb,var(--brand-violet)_18%,var(--border-subtle))] p-[14px_22px]">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.06em] text-brand-violet">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-brand-violet">
               <Icon name="sparkles" className="h-3.5 w-3.5" /> {questionCaption}
             </div>
-            <div className="mt-1 text-md font-bold leading-[1.45] text-ink-primary">{question}</div>
+            <div className="mt-1 text-md font-medium leading-[1.45] text-ink-primary">{question}</div>
           </div>
           {trailing && <div className="shrink-0 self-center">{trailing}</div>}
         </div>
@@ -89,15 +89,15 @@ export function BizQuestionCard({
         <div className="flex items-center gap-1.5">
           {standing && (
             <span
-              className={`inline-flex h-[18px] items-center rounded-[var(--r-pill)] px-2 text-xs font-semibold uppercase tracking-[0.04em] ${STANDING_CLASSES[standing]}`}
+              className={`inline-flex h-[18px] items-center rounded-[var(--r-pill)] px-2 text-xs font-medium capitalize ${STANDING_CLASSES[standing]}`}
               title={`ROI ${contextChips.roi} against the ${SEVERITY_BANDS.medium.toFixed(2)} target`}
             >
               {standing}
             </span>
           )}
-          <span className="text-xs font-bold uppercase tracking-[0.06em] text-ink-muted">Investigation scope</span>
+          <span className="text-xs font-medium text-ink-muted">Investigation scope</span>
         </div>
-        <div className="mt-2 truncate text-md font-bold leading-[1.4] text-ink-primary" title={subject.label}>
+        <div className="mt-2 truncate text-md font-medium leading-[1.4] text-ink-primary" title={subject.label}>
           {subject.label}
         </div>
         {subject.sub && <div className="mt-0.5 text-sm text-ink-muted">{subject.sub}</div>}
@@ -122,11 +122,11 @@ export function BizQuestionCard({
 function MetaItem({ icon, label, value }: { icon: Parameters<typeof Icon>[0]['name']; label: string; value: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      <span className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.04em] text-ink-muted [&_svg]:h-3.5 [&_svg]:w-3.5 [&_svg]:text-brand-violet">
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-ink-muted [&_svg]:h-3.5 [&_svg]:w-3.5 [&_svg]:text-brand-violet">
         <Icon name={icon} />
         {label}
       </span>
-      <span className="truncate text-md font-bold tabular-nums text-ink-primary" title={value}>
+      <span className="truncate text-md font-medium tabular-nums text-ink-primary" title={value}>
         {value}
       </span>
     </div>

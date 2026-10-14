@@ -43,7 +43,7 @@ VALID_ICONS = [
     "calendar", "flow", "zoomIn", "sparkles",
 ]
 INVESTIGATION_TYPES = ["diagnostic", "optimization", "launch", "strategic"]
-MAX_SPECIALISTS = 6
+MAX_SPECIALISTS = 5
 
 PLAN_SCHEMA = {
     "type": "object",
@@ -166,10 +166,34 @@ FINDING_SCHEMA = {
 SYNTHESIS_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["summary", "root_cause", "insight_count", "recommendations"],
+    "required": ["root_causes", "summary", "root_cause", "insight_count", "recommendations"],
     "properties": {
-        "summary": {"type": "string", "description": "2–3 sentences answering the question directly"},
-        "root_cause": {"type": "string", "description": "The single most likely driver"},
+        # WRITTEN FIRST, so the summary below is built from them.
+        "root_causes": {
+            "type": "array",
+            "description": (
+                "Every distinct root cause, 1-5. A cause several specialists support is listed "
+                "ONCE with all of them; otherwise one cause per specialist that found a material driver."
+            ),
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["cause", "agents"],
+                "properties": {
+                    "cause": {"type": "string", "description": "One line, 12-20 words, business terms, with the figure behind it"},
+                    "agents": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "The specialist names, exactly as written in [brackets], whose findings support it",
+                    },
+                },
+            },
+        },
+        "summary": {
+            "type": "string",
+            "description": "2-4 sentences covering every root cause above, in order, answering the question",
+        },
+        "root_cause": {"type": "string", "description": "The most likely of the root causes, as one sentence"},
         # KEPT IN THE SCHEMA, DISCARDED ON THE WAY OUT. The strip that renders
         # it is labelled with the number of specialist findings the run
         # produced, which is a property of the run and is counted in
@@ -249,9 +273,22 @@ Rules:
 SYNTHESIS_SYSTEM = """You are the lead analyst synthesising specialist findings on a
 trade promotion investigation.
 
-Answer the user's actual question directly in the summary. Identify the single
-most likely root cause, weighing findings by the confidence and impact shown
-against each one. Those confidences are MEASURED — they score the evidence each
+ROOT CAUSES FIRST. List every distinct root cause the findings support and
+name in `agents` the specialist(s) whose findings support it -- exactly as
+their names appear in [brackets]. When several specialists point to the same
+cause, list it ONCE with all of them; otherwise give one cause per specialist
+that found a material driver. Skip a specialist whose finding explains nothing.
+Write each cause as ONE LINE a business reader understands at a glance: 12-20
+words, leading with what went wrong in business terms and carrying the one
+figure that proves it (e.g. "Buy3Get1 returned 1.05x in Modern Trade against
+1.08x elsewhere -- an execution problem, not the offer"). No fragments of a
+few words, no second sentence.
+
+THEN THE SUMMARY, built from those root causes: 2-4 sentences that cover EVERY
+root cause in the list, in order, and together answer the user's actual
+question. Introduce nothing in the summary that is not one of the root causes. `root_cause` is the most likely
+of them, weighing findings by the confidence and impact shown against each
+one. Those confidences are MEASURED — they score the evidence each
 specialist worked from and how much of its prose traces back to that evidence —
 so a low one means thin ground, not a hesitant author.
 Do not introduce numbers that no specialist reported.
@@ -454,7 +491,103 @@ def ground_synthesis(
     out. Anything it writes there is therefore a guess at a figure Python is
     holding, so Python supplies it.
     """
-    return {**synthesis, "insight_count": len(findings)}
+    return {**synthesis, "insight_count": len(findings), "root_causes": ground_root_causes(synthesis, findings)}
+
+
+def ground_root_causes(synthesis: dict[str, Any], findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The model's root causes with each specialist NAME resolved to its key.
+
+    A name that matches no specialist that actually reported is dropped -- a
+    cause cannot be credited to an agent that did not run. A cause with no
+    text is dropped. With none left, the single `root_cause` stands alone."""
+    by_name = {str(f.get("name", "")).casefold(): f.get("key") or f.get("analysis") for f in findings}
+    out: list[dict[str, Any]] = []
+    for item in synthesis.get("root_causes") or []:
+        cause = str((item or {}).get("cause") or "").strip()
+        if not cause:
+            continue
+        keys: list[str] = []
+        for name in (item or {}).get("agents") or []:
+            key = by_name.get(str(name).strip().strip("[]").casefold())
+            if key and key not in keys:
+                keys.append(key)
+        out.append({"cause": cause, "agents": keys})
+    if not out and synthesis.get("root_cause"):
+        out.append({"cause": str(synthesis["root_cause"]), "agents": []})
+    return score_root_causes(out, findings)
+
+
+#: How strongly a finding's IMPACT says "this explains the problem". A loss or
+#: a negative result is the most direct evidence of a cause; a strong,
+#: positive result is weak evidence (it is usually the comparison, not the
+#: culprit); a data-only note sits between.
+_IMPACT_WEIGHT = {"negative": 1.0, "risk": 0.9, "moderate": 0.6, "data": 0.4, "strong": 0.3}
+
+
+def score_root_causes(causes: list[dict[str, Any]], findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Each root cause's share of the problem, as whole percentages summing to 100.
+
+    THE SCORE. Every agent brings one unit of evidence, worth
+
+        confidence / 100  x  impact weight (_IMPACT_WEIGHT)
+
+    -- how sure the agent's own evidence is, times how directly its finding
+    points at a cause. An agent that supports several causes SPLITS its unit
+    evenly between them, so no agent is counted twice. A cause's score is the
+    sum of the units it receives: a cause several agents agree on outweighs
+    one only a single agent saw. A cause no agent is credited with gets half
+    the average agent's unit, so it still shows but cannot dominate. Scores
+    are then scaled to 100 and rounded by largest remainder, so the shares
+    always add up to exactly 100."""
+    if not causes:
+        return causes
+    by_key = {f.get("key") or f.get("analysis"): f for f in findings}
+
+    def unit(key: str) -> float:
+        f = by_key.get(key) or {}
+        conf = float(f.get("confidence") or 50) / 100
+        return max(conf, 0.05) * _IMPACT_WEIGHT.get(str(f.get("impact") or "data"), 0.4)
+
+    load: dict[str, int] = {}
+    for c in causes:
+        for k in c.get("agents") or []:
+            load[k] = load.get(k, 0) + 1
+    credited = [unit(k) for k in load] or [0.5]
+    orphan = 0.5 * sum(credited) / len(credited)
+
+    raw = [
+        sum(unit(k) / load[k] for k in c.get("agents") or []) if c.get("agents") else orphan
+        for c in causes
+    ]
+    total = sum(raw) or 1.0
+    exact = [r / total * 100 for r in raw]
+    shares = [int(x) for x in exact]
+    for i in sorted(range(len(exact)), key=lambda i: exact[i] - shares[i], reverse=True)[: 100 - sum(shares)]:
+        shares[i] += 1
+    return [{**c, "share_pct": s} for c, s in zip(causes, shares)]
+
+
+def enrich_synthesis(run: dict[str, Any]) -> dict[str, Any]:
+    """A stored run as the page now reads it: every root cause with its share.
+
+    Runs recorded before causes were listed get one cause per agent, from
+    that agent's own finding; runs recorded before the shares get them now.
+    Computed on read, never written back, so the stored record is untouched."""
+    result = run.get("result") or {}
+    synthesis = result.get("synthesis")
+    findings = result.get("findings") or []
+    if not synthesis or not findings:
+        return run
+    causes = synthesis.get("root_causes")
+    if not causes:
+        causes = [
+            {"cause": str(f.get("headline") or "").strip(), "agents": [f.get("key") or f.get("analysis")]}
+            for f in findings
+            if str(f.get("headline") or "").strip()
+        ]
+    if causes and any("share_pct" not in c for c in causes):
+        causes = score_root_causes([{k: v for k, v in c.items() if k != "share_pct"} for c in causes], findings)
+    return {**run, "result": {**result, "synthesis": {**synthesis, "root_causes": causes}}}
 
 
 def assemble_orchestration(

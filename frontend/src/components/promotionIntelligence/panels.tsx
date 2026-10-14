@@ -159,7 +159,7 @@ export function TrendVsTarget({ trend, height = 230 }: { trend: TrendFacts; heig
         <path
           d={line(trend.target)}
           fill="none"
-          stroke="#9CA3AF"
+          stroke="var(--text-disabled)"
           strokeWidth={1.6}
           strokeDasharray="5 4"
           strokeLinecap="round"
@@ -167,7 +167,7 @@ export function TrendVsTarget({ trend, height = 230 }: { trend: TrendFacts; heig
         <path
           d={line(trend.actual)}
           fill="none"
-          stroke="#7C5CFF"
+          stroke="var(--brand-violet)"
           strokeWidth={2.4}
           strokeLinejoin="round"
           strokeLinecap="round"
@@ -183,7 +183,7 @@ export function TrendVsTarget({ trend, height = 230 }: { trend: TrendFacts; heig
               // with no computable target as if it had met one — the same
               // colour as a genuine beat.
               fill={
-                trend.gap_to_target[i] == null ? '#9CA3AF' : trend.gap_to_target[i]! < 0 ? '#EF4444' : '#10B981'
+                trend.gap_to_target[i] == null ? 'var(--text-disabled)' : trend.gap_to_target[i]! < 0 ? 'var(--status-danger)' : 'var(--status-success)'
               }
               stroke="white"
               strokeWidth={1.4}
@@ -201,9 +201,9 @@ export function TrendVsTarget({ trend, height = 230 }: { trend: TrendFacts; heig
           <span className="inline-block h-0.5 w-4 bg-brand-violet" /> Actual incremental sales
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block h-0.5 w-4 border-t border-dashed border-[#9CA3AF]" /> Target (spend × {fmtRoi(trend.target_roi)})
+          <span className="inline-block h-0.5 w-4 border-t border-dashed border-[var(--text-disabled)]" /> Target (spend × {fmtRoi(trend.target_roi)})
         </span>
-        <span className={trend.months_below_target > 0 ? 'font-semibold text-status-danger' : 'font-semibold text-ink-muted'}>
+        <span className={trend.months_below_target > 0 ? 'font-medium text-status-danger' : 'font-medium text-ink-muted'}>
           {trend.months_below_target} of {trend.labels.length} {trend.labels.length === 1 ? 'month' : 'months'} below target
         </span>
       </div>
@@ -229,7 +229,7 @@ export function KeyInsightsGrid({ insights }: { insights: KeyInsight[] }) {
             <Pill tone={SEVERITY_TONE[k.severity]}>{k.severity}</Pill>
           </div>
           <p className="text-md leading-[1.6] text-ink-secondary">{k.detail}</p>
-          <div className="mt-2.5 inline-flex items-center gap-2 text-base font-semibold text-ink-primary">
+          <div className="mt-2.5 inline-flex items-center gap-2 text-base font-medium text-ink-primary">
             <Icon name={k.trend === 'down' ? 'arrowDown' : k.trend === 'up' ? 'arrowUp' : 'variance'} className="h-3.5 w-3.5 shrink-0" />
             {k.impact}
           </div>
@@ -247,7 +247,7 @@ export function DriversPanel({ drivers }: { drivers: AnalysisDriver[] }) {
       {drivers.map((d) => (
         <div key={d.driver}>
           <div className="mb-1 flex items-center justify-between gap-3">
-            <span className="flex items-center gap-2 text-base font-semibold">
+            <span className="flex items-center gap-2 text-base font-medium">
               {d.is_primary && <Pill tone="violet">Primary</Pill>}
               {d.driver}
             </span>
@@ -286,7 +286,7 @@ export function RecommendationsPanel({
       {recommendations.map((r, i) => (
         <Card key={i} className="fade-in">
           <div className="flex items-start gap-3 p-[16px_18px]">
-            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-brand-violet-50 text-base font-extrabold text-brand-violet">
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-brand-violet-50 text-base font-medium text-brand-violet">
               {i + 1}
             </div>
             <div className="min-w-0 flex-1">
@@ -300,18 +300,18 @@ export function RecommendationsPanel({
 
               <div className="mt-2.5 grid grid-cols-2 gap-2.5 @max-[760px]:grid-cols-1">
                 <div className="rounded-[var(--r-md)] bg-surface-muted p-[10px_14px]">
-                  <div className="text-xs font-bold uppercase tracking-[0.06em] text-ink-secondary">Evidence</div>
+                  <div className="text-xs font-medium text-ink-secondary">Evidence</div>
                   <div className="mt-1 text-base leading-[1.55] text-ink-primary">{r.evidence}</div>
                 </div>
                 <div className="rounded-[var(--r-md)] bg-surface-muted p-[10px_14px]">
-                  <div className="text-xs font-bold uppercase tracking-[0.06em] text-ink-secondary">Expected impact</div>
+                  <div className="text-xs font-medium text-ink-secondary">Expected impact</div>
                   <div className="mt-1 text-base leading-[1.55] text-ink-primary">{r.expected_impact}</div>
                 </div>
               </div>
 
-              <div className="mt-2.5 rounded-[var(--r-md)] border border-[rgba(124,92,255,0.2)] bg-[linear-gradient(135deg,rgba(124,92,255,0.06),rgba(79,124,255,0.04))] p-[10px_14px]">
+              <div className="mt-2.5 rounded-[var(--r-md)] border border-[rgba(20,58,99,0.2)] bg-[linear-gradient(135deg,rgba(20,58,99,0.06),rgba(37,104,178,0.04))] p-[10px_14px]">
                 <div className="min-w-0 text-base leading-[1.55] text-ink-secondary">
-                  <span className="font-bold text-ink-primary">Lever:</span> {r.simulation.lever} ·{' '}
+                  <span className="font-medium text-ink-primary">Lever:</span> {r.simulation.lever} ·{' '}
                   <span className="text-ink-secondary">{r.simulation.current_value}</span> → {r.simulation.proposed_value}
                   <span> · watch {r.simulation.metric_to_watch}</span>
                 </div>
@@ -343,7 +343,7 @@ export function RecommendationsPanel({
 
       {combined && (
         <div className="rounded-[var(--r-md)] bg-surface-muted p-[12px_16px] text-md leading-[1.6] text-ink-secondary">
-          <span className="font-bold text-ink-primary">Combined effect: </span>
+          <span className="font-medium text-ink-primary">Combined effect: </span>
           {combined}
         </div>
       )}
@@ -366,8 +366,8 @@ export function RiskPanel({ risk }: { risk: RiskFacts }) {
         <div className="mb-4 grid grid-cols-4 gap-2.5 @max-[760px]:grid-cols-2">
           {order.map(([k, label]) => (
             <div key={k} className="rounded-[var(--r-md)] bg-surface-muted p-[10px_12px]">
-              <div className="text-sm font-bold text-ink-primary">{label}</div>
-              <div className="mt-0.5 text-lg font-normal tabular-nums text-ink-primary">
+              <div className="text-sm font-medium text-ink-primary">{label}</div>
+              <div className="kpi-value mt-0.5 text-ink-primary">
                 {(counts[k] ?? 0).toLocaleString()}
               </div>
             </div>

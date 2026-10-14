@@ -25,6 +25,8 @@ ListParam = Annotated[list[str] | None, Query()]
 def get_filters(
     year: int | None = None,
     month: int | None = Query(None, ge=1, le=12),
+    period_from: int | None = Query(None, ge=190001, le=220053),
+    period_to: int | None = Query(None, ge=190001, le=220053),
     channel: ListParam = None,
     retailer: ListParam = None,
     region: ListParam = None,
@@ -40,7 +42,7 @@ def get_filters(
 ) -> FilterState:
     """The shared filter contract, parsed once and reused by every route."""
     return FilterState.build(
-        year=year, month=month, channel=channel, retailer=retailer, region=region,
+        year=year, month=month, period_from=period_from, period_to=period_to, channel=channel, retailer=retailer, region=region,
         state=state, city=city, tier=tier, distributor=distributor,
         category=category, brand=brand, product=product, promotion=promotion,
         promotion_type=promotion_type,

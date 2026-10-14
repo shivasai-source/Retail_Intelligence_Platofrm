@@ -51,6 +51,12 @@ export interface StarInstalledFile {
   original_name: string
   matched_by: string
   size_bytes: number
+  /** On a sync only: rows now and before, size before, and whether the
+   *  content changed (null when there was no earlier copy). */
+  rows?: number
+  previous_rows?: number | null
+  previous_size_bytes?: number | null
+  changed?: boolean | null
 }
 
 export interface StarInstallResult {
@@ -107,11 +113,28 @@ export interface SourceStatus {
   syncing: boolean
 }
 
+/** What a loaded dataset covers -- see `snapshot` in backend/app/star_dataset.py. */
+export interface DataSnapshot {
+  rows: number
+  first_day: string | null
+  last_day: string | null
+  weeks: number
+  products: number
+  stores: number
+  channels: number
+  promotions: number
+}
+
 export interface SourceSyncResult {
   rows: number
   previous_rows: number
   source: string
   last_sync: SourceSync
+  /** The data before the sync (null when nothing was loaded) and after it. */
+  before: DataSnapshot | null
+  after: DataSnapshot | null
+  /** The tables the sync wrote, with their sizes. */
+  installed?: StarInstalledFile[]
 }
 
 /** A window of rows from one installed table, for the View panel. */

@@ -41,7 +41,7 @@ export function RequireMmmDataset({ children }: { children: ReactNode }) {
               <Icon name="database" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-md font-bold">Connect MMM data to continue</h2>
+              <h2 className="text-md font-medium">Connect MMM data to continue</h2>
               <p className="mt-1 text-base leading-[1.6] text-ink-muted">
                 The MMM Insights Hub is built from the datasets below. No MMM connector is wired up
                 yet, so none of them can be loaded — and nothing on the hub is estimated or stood in
@@ -53,10 +53,10 @@ export function RequireMmmDataset({ children }: { children: ReactNode }) {
 
         <div className="p-[16px_24px]">
           <div className="mb-2.5 flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wide text-ink-muted">
+            <span className="text-xs font-medium text-ink-muted">
               Required datasets
             </span>
-            <span className="text-sm font-semibold text-ink-muted">
+            <span className="text-sm font-medium text-ink-muted">
               {status.present} of {status.total} present
             </span>
           </div>
@@ -68,13 +68,13 @@ export function RequireMmmDataset({ children }: { children: ReactNode }) {
               >
                 <span
                   className={`grid h-4 w-4 shrink-0 place-items-center rounded-full ${
-                    f.present ? 'bg-[#047857] text-white' : 'border border-border-strong'
+                    f.present ? 'bg-[var(--pill-success-ink)] text-white' : 'border border-border-strong'
                   } [&_svg]:h-2.5 [&_svg]:w-2.5`}
                 >
                   {f.present && <Icon name="check" />}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className={`truncate text-base ${f.present ? 'font-semibold' : 'text-ink-muted'}`}>
+                  <div className={`truncate text-base ${f.present ? 'font-medium' : 'text-ink-muted'}`}>
                     {f.label}
                   </div>
                   {!f.present && (
@@ -91,7 +91,7 @@ export function RequireMmmDataset({ children }: { children: ReactNode }) {
         <div className="flex items-center justify-between gap-3 border-t border-border-subtle p-[14px_24px]">
           <Link
             to="/mmm/connections"
-            className="text-sm font-semibold text-brand-violet hover:underline"
+            className="text-sm font-medium text-brand-violet hover:underline"
           >
             Browse all connectors
           </Link>

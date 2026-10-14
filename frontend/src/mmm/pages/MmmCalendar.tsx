@@ -41,7 +41,7 @@ export function MmmCalendar() {
     <MmmShell activeKey="calendar" page="Calendar">
       <div className="fade-in flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-[-0.02em]">Media Calendar</h1>
+          <h1 className="text-2xl font-normal tracking-[-0.02em]">Media Calendar</h1>
           <p className="mt-1.5 text-base text-ink-muted">
             When each channel was active, month by month{data ? ` · ${data.year}` : ''}
           </p>
@@ -103,7 +103,7 @@ function FlightGrid({
     <table className="w-full min-w-[760px] border-separate border-spacing-[3px] text-xs">
       <thead>
         <tr>
-          <th className="w-[170px] pb-1 text-left font-semibold text-ink-muted">Channel</th>
+          <th className="w-[170px] pb-1 text-left font-medium text-ink-muted">Channel</th>
           {data.months.map((m) => (
             <th key={m.month} className="pb-1 font-normal">
               <button
@@ -119,7 +119,7 @@ function FlightGrid({
                       : 'text-ink-disabled'
                 }`}
               >
-                <div className="font-bold">{m.abbr}</div>
+                <div className="font-medium">{m.abbr}</div>
                 <div className={`tabular-nums ${month === m.month ? 'text-white/85' : 'text-ink-muted'}`}>
                   {m.has_data ? m.spend_display : '—'}
                 </div>
@@ -132,7 +132,7 @@ function FlightGrid({
           {data.months.map((m) => (
             <th key={m.month} className="font-normal">
               {m.has_data && (
-                <div className="flex justify-center gap-1 text-[10px] tabular-nums text-ink-muted">
+                <div className="flex justify-center gap-1 text-2xs tabular-nums text-ink-muted">
                   <span title="Promotion days">P{m.promo_days}</span>
                   <span title="Festival days">F{m.festival_days}</span>
                 </div>
@@ -144,9 +144,9 @@ function FlightGrid({
       <tbody>
         {data.channels.map((c) => (
           <tr key={c.column}>
-            <td className="truncate pr-2 font-semibold text-ink-primary" title={`${c.label} · ${c.family} · ${c.total_display}`}>
+            <td className="truncate pr-2 font-medium text-ink-primary" title={`${c.label} · ${c.family} · ${c.total_display}`}>
               {c.label}
-              <div className="truncate text-[10.5px] font-normal text-ink-muted">{c.total_display}</div>
+              <div className="truncate text-2xs font-normal text-ink-muted">{c.total_display}</div>
             </td>
             {c.cells.map((cell) => (
               <td key={cell.month} className="p-0">
@@ -171,7 +171,7 @@ function FlightGrid({
                   }}
                 >
                   {cell.level > 0 && (
-                    <span className={`text-[10px] font-semibold tabular-nums ${cell.level >= 3 ? 'text-white' : 'text-ink-secondary'}`}>
+                    <span className={`text-2xs font-medium tabular-nums ${cell.level >= 3 ? 'text-white' : 'text-ink-secondary'}`}>
                       {cell.active_days}d
                     </span>
                   )}
@@ -224,13 +224,13 @@ function MonthDetail({ year, month, currency }: { year: number; month: number | 
             <Spinner />
           </div>
         ) : detail.isError ? (
-          <p className="py-6 text-center text-sm text-[#B91C1C]">{detail.error.message}</p>
+          <p className="py-6 text-center text-sm text-[var(--pill-danger-ink)]">{detail.error.message}</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {d?.days.map((day) => (
               <li key={day.date} className="rounded-[var(--r-md)] border border-border-subtle p-[9px_11px]">
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-sm font-bold text-ink-primary">
+                  <span className="text-sm font-medium text-ink-primary">
                     {day.weekday} {day.day}
                   </span>
                   <span className="text-sm tabular-nums text-ink-secondary">{day.revenue_display}</span>
@@ -244,7 +244,7 @@ function MonthDetail({ year, month, currency }: { year: number; month: number | 
                   </span>
                 </div>
                 {day.channels.length > 0 && (
-                  <div className="mt-1 truncate text-[11px] text-ink-muted" title={day.channels.map((c) => `${c.label} ${c.spend_display}`).join(' · ')}>
+                  <div className="mt-1 truncate text-xs text-ink-muted" title={day.channels.map((c) => `${c.label} ${c.spend_display}`).join(' · ')}>
                     {day.channels
                       .slice(0, 3)
                       .map((c) => c.label)
@@ -265,7 +265,7 @@ function Tag({ tone, children }: { tone: 'violet' | 'teal' | 'amber'; children: 
   const cls = {
     violet: 'bg-brand-violet-50 text-brand-violet',
     teal: 'bg-tint-teal text-[#0F766E]',
-    amber: 'bg-status-warning-bg text-[#B45309]',
+    amber: 'bg-status-warning-bg text-[var(--pill-warning-ink)]',
   }[tone]
-  return <span className={`rounded-[var(--r-pill)] px-1.5 py-px text-[10.5px] font-bold ${cls}`}>{children}</span>
+  return <span className={`rounded-[var(--r-pill)] px-1.5 py-px text-2xs font-medium ${cls}`}>{children}</span>
 }

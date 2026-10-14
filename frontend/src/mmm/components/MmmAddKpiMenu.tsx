@@ -34,7 +34,7 @@ export function MmmAddKpiMenu({
           <Icon name="plus" />
           <span>Add KPI</span>
           {selected.length > 0 && (
-            <span className="rounded-[var(--r-pill)] bg-brand-violet-50 px-1.5 text-xs font-bold tabular-nums text-brand-violet">
+            <span className="rounded-[var(--r-pill)] bg-brand-violet-50 px-1.5 text-xs font-medium tabular-nums text-brand-violet">
               {selected.length}
             </span>
           )}

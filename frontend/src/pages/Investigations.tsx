@@ -4,7 +4,6 @@ import { AppShell } from '../components/layout/AppShell'
 import {
   Button,
   Card,
-  CardHeader,
   Spinner,
   useToast,
 } from '../components/ui'
@@ -14,16 +13,16 @@ import {
   useInvestigationTypes,
 } from '../hooks/useInvestigations'
 import { useStartInvestigationRun, useInvestigationRun } from '../hooks/useInvestigationRun'
-import { ApiError } from '../lib/api'
+import { ApiError, apiPost } from '../lib/api'
 import { ASK_WHY_STATE_KEY, OPEN_ALERTS_STATE_KEY, type AskWhyIntent, type OpenAlertsIntent } from '../lib/askWhy'
 import { useAlertHandoff } from '../hooks/useAlertHandoff'
 import { useActiveInvestigationStore } from '../store/activeInvestigation'
-import { InvestigationGraph } from '../components/investigations/InvestigationGraph'
-import { bindCannibalizationNode } from '../components/investigations/cannibalizationNode'
+import { AgentBoard } from '../components/investigations/AgentBoard'
+import { AlertsButton } from '../components/command/AlertsButton'
+import { useAnalystInbox } from '../store/analystInbox'
 import { NodeDetailPopover } from '../components/investigations/NodeDetailPopover'
 import { BizQuestionCard } from '../components/investigations/BizQuestionCard'
 import { AgentFindings } from '../components/investigations/AgentFindings'
-import { AccelList } from '../components/investigations/AccelList'
 import { ProgressStrip } from '../components/investigations/ProgressStrip'
 import { QueryBar } from '../components/investigations/QueryBar'
 import { AlertsModal } from '../components/investigations/AlertsModal'
@@ -73,7 +72,7 @@ function AskSomething({
         <div className="grid h-12 w-12 place-items-center rounded-xl bg-brand-violet-50 text-brand-violet">
           <Icon name="search" className="h-6 w-6" />
         </div>
-        <h2 className="text-lg font-extrabold">Ask a question to start an investigation</h2>
+        <h2 className="text-lg font-normal">Ask a question to start an investigation</h2>
         <p className="max-w-[520px] text-base leading-[1.6] text-ink-muted">
           Specialist agents will pick the analyses your question needs, run them against your data, and report a root
           cause with evidence. Ask in plain English, or start from one of these.
@@ -82,7 +81,7 @@ function AskSomething({
       <div className="grid grid-cols-2 gap-3 p-[14px_24px_26px] @max-[900px]:grid-cols-1">
         {(types ?? []).map((t) => (
           <div key={t.key} className="rounded-[var(--r-lg)] border border-border-subtle p-[12px_14px]">
-            <div className="mb-1.5 text-xs font-bold uppercase tracking-[0.06em] text-ink-muted">{t.title}</div>
+            <div className="mb-1.5 text-xs font-medium text-ink-muted">{t.title}</div>
             {/* `gap-0.5` with padding on the rows rather than `gap-1.5` with
                 none: these were 20px-tall targets in a stack, under the 24px
                 floor, and the gap was doing the spacing that the targets
@@ -139,7 +138,7 @@ function FailedState({
             <Icon name="warning" />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="text-base font-bold text-ink-primary">Investigation stopped</div>
+            <div className="text-base font-medium text-ink-primary">Investigation stopped</div>
             <div className="mt-1 truncate text-base text-ink-muted">{question}</div>
           </div>
         </div>
@@ -159,7 +158,6 @@ function FailedState({
 /** Where each phase hands over. The middle band is the widest because it is the
  *  only one carrying real milestones; the two ends are single model calls that
  *  can only ever be estimated. */
-const AGENTS_OPEN_KEY = 'investigations.agents-open'
 
 const PLAN_ENDS_AT = 0.22
 const INVESTIGATE_ENDS_AT = 0.82
@@ -259,10 +257,10 @@ function RunningState({
         <div className="flex items-center gap-2.5">
           <Spinner className="h-4 w-4 text-brand-violet" />
           <div className="min-w-0 flex-1">
-            <div className="text-md font-bold">{heading}</div>
+            <div className="text-md font-medium">{heading}</div>
             <div className="mt-0.5 truncate text-sm text-ink-muted">{question}</div>
           </div>
-          <span className="shrink-0 text-md font-extrabold tabular-nums text-brand-violet">{pct}%</span>
+          <span className="shrink-0 text-md font-medium tabular-nums text-brand-violet">{pct}%</span>
         </div>
 
         <div className="mt-3">
@@ -291,11 +289,11 @@ function RunningState({
                 }`}
               />
               <div className="min-w-0 flex-1">
-                <div className="text-base font-semibold">{sp.name}</div>
+                <div className="text-base font-medium">{sp.name}</div>
                 <div className="text-sm text-ink-muted">{sp.desc}</div>
               </div>
               <span
-                className={`shrink-0 text-sm font-semibold ${
+                className={`shrink-0 text-sm font-medium ${
                   sp.status === 'done' ? 'text-status-success' : sp.status === 'running' ? 'text-brand-violet' : 'text-ink-muted'
                 }`}
               >
@@ -340,7 +338,7 @@ function OutOfScope({ question, reason, onReset }: { question: string; reason: s
         <div className="grid h-12 w-12 place-items-center rounded-xl bg-status-warning-bg text-status-warning">
           <Icon name="info" className="h-6 w-6" />
         </div>
-        <h2 className="text-lg font-extrabold">That's outside what this data can answer</h2>
+        <h2 className="text-lg font-normal">That's outside what this data can answer</h2>
         <p className="max-w-[540px] text-base leading-[1.6] text-ink-muted">{reason}</p>
         {/* The reader's own question, quoted back so they can see what was
             parsed. Content, so it is read at the muted tone rather than the
@@ -348,7 +346,7 @@ function OutOfScope({ question, reason, onReset }: { question: string; reason: s
         <p className="max-w-[540px] text-sm italic leading-[1.5] text-ink-muted">You asked: "{question}"</p>
         <button
           onClick={onReset}
-          className="mt-1 rounded-[var(--r-md)] bg-brand-violet px-4 py-2 text-base font-semibold text-white"
+          className="mt-1 rounded-[var(--r-md)] bg-brand-violet px-4 py-2 text-base font-medium text-white"
         >
           Ask something else
         </button>
@@ -480,26 +478,6 @@ export function Investigations() {
     setQueryInput(activeQuestion)
   }, [activeQuestion])
 
-  // THE AGENT DESCRIPTIONS PANEL beside the graph shows and hides from the
-  // graph card's own "Agents Info" control; hidden, the graph has the whole
-  // row. The choice is remembered per browser. Guarded reads: storage can
-  // be absent or throw, and the answer is then "open".
-  const [agentsOpen, setAgentsOpen] = useState<boolean>(() => {
-    try {
-      return window.localStorage.getItem(AGENTS_OPEN_KEY) !== '0'
-    } catch {
-      return true
-    }
-  })
-  const toggleAgents = () => {
-    const next = !agentsOpen
-    setAgentsOpen(next)
-    try {
-      window.localStorage.setItem(AGENTS_OPEN_KEY, next ? '1' : '0')
-    } catch {
-      /* A remembered preference is a convenience, not a requirement. */
-    }
-  }
   const navigate = useNavigate()
 
   // A LAUNCH THAT NEVER STARTED IS A TERMINAL STATE, NOT A SLOW ONE.
@@ -514,7 +492,7 @@ export function Investigations() {
   const lastAttempt = useRef<{ question: string; scope?: Record<string, unknown> } | null>(null)
 
   const [submitting, setSubmitting] = useState(false)
-  const [revealedKeys, setRevealedKeys] = useState<Set<string> | undefined>(undefined)
+  const [, setRevealedKeys] = useState<Set<string> | undefined>(undefined)
   const timers = useRef<number[]>([])
   const clearTimers = () => {
     timers.current.forEach((t) => window.clearTimeout(t))
@@ -610,6 +588,28 @@ export function Investigations() {
     // you asked — so the page went on attributing a freshly typed question
     // to a risk alert that had nothing to do with it.
     setHandoffLabel(null)
+    void routeOrLaunch(q)
+  }
+
+  // A FIGURE LOOKUP BELONGS TO THE INSIGHTS HUB'S ANALYST. "ROI by channel in
+  // 2025" needs one number, not six specialists, so the question is handed to
+  // the Analyst (opened and asked on the Hub) and this page plans nothing.
+  // The backend decides (POST /analyst/route, no model call); anything causal
+  // or unsure stays here. If the check itself fails, the question is simply
+  // investigated, as it always was.
+  const sendToAnalyst = useAnalystInbox((s) => s.send)
+  const routeOrLaunch = async (q: string) => {
+    try {
+      const { target } = await apiPost<{ target: 'analyst' | 'investigation' }>('/analyst/route', { question: q })
+      if (target === 'analyst') {
+        sendToAnalyst(q)
+        show('A quick figure question — the Insights Hub Analyst is answering it', { duration: 3500 })
+        navigate('/command')
+        return
+      }
+    } catch {
+      /* fall through to an investigation */
+    }
     void launch(q)
   }
 
@@ -663,21 +663,15 @@ export function Investigations() {
   // Only ever the live run. Falling back to the static sample here made the
   // old hardcoded graph flash up while a real investigation was still running.
   const view = liveOrch
-  // The Cannibalization Agent's node shows the figure the agent computed rather
-  // than the one it wrote about — see cannibalizationNode.ts. Every other node
-  // passes through untouched.
-  //
-  // `bindComparisonDelta` used to sit here too, recomputing Benchmarking's and
-  // Effectiveness's deltas from their first two chart bars, because the model
-  // wrote `delta` as free text and got the units wrong most of the time. The
-  // backend now does that arithmetic itself, from two operands the specialist
-  // names and that are both checked against its own table, so this is no longer
-  // a patch over bad data — it is a second, different answer competing with a
-  // better one. It was also unsafe by then: bars that cannot be traced back to
-  // the specialist's data are dropped before rendering, which shifts the very
-  // indices it read as (subject, benchmark).
-  const graphNodes = view ? bindCannibalizationNode(view.nodes, run?.result?.findings ?? []) : []
   const running = run?.status === 'running'
+
+  // THE ROOT CAUSES, each with the agents behind it: the synthesis's own list,
+  // or -- for a run recorded before causes were listed -- one per agent, from
+  // that agent's own finding.
+  const findingsList = run?.result?.findings ?? []
+  const rootCauses: { cause: string; agents: string[]; share_pct?: number }[] = run?.result?.synthesis?.root_causes?.length
+    ? run.result.synthesis.root_causes
+    : findingsList.filter((f) => f.headline).map((f) => ({ cause: f.headline, agents: [f.key] }))
 
   // While the pipeline runs, accelerator rows mirror real specialist state
   // instead of the old timer-driven cascade.
@@ -694,6 +688,10 @@ export function Investigations() {
         node: s.key,
       }))
     : null
+  const boardAgents: Accelerator[] = runAccelerators ?? view?.accelerators ?? []
+  const agentName = (key: string) =>
+    boardAgents.find((a) => a.key === key)?.name ?? findingsList.find((f) => f.key === key)?.name ?? key
+  const agentIcon = (key: string) => boardAgents.find((a) => a.key === key)?.icon ?? 'cpu'
   const runAccelState: Record<string, AccelState> | undefined = run?.specialists?.length
     ? Object.fromEntries(
         run.specialists.map((s) => [
@@ -713,7 +711,7 @@ export function Investigations() {
                   Math.max(1, run.specialists?.length ?? 1)) *
                   100,
               ),
-        insights: run.result?.synthesis.insight_count ?? 0,
+        insights: run.result?.synthesis?.insight_count ?? 0,
         sub:
           run.status === 'error'
             ? (run.error ?? 'Investigation failed')
@@ -739,10 +737,14 @@ export function Investigations() {
           used to sit under the title said what the query bar's placeholder
           already says. */}
       <div className="fade-in flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-        <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-[-0.02em]">
+        <h1 className="flex items-center gap-2 text-2xl font-normal tracking-[-0.02em]">
           Promotion Investigation Workspace <Icon name="sparkles" className="h-5 w-5 text-brand-violet" />
         </h1>
         <div className="ml-auto flex items-center gap-2">
+          {/* THE ALERTS, here rather than on the Insights Hub: events below the
+              1.50x ROI target, opened in place; an "Ask why" on one starts
+              its investigation on this page. */}
+          <AlertsButton onOpen={() => setAlertsOpen(true)} />
           {/* EXPORTS THE RUN ON SCREEN. The finished run travels whole, the
               way a decision record does, so the report is the stored
               synthesis and findings the page is showing — never a re-run.
@@ -801,7 +803,7 @@ export function Investigations() {
       />
 
       {run?.status === 'error' && (
-        <div className="mt-3 rounded-[var(--r-md)] bg-status-danger-bg p-[10px_14px] text-base text-[#B91C1C]">
+        <div className="mt-3 rounded-[var(--r-md)] bg-status-danger-bg p-[10px_14px] text-base text-[var(--pill-danger-ink)]">
           Investigation failed — {run.error}
         </div>
       )}
@@ -843,72 +845,28 @@ export function Investigations() {
           question and the three blocks read as repeats of each other. */}
       <BizQuestionCard subject={view.center} contextChips={view.contextChips} />
 
-      {run?.status === 'done' && run.result && (
+      {run?.status === 'done' && run.result?.synthesis && (
         <AgentFindings
           summary={run.result.synthesis.summary}
-          rootCause={run.result.synthesis.root_cause}
+          rootCauses={rootCauses.map((rc) => ({
+            cause: rc.cause,
+            share: rc.share_pct ?? null,
+            agents: rc.agents.map((key) => ({ key, name: agentName(key), icon: agentIcon(key) })),
+          }))}
           recommendations={run.result.synthesis.recommendations}
-          confidence={run.result.synthesis.confidence}
         />
       )}
 
-      {/* 1000, not 1280: the content column is 1248px on a 1536-wide screen at
-          100% zoom, so a 1280 threshold stacked the graph and the accelerator
-          list on exactly the machine this is demonstrated on — they only sat
-          side by side once the browser was zoomed out. Same threshold the
-          Insights Hub's chart rows use. */}
-      <div className={`grid gap-4 @max-[1000px]:grid-cols-1 ${agentsOpen ? 'grid-cols-[1.7fr_1fr]' : 'grid-cols-1'}`}>
-        <Card className="fade-in">
-          <CardHeader
-            title="Investigation Graph"
-            actions={
-              /* THE ONE CONTROL on the graph card. The zoom and full-screen
-                 controls that used to sit here are gone — the graph is drawn
-                 to fit its card — and what a reader wants beside the graph is
-                 the panel that explains its agents. Set in the card title's
-                 own type so the two headings read as a pair, with only the
-                 chevron and the hover saying which one is the control.
-                 Pressed, the panel opens alongside; released, the graph takes
-                 the whole row. */
-              <button
-                type="button"
-                aria-pressed={agentsOpen}
-                aria-controls="agents-info-panel"
-                onClick={toggleAgents}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-[var(--r-sm)] border-0 bg-transparent px-2 py-1 text-md font-bold text-ink-primary transition-colors hover:bg-surface-hover hover:text-brand-violet focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet/60 [&_svg]:h-4 [&_svg]:w-4"
-              >
-                <Icon name="cpu" className="text-brand-violet" /> <span>Agents Info</span>
-                <Icon name={agentsOpen ? 'chevronRight' : 'chevronLeft'} />
-              </button>
-            }
-          />
-          <InvestigationGraph
-            center={view.center}
-            nodes={graphNodes}
-            revealedKeys={revealedKeys}
-            onNodeClick={(node, el) => setPopover({ node, el })}
-          />
-        </Card>
-
-        {/* WHAT EACH AGENT DOES, beside the graph it explains: the
-            specialists with their plain-words job and live status. Mounted
-            only while the graph card's "Agents Info" control is pressed, so
-            the entrance plays each time it opens. */}
-        {agentsOpen && (
-          <Card id="agents-info-panel" className="fade-in flex h-full flex-col">
-            <CardHeader title="Agent Descriptions" />
-            {/* Same `fill` shape the ChartFrame cards use: the card is a flex
-                column and the body takes the remaining height, so the list can
-                spread into it instead of leaving the card's tail blank. */}
-            <div className="flex flex-1 flex-col px-4.5 py-1">
-              <AccelList
-                accelerators={runAccelerators ?? view.accelerators}
-                statusOverride={runAccelState}
-              />
-            </div>
-          </Card>
-        )}
-      </div>
+      {/* THE AGENTS: a card each -- what it does, where it is, what it found.
+          Replaces the radial Investigation Graph and the separate "Agent
+          Descriptions" panel; a card with a finding opens the node detail. */}
+      <AgentBoard
+        accelerators={boardAgents}
+        statusOverride={runAccelState}
+        findings={run?.result?.findings ?? []}
+        details={view.nodeDetails}
+        rootCauses={rootCauses}
+      />
 
       <ProgressStrip
         pct={progress.pct}

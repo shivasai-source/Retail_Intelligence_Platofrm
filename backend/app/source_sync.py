@@ -201,4 +201,4 @@ async def sync() -> dict[str, Any]:
             "error": None,
         }
         _record_sync(outcome)
-        return {**result, "source": LABELS[record["kind"]], "last_sync": outcome}
+        return {**result, "source": LABELS[record["kind"]], "last_sync": outcome, "synced_at": outcome["at"]}

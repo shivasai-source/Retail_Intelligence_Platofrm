@@ -30,15 +30,15 @@ export function AlertBanner({
     <div
       onClick={onClick}
       className={`fade-in my-[18px] flex cursor-pointer items-center gap-4 rounded-[var(--r-lg)] border border-[var(--alert-border)] bg-[var(--alert-bg)] p-[18px_24px] transition-shadow duration-500 ${
-        flash ? 'shadow-[0_0_0_6px_rgba(239,68,68,0.2)]' : 'shadow-[0_0_0_0_rgba(239,68,68,0)]'
+        flash ? 'shadow-[0_0_0_6px_rgba(228,68,57,0.2)]' : 'shadow-[0_0_0_0_rgba(228,68,57,0)]'
       }`}
     >
       <div className="grid h-11 w-11 shrink-0 animate-[pulseDot_2s_ease-in-out_infinite] place-items-center rounded-full bg-white/50 text-[var(--alert-ink)] [&_svg]:h-[22px] [&_svg]:w-[22px] [&_svg]:stroke-2">
         <Icon name="warning" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-md font-semibold text-[var(--alert-ink)]">
-          <strong className="mr-1.5 font-bold text-[var(--alert-ink)]">ALERT:</strong>
+        <div className="text-md font-medium text-[var(--alert-ink)]">
+          <strong className="mr-1.5 font-medium text-[var(--alert-ink)]">ALERT:</strong>
           {title}
         </div>
         <div className="mt-[3px] text-base font-medium text-[var(--alert-ink-soft)]">{desc}</div>
@@ -62,7 +62,7 @@ export function AlertBanner({
           e.preventDefault()
           onClick()
         }}
-        className="inline-flex h-9 shrink-0 items-center gap-2 rounded-[var(--r-md)] border border-[var(--alert-border)] bg-surface-card px-[18px] text-base font-semibold text-[var(--alert-ink)] transition-colors hover:border-[var(--alert-ink)] hover:bg-[var(--alert-cta-hover)] [&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-[var(--alert-ink)]"
+        className="inline-flex h-9 shrink-0 items-center gap-2 rounded-[var(--r-md)] border border-[var(--alert-border)] bg-surface-card px-[18px] text-base font-medium text-[var(--alert-ink)] transition-colors hover:border-[var(--alert-ink)] hover:bg-[var(--alert-cta-hover)] [&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-[var(--alert-ink)]"
       >
         View Details
         <Icon name="arrowRight" />

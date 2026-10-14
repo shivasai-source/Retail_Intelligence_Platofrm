@@ -60,34 +60,46 @@ export function AppShell({
   const analystResizing = useAnalystLayout((s) => s.resizing)
 
   return (
-    <div className="min-h-screen">
-      <Sidebar
-        activeKey={activeKey}
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        nav={nav}
-        brand={brand}
-        brandHref={brandHref}
-        datasetComplete={datasetComplete}
-        settingsHref={settingsHref}
-      />
-      <div
-        style={analystInset ? { paddingRight: analystInset } : undefined}
-        className={[
-          'flex min-h-screen min-w-0 flex-col bg-surface-page',
-          analystResizing
-            ? 'transition-none'
-            : 'transition-[padding-left,padding-right] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none',
-          pinned ? 'md:pl-[var(--sidebar-w)]' : 'md:pl-[var(--sidebar-rail-w)]',
-        ].join(' ')}
-      >
-        <Topbar
-          crumbs={crumbs}
-          onMenuClick={() => setSidebarOpen(true)}
+    // THE FLOATING FRAME (the house layout). The app is a window with large
+    // rounded corners, a hairline and a soft shadow on a canvas one step
+    // deeper than the page. From `md` the frame is the viewport less the
+    // canvas gap and <main> scrolls inside it, so the rail and the top bar
+    // stay put. Below `md` it goes edge to edge and the page scrolls as before.
+    <div className="min-h-svh bg-canvas md:p-[var(--frame-gap)]">
+      <div className="relative flex min-h-svh flex-col overflow-hidden bg-surface-page md:h-[calc(100svh_-_2*var(--frame-gap))] md:min-h-0 md:rounded-[var(--r-2xl)] md:border md:border-border-default md:shadow-[var(--shadow-frame)]">
+        <Sidebar
+          activeKey={activeKey}
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          nav={nav}
+          brand={brand}
+          brandHref={brandHref}
+          datasetComplete={datasetComplete}
           settingsHref={settingsHref}
-          tpoTools={tpoTools}
         />
-        <main className="@container min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-10 pt-6 sm:px-8">{children}</main>
+        <div
+          style={analystInset ? { paddingRight: analystInset } : undefined}
+          className={[
+            'flex min-h-0 min-w-0 flex-1 flex-col bg-surface-page',
+            analystResizing
+              ? 'transition-none'
+              : 'transition-[padding-left,padding-right] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none',
+            pinned ? 'md:pl-[var(--sidebar-w)]' : 'md:pl-[var(--sidebar-rail-w)]',
+          ].join(' ')}
+        >
+          <Topbar
+            crumbs={crumbs}
+            onMenuClick={() => setSidebarOpen(true)}
+            settingsHref={settingsHref}
+            tpoTools={tpoTools}
+          />
+          <main
+            data-scroll-root
+            className="@container min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-5 pb-10 pt-7 md:px-10"
+          >
+            {children}
+          </main>
+        </div>
       </div>
     </div>
   )

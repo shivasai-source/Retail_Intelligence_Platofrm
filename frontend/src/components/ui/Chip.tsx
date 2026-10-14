@@ -5,7 +5,7 @@ export function Chip({ keyLabel, value }: { keyLabel: ReactNode; value: ReactNod
   return (
     <span className="inline-flex items-center gap-1.5 rounded-[var(--r-md)] border border-border-subtle bg-surface-muted px-2.5 py-1 text-sm font-medium text-ink-primary">
       <span className="font-medium text-ink-muted">{keyLabel}</span>
-      <span className="font-semibold text-ink-primary">{value}</span>
+      <span className="font-medium text-ink-primary">{value}</span>
     </span>
   )
 }

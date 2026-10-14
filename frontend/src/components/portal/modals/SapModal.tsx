@@ -111,7 +111,7 @@ export function SapModal({
                     <thead>
                       <tr>
                         {keys.map((k) => (
-                          <th key={k} className="sticky top-0 whitespace-nowrap bg-surface-muted p-[7px_10px] text-left font-bold text-ink-secondary">
+                          <th key={k} className="sticky top-0 whitespace-nowrap bg-surface-muted p-[7px_10px] text-left font-medium text-ink-secondary">
                             {k}
                           </th>
                         ))}
