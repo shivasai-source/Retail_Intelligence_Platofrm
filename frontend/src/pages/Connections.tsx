@@ -27,13 +27,13 @@ import type { ConnectorSpecial } from '../types/portal'
 //
 // THE CATALOGUE UI NOW LIVES IN components/connections/ and is shared with the
 // MMM module's own Data Connections page. Only the things that are TPO's — the
-// six-table star schema, the four dialogs that install it, the breadcrumb —
+// star schema, the four dialogs that install it, the breadcrumb —
 // are still here. The page renders what it always rendered.
 //
 // THIS PAGE IS THE FRONT DOOR. The portal's "Connected Data Sources" rail is
 // gone and the TPO card lands here while the platform has no data, so this is
 // the only screen a new user can act on — hence the dataset strip at the top,
-// which says what is loaded and, once the six tables are in, points at the way
+// which says what is loaded and, once the required tables are in, points at the way
 // out. Every other TPO page stays locked until then (see RequireDataset and the
 // Sidebar's lock).
 
@@ -81,8 +81,13 @@ export function Connections() {
   const [source, setSource] = useState<string | null>(() => loadDatasetSource())
   const [sessions, setSessions] = useState(readSessions)
 
-  const present = starStatus?.files.filter((f) => f.present).length ?? 0
-  const total = starStatus?.files.length ?? 0
+  // The counter counts REQUIRED tables. dim_channel, dim_promotion and
+  // dim_date are derived when absent (see lib/starSchema), so counting all six
+  // would show a loaded three-file dataset as "3 of 6" — permanently short of
+  // files the user is never expected to supply.
+  const requiredFiles = starStatus?.files.filter((f) => f.required !== false) ?? []
+  const present = requiredFiles.filter((f) => f.present).length
+  const total = requiredFiles.length
   const complete = Boolean(starStatus?.complete)
   const anyLoaded = present > 0
   const statusKnown = starStatus !== undefined
@@ -150,7 +155,7 @@ export function Connections() {
         complete={complete}
         present={present}
         total={total}
-        unit="core tables"
+        unit="required tables"
         headline={
           complete
             ? loadedFrom
@@ -161,7 +166,7 @@ export function Connections() {
         body={
           complete
             ? 'Every module is unlocked. Connect another source at any time to replace the dataset.'
-            : 'The platform reads six core tables and every KPI, chart and report is built from them. Connect a source below to unlock Insights Hub and the rest of TPO.'
+            : 'The platform reads three core tables — sales, products and stores — and every KPI, chart and report is built from them. Connect a source below to unlock Insights Hub and the rest of TPO.'
         }
         action={
           <>

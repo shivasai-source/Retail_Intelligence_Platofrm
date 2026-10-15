@@ -57,6 +57,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Sequence
 
+from app.tpo import config
+
 # PEI = 0.40(ROI net return) + 0.30(Incremental qty %) + 0.30(Gross margin %).
 #
 # Trade Spend Efficiency and the cannibalization score are deliberately NOT
@@ -120,6 +122,11 @@ class WeekRow:
     #: the module docstring); False for a source without one, and for the
     #: Simulation Studio's synthetic rows.
     counterfactual: bool = False
+    #: COMPONENT A's answer for this group: the LightGBM baseline summed over
+    #: exactly the store-weeks the current filter kept, so it scales with the
+    #: selection the way the row's own measures do. None when the model is off
+    #: or could not be fitted. See app/tpo/baseline_model.py.
+    model_baseline: float | None = None
 
     @property
     def year(self) -> str:
@@ -225,15 +232,36 @@ def _expected(
     own prices) -- what it would have sold without the promotion. None on a
     non-promoted row, and on a promoted one with nothing to measure against.
 
-    The source's Base_Quantity when it is a real counterfactual, else the
-    local ordinary level above. See the module docstring.
+    THREE SOURCES, IN THIS ORDER. Observed data beats any estimate; a model
+    that saw the whole dataset beats one local average:
+
+      1. The source's own Base_Quantity, when it is a real counterfactual AND
+         `config.BASELINE_PREFER_SOURCE`. Retail panels (Nielsen, IRI) ship
+         this and it is measured, not predicted. On the reference dataset the
+         model reproduces it only to within ~3%, so preferring it keeps the
+         shipped figures exact.
+      2. COMPONENT A, the LightGBM P50 (`row.model_baseline`). What actually
+         runs on a client file, because practically none carry Base_Quantity.
+      3. The nearest ordinary weeks (`_local_baselines`). The fallback for a
+         cell the model could not be fitted for, and the engine's original rule.
+
+    A promoted row that none of the three can answer for is left None --
+    skipped and reported, never defaulted to zero.
     """
     out: list[tuple[float, float] | None] = [None] * len(rows)
     for i, r in enumerate(rows):
         if not r.is_promoted:
             continue
-        if r.counterfactual:
+        if r.counterfactual and config.BASELINE_PREFER_SOURCE:
             out[i] = (r.base_quantity, r.base_value)
+            continue
+        if r.model_baseline is not None and r.transaction_count:
+            # The model answers per store-week and `model_baseline` is already
+            # summed over the group's store-weeks, so the per-store-week rate
+            # is what prices the expected units -- the same shape the local
+            # mean produces, which keeps the two interchangeable here.
+            rate = r.model_baseline / r.transaction_count
+            out[i] = (r.model_baseline, rate * r.actual_price_sum)
             continue
         if local is None:
             local = _local_baselines(rows)

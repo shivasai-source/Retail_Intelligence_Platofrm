@@ -58,7 +58,7 @@ const OBJECT_CONNECTORS: CatalogEntry[] = [
     family: 'object',
     category: 'Object storage',
     description:
-      'Upload the six core tables as .csv, .xlsx or .xls straight from your machine. Files are matched on their column headers, so their names do not matter.',
+      'Upload your sales, product and store tables as .csv, .xlsx or .xls straight from your machine. Files are matched on their column headers, so their names do not matter.',
     mark: 'XL',
     status: 'available',
     portalKey: 'xls',

@@ -9,6 +9,19 @@ a lookup table. 205,920 rows of Python objects would be tens of MB and slow to
 scan; as `array('d')`/`array('i')` columns it is a few MB and a filter pass is
 a tight loop over ints. Nothing here computes a KPI — this module only loads,
 joins and indexes. See app/tpo/aggregate.py for the arithmetic.
+
+TWO DATASET SHAPES, ONE STORE. The sales fact, dim_product and dim_geo_store
+are required. The other three dimensions are read when present and DERIVED
+when absent, so a client who only has a sales extract and two masters loads
+the same way a full six-file star schema does:
+
+  * dim_date      -> generated from the sales file's own years (`_derive_week`)
+  * dim_channel   -> the distinct channels named in dim_geo_store
+  * dim_promotion -> the Promotion_Name / Promotion_Type the fact carries
+
+The fact also accepts `CP` (cost per unit) in place of `Total_Cost`, and a
+blank `Promotion_Id` in place of the `-1` sentinel. Nothing downstream can tell
+the two shapes apart; `star_dataset.py` holds the matching upload contract.
 """
 
 from __future__ import annotations
@@ -18,7 +31,7 @@ import re
 from array import array
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable, Iterator
@@ -27,7 +40,17 @@ from app.tpo import config
 
 #: Promotion_Id on a non-promoted row. The baseline every uplift is measured
 #: against is built from exactly these rows, so this constant is load-bearing.
+#:
+#: `-1` is this platform's own sentinel, not something a source system writes:
+#: a client extract leaves the cell empty on a row that carried no offer. Both
+#: spellings mean "not promoted" and `_promotion_id` folds them together.
 NO_PROMOTION = "-1"
+
+
+def _promotion_id(value: str) -> str:
+    """A fact row's Promotion_Id, with an empty cell read as "no promotion"."""
+    cleaned = _clean(value)
+    return cleaned if cleaned else NO_PROMOTION
 
 
 # --- dimension records -----------------------------------------------------
@@ -53,6 +76,12 @@ class Store:
     state: str
     city: str
     tier: str
+    #: The channel's own name, type and promotion grain, when the store master
+    #: carries them instead of a separate dim_channel. Blank when dim_channel
+    #: was uploaded and holds them; `_load_channels` reads whichever is present.
+    channel_name: str = ""
+    channel_type: str = ""
+    schedule: str = ""
 
 
 @dataclass(frozen=True)
@@ -163,8 +192,9 @@ def _read_csv(path: Path) -> Iterator[dict[str, str]]:
     if not path.is_file():
         raise DatasetNotLoaded(
             f"No dataset loaded: {path.name} is missing from {path.parent}. "
-            f"Upload the six star-schema CSVs through the Excel / Shared Drives "
-            f"connector, or set TPO_DATA_DIR to a folder that already holds them."
+            f"Upload the sales fact, product and store CSVs through the Excel / "
+            f"Shared Drives connector, or set TPO_DATA_DIR to a folder that "
+            f"already holds them."
         )
     # utf-8-sig: dim_promotion_final.csv carries a BOM, which would otherwise
     # turn its first header into a key no lookup matches.
@@ -262,47 +292,133 @@ def _load_stores(data_dir: Path) -> dict[str, Store]:
             state=row["State"],
             city=row["City"],
             tier=row["Tier"],
+            channel_name=row.get("Channel_Name", ""),
+            channel_type=row.get("Channel_Type", ""),
+            schedule=row.get("Schedule", ""),
         )
     return stores
 
 
 def _load_promotions(data_dir: Path) -> dict[str, Promotion]:
+    """dim_promotion, or {} when it was not uploaded.
+
+    An empty result is not an error: the fact's own Promotion_Name and
+    Promotion_Type then describe each offer, and `_build_store` registers them
+    as it meets them. Returning {} rather than deriving here keeps the fact to
+    a single pass.
+    """
+    path = data_dir / config.DIM_FILES["promotion"]
+    if not path.is_file():
+        return {}
     promotions: dict[str, Promotion] = {}
-    for raw in _read_csv(data_dir / config.DIM_FILES["promotion"]):
+    for raw in _read_csv(path):
         row = {k: _clean(v) for k, v in raw.items()}
         promotions[row["Promotion_Id"]] = Promotion(
             promotion_id=row["Promotion_Id"],
             name=row["Promotion_Name"],
             type=row["Promotion_Type"],
-            description=row["Promotion_Description"],
+            # Description is presentation-only and no client extract carries
+            # it; the name stands in when the dimension was not uploaded.
+            description=row.get("Promotion_Description", row["Promotion_Name"]),
         )
     return promotions
 
 
-def _load_channels(data_dir: Path) -> dict[str, Channel]:
-    channels: dict[str, Channel] = {}
-    for raw in _read_csv(data_dir / config.DIM_FILES["channel"]):
-        row = {k: _clean(v) for k, v in raw.items()}
-        channels[row["Channel_Id"]] = Channel(
-            channel_id=row["Channel_Id"],
-            name=row["Channel_Name"],
-            type=row["Channel_Type"],
-        )
-    return channels
+def _load_channels(data_dir: Path, stores: dict[str, Store]) -> dict[str, Channel]:
+    """dim_channel, or the channels dim_geo_store names when it was not uploaded.
+
+    A channel is an attribute of the stores that trade in it, so a store master
+    carrying Channel_Name / Channel_Type already holds the whole dimension. Only
+    the id is guaranteed; without a name the id doubles as the label, which is
+    what the KPI pages group and filter by anyway.
+    """
+    path = data_dir / config.DIM_FILES["channel"]
+    if path.is_file():
+        channels: dict[str, Channel] = {}
+        for raw in _read_csv(path):
+            row = {k: _clean(v) for k, v in raw.items()}
+            channels[row["Channel_Id"]] = Channel(
+                channel_id=row["Channel_Id"],
+                name=row["Channel_Name"],
+                type=row["Channel_Type"],
+            )
+        return channels
+
+    derived: dict[str, Channel] = {}
+    for store in stores.values():
+        if store.channel_id and store.channel_id not in derived:
+            derived[store.channel_id] = Channel(
+                channel_id=store.channel_id,
+                name=store.channel_name or store.channel_id,
+                type=store.channel_type,
+            )
+    return derived
+
+
+def _derive_week(day: date) -> int:
+    """The business week a day falls in, when no date dimension was uploaded.
+
+    Week 1 runs from 1 January to the first Sunday; every Monday after that
+    opens a new week. Verified against the reference dim_date: week number,
+    month, quarter and day label reproduce EXACTLY on all 1,096 of its rows,
+    the short year-end week included — 29–31 Dec land in week 53 as a
+    consequence of the rule rather than as a special case.
+    """
+    jan2 = date(day.year, 1, 2)
+    first_monday = jan2 + timedelta(days=(7 - jan2.weekday()) % 7)
+    return 1 if day < first_monday else 2 + (day - first_monday).days // 7
+
+
+def _fact_years(data_dir: Path) -> set[int]:
+    """The years the sales file covers, from its Date column alone.
+
+    One narrow pass (~0.3 s over 325k rows, against ~0.6 s for a DictReader
+    one) so the generated calendar spans exactly the years in play instead of a
+    guessed range. Only reached when dim_date is absent, and the store is
+    cached for the process lifetime, so it costs once.
+    """
+    path = data_dir / config.FACT_FILE
+    with path.open(newline="", encoding="utf-8-sig") as handle:
+        reader = csv.reader(handle)
+        header = next(reader, [])
+        try:
+            at = header.index("Date")
+        except ValueError:
+            return set()
+        return {
+            int(row[at][-4:])
+            for row in reader
+            if len(row) > at and row[at][-4:].isdigit()
+        }
 
 
 def _load_week_dates(data_dir: Path) -> dict[tuple[int, int], list[date]]:
-    """(year, week) -> its calendar days, straight from dim_date.
+    """(year, week) -> its calendar days.
 
-    The dataset numbers its own business weeks; this reads that numbering
-    rather than re-deriving one. A week whose day count inside the selected
-    period falls short of this is a fragment, and the week-average comparisons
-    skip it.
+    From dim_date when that file was uploaded: the dataset numbers its own
+    business weeks and this reads that numbering rather than re-deriving one. A
+    week whose day count inside the selected period falls short of this is a
+    fragment, and the week-average comparisons skip it.
+
+    Without dim_date the same calendar is generated by `_derive_week` over the
+    sales file's own years. EVERY calendar day of those years is included, not
+    only the days that carry sales: a week's full day count is exactly what
+    tells a whole week from one clipped by a month filter, so generating only
+    the days present would turn a channel that books one row a week into a
+    one-day week and have the comparisons discard it.
     """
+    path = data_dir / config.DIM_FILES["date"]
     weeks: dict[tuple[int, int], list[date]] = defaultdict(list)
-    for row in _read_csv(data_dir / config.DIM_FILES["date"]):
-        day = _parse_date(row["Date"])
-        weeks[(int(row["Year"]), int(row["Week"]))].append(day)
+    if path.is_file():
+        for row in _read_csv(path):
+            day = _parse_date(row["Date"])
+            weeks[(int(row["Year"]), int(row["Week"]))].append(day)
+    else:
+        for year in _fact_years(data_dir):
+            day = date(year, 1, 1)
+            while day.year == year:
+                weeks[(year, _derive_week(day))].append(day)
+                day += timedelta(days=1)
     for days in weeks.values():
         days.sort()
     return dict(weeks)
@@ -355,6 +471,39 @@ class FactStore:
     def row_count(self) -> int:
         return len(self.product_code)
 
+    def model_baseline(self) -> tuple[Any, dict[str, Any]] | None:
+        """The LightGBM baseline for every row, in this store's row order, or
+        None when the model is switched off or cannot be fitted.
+
+        Fitted once per dataset and cached on disk (baseline_model.load_or_fit),
+        then held here for the process. A cold fit is ~25 s on 325k rows, so it
+        must never run per request — `filters._to_week_rows` reads this array.
+
+        Failure is not fatal: a dataset with too little clean history has no
+        model, and the engine measures against the nearest ordinary weeks
+        instead, exactly as it did before. That is why this returns None rather
+        than raising.
+        """
+        if getattr(self, "_model_baseline", "unset") != "unset":
+            return self._model_baseline
+        result: tuple[Any, dict[str, Any]] | None = None
+        # A file with a real Base_Quantity that we are told to prefer never
+        # consults the model (aggregate._expected takes its first branch), so
+        # fitting one would be ~25 s of pure waste on every cold start.
+        skip = self.counterfactual_base and config.BASELINE_PREFER_SOURCE
+        if config.BASELINE_ENGINE == "model" and not skip:
+            try:
+                from app.tpo import baseline_model
+
+                fitted = baseline_model.load_or_fit(self)
+                result = (fitted.units, fitted.report)
+            except baseline_model.BaselineUnavailable as e:
+                print(f"[tpo] baseline model unavailable, using the local mean: {e}")
+            except Exception as e:  # lightgbm missing, or a fit that blew up
+                print(f"[tpo] baseline model failed, using the local mean: {e!r}")
+        self._model_baseline = result
+        return result
+
     def years(self) -> list[int]:
         return sorted(set(self.year))
 
@@ -376,13 +525,17 @@ class FactStore:
 
 
 def _build_store(data_dir: Path) -> FactStore:
+    stores = _load_stores(data_dir)
     dims = Dimensions(
         products=_load_products(data_dir),
-        stores=_load_stores(data_dir),
+        stores=stores,
         promotions=_load_promotions(data_dir),
-        channels=_load_channels(data_dir),
+        channels=_load_channels(data_dir, stores),
         week_dates=_load_week_dates(data_dir),
     )
+    #: True when dim_promotion was not uploaded, so each offer is described by
+    #: the fact row that first mentions it rather than by a dimension row.
+    promotions_from_fact = not dims.promotions
     store = FactStore(dims=dims)
 
     indexes: dict[str, dict[str, int]] = {"product": {}, "store": {}, "promotion": {}}
@@ -422,7 +575,22 @@ def _build_store(data_dir: Path) -> FactStore:
         return index[key]
 
     for row in _read_csv(data_dir / config.FACT_FILE):
-        promotion_id = _clean(row["Promotion_Id"])
+        promotion_id = _promotion_id(row["Promotion_Id"])
+
+        # Without dim_promotion, the first row to mention an offer defines it.
+        # Registered before `code()` runs so the offer lands in the lookup as a
+        # real Promotion rather than as an id-only placeholder — which would
+        # also log it as a missing dimension reference.
+        if promotions_from_fact and promotion_id not in dims.promotions:
+            name = _clean(row.get("Promotion_Name", "")) or (
+                "No Discount" if promotion_id == NO_PROMOTION else promotion_id
+            )
+            dims.promotions[promotion_id] = Promotion(
+                promotion_id=promotion_id,
+                name=name,
+                type=_clean(row.get("Promotion_Type", "")),
+                description=name,
+            )
 
         store.product_code.append(code("product", _clean(row["Product_id"])))
         store.store_code.append(code("store", _clean(row["Store_Id"])))
@@ -461,15 +629,30 @@ def _build_store(data_dir: Path) -> FactStore:
         store.base_revenue.append(quantity * base_price)
         store.actual_revenue.append(quantity * actual_price)
         store.actual_price.append(actual_price)
-        store.total_cost.append(_float(row["Total_Cost"]))
-        store.promotion_cost.append(_float(row["Promotion_Cost"]))
+        # Cost of goods, however the source states it: `Total_Cost` for the
+        # whole row, or `CP` per unit -- which is what a client's pricing master
+        # actually holds, quantity being the fact's own column.
+        total_cost = row.get("Total_Cost")
+        if total_cost in (None, ""):
+            total_cost = quantity * _float(row.get("CP", 0))
+        else:
+            total_cost = _float(total_cost)
+        store.total_cost.append(total_cost)
+        # Trade spend beyond the discount. Absent on a source that books it per
+        # event rather than per line; then trade spend is the discount alone.
+        store.promotion_cost.append(_float(row.get("Promotion_Cost", 0) or 0))
 
     if unresolved:
         shown = ", ".join(d.strftime("%d-%m-%Y") for d in sorted(unresolved)[:10])
+        source = (
+            f"{config.DIM_FILES['date']}"
+            if (data_dir / config.DIM_FILES["date"]).is_file()
+            else "the calendar generated from the sales file's own years"
+        )
         raise ValueError(
             f"{len(unresolved)} sales date(s) in {config.FACT_FILE} are missing from "
-            f"{config.DIM_FILES['date']}, so their week and month cannot be read: {shown}. "
-            f"The date file must hold every day the sales file uses."
+            f"{source}, so their week and month cannot be read: {shown}. "
+            f"Every day the sales file uses must appear in the calendar."
         )
 
     for kind, missing in unknown.items():

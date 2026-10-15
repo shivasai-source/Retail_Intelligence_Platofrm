@@ -77,7 +77,7 @@ export function RequireDataset({ children }: { children: ReactNode }) {
             <div className="min-w-0">
               <h2 className="text-md font-medium">Upload your dataset to continue</h2>
               <p className="mt-1 text-base leading-[1.6] text-ink-muted">
-                The platform reads six core tables. All of them are required — every dashboard, KPI and report is
+                The platform reads three core tables — sales, products and stores. Every dashboard, KPI and report is
                 built from them, so nothing can load until the full set is in place. Files are matched on their
                 column headers, so it doesn't matter what they're named.
               </p>
@@ -130,7 +130,7 @@ export function RequireDataset({ children }: { children: ReactNode }) {
             onClick={() => setUploadOpen(true)}
             className="flex items-center gap-1.5 rounded-[var(--r-md)] bg-brand-violet px-4 py-2 text-base font-medium text-white [&_svg]:h-[13px] [&_svg]:w-[13px]"
           >
-            <Icon name="plus" /> Upload all 6 files
+            <Icon name="plus" /> Upload your files
           </button>
         </div>
       </div>

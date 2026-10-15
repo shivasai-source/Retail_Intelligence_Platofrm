@@ -1,5 +1,12 @@
-// The six star-schema tables the platform's dashboards read, identified BY
-// COLUMN HEADERS — mirrored from backend/app/star_dataset.py.
+// The star-schema tables the platform's dashboards read, identified BY COLUMN
+// HEADERS — mirrored from backend/app/star_dataset.py.
+//
+// THREE REQUIRED, THREE DERIVED. The sales fact, dim_product and dim_geo_store
+// must be uploaded. dim_channel, dim_promotion and dim_date are accepted when a
+// source has them and reconstructed by the loader when it does not — a calendar
+// is arithmetic, channel names live on the store master, and an offer's name
+// and mechanic ride on the fact row. A three-file upload is therefore the
+// ordinary shape, not a partial one.
 //
 // Filenames are never consulted. An Excel export is called `Book1.xlsx` or
 // `export (3).csv`, which says nothing about which table it holds; the column
@@ -27,7 +34,7 @@ export const STAR_ROLE_LABELS: Record<StarRole, string> = {
 export const ROLE_COLUMNS: Record<StarRole, string[]> = {
   fact: [
     'Date', 'Product_id', 'Store_Id', 'Promotion_Id',
-    'Actual_Quantity', 'Base_Price', 'Actual_Price', 'Total_Cost', 'Promotion_Cost',
+    'Actual_Quantity', 'Base_Price', 'Actual_Price',
   ],
   product: ['Product_id', 'Product_Name', 'Brand', 'Category', 'Size'],
   geo_store: ['Store_Id', 'Channel_Id', 'Retailer', 'Region', 'State', 'City', 'Tier'],
@@ -36,16 +43,37 @@ export const ROLE_COLUMNS: Record<StarRole, string[]> = {
   date: ['Date', 'Year', 'Month', 'Week'],
 }
 
+// The tables an upload cannot do without, and the ones the loader derives when
+// they are absent. Display order.
+export const REQUIRED_ROLES: StarRole[] = ['fact', 'product', 'geo_store']
+export const DERIVABLE_ROLES: StarRole[] = ['channel', 'promotion', 'date']
+
+// Groups of interchangeable columns, each satisfied by ANY one member. Cost of
+// goods is the only one: a source states it for the whole line (Total_Cost) or
+// per unit (CP, what a pricing master holds), and the loader multiplies the
+// latter by the fact's own quantity.
+export const EITHER_COLUMNS: Partial<Record<StarRole, string[][]>> = {
+  fact: [['Total_Cost', 'CP']],
+}
+
 // Columns the loader reads WHEN PRESENT. Never required -- a file without them
 // is accepted and the platform works without them.
 export const OPTIONAL_COLUMNS: Record<StarRole, string[]> = {
-  fact: ['Base_Quantity'],
+  fact: ['Base_Quantity', 'Promotion_Name', 'Promotion_Type', 'Promotion_Cost'],
   product: [],
-  geo_store: ['Distributor_Name'],
+  geo_store: ['Distributor_Name', 'Country', 'Channel_Name', 'Channel_Type', 'Schedule'],
   channel: ['Schedule'],
   promotion: [],
-  date: [],
+  date: ['Quarter', 'Day'],
 }
+
+// What a table must carry to stand in for a dimension nobody uploaded:
+// [absent role, the role that must cover for it, the columns it needs].
+// A calendar needs nothing — it is derived from the fact's Date column.
+export const CROSS_FILE_RULES: [StarRole, StarRole, string[]][] = [
+  ['channel', 'geo_store', ['Channel_Name']],
+  ['promotion', 'fact', ['Promotion_Name', 'Promotion_Type']],
+]
 
 // Which columns tell each table apart from the other five. Order matters where
 // they overlap: the fact table also carries Product_id/Store_Id, so it is
@@ -73,10 +101,13 @@ export function matchHeader(header: string[]): HeaderMatch {
   const present = new Set(header.map((h) => h.trim().toLowerCase()).filter(Boolean))
   for (const [role, discriminators] of ROLE_DISCRIMINATORS) {
     if (discriminators.every((c) => present.has(c.toLowerCase()))) {
-      return {
-        role,
-        missingColumns: ROLE_COLUMNS[role].filter((c) => !present.has(c.toLowerCase())),
+      const missingColumns = ROLE_COLUMNS[role].filter((c) => !present.has(c.toLowerCase()))
+      // An interchangeable group is missing only when NONE of its members is
+      // there, and is then named as the choice it is ('Total_Cost or CP').
+      for (const group of EITHER_COLUMNS[role] ?? []) {
+        if (!group.some((c) => present.has(c.toLowerCase()))) missingColumns.push(group.join(' or '))
       }
+      return { role, missingColumns }
     }
   }
   return { role: null, missingColumns: [] }
@@ -128,6 +159,9 @@ export interface ClassifiedFile {
   file: File
   role: StarRole | null
   missingColumns: string[]
+  /** Every column the file carries. Needed for the CROSS_FILE_RULES checks,
+   *  which are about the selection as a whole rather than one file. */
+  columns: string[]
   /** True when the header could not be read here (a workbook). */
   undetermined: boolean
 }
@@ -136,9 +170,39 @@ export async function classifyFiles(files: File[]): Promise<ClassifiedFile[]> {
   return Promise.all(
     files.map(async (file) => {
       const header = await readHeader(file)
-      if (!header.length) return { file, role: null, missingColumns: [], undetermined: true }
+      if (!header.length) {
+        return { file, role: null, missingColumns: [], columns: [], undetermined: true }
+      }
       const { role, missingColumns } = matchHeader(header)
-      return { file, role, missingColumns, undetermined: false }
+      return { file, role, missingColumns, columns: header, undetermined: false }
     }),
   )
+}
+
+/**
+ * Leaving a derivable dimension out is fine; leaving it out when nothing
+ * stands in for it is not. Returns one sentence per unmet rule, so the upload
+ * modal can say what to add before the request is made rather than after the
+ * backend refuses it. The backend re-checks authoritatively either way.
+ */
+export function crossFileProblems(classified: ClassifiedFile[]): string[] {
+  const usable = new Map<StarRole, ClassifiedFile>()
+  for (const c of classified) {
+    if (c.role && !c.missingColumns.length) usable.set(c.role, c)
+  }
+  const problems: string[] = []
+  for (const [absent, carrier, needed] of CROSS_FILE_RULES) {
+    const cover = usable.get(carrier)
+    if (usable.has(absent) || !cover) continue
+    const have = new Set(cover.columns.map((h) => h.trim().toLowerCase()))
+    const lacking = needed.filter((c) => !have.has(c.toLowerCase()))
+    if (lacking.length) {
+      problems.push(
+        `No ${STAR_ROLE_LABELS[absent].toLowerCase()} was selected, so ` +
+          `${STAR_ROLE_LABELS[carrier].toLowerCase()} must carry ` +
+          `${lacking.length === 1 ? 'column' : 'columns'} ${lacking.join(', ')}.`,
+      )
+    }
+  }
+  return problems
 }

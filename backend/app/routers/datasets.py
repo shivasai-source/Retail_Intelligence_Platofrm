@@ -109,14 +109,15 @@ async def upload_datasets(
 
 @router.get("/star")
 def star_status(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
-    """Which of the six star-schema files the Data/ folder currently holds, so
-    the Excel connector can show what it is actually reading from."""
+    """Which star-schema files the Data/ folder currently holds, so the Excel
+    connector can show what it is actually reading from. Each entry says
+    whether it is required or one the loader derives when absent."""
     return star_dataset.current_status()
 
 
 @router.delete("/star")
 def reset_star(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
-    """Clear all six star-schema files from the Data/ folder.
+    """Clear every star-schema file from the Data/ folder.
 
     This is the only way back to the upload prompt once a dataset is installed:
     uploading over a complete set is refused (see `upload_datasets`), so a reset
@@ -202,7 +203,7 @@ async def inspect_star_upload(
 # ======================================================== Azure Blob Storage ====
 # The same six-table contract as the Excel upload above, reached from a storage
 # account instead of a file dialog. Everything about WHAT is acceptable — header
-# identification, all-six-or-nothing, the lock, the reset — is star_dataset's and
+# identification, one-dataset-or-nothing, the lock, the reset — is star_dataset's and
 # is not restated here; these routes only get the bytes out of Azure.
 #
 # Credentials arrive per request. A successful install saves them for syncing —

@@ -24,7 +24,7 @@ import { mmmRoutes } from './mmm/routes'
 // (RequireAuth — see components/RequireAuth.tsx) now that login actually means
 // something; previously any of these were reachable by URL with no session at all.
 // The data-backed pages carry a SECOND gate (RequireDataset): the Data/ folder
-// ships empty and every KPI, chart and report is computed from the six CSVs in
+// ships empty and every KPI, chart and report is computed from the star CSVs in
 // it, so those pages have nothing to render until the set is uploaded. /home and
 // /connections are deliberately NOT gated — they hold the Excel connector the
 // upload happens through, so gating them would lock the user out of the only

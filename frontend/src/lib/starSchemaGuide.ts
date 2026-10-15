@@ -13,7 +13,7 @@
 // appears in the guide at once rather than silently missing from it. Examples
 // are rows from the shipped dataset.
 import type { StarRole } from '../types/dataset'
-import { OPTIONAL_COLUMNS, ROLE_COLUMNS, STAR_ROLE_LABELS } from './starSchema'
+import { EITHER_COLUMNS, OPTIONAL_COLUMNS, ROLE_COLUMNS, STAR_ROLE_LABELS } from './starSchema'
 
 export type ColumnType = 'id' | 'text' | 'number' | 'integer' | 'date'
 
@@ -39,16 +39,19 @@ export interface ColumnDoc {
 // different tables — `Date` in the fact is a sale date, in dim_date a calendar day.
 const COLUMN_DOCS: Record<StarRole, Record<string, ColumnDoc>> = {
   fact: {
-    Date: { type: 'date', example: '01-01-2024', note: 'First day of the sales week, DD-MM-YYYY. Its week and month are read from the date file.' },
+    Date: { type: 'date', example: '01-01-2024', note: 'First day of the sales week, DD-MM-YYYY. Its week and month are worked out from it.' },
     Product_id: { type: 'id', example: 'P11-250ml', note: 'Which product was sold.', joins: 'product' },
     Store_Id: { type: 'id', example: 'S211', note: 'Which store sold it. The channel comes from the store file.', joins: 'geo_store' },
-    Promotion_Id: { type: 'id', example: 'PR001', note: 'Promotion running on the row, or -1 for none.', joins: 'promotion' },
+    Promotion_Id: { type: 'id', example: 'PR001', note: 'Promotion running on the row. Leave blank (or write -1) when none was running.', joins: 'promotion' },
     Actual_Quantity: { type: 'number', example: '185', note: 'Units actually sold.' },
     Base_Price: { type: 'number', example: '190', note: 'Regular list price per unit, before any discount.' },
     Actual_Price: { type: 'number', example: '180', note: 'Selling price per unit, after any discount. Equal to Base_Price with no promotion.' },
-    Total_Cost: { type: 'number', example: '22940', note: 'Cost of the goods sold on the row.' },
-    Promotion_Cost: { type: 'number', example: '1054', note: 'Promotion running cost on top of the discount. 0 when there is none.' },
-    Base_Quantity: { type: 'number', example: '122', note: 'Units expected without the promotion, if your data has it. Equal to Actual_Quantity on rows with no promotion.' },
+    Total_Cost: { type: 'number', example: '22940', note: 'Cost of the goods sold on the row. Give this OR CP, whichever your data holds.' },
+    CP: { type: 'number', example: '124', note: 'Cost per unit, as a pricing master holds it. Give this OR Total_Cost — this one is multiplied by the quantity.' },
+    Promotion_Name: { type: 'text', example: '5% Discount', note: 'Name of the offer on the row. Required when you do not upload a promotion file.' },
+    Promotion_Type: { type: 'text', example: 'Regular', note: 'How the offer is classified: Regular, Seasonal or Normal. Required when you do not upload a promotion file.' },
+    Promotion_Cost: { type: 'number', example: '1054', note: 'Promotion running cost on top of the discount, when your data books it per line. Leave out and trade spend is the discount alone.' },
+    Base_Quantity: { type: 'number', example: '122', note: 'Units expected without the promotion, if your data has it. Almost no source does — leave it out and it is estimated from the nearby non-promoted weeks of each product.' },
   },
   product: {
     Product_id: { type: 'id', example: 'P11-50ml', note: 'Unique per product. The sales file refers to it.' },
@@ -66,6 +69,10 @@ const COLUMN_DOCS: Record<StarRole, Record<string, ColumnDoc>> = {
     State: { type: 'text', example: 'Delhi', note: 'State.' },
     City: { type: 'text', example: 'Delhi', note: 'City.' },
     Tier: { type: 'text', example: 'Tier 1', note: 'City tier.' },
+    Country: { type: 'text', example: 'India', note: 'Country.' },
+    Channel_Name: { type: 'text', example: 'Modern Trade', note: 'Name of the channel the store trades in. Required when you do not upload a channel file.' },
+    Channel_Type: { type: 'text', example: 'Retail', note: 'Grouping above the channel.' },
+    Schedule: { type: 'text', example: 'MONTHLY', note: 'How the channel plans promotions: WEEKLY or MONTHLY. The same for every store of a channel.' },
   },
   channel: {
     Channel_Id: { type: 'id', example: 'CH001', note: 'Unique per channel.' },
@@ -84,6 +91,8 @@ const COLUMN_DOCS: Record<StarRole, Record<string, ColumnDoc>> = {
     Year: { type: 'integer', example: '2024', note: 'Calendar year.' },
     Month: { type: 'text', example: 'January', note: 'Full month name.' },
     Week: { type: 'integer', example: '1', note: 'Business week of the year: week 1 starts on 1 January, each Monday starts the next.' },
+    Quarter: { type: 'text', example: 'Q1', note: 'Calendar quarter.' },
+    Day: { type: 'text', example: 'Monday', note: 'Day of the week.' },
   },
 }
 
@@ -91,12 +100,12 @@ const COLUMN_DOCS: Record<StarRole, Record<string, ColumnDoc>> = {
 const FALLBACK: ColumnDoc = { type: 'text', example: '', note: 'Required by the loader.' }
 
 const PURPOSE: Record<StarRole, string> = {
-  fact: 'Your sales — units, prices, cost and promotion spend by product, store and week.',
+  fact: 'Your sales — units, prices, cost and the offer running, by product, store and week.',
   product: 'Your products — name, brand, category and pack size.',
   geo_store: 'Your stores — the channel, retailer and location of each one.',
-  channel: 'Your sales channels, such as e-commerce or modern trade.',
-  promotion: 'Your promotions, plus one row with ID -1 meaning "no promotion".',
-  date: 'Your calendar — one row per day with its year, month and week.',
+  channel: 'Optional. Your sales channels, such as e-commerce or modern trade. Leave it out and they are read from the store file, which then needs Channel_Name.',
+  promotion: 'Optional. Your promotions. Leave it out and each offer is read from the sales file, which then needs Promotion_Name and Promotion_Type.',
+  date: 'Optional. A calendar, one row per day. Leave it out and it is worked out from the sales dates: week 1 starts on 1 January and each Monday starts the next.',
 }
 
 export interface TableGuide {
@@ -113,6 +122,9 @@ export function guideFor(role: StarRole): TableGuide {
     purpose: PURPOSE[role],
     columns: [
       ...ROLE_COLUMNS[role].map((name) => ({ name, ...(COLUMN_DOCS[role][name] ?? FALLBACK) })),
+      // Each member of an interchangeable group is listed, because the user
+      // supplies one of them and their notes say so.
+      ...(EITHER_COLUMNS[role] ?? []).flat().map((name) => ({ name, ...(COLUMN_DOCS[role][name] ?? FALLBACK) })),
       ...OPTIONAL_COLUMNS[role].map((name) => ({ name, ...(COLUMN_DOCS[role][name] ?? FALLBACK), optional: true })),
     ],
   }

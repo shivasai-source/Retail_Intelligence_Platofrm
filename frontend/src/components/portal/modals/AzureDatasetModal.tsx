@@ -181,9 +181,9 @@ export function AzureDatasetModal({
     confirm({
       title: 'Reset uploaded data?',
       body:
-        'All 6 files will be deleted from the data folder and every dashboard will go back to ' +
+        'Every star file will be deleted from the data folder and every dashboard will go back to ' +
         'its upload prompt. This cannot be undone — you will need to load the full set again.',
-      primaryText: 'Delete all 6 files',
+      primaryText: 'Delete every file',
       icon: 'alertTriangle',
       onConfirm: () => {
         setError('')
@@ -217,7 +217,9 @@ export function AzureDatasetModal({
           <div>
             <h3 className="text-md font-medium">{locked ? 'Your dataset' : 'Load dataset from Azure'}</h3>
             <div className="mt-0.5 text-sm text-ink-muted">
-              {locked ? 'All 6 tables loaded · view or reset' : 'Pick the 6 tables · recognised by their column headers'}
+              {locked
+                ? `${installed.length} table${installed.length === 1 ? '' : 's'} loaded · view or reset`
+                : 'Pick your tables · recognised by their column headers'}
             </div>
           </div>
         </div>
@@ -239,8 +241,8 @@ export function AzureDatasetModal({
             <div className="mb-3.5 flex items-start gap-2 rounded-[var(--r-md)] bg-status-success-bg p-[10px_12px] text-sm leading-[1.5] text-[var(--pill-success-ink)] [&_svg]:mt-px [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0">
               <Icon name="checkCircle" />
               <span>
-                All 6 tables are loaded and every dashboard is reading from them. To load a different
-                dataset, reset first — the six files are only consistent as one set.
+                Your dataset is loaded and every dashboard is reading from it. To load a different
+                dataset, reset first — a star schema is only consistent as one set.
               </span>
             </div>
             <div className="flex flex-col gap-2">
@@ -503,14 +505,14 @@ export function AzureDatasetModal({
               active={install.isPending}
               estimateMs={60_000}
               label="Downloading from Azure"
-              note="The six blobs are downloaded and written to the data folder. The fact table is the big one."
+              note="The blobs are downloaded and written to the data folder. The fact table is the big one."
               measured={measured}
             />
 
             {inspection?.ready && (
               <div className="mt-3.5 flex items-start gap-2 rounded-[var(--r-md)] bg-surface-muted p-[10px_12px] text-sm leading-[1.5] text-ink-muted [&_svg]:mt-px [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0">
                 <Icon name="check" />
-                <span>All 6 tables recognised. They'll be downloaded from Azure and every dashboard will load from them.</span>
+                <span>Every required table recognised. They'll be downloaded from Azure and every dashboard will load from them.</span>
               </div>
             )}
           </>
@@ -519,7 +521,7 @@ export function AzureDatasetModal({
 
       <div className="flex items-center justify-between gap-2 border-t border-border-subtle p-[14px_22px]">
         <span className="text-xs text-ink-muted">
-          {locked ? '6 of 6 loaded' : picked.length > 0 ? `${picked.length} selected` : 'Read + List SAS token'}
+          {locked ? `${installed.length} loaded` : picked.length > 0 ? `${picked.length} selected` : 'Read + List SAS token'}
         </span>
         <div className="flex gap-2">
           {locked ? (

@@ -360,6 +360,11 @@ def _to_week_rows(store: FactStore, indices: Sequence[int]) -> tuple[WeekRow, ..
     event that never ran.
     """
     acc: dict[tuple[int, str, str, int], dict[str, float]] = {}
+    # COMPONENT A, per store-week. Summed into the group below so a Region or
+    # Retailer filter re-totals the baseline over exactly the stores it kept —
+    # the model itself is fitted once over the whole dataset, not per selection.
+    fitted = store.model_baseline()
+    model_units = fitted[0] if fitted else None
     for i in indices:
         product = store.products[store.product_code[i]]
         st = store.stores[store.store_code[i]]
@@ -373,6 +378,7 @@ def _to_week_rows(store: FactStore, indices: Sequence[int]) -> tuple[WeekRow, ..
                 "total_cost": 0.0, "promotion_cost": 0.0, "discount_value": 0.0,
                 "actual_price_sum": 0.0, "transaction_count": 0.0,
                 "month": float(store.month[i]),
+                "model_baseline": 0.0,
             }
         group["base_quantity"] += store.base_quantity[i]
         group["base_value"] += store.base_quantity[i] * store.actual_price[i]
@@ -383,6 +389,8 @@ def _to_week_rows(store: FactStore, indices: Sequence[int]) -> tuple[WeekRow, ..
         group["discount_value"] += store.base_revenue[i] - store.actual_revenue[i]
         group["actual_price_sum"] += store.actual_price[i]
         group["transaction_count"] += 1
+        if model_units is not None:
+            group["model_baseline"] += float(model_units[i])
 
     rows: list[WeekRow] = []
     for (product_code, channel_id, week_key, promo_code), g in acc.items():
@@ -407,6 +415,7 @@ def _to_week_rows(store: FactStore, indices: Sequence[int]) -> tuple[WeekRow, ..
             transaction_count=int(g["transaction_count"]),
             base_value=g["base_value"],
             counterfactual=store.counterfactual_base,
+            model_baseline=g["model_baseline"] if model_units is not None else None,
         ))
     rows.sort(key=lambda r: (r.week_key, r.product_id, r.channel_id, r.promotion_id))
     return tuple(rows)

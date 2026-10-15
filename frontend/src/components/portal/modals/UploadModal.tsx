@@ -3,7 +3,14 @@ import { Icon } from '../../../icons'
 import { Modal, Button, IconButton, useToast, useConfirm, BrandLogo, Spinner } from '../../ui'
 import { fmtSize } from '../../../lib/portalConnectors'
 import { useUploadDatasets, useStarStatus, useResetStar } from '../../../hooks/useDatasets'
-import { classifyFiles, ROLE_COLUMNS, STAR_ROLES, STAR_ROLE_LABELS } from '../../../lib/starSchema'
+import {
+  classifyFiles,
+  crossFileProblems,
+  DERIVABLE_ROLES,
+  REQUIRED_ROLES,
+  ROLE_COLUMNS,
+  STAR_ROLE_LABELS,
+} from '../../../lib/starSchema'
 import type { ClassifiedFile } from '../../../lib/starSchema'
 import { ApiError } from '../../../lib/api'
 import type { PortalConnector } from '../../../types/portal'
@@ -75,9 +82,16 @@ export function UploadModal({
       .filter(([, files]) => files.length === 1 && files[0].missingColumns.length === 0)
       .map(([role]) => role),
   )
-  const missingRoles = STAR_ROLES.filter((r) => !satisfied.has(r))
+  // Only the REQUIRED tables can be "still missing". dim_channel, dim_promotion
+  // and dim_date are derived by the loader when absent, so listing them here
+  // would ask the user for files no source system has.
+  const missingRoles = REQUIRED_ROLES.filter((r) => !satisfied.has(r))
+  // Leaving a derivable dimension out is only a problem when nothing stands in
+  // for it — the same CROSS_FILE_RULES the backend enforces.
+  const standInProblems = crossFileProblems(classified)
   const duplicated = [...byRole.entries()].filter(([, f]) => f.length > 1).map(([role]) => role)
   const incompleteFiles = classified.filter((c) => c.role && c.missingColumns.length > 0)
+  const derived = DERIVABLE_ROLES.filter((r) => !satisfied.has(r))
   // A workbook's header can't be read in the browser (see readHeader), so the
   // backend decides. Never block the upload on one.
   const undetermined = classified.filter((c) => c.undetermined)
@@ -87,6 +101,7 @@ export function UploadModal({
   const ready =
     classified.length > 0 &&
     extras.length === 0 &&
+    (standInProblems.length === 0 || undetermined.length > 0) &&
     (missingRoles.length === 0 || undetermined.length > 0)
 
   // ~4 MB/s end to end (upload + parse + write), floored so a tiny set still
@@ -129,9 +144,9 @@ export function UploadModal({
     confirm({
       title: 'Reset uploaded data?',
       body:
-        'All 6 files will be deleted from the data folder and every dashboard will go back to ' +
+        'Every star file will be deleted from the data folder and every dashboard will go back to ' +
         'its upload prompt. This cannot be undone — you will need to upload the full set again.',
-      primaryText: 'Delete all 6 files',
+      primaryText: 'Delete every file',
       icon: 'alertTriangle',
       onConfirm: () => {
         setError('')
@@ -171,7 +186,9 @@ export function UploadModal({
           <div>
             <h3 className="text-md font-medium">{locked ? 'Your dataset' : 'Upload your dataset'}</h3>
             <div className="mt-0.5 text-sm text-ink-muted">
-              {locked ? 'All 6 tables loaded · view or reset' : 'All 6 tables · recognised by their column headers'}
+              {locked
+                ? `${installed.length} table${installed.length === 1 ? '' : 's'} loaded · view or reset`
+                : 'Sales, products and stores · recognised by their column headers'}
             </div>
           </div>
         </div>
@@ -191,8 +208,8 @@ export function UploadModal({
             <div className="mb-3.5 flex items-start gap-2 rounded-[var(--r-md)] bg-status-success-bg p-[10px_12px] text-sm leading-[1.5] text-[var(--pill-success-ink)] [&_svg]:mt-px [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0">
               <Icon name="checkCircle" />
               <span>
-                All 6 tables are loaded and every dashboard is reading from them. To load a different
-                dataset, reset first — the six files are only consistent as one set.
+                Your dataset is loaded and every dashboard is reading from it. To load a different
+                dataset, reset first — a star schema is only consistent as one set.
               </span>
             </div>
 
@@ -238,7 +255,7 @@ export function UploadModal({
               </div>
               <strong className="mb-1 block text-base">Click to choose files, or drag them here</strong>
               <span className="text-sm text-ink-muted">
-                Exactly the 6 standard tables — names don't matter, columns identify them
+                Sales, products and stores — names don't matter, columns identify them
               </span>
             </div>
             <input
@@ -310,10 +327,10 @@ export function UploadModal({
               <div className="mt-3.5 rounded-[var(--r-md)] bg-status-danger-bg p-[11px_13px]">
                 <div className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-[var(--pill-danger-ink)] [&_svg]:h-[14px] [&_svg]:w-[14px]">
                   <Icon name="alertTriangle" />
-                  {extras.length} file{extras.length > 1 ? 's are' : ' is'} not one of the 6 tables
+                  {extras.length} file{extras.length > 1 ? 's are' : ' is'} not one of the standard tables
                 </div>
                 <div className="text-xs leading-[1.5] text-[var(--pill-danger-ink)]">
-                  Only the 6 standard tables can be uploaded. Remove{' '}
+                  Only the standard star-schema tables can be uploaded. Remove{' '}
                   {extras.map((c) => `'${c.file.name}'`).join(', ')} to continue.
                 </div>
               </div>
@@ -324,7 +341,7 @@ export function UploadModal({
               <div className="mt-3.5 rounded-[var(--r-md)] bg-status-danger-bg p-[11px_13px]">
                 <div className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-[var(--pill-danger-ink)] [&_svg]:h-[14px] [&_svg]:w-[14px]">
                   <Icon name="info" />
-                  {missingRoles.length} of 6 tables still missing — upload to continue the pipeline
+                  {missingRoles.length} of {REQUIRED_ROLES.length} required tables still missing — upload to continue the pipeline
                 </div>
                 <ul className="flex flex-col gap-1">
                   {missingRoles.map((role) => {
@@ -346,10 +363,35 @@ export function UploadModal({
               </div>
             )}
 
-            {classified.length > 0 && missingRoles.length === 0 && extras.length === 0 && (
+            {/* A derivable dimension left out with nothing standing in for it.
+                Caught here rather than after a 21 MB round trip. */}
+            {classified.length > 0 && standInProblems.length > 0 && undetermined.length === 0 && (
+              <div className="mt-3.5 rounded-[var(--r-md)] bg-status-danger-bg p-[11px_13px]">
+                <div className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-[var(--pill-danger-ink)] [&_svg]:h-[14px] [&_svg]:w-[14px]">
+                  <Icon name="alertTriangle" />
+                  A column is needed in place of a table you didn't upload
+                </div>
+                <ul className="flex flex-col gap-1">
+                  {standInProblems.map((p) => (
+                    <li key={p} className="text-xs leading-[1.5] text-[var(--pill-danger-ink)]">{p}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {classified.length > 0 && missingRoles.length === 0 && extras.length === 0 && standInProblems.length === 0 && (
               <div className="mt-3.5 flex items-start gap-2 rounded-[var(--r-md)] bg-surface-muted p-[10px_12px] text-sm leading-[1.5] text-ink-muted [&_svg]:mt-px [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0">
                 <Icon name="check" />
-                <span>All 6 tables recognised. They'll be written to the data folder and every dashboard will load from them.</span>
+                <span>
+                  All {REQUIRED_ROLES.length} required tables recognised. They'll be written to the data folder and
+                  every dashboard will load from them.
+                  {derived.length > 0 && (
+                    <>
+                      {' '}The {derived.map((r) => STAR_ROLE_LABELS[r].toLowerCase()).join(', ')}{' '}
+                      {derived.length === 1 ? 'is' : 'are'} derived from what you uploaded.
+                    </>
+                  )}
+                </span>
               </div>
             )}
           </>
@@ -374,9 +416,9 @@ export function UploadModal({
       <div className="flex items-center justify-between gap-2 border-t border-border-subtle p-[14px_22px]">
         <span className="text-xs text-ink-muted">
           {locked
-            ? `6 of 6 loaded`
+            ? `${installed.length} loaded`
             : classified.length > 0
-              ? `${satisfied.size} of 6 ready`
+              ? `${REQUIRED_ROLES.length - missingRoles.length} of ${REQUIRED_ROLES.length} required ready`
               : '.csv, .xlsx or .xls'}
         </span>
         <div className="flex gap-2">

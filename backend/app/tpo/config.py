@@ -60,6 +60,35 @@ def _resolve_data_dir() -> Path:
 DATA_DIR = _resolve_data_dir()
 
 
+# --- the baseline engine ---------------------------------------------------
+
+#: Which estimator answers "what would this store-week have sold with no
+#: promotion?" — the quantity every incremental figure, ROI and PEI is built
+#: from. See app/tpo/baseline_model.py for the model and the evidence.
+#:
+#:   "model"  LightGBM quantile regression (TPO_Algorithm_Workflow.pdf, Step 2,
+#:            Option 2), falling back to the local mean for a cell it cannot
+#:            serve. The default: it is the only estimator that can answer for
+#:            a week nobody has traded yet, which the Simulation Studio needs,
+#:            and for a cell with no clean history at all.
+#:   "window" The +/-4 non-promoted-week local mean alone (aggregate's original
+#:            rule). Kept switchable because it needs no fit, is explainable in
+#:            one sentence to a client, and on the shipped reference data it is
+#:            marginally the more accurate of the two (see BASELINE_PREFER_SOURCE).
+BASELINE_ENGINE: str = os.environ.get("TPO_BASELINE_ENGINE", "model").strip().lower()
+
+#: When the uploaded file carries a REAL Base_Quantity counterfactual, use it in
+#: preference to any model. True by default on purpose: that column is observed
+#: data, not an estimate, and on the reference dataset the model reproduces it
+#: only to within ~3%, so overriding it would make the shipped numbers worse
+#: rather than better. Practically no client file has the column, so the model
+#: is what actually runs on client data. Set False to force the model
+#: everywhere — useful for measuring the model against a known truth.
+BASELINE_PREFER_SOURCE: bool = (
+    os.environ.get("TPO_BASELINE_PREFER_SOURCE", "1").strip() not in ("0", "false", "False")
+)
+
+
 # --- targets ---------------------------------------------------------------
 
 #: The ROI a promotion must clear, as a multiple of trade spend — the same

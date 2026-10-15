@@ -669,13 +669,20 @@ export function Investigations() {
   // or -- for a run recorded before causes were listed -- one per agent, from
   // that agent's own finding.
   const findingsList = run?.result?.findings ?? []
-  const rootCauses: { cause: string; agents: string[]; share_pct?: number; recommendation?: string }[] = (
-    run?.result?.synthesis?.root_causes?.length
-      ? run.result.synthesis.root_causes
-      : findingsList.filter((f) => f.headline).map((f) => ({ cause: f.headline, agents: [f.key] }))
-  )
+  // Annotated BEFORE the sort, not after. The two branches of the choice below
+  // have different shapes -- the synthesis list carries share_pct, the
+  // per-finding fallback does not -- so without this the sort callback sees a
+  // union and cannot read share_pct off it at all.
+  type RootCause = { cause: string; agents: string[]; share_pct?: number; recommendation?: string }
+  const causeList: RootCause[] = run?.result?.synthesis?.root_causes?.length
+    ? run.result.synthesis.root_causes
+    : findingsList
+        .filter((f): f is typeof f & { headline: string } => Boolean(f.headline))
+        .map((f) => ({ cause: f.headline, agents: [f.key] }))
+  const rootCauses = causeList
     // Largest share of the problem first -- on every run, including ones
-    // stored before the backend sorted them.
+    // stored before the backend sorted them. The fallback branch has no
+    // shares, so -1 leaves those in the order the findings arrived.
     .slice()
     .sort((a, b) => (b.share_pct ?? -1) - (a.share_pct ?? -1))
 

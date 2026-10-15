@@ -132,7 +132,7 @@ export function ErrorState({
 }) {
   const detail = error instanceof Error ? error.message : 'Unknown error'
 
-  // NO DATASET IS NOT A FAILED REQUEST. The six CSVs have been removed — a
+  // NO DATASET IS NOT A FAILED REQUEST. The star CSVs have been removed — a
   // connector Reset, usually — so retrying cannot bring them back and offering
   // Retry invites the user to keep pressing a button that will never work.
   // `queryClient` re-checks the dataset status on this same error, so
@@ -150,7 +150,7 @@ export function ErrorState({
           </div>
           <p className="mt-3 text-md font-medium text-ink-primary">No dataset loaded</p>
           <p className="mt-1 text-base text-ink-muted">
-            The six star-schema tables are no longer in place, so there is nothing to show. Upload them
+            The star-schema tables are no longer in place, so there is nothing to show. Upload them
             again through the connector to continue.
           </p>
         </div>

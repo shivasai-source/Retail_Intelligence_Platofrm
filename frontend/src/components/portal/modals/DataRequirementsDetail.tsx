@@ -36,8 +36,8 @@ const ROLE_ICON: Record<StarRole, IconName> = {
 
 const RULES: Array<{ title: string; body: string }> = [
   {
-    title: 'Upload all six files together',
-    body: 'The files only make sense as a set, so a partial upload is refused. Loading a new dataset replaces the current one.',
+    title: 'Upload your files together',
+    body: 'The files only make sense as a set, so a partial upload is refused. Sales, products and stores are required; the channel, promotion and date files are optional — leave them out and they are worked out from the three. Loading a new dataset replaces the current one.',
   },
   {
     title: 'Headers identify each file — names don’t matter',
@@ -111,7 +111,7 @@ export function DataRequirementsDetail({
           )}
           <div className="min-w-0">
             <h3 className="text-lg font-normal">Data requirements</h3>
-            <p className="mt-0.5 text-base text-ink-muted">What each of the six files must contain.</p>
+            <p className="mt-0.5 text-base text-ink-muted">What each file must contain. Three are required; three are worked out for you.</p>
           </div>
         </div>
         <IconButton icon="x" title="Close" onClick={onClose} />

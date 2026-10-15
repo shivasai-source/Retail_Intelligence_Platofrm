@@ -74,6 +74,11 @@ export interface StarStatusFile {
   filename: string
   /** Columns the loader reads from this table — what identifies it. */
   required_columns: string[]
+  /** Columns read when present and never required. */
+  optional_columns?: string[]
+  /** False for a dimension the loader derives when it is absent, so an empty
+   *  slot is not a gap the user has to fill. Older payloads omit it. */
+  required?: boolean
   present: boolean
   size_bytes: number
   modified_at: number | null
@@ -83,7 +88,7 @@ export interface StarStatus {
   data_dir: string
   files: StarStatusFile[]
   complete: boolean
-  /** All six present — uploading is closed until a reset clears them. */
+  /** Every required table present — uploading is closed until a reset. */
   locked: boolean
 }
 
@@ -205,7 +210,13 @@ export interface StarInspectFile {
 
 export interface StarInspectResult {
   files: StarInspectFile[]
-  missing_roles: { role: StarRole; label: string; required_columns: string[] }[]
+  missing_roles: {
+    role: StarRole
+    label: string
+    required_columns: string[]
+    /** False for a dimension the loader derives; not a blocker. */
+    required?: boolean
+  }[]
   ready: boolean
   /** Empty when ready; otherwise names exactly what is wrong. */
   message: string

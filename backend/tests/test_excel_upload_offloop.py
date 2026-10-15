@@ -12,7 +12,10 @@ from app.deps import current_user
 from app.main import app
 from app.tpo import config
 
-REPO_DATA = Path(__file__).resolve().parents[2] / "Data"
+#: The reference dataset from git HEAD (tests/conftest.py), not the working
+#: Data/ folder -- this test uploads these files, so reading the folder the
+#: connector writes to would make it depend on the last upload.
+REPO_DATA = config.DATA_DIR
 
 
 def test_excel_upload_installs_the_six_tables(tmp_path, monkeypatch):
@@ -34,8 +37,10 @@ def test_excel_upload_installs_the_six_tables(tmp_path, monkeypatch):
         assert all((data / f["filename"]).is_file() for f in star["installed"])
     finally:
         app.dependency_overrides.pop(current_user, None)
-        # Leave the live store pointed back at the real Data/ folder.
-        monkeypatch.delenv("TPO_DATA_DIR")
+        # Leave the store pointed back at the reference dataset.
+        # No delenv: monkeypatch.setenv already restores the session-level
+        # TPO_DATA_DIR (tests/conftest.py) at teardown. Deleting it here
+        # left every later test reading the real Data/ folder.
         from app import star_dataset
 
         star_dataset.reset_caches()

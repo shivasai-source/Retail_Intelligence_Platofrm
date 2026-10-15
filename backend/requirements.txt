@@ -33,6 +33,12 @@ pandas>=2.2,<3
 # own (app/tpo/nuts.py) -- PyMC and numpyro need native code that Smart App
 # Control blocks on these machines.
 scipy>=1.13
+# Component A, the baseline (app/tpo/baseline_model.py): LightGBM with quantile
+# loss, per TPO_Algorithm_Workflow.pdf Step 2. Unlike PyMC and jaxlib, its
+# native library loads fine under Smart App Control -- verified 14 Oct 2026.
+# A missing lightgbm is not fatal: the engine falls back to the local-mean
+# baseline and logs why.
+lightgbm>=4.5
 python-multipart>=0.0.9
 # Investigation agents (app/agents/) — OpenAI client + .env loading for the
 # server-side API key. The key is NEVER sent from the browser.

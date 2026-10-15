@@ -154,7 +154,11 @@ export function TrendPanels({
   if (run.length) runs.push(run)
 
   const cx = (i: number) => padL + step * i + step / 2
-  const tickPitch = maxTextW(labels.map(calendarYear)) + TICK_GAP
+  // Wrapped rather than passed by reference: `calendarYear` is overloaded, and
+  // handing it straight to `map` makes TypeScript pick its widest signature
+  // (string | undefined), which `maxTextW` does not accept. The arrow pins the
+  // string overload, which is the only one these labels can hit.
+  const tickPitch = maxTextW(labels.map((label) => calendarYear(label))) + TICK_GAP
   const labelEvery = Math.max(1, Math.ceil(tickPitch / step))
 
   // The year is identical on almost every tick, so it is printed only when it

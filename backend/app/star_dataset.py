@@ -4,17 +4,17 @@ connector's real job.
 
 WHAT THIS IS FOR. `app/tpo/config.py` resolves ONE directory (`Data/` at the
 repo root, unless $TPO_DATA_DIR overrides it) and every dashboard, KPI,
-optimization and report in the platform reads the six CSVs sitting in it.
+optimization and report in the platform reads the star CSVs sitting in it.
 Uploading through the Excel connector used to drop files into a random
 `app/data/uploads/<id>/` folder that only the investigation agents ever looked
 at, so a user who uploaded a fresh fact table saw the old numbers everywhere.
-This module closes that gap: the six recognised files are written straight
+This module closes that gap: the recognised files are written straight
 into the folder the loader reads, replacing whatever was there.
 
 MATCHING A FILE TO ITS ROLE — BY COLUMN HEADERS, AND ONLY BY HEADERS. Not by
 filename and not by upload order. A user exporting from Excel produces
 `Book1.xlsx`, `export (3).csv` or `Sales Q1 FINAL v2.csv`; none of those names
-say which table the file is, and a file dialog hands the six over in whatever
+say which table the file is, and a file dialog hands them over in whatever
 order the OS chose. The column names DO say, unambiguously — only the fact
 carries Base_Quantity, only dim_product carries Product_Name — and they are
 also what the loader indexes by, so a file recognised here is a file that will
@@ -27,13 +27,29 @@ full column list then decides whether it can actually be loaded (ROLE_COLUMNS).
 Collapsing them would turn "your product file is missing the Size column" into
 "no product dimension uploaded" — a message about the wrong problem.
 
-ALL SIX, OR NOTHING. A star schema is only consistent as a set — a new fact
-table joined against last week's dim_product is a different dataset with
-silently wrong joins. An install therefore requires the complete set of six and
-refuses a partial upload, and there is no backup: the only two valid states are
-"all six of one dataset" and "empty, waiting for an upload". A failed install
-clears the folder, which puts the app back at its upload prompt rather than
-booting on a half-replaced schema.
+ONE DATASET, OR NOTHING. A star schema is only consistent as a set — a new
+fact table joined against last week's dim_product is a different dataset with
+silently wrong joins. An install therefore requires a complete set and refuses
+a partial upload, and there is no backup: the only two valid states are "one
+whole dataset" and "empty, waiting for an upload". A failed install clears the
+folder, which puts the app back at its upload prompt rather than booting on a
+half-replaced schema.
+
+THREE REQUIRED TABLES, THREE OPTIONAL ONES. The sales fact, dim_product and
+dim_geo_store must be uploaded. dim_channel, dim_promotion and dim_date are
+accepted when a source system has them and DERIVED by the loader when it does
+not, because no client extract carries them:
+
+  * dim_date      -- a calendar is arithmetic, never a source table
+  * dim_channel   -- channel name/type live on the store master
+  * dim_promotion -- the offer's name and mechanic ride on the fact row
+
+Dropping one is therefore not a partial upload, it is the ordinary three-file
+shape. What the loader cannot invent, it still demands: see CROSS_FILE_RULES,
+which requires the columns that stand in for an absent dimension. Because the
+rest of the set must agree, an install DELETES the files of any optional table
+not in this upload — leaving last dataset's dim_promotion beside a new fact is
+exactly the silent mis-join this module exists to prevent.
 
 STAGE, THEN SWAP. Every CSV is written to a temp file beside its destination
 first, and only then os.replace()d into place, so a crash mid-write can never
@@ -81,13 +97,13 @@ ROLE_LABELS: dict[str, str] = {
 #: one and letting the loader fail on a KeyError would report the wrong problem;
 #: `missing_columns` names the absent column instead.
 ROLE_COLUMNS: dict[str, tuple[str, ...]] = {
-    # Only what a source system records. Week/Month come from dim_date, the
+    # Only what a source system records. Week/Month come from the calendar, the
     # channel from dim_geo_store, both revenues from units x price.
     # Base_Quantity (units expected without the promotion) is read when present
     # but not required -- see loader._build_store.
     "fact": (
         "Date", "Product_id", "Store_Id", "Promotion_Id",
-        "Actual_Quantity", "Base_Price", "Actual_Price", "Total_Cost", "Promotion_Cost",
+        "Actual_Quantity", "Base_Price", "Actual_Price",
     ),
     "product": ("Product_id", "Product_Name", "Brand", "Category", "Size"),
     "geo_store": ("Store_Id", "Channel_Id", "Retailer", "Region", "State", "City", "Tier"),
@@ -95,6 +111,43 @@ ROLE_COLUMNS: dict[str, tuple[str, ...]] = {
     "promotion": ("Promotion_Id", "Promotion_Name", "Promotion_Type", "Promotion_Description"),
     "date": ("Date", "Year", "Month", "Week"),
 }
+
+#: The three tables an upload cannot do without, and the three the loader
+#: derives when they are absent. Order is display order.
+REQUIRED_ROLES: tuple[str, ...] = ("fact", "product", "geo_store")
+DERIVABLE_ROLES: tuple[str, ...] = ("channel", "promotion", "date")
+
+#: role -> groups of interchangeable columns, each group satisfied by ANY one
+#: of its members. Cost of goods is the only one: a source states it for the
+#: whole line (`Total_Cost`) or per unit (`CP`, what a pricing master holds),
+#: and the loader multiplies by the fact's own quantity for the latter.
+EITHER_COLUMNS: dict[str, tuple[tuple[str, ...], ...]] = {
+    "fact": (("Total_Cost", "CP"),),
+}
+
+#: role -> columns the loader reads WHEN PRESENT and never requires. Listed so
+#: the connector can show a file's extra columns as recognised rather than as
+#: noise, and so `CROSS_FILE_RULES` has one place to point at.
+OPTIONAL_COLUMNS: dict[str, tuple[str, ...]] = {
+    "fact": ("Base_Quantity", "Promotion_Name", "Promotion_Type", "Promotion_Cost"),
+    "product": (),
+    "geo_store": ("Distributor_Name", "Country", "Channel_Name", "Channel_Type", "Schedule"),
+    "channel": ("Schedule",),
+    "promotion": (),
+    "date": ("Quarter", "Day"),
+}
+
+#: What a table must carry to stand in for a dimension nobody uploaded:
+#: (absent role, the role that must cover for it, the columns it needs).
+#:
+#: A calendar needs nothing -- `loader._derive_week` builds it from the fact's
+#: Date column -- so dim_date has no rule here. The other two cannot be
+#: invented: a channel with no name and an offer with no mechanic would leave
+#: the dashboards grouping by raw ids.
+CROSS_FILE_RULES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("channel", "geo_store", ("Channel_Name",)),
+    ("promotion", "fact", ("Promotion_Name", "Promotion_Type")),
+)
 
 #: role -> the columns that tell this table apart from the other five, checked
 #: in this order. Identification and completeness are deliberately SEPARATE
@@ -140,10 +193,17 @@ class Classified:
     #: Empty for a usable file. Non-empty means the table was recognised but
     #: cannot be loaded, which is a different message from "not uploaded".
     missing_columns: tuple[str, ...] = ()
+    #: Every column the file actually carries, as uploaded. Kept because the
+    #: CROSS_FILE_RULES checks run over the whole upload rather than one file,
+    #: and re-reading the header to answer them would mean parsing twice.
+    columns: tuple[str, ...] = ()
 
     @property
     def is_usable(self) -> bool:
         return not self.missing_columns
+
+    def has(self, column: str) -> bool:
+        return column.lower() in {c.strip().lower() for c in self.columns}
 
 
 def data_dir() -> Path:
@@ -203,8 +263,14 @@ def match_columns(header: list[str]) -> tuple[str, tuple[str, ...]] | None:
 
     for role, discriminators in ROLE_DISCRIMINATORS:
         if all(col.lower() in present for col in discriminators):
-            missing = tuple(col for col in ROLE_COLUMNS[role] if col.lower() not in present)
-            return role, missing
+            missing = [col for col in ROLE_COLUMNS[role] if col.lower() not in present]
+            # An interchangeable group is missing only when NONE of its members
+            # is there, and it is then named as the choice it is ("Total_Cost
+            # or CP") rather than as one arbitrary member.
+            for group in EITHER_COLUMNS.get(role, ()):
+                if not any(col.lower() in present for col in group):
+                    missing.append(" or ".join(group))
+            return role, tuple(missing)
 
     return None
 
@@ -213,7 +279,7 @@ def classify(filename: str, content: bytes) -> Classified | None:
     """Identify one uploaded file BY ITS COLUMN HEADERS alone.
 
     The filename is never consulted — only its extension, to pick a reader.
-    Returns None when the header matches none of the six discriminators, which
+    Returns None when the header matches none of the discriminators, which
     is not an error: the caller keeps such a file as an ordinary profiled
     dataset for the investigation agents.
 
@@ -240,6 +306,7 @@ def classify(filename: str, content: bytes) -> Classified | None:
         content=content,
         matched_by="column headers",
         missing_columns=missing,
+        columns=tuple(header),
     )
 
 
@@ -256,7 +323,7 @@ def inspect_columns(sources: list[tuple[str, list[str]]]) -> dict[str, Any]:
     matched = [(name, match_columns(cols)) for name, cols in sources]
 
     recognised: list[Classified] = []
-    for name, hit in matched:
+    for (name, cols), (_, hit) in zip(sources, matched):
         if hit is None:
             continue
         role, missing = hit
@@ -268,6 +335,9 @@ def inspect_columns(sources: list[tuple[str, list[str]]]) -> dict[str, Any]:
                 content=b"",  # nothing is read at this stage
                 matched_by="column names",
                 missing_columns=missing,
+                # Carried so the CROSS_FILE_RULES checks see a Databricks
+                # selection exactly as they see an upload.
+                columns=tuple(cols),
             )
         )
     unrecognised = [name for name, hit in matched if hit is None]
@@ -295,7 +365,14 @@ def inspect_columns(sources: list[tuple[str, list[str]]]) -> dict[str, Any]:
             for name, hit in matched
         ],
         "missing_roles": [
-            {"role": role, "label": ROLE_LABELS[role], "required_columns": list(ROLE_COLUMNS[role])}
+            {
+                "role": role,
+                "label": ROLE_LABELS[role],
+                "required_columns": list(ROLE_COLUMNS[role]),
+                # A derivable dimension is reported so the page can name it,
+                # but it is not something the user has to supply.
+                "required": role in REQUIRED_ROLES,
+            }
             for role in ROLE_COLUMNS
             if role not in satisfied
         ],
@@ -322,7 +399,7 @@ def _file_facts(data: bytes) -> dict[str, Any]:
 
 def _to_csv_bytes(item: Classified) -> bytes:
     """The bytes to write. Excel uploads are converted to CSV, because the
-    loader opens these six paths with `csv.DictReader` and nothing else."""
+    loader opens these paths with `csv.DictReader` and nothing else."""
     if Path(item.original_name).suffix.lower() not in (".xlsx", ".xls"):
         return item.content
     try:
@@ -340,7 +417,7 @@ def _discard(folder: Path, names: list[str]) -> None:
     """Remove a half-applied install.
 
     There is no backup to restore from: an install must supply the COMPLETE
-    set of six, so the previous contents are never a valid fallback — half the
+    set, so the previous contents are never a valid fallback — half the
     old schema joined against half the new one is exactly the silently-wrong
     dataset this module exists to prevent. A failed install therefore leaves
     the folder empty and the app back at its upload prompt, which is a state
@@ -457,16 +534,23 @@ def validate(items: list[Classified], unrecognised: list[str] | None = None) -> 
     recognised but unusable, *which column* it lacks. "Upload failed" would be
     true and useless.
 
-    Four distinct problems, reported separately because the fix differs:
-      * a table nobody uploaded             -> upload that file
-      * a table uploaded twice              -> remove one of them
+    Five distinct problems, reported separately because the fix differs:
+      * a REQUIRED table nobody uploaded     -> upload that file
+      * a table uploaded twice               -> remove one of them
       * a table uploaded but missing columns -> fix the export
-      * a file that is none of the six      -> remove it
+      * a derivable table left out, with no
+        column standing in for it            -> add that column
+      * a file that is none of the standard tables -> remove it
 
-    `unrecognised` carries the filenames whose headers matched no table. Exactly
-    six files, one per table, may be uploaded: an extra file is a mistake the
-    user should see now — silently profiling it elsewhere hid a
-    wrong-file-picked slip behind a success message.
+    A DERIVABLE table left out is not a problem by itself: dim_channel,
+    dim_promotion and dim_date are reconstructed by the loader. What is a
+    problem is leaving one out when the table that must cover for it does not
+    carry the columns to do so — CROSS_FILE_RULES.
+
+    `unrecognised` carries the filenames whose headers matched no table. One
+    file per table may be uploaded: an extra file is a mistake the user should
+    see now — silently profiling it elsewhere hid a wrong-file-picked slip
+    behind a success message.
     """
     by_role: dict[str, list[Classified]] = {}
     for item in items:
@@ -476,8 +560,8 @@ def validate(items: list[Classified], unrecognised: list[str] | None = None) -> 
 
     for name in unrecognised or []:
         problems.append(
-            f"'{name}': its columns match none of the 6 tables — remove it, "
-            f"only the 6 standard tables can be uploaded."
+            f"'{name}': its columns match none of the {len(ROLE_COLUMNS)} tables — "
+            f"remove it, only the standard star-schema tables can be uploaded."
         )
 
     duplicates = {role: found for role, found in by_role.items() if len(found) > 1}
@@ -501,9 +585,11 @@ def validate(items: list[Classified], unrecognised: list[str] | None = None) -> 
     satisfied = {
         role for role, found in by_role.items() if len(found) == 1 and found[0].is_usable
     }
-    absent = [role for role in ROLE_COLUMNS if role not in satisfied]
     unusable_roles = {i.role for i in incomplete} | set(duplicates)
-    never_uploaded = [role for role in absent if role not in unusable_roles]
+    never_uploaded = [
+        role for role in REQUIRED_ROLES
+        if role not in satisfied and role not in unusable_roles
+    ]
 
     if never_uploaded:
         problems.append(
@@ -515,33 +601,60 @@ def validate(items: list[Classified], unrecognised: list[str] | None = None) -> 
             + "."
         )
 
+    # A derivable dimension left out is fine only if its stand-in columns are
+    # there. Checked against the uploaded file itself, not against the folder:
+    # the install is about to delete whatever that dimension's old file was.
+    for absent_role, carrier, needed in CROSS_FILE_RULES:
+        if absent_role in by_role or carrier not in satisfied:
+            continue
+        lacking = [col for col in needed if not by_role[carrier][0].has(col)]
+        if lacking:
+            problems.append(
+                f"{ROLE_LABELS[absent_role]} was not uploaded, so "
+                f"{ROLE_LABELS[carrier]} must carry "
+                f"{'column' if len(lacking) == 1 else 'columns'} "
+                f"{', '.join(lacking)} instead — add "
+                f"{'it' if len(lacking) == 1 else 'them'} or upload "
+                f"{ROLE_LABELS[absent_role].lower()}."
+            )
+
     if problems:
+        ready = len(satisfied & set(REQUIRED_ROLES))
+        extra = sorted(satisfied - set(REQUIRED_ROLES))
         # The trailing instruction only fits when something is actually absent.
-        # With all six present and an extra file alongside them, "upload the
-        # missing file(s)" told the user to do the opposite of what was needed.
+        # With every required table present and an extra file alongside them,
+        # "upload the missing file(s)" told the user to do the opposite.
         remedy = (
             " Please upload the missing file(s) to continue the pipeline."
-            if len(satisfied) < len(ROLE_COLUMNS)
-            else " Remove the extra file(s) to continue the pipeline."
+            if ready < len(REQUIRED_ROLES) or never_uploaded
+            else " Fix the problem(s) above to continue the pipeline."
         )
+        alongside = f" ({len(extra)} optional table(s) alongside)" if extra else ""
         raise StarDatasetError(
-            f"{len(satisfied)} of 6 tables ready. " + " ".join(problems) + remedy
+            f"{ready} of {len(REQUIRED_ROLES)} required tables ready{alongside}. "
+            + " ".join(problems) + remedy
         )
 
 
 def install(items: list[Classified], unrecognised: list[str] | None = None) -> dict[str, Any]:
     """Write a COMPLETE star schema into the data folder and reload from it.
 
-    All six tables are required in one upload. A star schema is only meaningful
-    as a set — a new fact table joined against the previous dim_product is a
-    different dataset whose joins are quietly wrong — so a partial upload is
-    refused outright rather than half-applied. That is also why there is no
-    backup to roll back to: the only two valid states are "all six of one
-    dataset" and "empty, waiting for an upload".
+    The three required tables must arrive in one upload, together with any
+    optional dimension the source happens to have. A star schema is only
+    meaningful as a set — a new fact table joined against the previous
+    dim_product is a different dataset whose joins are quietly wrong — so a
+    partial upload is refused outright rather than half-applied. That is also
+    why there is no backup to roll back to: the only two valid states are "one
+    whole dataset" and "empty, waiting for an upload".
+
+    An optional dimension the user did NOT upload has its old file deleted in
+    the same swap. Keeping it would join the previous dataset's channels or
+    offers onto the new fact — the same silent mis-join a partial upload is
+    refused for, arrived at by omission instead.
     """
     if is_locked():
         raise StarDatasetError(
-            "A complete dataset is already loaded. Use Reset to clear all 6 files "
+            "A complete dataset is already loaded. Use Reset to clear it "
             "before uploading a new set — see the connector's Reset button."
         )
 
@@ -554,9 +667,18 @@ def install(items: list[Classified], unrecognised: list[str] | None = None) -> d
     names = [item.target_name for item in items]
     replaced = [item.target_name for item in items if (folder / item.target_name).is_file()]
 
+    # Derivable dimensions this upload left out: their old files belong to the
+    # previous dataset and must not survive into this one.
+    uploaded_roles = {item.role for item in items}
+    superseded = [
+        ROLE_FILES[role]
+        for role in DERIVABLE_ROLES
+        if role not in uploaded_roles and (folder / ROLE_FILES[role]).is_file()
+    ]
+
     with _install_lock:
         # STAGE EVERYTHING FIRST, then swap. Writing and swapping one file at a
-        # time meant a failure on file 4 of 6 left three tables already replaced
+        # time meant a failure partway through left earlier tables replaced
         # and a mismatched star schema on disk until rollback undid it. Staging
         # separates the slow, failure-prone part (writing 21 MB, and any
         # scanner that wakes up for it) from the swap, which is then a short
@@ -574,6 +696,9 @@ def install(items: list[Classified], unrecognised: list[str] | None = None) -> d
         try:
             for temp, target in staged:
                 _replace_with_retry(temp, target)
+            # Inside the same lock and after the swap, so the folder is never
+            # observed holding the new fact beside a stale dimension.
+            _discard(folder, superseded)
             reset_caches()
             from app.tpo.loader import get_store
 
@@ -589,7 +714,7 @@ def install(items: list[Classified], unrecognised: list[str] | None = None) -> d
             reset_caches()
             raise StarDatasetError(
                 f"The uploaded files couldn't be loaded as a star schema, so nothing was "
-                f"kept — please upload all six files again: {e}"
+                f"kept — please upload the files again: {e}"
             ) from e
 
     return {
@@ -610,7 +735,7 @@ def install(items: list[Classified], unrecognised: list[str] | None = None) -> d
 
 
 def replace(items: list[Classified], unrecognised: list[str] | None = None) -> dict[str, Any]:
-    """Swap a fresh copy of the SAME source's six tables in over the loaded set.
+    """Swap a fresh copy of the SAME source's tables in over the loaded set.
 
     This is the sync path (see app/source_sync.py), and it differs from
     `install` in the two ways a sync needs:
@@ -623,7 +748,7 @@ def replace(items: list[Classified], unrecognised: list[str] | None = None) -> d
         leave the platform on yesterday's data, not on an empty folder — the
         user did nothing destructive, so nothing should be lost.
 
-    The six current files are renamed to `.<name>.previous`, the staged set is
+    The current files are renamed to `.<name>.previous`, the staged set is
     swapped in, and the store is rebuilt from it. Any failure moves the previous
     files back and rebuilds from them.
     """
@@ -719,8 +844,13 @@ def replace(items: list[Classified], unrecognised: list[str] | None = None) -> d
 
 
 def current_status() -> dict[str, Any]:
-    """Which of the six files the data folder currently holds. Lets the
-    frontend show what is connected without parsing anything."""
+    """Which star files the data folder currently holds. Lets the frontend show
+    what is connected without parsing anything.
+
+    `required` separates the three tables that must be on disk from the three
+    the loader derives, so the page can show an absent dim_date as "derived
+    from the sales dates" rather than as a gap the user has to fill.
+    """
     folder = data_dir()
     files = []
     for role, name in ROLE_FILES.items():
@@ -733,12 +863,14 @@ def current_status() -> dict[str, Any]:
                 "label": ROLE_LABELS[role],
                 "filename": name,
                 "required_columns": list(ROLE_COLUMNS[role]),
+                "optional_columns": list(OPTIONAL_COLUMNS.get(role, ())),
+                "required": role in REQUIRED_ROLES,
                 "present": present,
                 "size_bytes": stat.st_size if stat else 0,
                 "modified_at": int(stat.st_mtime * 1000) if stat else None,
             }
         )
-    complete = all(f["present"] for f in files)
+    complete = all(f["present"] for f in files if f["required"])
     return {
         "data_dir": str(folder),
         "files": files,
@@ -750,10 +882,10 @@ def current_status() -> dict[str, Any]:
 
 
 def reset() -> dict[str, Any]:
-    """Delete all six star files, putting the connector back at its upload prompt.
+    """Delete every star file, putting the connector back at its upload prompt.
 
     The counterpart to `install`'s all-or-nothing rule: since the only two valid
-    states are "all six of one dataset" and "empty", clearing is what makes a
+    states are "one whole dataset" and "empty", clearing is what makes a
     SECOND upload possible at all. Uploading over a complete set is refused (see
     `is_locked`) because a fresh fact table silently joined against the previous
     dimensions is the mismatched-schema bug this module exists to prevent — so
@@ -816,11 +948,16 @@ def is_locked() -> bool:
     """True when a complete set is installed and further uploads are refused.
 
     Uploading is a replace-the-world operation, so it is allowed only from the
-    empty state. With all six present the user's choices are to view them or to
-    reset — see `reset` for why replacing in place is not one of them.
+    empty state. With a loadable dataset present the user's choices are to view
+    it or to reset — see `reset` for why replacing in place is not one of them.
+
+    Only the REQUIRED tables count. Testing all six would leave a three-file
+    dataset permanently unlocked: the connector would go on offering its
+    dropzone over a dataset the dashboards are already reading, and `install`
+    would accept a second fact table on top of the first.
     """
     folder = data_dir()
-    return all((folder / name).is_file() for name in ROLE_FILES.values())
+    return all((folder / ROLE_FILES[role]).is_file() for role in REQUIRED_ROLES)
 
 
 #: Rows returned by `preview` in one page. Enough to see the shape of a table
@@ -908,7 +1045,14 @@ def inspect(uploads: list[tuple[str, bytes]]) -> dict[str, Any]:
             for name, c in classified
         ],
         "missing_roles": [
-            {"role": role, "label": ROLE_LABELS[role], "required_columns": list(ROLE_COLUMNS[role])}
+            {
+                "role": role,
+                "label": ROLE_LABELS[role],
+                "required_columns": list(ROLE_COLUMNS[role]),
+                # A derivable dimension is reported so the page can name it,
+                # but it is not something the user has to supply.
+                "required": role in REQUIRED_ROLES,
+            }
             for role in ROLE_COLUMNS
             if role not in satisfied
         ],

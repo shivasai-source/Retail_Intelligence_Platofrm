@@ -68,7 +68,9 @@ def env(tmp_path, monkeypatch, tables):
     star_dataset.reset_caches()
     yield {"data": data, "remote": remote, "client": TestClient(app)}
     app.dependency_overrides.pop(current_user, None)
-    monkeypatch.delenv("TPO_DATA_DIR")
+    # No delenv: monkeypatch.setenv already restores the session-level
+    # TPO_DATA_DIR (tests/conftest.py) at teardown. Deleting it here
+    # left every later test reading the real Data/ folder.
     star_dataset.reset_caches()  # point the store back at the live folder
 
 
