@@ -95,7 +95,7 @@ export function TargetPanel({
 
       {error && (
         <Panel>
-          <div className="text-md font-medium text-ink-primary">Could not work out the target</div>
+          <div className={TYPE.title}>Could not work out the target</div>
           <div className={`mt-1 ${TYPE.label}`}>{error.message}</div>
         </Panel>
       )}
@@ -176,11 +176,12 @@ export function TargetPanel({
               )}
             </Panel>
 
-            <Panel title="Current plan vs re-planned">
+            <Panel title="What the re-plan changes">
               <FigureCompare
                 columns={[
-                  { title: 'Current plan', figures: data.current },
-                  { title: 'Re-planned', figures: rp.figures, deltas: rp.deltas, recommended: true, band: rp.band },
+                  { title: 'Baseline', figures: data.baseline, muted: true },
+                  { title: 'Current plan', sub: 'today', figures: data.current },
+                  { title: 'Re-planned', sub: 'proposed', figures: rp.figures, deltas: rp.deltas, recommended: true, band: rp.band },
                 ]}
               />
             </Panel>
@@ -248,7 +249,10 @@ function TargetVerdict({
           <Icon name={reachable ? 'checkCircle' : 'alertTriangle'} />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-lg font-normal text-ink-primary">
+          {/* The page's one verdict, so it keeps text-lg -- but at the medium
+              weight every other heading in the Studio uses. It was the only
+              font-normal heading here. */}
+          <div className="text-lg font-medium text-ink-primary">
             Growing Profit % by +{t}% is <span className={tone.text}>{reachable ? 'reachable' : 'out of reach'}</span>
           </div>
           <div className={`mt-1 ${TYPE.label}`}>

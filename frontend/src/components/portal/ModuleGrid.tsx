@@ -88,7 +88,7 @@ export function ModuleGrid({ tpoHref, needsData = false }: { tpoHref?: string; n
             >
               <Icon name={m.icon} />
             </div>
-            <h3 className="relative text-lg leading-[1.28]">{m.title}</h3>
+            <h3 className="relative text-lg font-semibold leading-[1.28]">{m.title}</h3>
             <p className="relative flex-1 text-md leading-[1.5] text-ink-muted">{m.desc}</p>
             {/* HONEST AFFORDANCES. The live module gets its status and an
                 arrow that goes somewhere. A roadmap module says so in a

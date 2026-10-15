@@ -15,25 +15,33 @@
    ease-[var(--ease-spring)], w-[var(--sidebar-w)].
 ============================================================================ */
 @theme {
-  /* ===== Type scale — THE ONLY FONT SIZES IN THE APP =====
-     2026-10-14: one size for every piece of text, on every page -- headers,
-     footers, headings, sidebars, tables, charts -- 15px; the one exception is
-     the figure on a KPI card, 18px (`--text-kpi`, used by `.kpi-value`).
-     The named steps are kept so existing classes still resolve, but every
-     one of them is now the same 15px. */
+  /* ===== Type scale =====
+     2026-10-14 set every step to 15px: one size for every piece of text on
+     every page. 2026-10-15 walked the TOP of that back, at the user's
+     request, because a page where the title, the section headings and the
+     body are the same size gives a reader nothing to land on -- the sign-in
+     page and the module picker read as one undifferentiated block.
+
+     BODY IS STILL ONE SIZE. 2xs through md remain 15px, so tables, charts,
+     labels, sidebars and every figure are untouched -- including the chart
+     margin estimates in components/charts/textWidth.ts, which assume a 15px
+     label. Only the steps a HEADING uses were given room back, and only the
+     ~50 places that already ask for lg and up are affected; every one of them
+     is a heading, a dialog title or a hero figure that was written to be
+     bigger and then flattened. */
   --text-2xs: 15px;   --text-2xs--line-height: 1.45;
   --text-xs: 15px;    --text-xs--line-height: 1.45;
   --text-sm: 15px;    --text-sm--line-height: 1.45;
   --text-base: 15px;  --text-base--line-height: 1.45;
   --text-md: 15px;    --text-md--line-height: 1.45;
-  --text-lg: 15px;    --text-lg--line-height: 1.45;
-  --text-xl: 15px;    --text-xl--line-height: 1.45;
-  --text-2xl: 15px;   --text-2xl--line-height: 1.45;
-  --text-3xl: 15px;   --text-3xl--line-height: 1.45;
-  --text-4xl: 15px;   --text-4xl--line-height: 1.45;
-  --text-5xl: 15px;   --text-5xl--line-height: 1.45;
-  --text-6xl: 15px;   --text-6xl--line-height: 1.45;
-  --text-7xl: 15px;   --text-7xl--line-height: 1.45;
+  --text-lg: 17px;    --text-lg--line-height: 1.4;
+  --text-xl: 19px;    --text-xl--line-height: 1.35;
+  --text-2xl: 22px;   --text-2xl--line-height: 1.3;
+  --text-3xl: 26px;   --text-3xl--line-height: 1.25;
+  --text-4xl: 30px;   --text-4xl--line-height: 1.2;
+  --text-5xl: 34px;   --text-5xl--line-height: 1.15;
+  --text-6xl: 38px;   --text-6xl--line-height: 1.1;
+  --text-7xl: 42px;   --text-7xl--line-height: 1.1;
   --text-8xl: 15px;   --text-8xl--line-height: 1.45;
   --text-9xl: 15px;   --text-9xl--line-height: 1.45;
   --text-kpi: 18px;   --text-kpi--line-height: 1.15;  /* KPI card values only */
@@ -44,18 +52,26 @@
   --font-mono: var(--font-sans);
   --font-serif: var(--font-sans);
 
-  /* ONE WEIGHT. No text in the app is bold: every weight utility
-     (font-medium, font-semibold, font-bold, ...) resolves to regular 400, so
-     hierarchy comes from colour and spacing, never from weight. */
+  /* WEIGHT. 2026-10-14 collapsed every weight utility to 400 so that
+     hierarchy came only from colour and spacing. 2026-10-15 restored the
+     three the app actually uses, at the user's request: with one size and one
+     weight a reader had nothing to land on -- a module card's title read
+     exactly like its description, and `font-semibold` in the markup silently
+     did nothing.
+
+     Three steps, deliberately close together: 400 body, 500 for the labels
+     and table headers that already ask for `font-medium`, 600 for a title
+     that should be found before the text under it. Nothing in the app is
+     heavier than 600. */
   --font-weight-thin: 400;
   --font-weight-extralight: 400;
   --font-weight-light: 400;
   --font-weight-normal: 400;
-  --font-weight-medium: 400;
-  --font-weight-semibold: 400;
-  --font-weight-bold: 400;
-  --font-weight-extrabold: 400;
-  --font-weight-black: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 600;
+  --font-weight-extrabold: 600;
+  --font-weight-black: 600;
 
   /* Brand — kept as brand-* (not violet/blue/indigo) because those bare
      names collide with Tailwind's own built-in color palette, which
@@ -163,7 +179,11 @@
 html, body { font-family: var(--font-sans); font-size: 15px; line-height: 1.45; font-weight: 400; }
 input, select, textarea, button, svg text, svg tspan { font-family: var(--font-sans); }
 svg text, svg tspan { font-size: 15px; font-weight: 400; }
-b, strong, th, optgroup, dt, legend, summary { font-weight: 400; }
+/* The browser bolds these by default at 700, which is heavier than anything
+   this app uses. `th` keeps the body weight because every table here styles
+   its own header; `b` and `strong` are left to mean what they say, at 600. */
+th, optgroup, dt, legend, summary { font-weight: 400; }
+b, strong { font-weight: 600; }
 
 body {
   color: var(--text-primary);
@@ -173,9 +193,15 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Large and light, small and medium: titles get size, not weight. */
-h1, h2, h3, h4, h5, h6 { font-weight: 400; color: var(--text-primary); }
-h1, h2, h3, h4, h5, h6 { font-size: 15px; line-height: 1.45; }
+/* Headings default to the body size and weight, and say so from `base` --
+   UNLAYERED these rules beat every Tailwind utility, so `text-3xl` and
+   `font-semibold` on a heading did nothing at all and the markup silently
+   lied about its own hierarchy. In `base` they are a starting point a
+   utility can override, which is what every heading in this app expects. */
+@layer base {
+  h1, h2, h3, h4, h5, h6 { font-weight: 400; color: var(--text-primary); }
+  h1, h2, h3, h4, h5, h6 { font-size: 15px; line-height: 1.45; }
+}
 
 ::selection { background: var(--brand-violet); color: white; }
 
@@ -485,7 +511,15 @@ h1, h2, h3, h4, h5, h6 { font-size: 15px; line-height: 1.45; }
    figure is green or red (`[data-sign]` below).
    Unlayered on purpose: unlayered rules outrank Tailwind's utility layer, so
    no `text-ink-muted`, `text-status-danger`, `italic`, `uppercase` or
-   `tracking-*` anywhere can make one piece of text differ from the rest. */
+   `tracking-*` anywhere can make one piece of text differ from the rest.
+
+   `data-accent` IS THE ONE WAY OUT, added 15 Oct 2026. An element carrying it
+   keeps the colour its class or inline style asks for. It exists because the
+   rules above are invisible from the markup: a developer writes
+   `text-brand-blue`, sees body-coloured text, and has no way to tell whether
+   the class is wrong, the token is missing or the build is stale. Use it
+   sparingly -- the sign-in page's product name is the first and, so far, the
+   only one. */
 :where(body) * {
   font-style: normal;
   text-transform: none;
@@ -501,7 +535,7 @@ h1, h2, h3, h4, h5, h6 { font-size: 15px; line-height: 1.45; }
   [class*="text-pill-"],
   [class*="text-[var(--"],
   [class*="text-[#"]
-):not([class*="text-white"], [class*="text-surface-card"]) {
+):not([class*="text-white"], [class*="text-surface-card"], [data-accent]) {
   color: var(--text-primary);
 }
 
@@ -509,7 +543,7 @@ h1, h2, h3, h4, h5, h6 { font-size: 15px; line-height: 1.45; }
    inline style outranks any stylesheet rule, hence !important. Icon tiles
    (a tinted square holding only an icon) keep their accent: that colour is
    the icon's, not text's. */
-:is([style*="; color:"], [style^="color:"]):not(:has(> svg:only-child)) {
+:is([style*="; color:"], [style^="color:"]):not(:has(> svg:only-child), [data-accent]) {
   color: var(--text-primary) !important;
 }
 

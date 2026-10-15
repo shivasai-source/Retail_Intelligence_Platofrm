@@ -55,6 +55,15 @@ export function PromotionPlanner() {
   const currency = usePlannerSelection((s) => s.currency)
   const setCurrency = usePlannerSelection((s) => s.setCurrency)
 
+  //: Came in from the Promotion Calendar's "Simulate this promotion": one
+  //: offer in one channel-month, so only What-if is shown. See the tab strip.
+  const fromCalendar = origin?.source === 'calendar'
+  //: What is actually rendered. `carry` sets the tab to What-if on the way in,
+  //: but a session restored from storage can hold 'target' or 'best' with a
+  //: calendar origin -- and with the strip hidden that would render nothing at
+  //: all. Pinning it here means the page always has a panel to show.
+  const activeTab: PlannerTab = fromCalendar ? 'whatif' : tab
+
   const atDefaults =
     JSON.stringify(selection) === JSON.stringify(EMPTY_SELECTION) &&
     origin === null && discount === null && tab === DEFAULTS.tab && timing === DEFAULTS.timing &&
@@ -76,10 +85,10 @@ export function PromotionPlanner() {
   const leverValue = lever ? (discount?.key === scopeKey ? discount.value : lever.default) : null
   const settled = useDebounced(leverValue, 150)
 
-  const whatif = usePlannerWhatIf(tab === 'whatif' && lever ? effective : null, currency, settled)
-  const curve = usePlannerCurve(effective, currency, tab === 'whatif' && !!lever)
-  const target = usePlannerTarget(effective, currency, targetPct, timing, count, basis, tab === 'target' && !!sd)
-  const best = usePlannerBest(effective, currency, timing, count, tab === 'best' && !!sd)
+  const whatif = usePlannerWhatIf(activeTab === 'whatif' && lever ? effective : null, currency, settled)
+  const curve = usePlannerCurve(effective, currency, activeTab === 'whatif' && !!lever)
+  const target = usePlannerTarget(effective, currency, targetPct, timing, count, basis, activeTab === 'target' && !!sd)
+  const best = usePlannerBest(effective, currency, timing, count, activeTab === 'best' && !!sd)
 
   // ADD TO DECISION CENTER: a snapshot of what is on screen.
   const held = useDecisionScenarios((s) => s.scenarios)
@@ -198,7 +207,7 @@ export function PromotionPlanner() {
       {summary.isError && (
         <Card className="mt-4">
           <CardBody>
-            <div className="text-md font-medium text-ink-primary">
+            <div className={TYPE.title}>
               {summaryError?.status === 422 ? 'Nothing to plan here' : 'Could not read this selection'}
             </div>
             <div className="mt-1 text-base text-ink-muted">{summary.error.message}</div>
@@ -215,11 +224,21 @@ export function PromotionPlanner() {
         <>
           <CurrentPlan summary={sd} />
 
-          <div className="mt-5 [&_button]:!text-base">
-            <Tabs tabs={TABS} active={tab} onChange={(k) => setTab(k as PlannerTab)} />
-          </div>
+          {/* ONE PROMOTION, ONE QUESTION. Arriving from the Promotion Calendar
+              the scope is a single offer in one channel-month, and the other
+              two tabs do not mean anything there: Profit target re-plans the
+              selection to hit a number, and Best plan rebuilds its calendar --
+              both answer for a portfolio, not for the one promotion the reader
+              clicked. So the hand-off shows What-if alone, and the tab strip is
+              hidden rather than shown with two dead options. Clearing the
+              origin (the Reset in SelectionBar) brings all three back. */}
+          {!fromCalendar && (
+            <div className="mt-5 [&_button]:!text-base">
+              <Tabs tabs={TABS} active={tab} onChange={(k) => setTab(k as PlannerTab)} />
+            </div>
+          )}
 
-          {tab === 'whatif' &&
+          {activeTab === 'whatif' &&
             (lever && leverValue != null ? (
               <WhatIfPanel
                 lever={lever}
@@ -235,13 +254,13 @@ export function PromotionPlanner() {
             ) : (
               <Card>
                 <CardBody>
-                  <div className="text-md font-medium text-ink-primary">No promotion runs here</div>
+                  <div className={TYPE.title}>No promotion runs here</div>
                   <div className="mt-1 text-base text-ink-muted">Widen the period, or use Best plan with "Allow more".</div>
                 </CardBody>
               </Card>
             ))}
 
-          {tab === 'target' && (
+          {activeTab === 'target' && (
             <TargetPanel
               targetPct={targetPct}
               onTarget={setTargetPct}
@@ -256,7 +275,7 @@ export function PromotionPlanner() {
             />
           )}
 
-          {tab === 'best' && (
+          {activeTab === 'best' && (
             <BestPlanPanel
               timing={timing}
               count={count}
@@ -297,7 +316,7 @@ function CurrentPlan({ summary: s }: { summary: SummaryResponse }) {
   return (
     <div className="fade-in mt-4 rounded-[var(--r-lg)] border border-border-subtle bg-surface-card shadow-[var(--shadow-card-soft)]">
       <div className="flex flex-wrap items-baseline gap-x-3 border-b border-border-subtle px-5 py-3">
-        <span className="text-md font-medium text-ink-primary">Current plan</span>
+        <span className={TYPE.title}>Current plan</span>
         <span className="text-base text-ink-muted">
           {s.scope.weeks} weeks · {s.scope.product_stores.toLocaleString()} product-stores · {c.promotions.display} promotions · {s.scope.channels.length} channel{s.scope.channels.length === 1 ? '' : 's'}
         </span>

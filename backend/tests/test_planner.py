@@ -25,6 +25,8 @@ Run with:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -281,3 +283,174 @@ def test_weekly_ranges_bracket_the_plan():
     for wk in P.whatif(YEAR, s["lever"]["default"])["weekly"]:
         assert wk["profit_plan"] == wk["profit_now"] == wk["profit_p10"] == wk["profit_p90"]
 
+
+
+# --- the baseline column and the full range set ------------------------------
+
+
+def test_the_baseline_is_the_same_selection_with_nothing_promoted():
+    """THE ZERO POINT. The what-if's third column answers "what if we do
+    nothing", which is the only one of the three that says whether promoting
+    was worth anything at all.
+
+    Nothing promoted means: no trade spend, no incremental sales, no ROI to
+    quote, no promotions counted, and no average discount -- None rather than
+    0%, because "we did not discount" is not "we discounted by zero".
+    """
+    out = P.whatif(YEAR, P.summary(YEAR)["lever"]["default"])
+    base = out["baseline"]
+    assert base["trade_spend"]["value"] == 0
+    assert base["incremental_sales"]["value"] == 0
+    assert base["promotions"]["value"] == 0
+    assert base["roi"]["value"] is None
+    assert base["avg_discount"]["value"] is None
+    assert base["units"]["value"] > 0
+
+
+def test_promoting_sells_more_units_than_the_baseline():
+    """The promotions in the data lift volume, so the current plan must sell
+    more than the same selection would with no offer at all. If this ever
+    inverts, the baseline is being computed against the wrong slots."""
+    out = P.whatif(YEAR, P.summary(YEAR)["lever"]["default"])
+    assert out["current"]["units"]["value"] > out["baseline"]["units"]["value"]
+    # And no discount is given away, so the baseline keeps a fuller margin.
+    assert out["baseline"]["margin_pct"]["value"] > out["current"]["margin_pct"]["value"]
+
+
+def test_the_band_covers_every_modelled_row_of_the_comparison():
+    """Units and gross margin are modelled, so they carry a range like profit
+    does. They used to print a dash, which read as "we could not work it out"
+    rather than "this one is not modelled" -- and they ARE modelled."""
+    s = P.summary(YEAR)
+    out = P.whatif(YEAR, round(s["lever"]["default"] - 5, 2))
+    band = out["band"]
+    assert band is not None
+    for key in ("profit", "revenue", "trade_spend", "incremental_sales", "units"):
+        assert band[key] is not None, key
+        trio = band[key]
+        assert trio["p10"]["value"] <= trio["p50"]["value"] <= trio["p90"]["value"], key
+        assert trio["display"], key
+    assert band["margin_pct"] is not None
+    # The range has to bracket the figure the table prints beside it.
+    units = band["units"]
+    assert units["p10"]["value"] <= out["scenario"]["units"]["value"] <= units["p90"]["value"]
+
+
+def test_the_current_discount_still_has_no_range():
+    """Today happened, so it has no spread -- the baseline column appears all
+    the same, because it is a different question from uncertainty."""
+    out = P.whatif(YEAR, P.summary(YEAR)["lever"]["default"])
+    assert out["band"] is None
+    assert out["baseline"]["units"]["value"] > 0
+
+
+def test_every_tab_sends_the_same_baseline():
+    """The zero point is the same selection with nothing promoted, so it must
+    not depend on which question is being asked. It was briefly on the what-if
+    alone, which made the three tabs disagree about what "no promotions" is."""
+    s = P.summary(YEAR)
+    tabs = {
+        "whatif": P.whatif(YEAR, s["lever"]["default"]),
+        "target": P.target(YEAR, target_pct=1.0),
+        "best": P.best(YEAR),
+    }
+    profits = {name: out["baseline"]["profit"]["value"] for name, out in tabs.items()}
+    assert len(set(profits.values())) == 1, profits
+    for name, out in tabs.items():
+        assert out["baseline"]["promotions"]["value"] == 0, name
+        assert out["baseline"]["trade_spend"]["value"] == 0, name
+        # And it is a real alternative, not a copy of the current plan.
+        assert out["baseline"]["profit"]["value"] != out["current"]["profit"]["value"], name
+
+
+@contextmanager
+def festivals_committed():
+    """Turn the festival-commitment rule on for one test.
+
+    It ships OFF (planner.COMMIT_FESTIVALS), so these tests set it rather than
+    assume it -- a test that silently depended on a default would stop testing
+    anything the day the default moved, which is exactly what happened here.
+    The replan cache is keyed on the scope, not on the flag, so it is cleared
+    on the way in and out.
+    """
+    P.replan.cache_clear()
+    previous = P.COMMIT_FESTIVALS
+    P.COMMIT_FESTIVALS = True
+    try:
+        yield
+    finally:
+        P.COMMIT_FESTIVALS = previous
+        P.replan.cache_clear()
+
+
+def test_a_profitable_festival_week_is_not_abandoned():
+    """FESTIVAL PARTICIPATION IS A COMMITMENT -- WHERE IT PAYS.
+
+    A period that runs a festival offer today keeps a promotion after the
+    re-plan, because Diwali and Holi offers are agreed with the retailer
+    months ahead and a calendar that quietly drops one is not something a
+    trade team can take to a customer. Before the rule the optimizer emptied
+    91% of General Trade's festival periods -- not because they lost money
+    (they earned ~Rs 13.5k a week over not promoting) but to chase about Rs 89
+    a week more elsewhere.
+
+    The commitment is NOT unconditional. Where no offer available in that
+    period beats not promoting at all, the period is released: a commitment is
+    a reason to keep a profitable offer, never a reason to run a loss. That is
+    why Travel & Hospitality and B2B still empty many of theirs.
+
+    Nor is the MECHANIC fixed -- Buy3Get1 may still become a regular offer if
+    that genuinely pays better. Only the presence is held.
+
+    These three channels' festival offers are profitable throughout, so none
+    of their festival periods may be abandoned.
+    """
+    for channel in ("CH001", "CH002", "CH006"):
+        scope = P.PlanScope.build(channels=[channel], start=(2026, 1), end=(2026, 35))
+        with festivals_committed():
+            rp = P.replan(scope)
+        fit = P.resolve(scope).fit
+        festivals = set(P._festival_depths(id(fit)))
+        emptied = []
+        for cp in rp.cells.values():
+            current, best = dict(cp.current), dict(cp.best)
+            for period, code in current.items():
+                if int(code) in festivals and period not in best:
+                    emptied.append((cp.cell, cp.labels[period]))
+        assert not emptied, f"{channel}: {len(emptied)} paying festival period(s) dropped, e.g. {emptied[:3]}"
+
+
+def test_the_rule_holds_far_more_festival_weeks_than_it_releases():
+    """General Trade is the channel the rule was found on: 91% of its festival
+    periods were being emptied. A release is still possible where nothing pays,
+    so this pins the shape of the outcome rather than a single number."""
+    scope = P.PlanScope.build(channels=["CH003"], start=(2026, 1), end=(2026, 35))
+    with festivals_committed():
+        rp = P.replan(scope)
+    fit = P.resolve(scope).fit
+    festivals = set(P._festival_depths(id(fit)))
+    held = emptied = 0
+    for cp in rp.cells.values():
+        current, best = dict(cp.current), dict(cp.best)
+        for period, code in current.items():
+            if int(code) not in festivals:
+                continue
+            if period in best:
+                held += 1
+            else:
+                emptied += 1
+    assert held + emptied > 0
+    assert emptied / (held + emptied) < 0.25, f"{emptied} of {held + emptied} emptied"
+
+
+def test_the_festival_rule_costs_something_and_that_is_the_point():
+    """It is a constraint, so it can only cost modelled profit -- never add
+    it. A re-plan that claimed MORE profit with a rule switched on would mean
+    the rule was not binding, or the search was not finding the optimum."""
+    scope = P.PlanScope.build(channels=["CH003"], start=(2026, 1), end=(2026, 35))
+    with festivals_committed():
+        held = sum(cp.best_value for cp in P.replan(scope).cells.values())
+    P.replan.cache_clear()
+    free = sum(cp.best_value for cp in P.replan(scope).cells.values())
+    P.replan.cache_clear()
+    assert held <= free + 1.0, "a constraint cannot buy profit"

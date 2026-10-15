@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { Spinner } from '../ui'
 import { Icon } from '../../icons'
 import { FigureCompare } from './FigureCompare'
@@ -10,7 +10,75 @@ import type { CurveResponse, Lever, WhatIfResponse } from '../../types/planner'
 /** WHAT-IF. One lever -- the average discount -- opening on the current
  *  plan's. Every promotion moves by the same points and keeps its weeks. */
 
-const STEPS = [-5, 5, 10, 15, 20]
+//: Symmetric nudges either side of today's discount, shallowest first. Not a
+//: menu of every depth worth trying -- anything else is typed into the field
+//: beside them, which is why +20 is gone rather than replaced by +25.
+const STEPS = [-15, -10, -5, 5, 10, 15]
+
+/** The discount typed rather than nudged.
+ *
+ *  Kept as its own draft until it is committed: re-pricing a plan on every
+ *  keystroke would fire a request for "1", "1.", "1.2" on the way to 12.49,
+ *  and clamping mid-type would fight the person -- typing "5" as the first
+ *  digit of "15" must not snap. So the field holds whatever is being typed and
+ *  only Enter, Tab or clicking away commits it, clamped at that point.
+ *
+ *  Sized and weighted with the Studio's other controls (40px, 14px medium), so
+ *  it sits level with the chips beside it. */
+function DiscountInput({
+  id,
+  value,
+  min,
+  max,
+  onCommit,
+}: {
+  id: string
+  value: number
+  min: number
+  max: number
+  onCommit: (v: number) => void
+}) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const shown = draft ?? value.toFixed(2)
+
+  const commit = () => {
+    if (draft === null) return
+    const parsed = Number(draft.replace(/[^\d.-]/g, ''))
+    setDraft(null)
+    // An unreadable entry is not a reason to move the plan: fall back to the
+    // value that was already set rather than to 0, which would silently price
+    // the whole selection at no discount.
+    if (Number.isFinite(parsed)) onCommit(parsed)
+  }
+
+  return (
+    <div className="relative">
+      <input
+        id={id}
+        type="text"
+        inputMode="decimal"
+        value={shown}
+        aria-label="Average discount, percent"
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            e.currentTarget.blur()
+          }
+          if (e.key === 'Escape') setDraft(null)
+        }}
+        className="h-10 w-[108px] rounded-[var(--r-md)] border border-border-subtle bg-surface-card pl-3 pr-7 text-base font-medium text-ink-primary [font-variant-numeric:tabular-nums] transition-colors hover:border-border-strong focus:border-brand-violet focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet"
+      />
+      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-base font-medium text-ink-muted">
+        %
+      </span>
+      <span className="sr-only">
+        Between {min.toFixed(0)} and {max.toFixed(0)} percent
+      </span>
+    </div>
+  )
+}
 
 export function WhatIfPanel({
   lever,
@@ -104,21 +172,51 @@ export function WhatIfPanel({
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            {STEPS.map((s) => (
-              <QuickChip key={s} active={step(s)} onClick={() => onChange(clamp(current + s))} title={`${s > 0 ? '+' : ''}${s} points on the current plan`}>
-                {s > 0 ? '+' : ''}
-                {s}
-              </QuickChip>
-            ))}
-            <QuickChip onClick={() => onChange(current)} title="Back to the current plan">
-              <Icon name="refresh" />
+          {/* TYPE A DISCOUNT. The slider and the nudges below both move in
+              fixed amounts, which cannot express "price it at 12.75%" -- a
+              planner usually has a figure in mind rather than a step. This is
+              that figure, entered directly and clamped to the lever's own
+              bounds. The nudges stay because moving BY a number of points is a
+              different question from setting one, and they are now labelled
+              "pts" so which is which is unambiguous. */}
+          {/* Two rows, because they answer two different questions. The first
+              SETS a discount -- the figure a planner usually arrives with. The
+              second MOVES it by a number of points from today's, which is a
+              relative question and was the only one the panel used to ask.
+              Separating them also stops seven controls wrapping into a ragged
+              block: each row is now one homogeneous group. */}
+          <div className="mt-4 flex flex-wrap items-end gap-2">
+            <div>
+              <label htmlFor={`${id}-exact`} className={`block pb-1 ${TYPE.eyebrow}`}>
+                Set discount
+              </label>
+              <DiscountInput id={`${id}-exact`} value={value} min={lever.min} max={lever.max} onCommit={(v) => onChange(clamp(v))} />
+            </div>
+            <QuickChip onClick={() => onChange(current)} title={`Back to the current plan (${current.toFixed(2)}%)`}>
+              <Icon name="refresh" /> Reset
             </QuickChip>
             {best && (
               <QuickChip accent active={Math.abs(value - best.discount_pct) < 0.005} onClick={() => onChange(best.discount_pct)} title="The most profitable average discount">
                 <Icon name="target" /> Best {best.discount_pct.toFixed(2)}%
               </QuickChip>
             )}
+          </div>
+
+          <div className="mt-3">
+            {/* The group's label carries the unit, so the chips do not have to
+                repeat it. "+5" alone was the ambiguity worth fixing -- five
+                percent, or five points of it? -- and naming the baseline they
+                move from answers that once, for all five, and keeps them on
+                one row. */}
+            <div className={TYPE.eyebrow}>Or move it in points from today's {current.toFixed(2)}%</div>
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              {STEPS.map((s) => (
+                <QuickChip key={s} active={step(s)} onClick={() => onChange(clamp(current + s))} title={`${s > 0 ? '+' : ''}${s} points on the current plan's ${current.toFixed(2)}% — ${clamp(current + s).toFixed(2)}%`}>
+                  {s > 0 ? '+' : ''}
+                  {s}
+                </QuickChip>
+              ))}
+            </div>
           </div>
 
           {(beyond || result?.clipped_at_zero) && (
@@ -136,11 +234,14 @@ export function WhatIfPanel({
           </div>
         </Panel>
 
-        <Panel title="Current plan vs scenario" actions={fetching ? <Spinner /> : undefined}>
+        <Panel title="What this discount changes" actions={fetching ? <Spinner /> : undefined}>
           {result ? (
             <StaleOverlay on={fetching}>
               <FigureCompare
                 columns={[
+                  // The zero point first, so the three columns read left to
+                  // right as "do nothing", "what we do", "what we would do".
+                  { title: 'Baseline', figures: result.baseline, muted: true },
                   { title: 'Current plan', sub: `${current.toFixed(2)}%`, figures: result.current },
                   { title: 'Scenario', sub: `${result.discount_pct.toFixed(2)}%`, figures: result.scenario, deltas: result.deltas, band: result.band },
                 ]}

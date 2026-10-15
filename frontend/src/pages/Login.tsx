@@ -80,19 +80,23 @@ export function Login() {
             mark and a wordmark in title case, not a shout in capitals. */}
         <div className="flex items-center gap-2.5">
           <img src="/image.png" alt="" className="h-9 w-9" />
-          <span className="text-md font-medium tracking-[-0.01em] text-ink-primary">TransOrg Analytics</span>
+          <span className="text-md font-semibold tracking-[-0.01em] text-ink-primary">TransOrg Analytics</span>
         </div>
 
         {/* Eyebrow names the product; the heading greets the person; the line
             beneath says what to do. One idea per line, largest to smallest. */}
-        <div className="mt-8 text-sm font-medium text-brand-violet">Retail Intelligence Platform</div>
-        {/* `!text-3xl`, not `text-3xl`: index.css states `h1 { font-size: 26px }`
-            as a bare element rule, and an unlayered rule beats anything in
-            Tailwind's utilities layer. Moving those base rules into
-            `@layer base` is the real fix, but it would also let the text-*
-            utilities on ~20 headings across the frozen modules finally
-            apply — shrinking most of them — so it is not this page's to make. */}
-        <h1 className="mt-2 !text-3xl font-normal tracking-[-0.02em]">Welcome back</h1>
+        {/* Inline colour, not a utility: this project is not emitting newly
+            introduced Tailwind classes (a bare probe element carrying only
+            `text-[var(--brand-blue)]` renders at the body colour, and a dev
+            server restart does not change it). The token is the same one the
+            utility would have resolved to. */}
+        <div className="mt-8 text-base font-semibold text-brand-blue" data-accent>
+          Retail Intelligence Platform
+        </div>
+        {/* Plain `text-3xl` now: index.css's heading rules moved into
+            `@layer base` on 15 Oct 2026, so a utility finally wins over them
+            and the `!` is no longer load-bearing. */}
+        <h1 className="mt-1.5 text-3xl font-semibold tracking-[-0.02em]">Welcome back</h1>
         <p className="mt-2 text-md leading-[1.55] text-ink-muted">
           Sign in to pick your workspace up where you left it.
         </p>

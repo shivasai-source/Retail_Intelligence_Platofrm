@@ -1,15 +1,17 @@
 import { Fragment, useMemo, useState } from 'react'
 import { InfoPopover } from '../ui'
 import { Icon } from '../../icons'
-import { offerColor } from './shared'
-import type { ChangeAction, ChangeOffer, ChangeRow, PlannedOffer } from '../../types/planner'
+import type { ChangeAction, ChangeRow, PlannedOffer } from '../../types/planner'
 
 /** Which promotions change, product-store by product-store.
  *
  *  Each row lists its changes as short actions -- "W05 → W06 · 10% → 15%" --
  *  and what it earns. Open a row for its timeline: the period left to right,
  *  the current plan's promotions on the top lane and the optimized plan's
- *  below, coloured as the Promotion Calendar colours them. */
+ *  below, each marker coloured by WHAT HAPPENED to it and labelled with its
+ *  own week, with a dashed connector drawn from a promotion to the week it
+ *  moves to. See `MarkerState` for why colouring by the offer was the wrong
+ *  encoding. */
 
 const PAGE = 12
 
@@ -21,7 +23,13 @@ const KIND: Record<ChangeAction['kind'], { icon: 'arrowRight' | 'pricing' | 'x' 
 }
 
 const shortPeriod = (label: string) => label.split(' · ')[0]
-const depth = (o?: ChangeOffer) => (o ? (o.type === 'Seasonal' ? o.name.replace(/\s+\d{2}$/, '') : `${o.depth_pct}%`) : '')
+/** What an offer is called in one or two words: "Buy3Get1" for a festival
+ *  mechanic, "15%" for a plain discount. A seasonal offer's depth is not the
+ *  whole story -- one free in four is not "25% off" to a reader -- so the
+ *  mechanic's own name stands in. Shared by the action chips and the timeline,
+ *  so the two never disagree about what an offer is called. */
+const depth = (o?: { type: string; name: string; depth_pct: number }) =>
+  o ? (o.type === 'Seasonal' ? o.name.replace(/\s+\d{2}$/, '') : `${o.depth_pct}%`) : ''
 
 function ActionChip({ a }: { a: ChangeAction }) {
   const k = KIND[a.kind]
@@ -215,41 +223,239 @@ export function SummaryChips({ summary }: { summary: ChangeRow['summary'] }) {
   )
 }
 
+/** What happened to one promotion, which is what the timeline colours by.
+ *
+ *  The old chart coloured each block by its OFFER, so a row whose current plan
+ *  ran Buy3Get1 and whose optimized plan runs 15% showed a navy lane above a
+ *  green one -- and every reader concluded navy meant "current" and green meant
+ *  "new". It did not. Colouring by what CHANGED instead matches the action
+ *  chips directly above the chart, so the two read as one explanation. */
+type MarkerState = 'moved' | 'repriced' | 'dropped' | 'added' | 'kept'
+
+const MARKER: Record<MarkerState, { dot: string; ring: string; ink: string; word: string }> = {
+  moved: { dot: 'bg-brand-violet', ring: 'border-brand-violet', ink: 'text-brand-violet', word: 'moved' },
+  repriced: { dot: 'bg-status-info', ring: 'border-status-info', ink: 'text-status-info', word: 're-priced' },
+  dropped: { dot: 'bg-status-danger', ring: 'border-status-danger', ink: 'text-status-danger', word: 'dropped' },
+  added: { dot: 'bg-status-success', ring: 'border-status-success', ink: 'text-status-success', word: 'added' },
+  kept: { dot: 'bg-ink-muted', ring: 'border-ink-muted', ink: 'text-ink-muted', word: 'unchanged' },
+}
+
+/** "W01 2026 · 01 Jan" -> "W01". The year is the same across a row's span and
+ *  the date is in the tooltip, so the tick only has to say which week. */
+const tick = (period: string) => period.split(' · ')[0].split(' ')[0]
+
+interface Marker {
+  offer: PlannedOffer
+  state: MarkerState
+  /** Where the midpoint of this period sits, 0-100 across the span. */
+  x: number
+  /** For a move, the week at the OTHER end -- so hovering either marker says
+   *  where it goes or where it came from, and whether that is earlier or
+   *  later. The connector shows the direction; this names it. */
+  note?: string
+}
+
 function Timeline({ row }: { row: ChangeRow }) {
-  const n = row.periods
-  const lanes: { label: string; offers: PlannedOffer[] }[] = [
-    { label: 'Current plan', offers: row.current },
-    { label: 'Optimized', offers: row.best },
-  ]
+  const n = Math.max(1, row.periods)
+  const at = (i: number) => ((i + 0.5) / n) * 100
+
+  // Which action each promotion belongs to. A move is one action with two
+  // ends: `index` in the current plan, `to_index` in the optimized one.
+  const currentState = new Map<number, MarkerState>()
+  const bestState = new Map<number, MarkerState>()
+  const moves: { from: number; to: number }[] = []
+  for (const a of row.actions) {
+    if (a.kind === 'moved') {
+      currentState.set(a.index, 'moved')
+      if (a.to_index != null) {
+        bestState.set(a.to_index, 'moved')
+        moves.push({ from: a.index, to: a.to_index })
+      }
+    } else if (a.kind === 'repriced') {
+      currentState.set(a.index, 'repriced')
+      bestState.set(a.index, 'repriced')
+    } else if (a.kind === 'dropped') {
+      currentState.set(a.index, 'dropped')
+    } else {
+      bestState.set(a.index, 'added')
+    }
+  }
+
+  const movedTo = new Map<number, number>(moves.map((m) => [m.from, m.to]))
+  const movedFrom = new Map<number, number>(moves.map((m) => [m.to, m.from]))
+  const shift = (from: number, to: number) => {
+    const n = Math.abs(to - from)
+    return `${n} ${n === 1 ? 'week' : 'weeks'} ${to > from ? 'later' : 'earlier'}`
+  }
+  const periodAt = new Map<number, string>(
+    [...row.current, ...row.best].map((o) => [o.index, tick(o.period)]),
+  )
+
+  const mark = (offers: PlannedOffer[], states: Map<number, MarkerState>, ends: Map<number, number>, verb: string): Marker[] =>
+    offers.map((offer) => {
+      const other = ends.get(offer.index)
+      return {
+        offer,
+        state: states.get(offer.index) ?? 'kept',
+        x: at(offer.index),
+        note:
+          other == null
+            ? undefined
+            : `${verb} ${periodAt.get(other) ?? ''} — ${shift(offer.index, other)}`,
+      }
+    })
+
+  const currentMarkers = mark(row.current, currentState, movedTo, 'moves to')
+  const bestMarkers = mark(row.best, bestState, movedFrom, 'moved from')
+  const legend = [...new Set([...currentMarkers, ...bestMarkers].map((m) => m.state))]
+
+  const n_now = row.current.length
+  const subject = n_now === 1 ? 'promotion' : `${n_now} promotions`
+  // A move usually re-prices too, so the caption has to promise both or the
+  // offer line under each marker reads as noise.
+  const reprices = row.actions.some((a) => a.to_offer && a.from_offer && a.to_offer.id !== a.from_offer.id)
+  const caption = `${subject[0].toUpperCase()}${subject.slice(1)}, as ${n_now === 1 ? 'it runs' : 'they run'} today and as the re-plan would run ${
+    n_now === 1 ? 'it' : 'them'
+  }${reprices ? ', with the offer under each' : ''}.`
+
   return (
     <div>
-      <div className="space-y-2">
-        {lanes.map((lane) => {
-          const at = new Map(lane.offers.map((o) => [o.index, o]))
-          return (
-            <div key={lane.label} className="flex items-center gap-3">
-              <span className={`w-24 shrink-0 text-base font-medium ${lane.label === 'Optimized' ? 'text-brand-violet' : 'text-ink-secondary'}`}>{lane.label}</span>
-              <div className="flex h-7 min-w-0 flex-1 overflow-hidden rounded-[var(--r-sm)] bg-ink-primary/[0.04]">
-                {Array.from({ length: n }, (_, i) => {
-                  const o = at.get(i)
-                  const c = o ? offerColor(o) : null
-                  return (
-                    <div
-                      key={i}
-                      title={o ? `${o.period} · ${o.name} · ${o.depth_pct}%` : undefined}
-                      className="h-full flex-1 border-r border-surface-card last:border-r-0"
-                      style={c ? { background: c.bg, boxShadow: `inset 0 0 0 1px ${c.border}` } : undefined}
-                    />
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })}
+      {/* The chart answers a question nobody asked it out loud. Saying what it
+          shows, in one sentence, does more for a reader than any amount of
+          visual tuning -- without it the lanes, squares and dotted lines have
+          to be decoded before they can be read. */}
+      <p className="mb-3 text-base text-ink-secondary">{caption}</p>
+
+      {/* The padding is the room the two-line labels need: the upper lane's
+          hang above its track, the lower lane's below. It sits OUTSIDE the
+          positioned box so the connector overlay still measures the lanes
+          themselves -- pad the inner box and the lines detach from the
+          markers. */}
+      <div className="pt-10 pb-10">
+      <div className="relative">
+        {/* The connectors sit behind the markers and span both lanes, so they
+            are one overlay rather than per-lane decoration. Straight lines,
+            not curves -- the chart says where a promotion went, and a curve
+            would only add ink. `non-scaling-stroke` keeps them 1px while the
+            x axis stretches to the container. */}
+        <svg
+          className="pointer-events-none absolute inset-0 h-full w-full"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+          style={{ left: LANE_LABEL_PX, width: `calc(100% - ${LANE_LABEL_PX}px)` }}
+        >
+          {moves.map((m) => (
+            <line
+              key={`${m.from}-${m.to}`}
+              x1={at(m.from)}
+              y1={26}
+              x2={at(m.to)}
+              y2={74}
+              stroke="var(--brand-violet)"
+              strokeWidth={1}
+              strokeDasharray="4 3"
+              vectorEffect="non-scaling-stroke"
+              opacity={0.9}
+            />
+          ))}
+        </svg>
+
+        <Lane label="Today" markers={currentMarkers} above hollow />
+        <div className="h-5" />
+        <Lane label="Proposed" markers={bestMarkers} accent />
       </div>
-      <div className="mt-1 flex justify-between pl-[108px] text-base text-ink-muted">
-        <span>{row.first_period}</span>
-        <span>{row.last_period}</span>
+      </div>
+
+      {/* The period, anchored at both ends. One combined label on the right
+          said how long the span was but not which way it ran. */}
+      <div className="mt-1 flex items-center justify-between border-t border-border-subtle pt-1.5" style={{ marginLeft: LANE_LABEL_PX }}>
+        <span className="text-base text-ink-muted">{row.first_period}</span>
+        <span className="text-base text-ink-muted">{row.last_period}</span>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2" style={{ paddingLeft: LANE_LABEL_PX }}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          {/* Shape first, because it is what separates the two lanes; colour
+              second, because it is what separates the kinds of change. */}
+          <span className="inline-flex items-center gap-1.5 text-base text-ink-muted">
+            <span className="h-2.5 w-2.5 rounded-[2px] border-2 border-ink-muted bg-surface-card" />
+            runs today
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-base text-ink-muted">
+            <span className="h-2.5 w-2.5 rounded-[2px] bg-ink-muted" />
+            after the re-plan
+          </span>
+          <span className="text-border-strong">|</span>
+          {legend.map((s) => (
+            <span key={s} className="inline-flex items-center gap-1.5 text-base text-ink-muted">
+              <span className={`h-2.5 w-2.5 rounded-[2px] ${MARKER[s].dot}`} />
+              {MARKER[s].word}
+            </span>
+          ))}
+        </div>
+      </div>
+
+    </div>
+  )
+}
+
+/** Width of the lane name, so the track, the connectors and the footer all
+ *  start at the same x. */
+const LANE_LABEL_PX = 108
+
+function Lane({
+  label,
+  markers,
+  accent,
+  above,
+  hollow,
+}: {
+  label: string
+  markers: Marker[]
+  accent?: boolean
+  above?: boolean
+  /** The "before" lane. Its markers are outlined rather than filled, so which
+   *  lane is today's and which is the proposal reads without the labels --
+   *  two identical rows of squares made the reader work that out every time. */
+  hollow?: boolean
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className={`shrink-0 text-base font-medium ${accent ? 'text-brand-violet' : 'text-ink-secondary'}`} style={{ width: LANE_LABEL_PX - 12 }}>
+        {label}
+      </span>
+      {/* The track is the period, left to right. An empty track is a plan that
+          runs nothing at all, which is a real answer and says so. */}
+      <div className="relative h-9 min-w-0 flex-1 rounded-[var(--r-sm)] bg-ink-primary/[0.04]">
+        {markers.length === 0 && (
+          <span className="absolute inset-0 grid place-items-center text-base text-ink-muted">No promotions</span>
+        )}
+        {markers.map((m) => (
+          <span
+            key={m.offer.index}
+            title={`${m.offer.period} · ${m.offer.name} · ${m.offer.depth_pct}%${m.note ? ` — ${m.note}` : ` — ${MARKER[m.state].word}`}`}
+            className="absolute top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+            style={{ left: `${m.x}%` }}
+          >
+            <span
+              className={`h-4 w-4 rounded-[3px] ${hollow ? `border-2 bg-surface-card ${MARKER[m.state].ring}` : MARKER[m.state].dot}`}
+            />
+            {/* Week AND offer. A move usually re-prices as it re-schedules --
+                "W33 Buy3Get1" becomes "W18 15%" -- and showing only the week
+                hid half of what changed. */}
+            <span
+              className={`absolute flex flex-col items-center whitespace-nowrap ${
+                above ? 'bottom-full mb-1' : 'top-full mt-1'
+              }`}
+            >
+              <span className={`text-sm font-medium [font-variant-numeric:tabular-nums] ${MARKER[m.state].ink}`}>
+                {tick(m.offer.period)}
+              </span>
+              <span className="text-sm text-ink-muted">{depth(m.offer)}</span>
+            </span>
+          </span>
+        ))}
       </div>
     </div>
   )

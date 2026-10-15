@@ -40,7 +40,7 @@ export function BestPlanPanel({
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
             <div className={TYPE.eyebrow}>Optimize for</div>
-            <div className="mt-1.5 flex h-10 items-center text-md font-medium text-ink-primary">Maximum profit</div>
+            <div className={`mt-1.5 flex h-10 items-center ${TYPE.title}`}>Maximum profit</div>
           </div>
           <PlanRules timing={timing} count={count} onTiming={onTiming} onCount={onCount} focus={focus} rules={data?.rules} />
         </div>
@@ -48,7 +48,7 @@ export function BestPlanPanel({
 
       {error && (
         <Panel>
-          <div className="text-md font-medium text-ink-primary">Could not optimise this selection</div>
+          <div className={TYPE.title}>Could not optimise this selection</div>
           <div className={`mt-1 ${TYPE.label}`}>{error.message}</div>
         </Panel>
       )}
@@ -100,11 +100,12 @@ export function BestPlanPanel({
               )}
             </Panel>
 
-            <Panel title="Current plan vs optimized">
+            <Panel title="What the best plan changes">
               <FigureCompare
                 columns={[
-                  { title: 'Current plan', figures: data.current },
-                  { title: 'Optimized', figures: rp.figures, deltas: rp.deltas, recommended: true, band: rp.band },
+                  { title: 'Baseline', figures: data.baseline, muted: true },
+                  { title: 'Current plan', sub: 'today', figures: data.current },
+                  { title: 'Optimized', sub: 'proposed', figures: rp.figures, deltas: rp.deltas, recommended: true, band: rp.band },
                 ]}
               />
             </Panel>

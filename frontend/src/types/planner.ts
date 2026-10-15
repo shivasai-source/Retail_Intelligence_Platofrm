@@ -181,6 +181,8 @@ export interface Band {
   incremental_sales: Trio
   trade_spend: Trio
   roi: Trio | null
+  units: Trio
+  margin_pct: Trio | null
   profit_pct: Trio | null
   profit_change: Trio
   profit_pct_change: Trio | null
@@ -228,6 +230,9 @@ export interface WhatIfResponse {
   clipped_at_zero: boolean
   current: Figures
   scenario: Figures
+  /** The same selection with NOTHING promoted -- the zero point a scenario is
+   *  read against, so a reader can see what promoting is worth at all. */
+  baseline: Figures
   deltas: Deltas
   /** None at the current discount: the current plan has no range. */
   band: Band | null
@@ -386,6 +391,9 @@ export interface BestResponse {
   /** Display-currency units per rupee, for drawing axes. */
   exchange_rate: number
   current: Figures
+  /** The same selection with NOTHING promoted -- the zero point every tab
+   *  compares against. See WhatIfResponse.baseline. */
+  baseline: Figures
   uniform: UniformAnswer | null
   replan: ReplanBlock & { eligible_product_stores: number; never_promoted_product_stores: number }
   rules: RulesBlock
@@ -399,6 +407,10 @@ export interface TargetResponse {
   basis: ProfitBasis
   base_profit: Money
   current: Figures
+  /** The same selection with NOTHING promoted -- the zero point every tab
+   *  compares against. See WhatIfResponse.baseline. */
+  baseline: Figures
+
   /** CP of the current plan: the base the X% is taken on. */
   cost_base: Money
   profit_pct: Money

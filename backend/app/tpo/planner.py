@@ -64,6 +64,7 @@ fewest product-stores that reach the target are the largest gains first.
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Iterable, Sequence
@@ -82,6 +83,22 @@ WHATIF_MARGIN_PCT = 5.0
 #: Grid the discount curve and the uniform-discount search step along.
 CURVE_STEP_PCT = 0.5
 #: A gain smaller than this (in rupees) is "no change".
+
+#: Hold a festival period that is promoted today, so a re-plan cannot abandon a
+#: profitable festival offer for a marginal gain elsewhere. OFF by default, at
+#: the user's decision (15 Oct 2026): the free optimizer reports the larger
+#: number (+Rs 4.54 Cr against +Rs 4.16 Cr) and leaves +1.00 pts reachable,
+#: and the re-plan is a recommendation for a planner to accept rather than a
+#: calendar that ships untouched.
+#:
+#: TPO_COMMIT_FESTIVALS=1 turns it on, per client. Worth turning on when the
+#: festival calendar is committed to a retailer in a joint business plan,
+#: because with it off the optimizer will drop a festival offer earning
+#: ~Rs 13.5k a week to gain ~Rs 89 a week in another week -- a difference well
+#: inside the model's own P10-P90 band. The rule never forces a loss: a period
+#: where no offer beats not promoting is released either way.
+COMMIT_FESTIVALS: bool = os.environ.get("TPO_COMMIT_FESTIVALS", "0").strip() in ("1", "true", "True")
+
 EPSILON = 1.0
 #: Most changed product-stores returned in full; the totals cover them all.
 MAX_CHANGES_LISTED = 300
@@ -138,6 +155,10 @@ class Resolved:
     meas_cache: "Econ | None" = None
     cur_promoted_cache: "Econ | None" = None
     plan_cache: "Plan | None" = None
+    #: The same selection with no promotion at all (`baseline_plan`). Cached
+    #: beside the current plan because the what-if, the curve and the target
+    #: all show it as their zero point and it costs a full `econ` pass.
+    plan_baseline_cache: "Plan | None" = None
     #: Today's promoted slots under every posterior draw (Monte Carlo).
     cur_mc_cache: "np.ndarray | None" = None
 
@@ -403,6 +424,33 @@ def _plan(totals: dict[str, float], promotions: int, list_value: float) -> Plan:
     )
 
 
+def baseline_plan(r: Resolved) -> Plan:
+    """THE BASELINE: the same selection with no promotion at all.
+
+    Every slot priced at list, at the units the response model expects without
+    an offer -- depth 0 and event -1 being exactly how `econ` spells "no
+    promotion". It is the honest zero point a scenario is read against: the
+    Current plan column answers "what we did", the Scenario column "what we
+    would do", and this one "what happens if we do nothing", which is the only
+    one of the three that tells a reader whether promoting at all was worth it.
+
+    No promotions run, so there are no runs to count and no average discount to
+    take -- `avg_discount_pct` is None and prints as a dash rather than as 0%,
+    which would read as "we discounted by zero" instead of "we did not
+    discount".
+    """
+    if r.plan_baseline_cache is not None:
+        return r.plan_baseline_cache
+    idx = r.idx
+    flat = np.zeros(len(idx))
+    none = econ(r.fit, idx, flat, np.full(len(idx), -1, dtype=np.int64))
+    totals = none.total()
+    totals["discount_promoted"] = 0.0
+    plan = _plan(totals, promotions=0, list_value=0.0)
+    r.plan_baseline_cache = plan
+    return plan
+
+
 def _runs(fit: Fitted, idx: np.ndarray, promoted: np.ndarray, promo: np.ndarray) -> int:
     """Promotion runs: consecutive weeks of one offer in one product-store."""
     s = fit.slots
@@ -612,9 +660,16 @@ def _band(cur: Plan, draws: np.ndarray, currency: str, needed: float | None = No
     profit = draws[:, _M["profit"]]
     revenue = draws[:, _M["revenue"]]
     inc_sales = draws[:, _M["inc_sales"]]
+    units = draws[:, _M["units"]]
+    cogs = draws[:, _M["cogs"]]
     spend = draws[:, _M["discount"]] + draws[:, _M["promo_cost"]]
     with np.errstate(divide="ignore", invalid="ignore"):
         roi = np.where(spend > 0, inc_sales / spend, np.nan)
+        # Gross margin varies draw to draw for the same reason profit does:
+        # the units sold are a model expectation, and revenue and cost move
+        # with them at different rates. Read off the same draws rather than
+        # recomputed from the medians, which would not be the median margin.
+        margin = np.where(revenue > 0, (revenue - cogs) / revenue * 100, np.nan)
     cp = cur.cost
     gain = profit - cur.profit
 
@@ -640,6 +695,8 @@ def _band(cur: Plan, draws: np.ndarray, currency: str, needed: float | None = No
         "incremental_sales": _trio(inc_sales, money),
         "trade_spend": _trio(spend, money),
         "roi": _trio(roi[np.isfinite(roi)], multiple) if np.isfinite(roi).any() else None,
+        "units": _trio(units, lambda v: {"value": round(v, 2), "display": F.quantity(v)}),
+        "margin_pct": _trio(margin[np.isfinite(margin)], pct) if np.isfinite(margin).any() else None,
         "profit_pct": _trio(profit / cp * 100, pct) if cp else None,
         "profit_change": _trio(gain, signed),
         "profit_pct_change": _trio(gain / cp * 100, pts) if cp else None,
@@ -835,6 +892,10 @@ def whatif(scope: PlanScope, discount_pct: float, currency: str = "INR") -> dict
         "clipped_at_zero": clipped,
         "current": _figures(cur, currency),
         "scenario": _figures(plan, currency),
+        # The zero point: the same selection with nothing promoted, so a reader
+        # can see what the promotions are worth at all, not only what moving
+        # the discount is worth. See `baseline_plan`.
+        "baseline": _figures(baseline_plan(r), currency),
         "deltas": _deltas(cur, plan, currency),
         "band": band,
         "weekly": weekly,
@@ -1229,11 +1290,46 @@ def replan(scope: PlanScope, timing: str = "free", frequency: str = "keep") -> R
             period_promoted[:, period[j]] |= pv[:, j]
         k_now = period_promoted.sum(axis=1)
 
+        # FESTIVAL PARTICIPATION IS A COMMITMENT, NOT AN OPTION. A period that
+        # runs a festival offer today must still run SOMETHING after the
+        # re-plan. Diwali and Holi offers are agreed with the retailer in a
+        # joint business plan months ahead; a calendar that quietly drops the
+        # Diwali offer on a top SKU is not a plan a trade team can take to a
+        # customer, however well it prices out. Measured before this rule, the
+        # optimizer emptied 91% of General Trade's festival periods and 84% of
+        # Travel's, on a margin of well under a percent per week.
+        #
+        # What is NOT fixed is the mechanic. The period keeps its place in the
+        # calendar and the model still picks the best offer available there --
+        # the festival offer itself, or a regular one if it genuinely pays
+        # better. Presence is the commitment; depth is still ours to optimise.
+        promo_now = np.where(valid, s.promo[flat].reshape(C, T), -1)
+        fest_codes = set(fest_depth)
+        is_fest = np.isin(promo_now, list(fest_codes)) & pv
+        committed = np.zeros((C, P), dtype=bool)
+        for j in range(T):
+            committed[:, period[j]] |= is_fest[:, j]
+        committed &= has_evidence[:, None]
+        # ...BUT ONLY WHERE PROMOTING THERE STILL PAYS. A commitment is a
+        # reason not to walk away from a profitable festival offer for a
+        # rounding-error gain elsewhere; it is NOT a reason to run a promotion
+        # that loses money. If every offer available in that period is
+        # under water, the period is released and the optimizer may empty it.
+        #
+        # On the reference data this rarely binds -- the festival offers earn
+        # roughly ₹13.5k a week over not promoting, and were being dropped for
+        # about ₹89 a week more elsewhere, which is the case the rule exists
+        # for. The condition matters for the data where it is not true.
+        committed &= best_val > EPSILON
+
         if timing == "fixed" or focus_code is not None:
             # Every promotion stays in its own period. "keep" re-chooses its
             # offer; "fewer" may also drop it.
             allowed = period_promoted & has_evidence[:, None]
             take = allowed if frequency == "keep" else allowed & (best_val > EPSILON)
+            # "Allow fewer" may drop a losing promotion -- but not one the
+            # festival calendar commits us to.
+            take = take | (committed & np.isfinite(best_val))
             chosen = [[(int(p), int(codes[best_opt[c, p]])) for p in np.flatnonzero(take[c])] for c in range(C)]
             best_total = np.where(take, best_val, 0.0).sum(axis=1)
         else:
@@ -1250,19 +1346,52 @@ def replan(scope: PlanScope, timing: str = "free", frequency: str = "keep") -> R
             # least bad offer. Otherwise AT MOST the cap, so a promotion that
             # loses money is simply not run.
             v = best_val if exact else np.where(best_val > EPSILON, best_val, -np.inf)    # C x P
-            Fm = np.zeros((P + 1, C, K + 1))
-            if exact:
-                Fm[0, :, 1:] = -np.inf
-            take_tbl = np.zeros((P + 1, C, K + 1), dtype=bool)
-            for p in range(1, P + 1):
-                stay = Fm[p - 1]
-                prev = Fm[max(p - 1 - g, 0)]
-                cand = np.full((C, K + 1), -np.inf)
-                if K >= 1:
-                    cand[:, 1:] = prev[:, :-1] + v[:, p - 1][:, None]
-                better = cand > stay + 1e-9
-                Fm[p] = np.where(better, cand, stay)
-                take_tbl[p] = better
+
+            def solve(must: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+                """The calendar DP. `must` marks periods that may not be
+                skipped -- skipping one is made infeasible rather than merely
+                unattractive, which is what turns the festival commitment into
+                a constraint the optimizer cannot price its way out of."""
+                Fm = np.zeros((P + 1, C, K + 1))
+                if exact:
+                    Fm[0, :, 1:] = -np.inf
+                take_tbl = np.zeros((P + 1, C, K + 1), dtype=bool)
+                # Committed periods in [a, b), for the gap test below.
+                cum = np.concatenate([np.zeros((C, 1), dtype=int), np.cumsum(must, axis=1)], axis=1)
+                for p in range(1, P + 1):
+                    # Skipping period p-1 is infeasible when it is committed.
+                    stay = np.where(must[:, p - 1][:, None], -np.inf, Fm[p - 1])
+                    a = max(p - 1 - g, 0)
+                    prev = Fm[a]
+                    cand = np.full((C, K + 1), -np.inf)
+                    if K >= 1:
+                        cand[:, 1:] = prev[:, :-1] + v[:, p - 1][:, None]
+                        # ...and so is TAKING it when the minimum gap would
+                        # step over a committed period on the way back. The
+                        # skip branch alone does not catch this: taking W03
+                        # jumps straight past W01, so a commitment inside the
+                        # gap window was being silently dropped.
+                        jumped = (cum[:, p - 1] - cum[:, a]) > 0
+                        cand[jumped] = -np.inf
+                    better = cand > stay + 1e-9
+                    Fm[p] = np.where(better, cand, stay)
+                    take_tbl[p] = better
+                return Fm, take_tbl
+
+            free = np.zeros_like(committed)
+            Fm, take_tbl = solve(committed if COMMIT_FESTIVALS else free)
+            # A commitment can be impossible: two festival periods closer
+            # together than the channel's minimum gap, or more of them than
+            # today's promotion count allows. Those cells plan WITHOUT the
+            # rule rather than returning no calendar at all -- an unplannable
+            # cell helps nobody, and the alternative is a -inf that would
+            # silently become "run nothing".
+            if committed.any():
+                reach = np.isfinite(Fm[P]).any(axis=1)
+                if not reach.all():
+                    Fm_free, take_free = solve(free)
+                    Fm[:, ~reach] = Fm_free[:, ~reach]
+                    take_tbl[:, ~reach] = take_free[:, ~reach]
             if exact:
                 # The gap can make today's count infeasible inside a short
                 # period; then the most promotions that fit.
@@ -1567,7 +1696,10 @@ def _rules_block(r: Resolved, timing: str, frequency: str) -> dict[str, Any]:
             "max_share_pct": round(cr.max_share * 100, 2),
             "menu": [_offer(fit, code) for code, _ in cr.regular],
         })
-    return {"timing": "fixed" if r.focus else timing, "frequency": frequency, "channels": out}
+    return {"timing": "fixed" if r.focus else timing, "frequency": frequency,
+            # So the reader can see the rule, and so a plan that looks
+            # unambitious can be explained by it rather than doubted.
+            "commit_festivals": COMMIT_FESTIVALS, "channels": out}
 
 
 def _impact(r: Resolved, rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
@@ -1682,13 +1814,28 @@ def summary(scope: PlanScope, currency: str = "INR") -> dict[str, Any]:
     offers: list[dict[str, Any]] = []
     if r.promoted.any():
         idx = r.idx[r.promoted]
+        # ONE CHIP PER OFFER, NOT PER CODE. "Buy3Get1" is ten promotion ids --
+        # one per festival per year -- and a selection spanning four of them
+        # listed "Buy3Get1" four times, each with a fraction of the runs, which
+        # reads as four different offers. The reader's unit is the offer as it
+        # appears on shelf, so the codes that share a name, type and depth are
+        # one chip whose counts and economics cover all of them.
+        groups: dict[tuple[str, str, float], list[int]] = {}
         for code in np.unique(s.promo[idx]):
-            m = idx[s.promo[idx] == code]
+            o = _offer(fit, int(code))
+            groups.setdefault((o["name"], o["type"], o["depth_pct"]), []).append(int(code))
+        for codes in groups.values():
+            m = idx[np.isin(s.promo[idx], codes)]
             meas = _measured(fit, m)
             t = meas.total()
             spend = t["discount"] + t["promo_cost"]
             offers.append({
-                **_offer(fit, int(code)),
+                # The first code stands for the group: the name, type and depth
+                # are identical across them, and `id` is only a render key.
+                **_offer(fit, codes[0]),
+                # `s.promo[m]` keeps the ORIGINAL codes, so two festivals that
+                # happen to fall in neighbouring weeks still count as two runs
+                # rather than merging into one.
                 "runs": _runs(fit, m, np.ones(len(m), dtype=bool), s.promo[m]),
                 "product_stores": int(len(np.unique(s.cell[m]))),
                 "profit": _money(t["profit"], currency),
@@ -1734,6 +1881,9 @@ def best(scope: PlanScope, *, timing: str = "free", frequency: str = "keep", cur
         "currency": F.normalise_currency(currency),
         "exchange_rate": F.convert(1.0, F.normalise_currency(currency)),
         "current": _figures(cur, currency),
+        # The zero point, the same one the what-if shows: this selection with
+        # nothing promoted. Every tab compares against it, so every tab sends it.
+        "baseline": _figures(baseline_plan(r), currency),
         "uniform": uniform,
         "replan": {**plan_block, "eligible_product_stores": rp.eligible, "never_promoted_product_stores": rp.frozen},
         "rules": _rules_block(r, timing, frequency),
@@ -1847,6 +1997,9 @@ def target(scope: PlanScope, *, target_pct: float, timing: str = "free", frequen
         "exchange_rate": F.convert(1.0, F.normalise_currency(currency)),
         "target_pct": round(target_pct, 2),
         "current": _figures(cur, currency),
+        # The zero point, the same one the what-if shows: this selection with
+        # nothing promoted. Every tab compares against it, so every tab sends it.
+        "baseline": _figures(baseline_plan(r), currency),
         "basis": basis,
         "base_profit": _money(cur.profit, currency),
         "goal_profit": _money(goal, currency),

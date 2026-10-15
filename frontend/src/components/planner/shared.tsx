@@ -24,6 +24,10 @@ import type { Direction, Impact, Offer } from '../../types/planner'
 export const TYPE = {
   hero: 'kpi-value text-brand-violet',
   value: 'kpi-value text-ink-primary',
+  //: A panel or section heading. Already the Studio's de-facto title role --
+  //: Panel's own h3, the empty states, the Current plan strip -- but it was
+  //: spelled out at each site, so nothing stopped the next one drifting.
+  title: 'text-md font-medium text-ink-primary',
   cell: 'text-base text-ink-primary [font-variant-numeric:tabular-nums]',
   delta: 'text-base font-medium [font-variant-numeric:tabular-nums]',
   label: 'text-base font-medium text-ink-secondary',
@@ -252,7 +256,7 @@ export function Panel({ title, actions, children, className = '', tone }: { titl
     >
       {(title || actions) && (
         <header className="flex h-[64px] items-center justify-between gap-3 border-b border-border-subtle px-6">
-          {title && <h3 className="text-md font-medium text-ink-primary">{title}</h3>}
+          {title && <h3 className={TYPE.title}>{title}</h3>}
           {actions}
         </header>
       )}

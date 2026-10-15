@@ -42,7 +42,7 @@ export function Home() {
         <Link to="/home" className="flex min-w-0 items-center gap-3">
           <img src="/image.png" alt="TransOrg" className="h-[38px] w-[38px] shrink-0" />
           <div className="min-w-0">
-            <h1 className="truncate text-lg leading-[1.22] sm:text-xl">Agentic CPG &amp; Retail Intelligence Platform</h1>
+            <h1 className="truncate text-lg font-semibold leading-[1.22] sm:text-xl">Agentic CPG &amp; Retail Intelligence Platform</h1>
             {/* One step up and one shade darker. At 13px in `ink-muted` this
                 sat under a 21px wordmark and read as fine print rather than as
                 the product's description. */}
@@ -88,7 +88,7 @@ export function Home() {
           <div className="min-w-0 flex-1">
             {/* The person's name as they gave it -- capitals shout, and mangle
                 names that are not meant to be uppercased. */}
-            <h2 className="mb-2 text-2xl font-normal tracking-[-0.02em] sm:text-3xl">Good to see you, {user.name}.</h2>
+            <h2 className="mb-2 text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">Good to see you, {user.name}.</h2>
             {/* ONE LINE. The sentence measures 1059px at this size, and the
                 column it sits in is 1286px wide at 1366 and 1200px at 1280, so
                 the cap is what was wrapping it — 72ch is 582px. Raised to clear
