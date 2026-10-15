@@ -958,7 +958,6 @@ export function ProductSection() {
   const targetRoi = useTargetRoi(q.data?.meta)
 
   const rows = useMemo(() => rankBy(q.data?.groups ?? [], metric).slice(0, PRODUCT_ROWS), [q.data, metric])
-  const total = q.data?.total_groups ?? rows.length
 
   return (
     <ChartFrame

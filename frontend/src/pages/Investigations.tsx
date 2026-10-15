@@ -672,7 +672,7 @@ export function Investigations() {
   const rootCauses: { cause: string; agents: string[]; share_pct?: number; recommendation?: string }[] = (
     run?.result?.synthesis?.root_causes?.length
       ? run.result.synthesis.root_causes
-      : findingsList.filter((f) => f.headline).map((f) => ({ cause: f.headline, agents: [f.key] }))
+      : findingsList.filter((f) => f.headline).map((f) => ({ cause: f.headline, agents: [f.key] as string[], share_pct: undefined as number | undefined }))
   )
     // Largest share of the problem first -- on every run, including ones
     // stored before the backend sorted them.

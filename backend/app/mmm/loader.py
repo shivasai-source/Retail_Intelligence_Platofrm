@@ -50,7 +50,8 @@ def years(frame: pd.DataFrame) -> list[int]:
 def reset_cache() -> None:
     get_frame.cache_clear()
     # The derived payloads are cached per scope; drop them too.
-    from app.mmm import calendar, service
+    from app.mmm import budget_model, calendar, service
 
     service.clear_cache()
     calendar.clear_cache()
+    budget_model.reset()

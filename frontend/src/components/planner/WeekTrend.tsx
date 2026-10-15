@@ -24,11 +24,17 @@ export function WeekTrend({
   weeks,
   format,
   planLabel,
+  nowLabel = 'Current plan',
+  detail,
 }: {
   weeks: WeekPoint[]
   format: (v: number) => string
   /** What the new plan is called on this tab: Scenario, Re-planned, Optimized. */
   planLabel: string
+  /** What the plan it is compared with is called; the current plan unless a page names its own. */
+  nowLabel?: string
+  /** The hover's last row; the promotions count unless a page names its own. */
+  detail?: (index: number) => { label: string; value: string }
 }) {
   const [metric, setMetric] = useState<Metric>('profit')
   const [hover, setHover] = useState<number | null>(null)
@@ -85,12 +91,12 @@ export function WeekTrend({
           options={[
             { value: 'profit', label: 'Profit' },
             { value: 'revenue', label: 'Revenue' },
-            { value: 'change', label: 'Profit change', title: `${planLabel} minus the current plan` },
+            { value: 'change', label: 'Profit change', title: `${planLabel} minus ${nowLabel.toLowerCase()}` },
           ]}
         />
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-base text-ink-secondary">
           <span className="inline-flex items-center gap-1.5">
-            <span className="inline-block h-0.5 w-5 rounded" style={{ background: NOW }} /> {metric === 'change' ? 'Current plan (zero line)' : 'Current plan'}
+            <span className="inline-block h-0.5 w-5 rounded" style={{ background: NOW }} /> {metric === 'change' ? `${nowLabel} (zero line)` : nowLabel}
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span className="inline-block h-0.5 w-5 rounded" style={{ background: PLAN }} /> {planLabel}
@@ -114,7 +120,7 @@ export function WeekTrend({
           width="100%"
           height={height}
           role="img"
-          aria-label={`${metric === 'revenue' ? 'Revenue' : 'Profit'} by week, current plan and ${planLabel.toLowerCase()}`}
+          aria-label={`${metric === 'revenue' ? 'Revenue' : 'Profit'} by week, ${nowLabel.toLowerCase()} and ${planLabel.toLowerCase()}`}
           onMouseLeave={() => setHover(null)}
           onMouseMove={(e) => {
             const r = e.currentTarget.getBoundingClientRect()
@@ -209,7 +215,7 @@ export function WeekTrend({
               {h.week.slice(5)} · {dateText(h.start)}
             </div>
             {h.festival && <div className="text-status-warning">{h.festival}</div>}
-            {metric !== 'change' && <TipRow label="Current plan" value={format(hs.now)} dot={NOW} />}
+            {metric !== 'change' && <TipRow label={nowLabel} value={format(hs.now)} dot={NOW} />}
             <TipRow label={planLabel} value={`${sign(hs.plan)}${format(hs.plan)}`} dot={PLAN} />
             {metric !== 'change' && (
               <TipRow
@@ -219,7 +225,7 @@ export function WeekTrend({
               />
             )}
             {hasBand && <TipRow label="P10 – P90" value={`${sign(hs.lo)}${format(hs.lo)} – ${sign(hs.hi)}${format(hs.hi)}`} />}
-            <TipRow label="Promotions" value={`${h.promoted_now} → ${h.promoted_plan}`} />
+            {detail ? <TipRow {...detail(hover)} /> : <TipRow label="Promotions" value={`${h.promoted_now} → ${h.promoted_plan}`} />}
           </div>
         )}
       </div>

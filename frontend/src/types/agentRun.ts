@@ -43,9 +43,10 @@ export interface AgentFinding {
 export interface AgentSynthesis {
   summary: string
   root_cause: string
-  /** Every root cause, each with the agent keys that support it. Absent on a
-   *  run recorded before causes were listed. */
-  root_causes?: { cause: string; agents: string[]; share_pct?: number }[]
+  /** Every root cause, each with the agent keys that support it -- one per
+   *  agent on current runs, with its one recommendation. Absent on a run
+   *  recorded before causes were listed. */
+  root_causes?: { cause: string; agents: string[]; share_pct?: number; recommendation?: string }[]
   confidence: number
   insight_count: number
   recommendations: string[]

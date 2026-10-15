@@ -105,7 +105,10 @@ export function monthPeriodLabel(start: WeekKey, end: WeekKey, calendar: Planner
   const b = spans.find((s) => cmp(s.key, end) === 0)
   if (!a || !b) return `${start[0]}-W${start[1]} – ${end[0]}-W${end[1]}`
   const ofYear = spans.filter((s) => s.key[0] === start[0])
-  if (start[0] === end[0] && cmp(a.key, ofYear[0].key) === 0 && cmp(b.key, ofYear[ofYear.length - 1].key) === 0) return String(start[0])
+  // A whole year only when the data holds the whole year (week 1 to 52/53),
+  // not the few weeks a forecast or a partial file has of it.
+  const fullYear = ofYear[0].key[1] === 1 && ofYear[ofYear.length - 1].key[1] >= 52
+  if (fullYear && start[0] === end[0] && cmp(a.key, ofYear[0].key) === 0 && cmp(b.key, ofYear[ofYear.length - 1].key) === 0) return String(start[0])
   const [ya, ma] = monthOfSpan(a)
   const [yb, mb] = monthOfSpan(b)
   if (ya === yb && ma === mb) return `${MONTH_ABBR[ma - 1]} ${ya}`

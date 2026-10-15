@@ -154,7 +154,7 @@ export function TrendPanels({
   if (run.length) runs.push(run)
 
   const cx = (i: number) => padL + step * i + step / 2
-  const tickPitch = maxTextW(labels.map(calendarYear)) + TICK_GAP
+  const tickPitch = maxTextW(labels.map((l) => calendarYear(l) ?? '')) + TICK_GAP
   const labelEvery = Math.max(1, Math.ceil(tickPitch / step))
 
   // The year is identical on almost every tick, so it is printed only when it
