@@ -234,13 +234,17 @@ export function KeyInsightsGrid({ insights }: { insights: KeyInsight[] }) {
       {insights.map((k) => (
         <div key={k.title} className="rounded-[var(--r-lg)] border border-border-subtle bg-surface-card p-[16px_18px] shadow-[var(--shadow-card-soft)]">
           <div className="mb-2 flex items-start justify-between gap-2">
-            <strong className="text-md leading-[1.35] text-ink-primary">{k.title}</strong>
+            <strong className="text-md leading-[1.45] text-ink-primary">{k.title}</strong>
             <Pill tone={SEVERITY_TONE[k.severity]}>{k.severity}</Pill>
           </div>
-          <p className="text-md leading-[1.6] text-ink-secondary">{k.detail}</p>
-          <div className="mt-2.5 inline-flex items-center gap-2 text-base font-medium text-ink-primary">
-            <Icon name={k.trend === 'down' ? 'arrowDown' : k.trend === 'up' ? 'arrowUp' : 'variance'} className="h-3.5 w-3.5 shrink-0" />
-            {k.impact}
+          <p className="ai-prose">{k.detail}</p>
+          {/* THE ARROW MARKS THE FIRST LINE, not the middle of the block. It
+              was `items-center`, so on a two-line impact -- which most of them
+              are at this card width -- the glyph floated into the gap between
+              the lines and read as if it belonged to neither. */}
+          <div className="mt-2.5 flex items-start gap-2 text-base font-medium text-ink-primary">
+            <Icon name={k.trend === 'down' ? 'arrowDown' : k.trend === 'up' ? 'arrowUp' : 'variance'} className="mt-[4px] h-3.5 w-3.5 shrink-0" />
+            <span>{k.impact}</span>
           </div>
         </div>
       ))}
@@ -271,7 +275,7 @@ export function DriversPanel({ drivers }: { drivers: AnalysisDriver[] }) {
               }}
             />
           </div>
-          <div className="mt-1 text-sm leading-[1.5] text-ink-muted">{d.note}</div>
+          <div className="ai-prose mt-1 text-ink-muted">{d.note}</div>
         </div>
       ))}
     </div>
@@ -300,21 +304,21 @@ export function RecommendationsPanel({
             </div>
             <div className="min-w-0 flex-1">
               <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                <strong className="text-md leading-[1.35] text-ink-primary">{r.action}</strong>
+                <strong className="text-md leading-[1.45] text-ink-primary">{r.action}</strong>
                 <Pill tone={PRIORITY_TONE[r.priority]}>{r.priority} priority</Pill>
                 <Pill tone="neutral">{r.effort} effort</Pill>
                 <Pill tone="violet">{r.confidence}% confident</Pill>
               </div>
-              <p className="text-md leading-[1.6] text-ink-secondary">{r.rationale}</p>
+              <p className="ai-prose">{r.rationale}</p>
 
               <div className="mt-2.5 grid grid-cols-2 gap-2.5 @max-[760px]:grid-cols-1">
                 <div className="rounded-[var(--r-md)] bg-surface-muted p-[10px_14px]">
                   <div className="text-xs font-medium text-ink-secondary">Evidence</div>
-                  <div className="mt-1 text-base leading-[1.55] text-ink-primary">{r.evidence}</div>
+                  <div className="ai-prose mt-1">{r.evidence}</div>
                 </div>
                 <div className="rounded-[var(--r-md)] bg-surface-muted p-[10px_14px]">
                   <div className="text-xs font-medium text-ink-secondary">Expected impact</div>
-                  <div className="mt-1 text-base leading-[1.55] text-ink-primary">{r.expected_impact}</div>
+                  <div className="ai-prose mt-1">{r.expected_impact}</div>
                 </div>
               </div>
 
@@ -341,7 +345,7 @@ export function RecommendationsPanel({
           />
           <ul className="flex flex-col gap-2 p-[14px_18px]">
             {doNotDo.map((d, i) => (
-              <li key={i} className="flex items-start gap-2 text-md leading-[1.6] text-ink-secondary">
+              <li key={i} className="ai-prose flex items-start gap-2">
                 <Icon name="x" className="mt-1 h-3.5 w-3.5 shrink-0 text-status-danger" />
                 <span>{d}</span>
               </li>
@@ -351,7 +355,7 @@ export function RecommendationsPanel({
       )}
 
       {combined && (
-        <div className="rounded-[var(--r-md)] bg-surface-muted p-[12px_16px] text-md leading-[1.6] text-ink-secondary">
+        <div className="ai-prose rounded-[var(--r-md)] bg-surface-muted p-[12px_16px]">
           <span className="font-medium text-ink-primary">Combined effect: </span>
           {combined}
         </div>

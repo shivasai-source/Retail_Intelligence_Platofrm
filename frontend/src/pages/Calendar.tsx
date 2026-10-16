@@ -87,7 +87,7 @@ export function Calendar() {
     <AppShell activeKey="calendar" crumbs={crumbs}>
       <div className="fade-in mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1>Monthly Promotion Calendar</h1>
+          <h1 className="text-2xl font-normal tracking-[-0.02em]">Monthly Promotion Calendar</h1>
           <p className="mt-1.5 text-base text-ink-muted">
             View monthly promotional activities, events and promoted products across channels
           </p>

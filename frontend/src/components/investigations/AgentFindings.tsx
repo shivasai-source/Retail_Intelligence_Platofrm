@@ -59,7 +59,7 @@ export function AgentFindings({
           {/* THE COMBINED ROOT CAUSE: 3-4 sentences joining every cause below */}
           <div>
             <SectionLabel icon="file">Combined root cause</SectionLabel>
-            <p className="mt-1.5 text-base leading-[1.65] text-ink-secondary">{summary}</p>
+            <p className="ai-prose mt-1.5">{summary}</p>
           </div>
 
           {/* THE ROOT CAUSES, each with the agents behind it */}
@@ -88,7 +88,7 @@ export function AgentFindings({
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-4">
-                        <div className="text-base font-medium leading-[1.55] text-ink-primary">{rc.cause}</div>
+                        <div className="text-base font-medium leading-[1.45] text-ink-primary">{rc.cause}</div>
                         {rc.share !== null && (
                           <span className="shrink-0 text-md font-medium text-brand-violet [font-variant-numeric:tabular-nums]">{rc.share}%</span>
                         )}
@@ -131,7 +131,7 @@ export function AgentFindings({
               </div>
               <ol className="mt-2 flex flex-col gap-2">
                 {actions.map((a) => (
-                  <li key={a.n} className="flex items-start gap-2.5 text-base leading-[1.55] text-ink-primary">
+                  <li key={a.n} className="ai-prose flex items-start gap-2.5">
                     <span className="mt-[1px] inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-card text-xs font-medium text-[var(--pill-success-ink)] shadow-[0_0_0_1px_var(--status-success)]">
                       {a.n}
                     </span>

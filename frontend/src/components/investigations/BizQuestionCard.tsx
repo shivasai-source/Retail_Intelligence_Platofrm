@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Icon } from '../../icons'
 import { Card } from '../ui'
-import { SEVERITY_BANDS, standingOf, type RoiStanding } from '../../lib/roi'
+import { SEVERITY_BANDS, fmtRoi, standingOf, type RoiStanding } from '../../lib/roi'
 
 /** THE SCOPE STRIP — what was investigated, and the numbers it was measured on.
  *
@@ -90,14 +90,14 @@ export function BizQuestionCard({
           {standing && (
             <span
               className={`inline-flex h-[18px] items-center rounded-[var(--r-pill)] px-2 text-xs font-medium capitalize ${STANDING_CLASSES[standing]}`}
-              title={`ROI ${contextChips.roi} against the ${SEVERITY_BANDS.medium.toFixed(2)} target`}
+              title={`ROI ${fmtRoi(roi)} against the ${fmtRoi(SEVERITY_BANDS.medium)} target`}
             >
               {standing}
             </span>
           )}
           <span className="text-xs font-medium text-ink-muted">Investigation scope</span>
         </div>
-        <div className="mt-2 truncate text-md font-medium leading-[1.4] text-ink-primary" title={subject.label}>
+        <div className="mt-2 truncate text-md font-medium leading-[1.45] text-ink-primary" title={subject.label}>
           {subject.label}
         </div>
         {subject.sub && <div className="mt-0.5 text-sm text-ink-muted">{subject.sub}</div>}
@@ -112,7 +112,11 @@ export function BizQuestionCard({
         <MetaItem icon="flow" label="Channel" value={contextChips.channel} />
         <MetaItem icon="target" label="Region" value={contextChips.region} />
         {figures && <MetaItem icon="pricing" label="Trade spend" value={contextChips.spend} />}
-        {figures && <MetaItem icon="trending" label="Promotion ROI" value={contextChips.roi ?? '—'} />}
+        {/* THE MULTIPLE CARRIES ITS UNIT, like every other ROI in the app.
+            The payload ships the bare number ("0.85"), so this read 0.85
+            beside an alert row saying 0.85x and a root cause saying 0.85x --
+            three spellings of one figure on one screen. */}
+        {figures && <MetaItem icon="trending" label="Promotion ROI" value={roi !== null ? fmtRoi(roi) : (contextChips.roi ?? '—')} />}
       </div>
       </div>
     </Card>

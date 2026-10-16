@@ -118,16 +118,29 @@ interface ActiveInvestigationState extends InvestigationRunState {
   clearRun: () => void
 }
 
-// Empty by design. A pre-filled question makes the Investigations page render
-// an answer nobody asked for; the page now starts blank until the user asks
-// something or arrives from an "Ask why" handoff.
+// THE BOX STARTS EMPTY, AND WHAT TO ASK IS OFFERED FROM THE DATA.
+//
+// A default question here can only ever be a literal, and a literal goes
+// stale: the one this held named a promotion, a product, an ROI and "weeks
+// 19-22 of 2026", so a reader who had just selected 2025 in the Insights Hub
+// was handed a 2026 question to press, and the figure in it was true of
+// neither period. A pre-filled question also makes the page look like it is
+// part-way through answering something nobody asked.
+//
+// The affordance it was there for -- a first-time visitor with one thing to
+// press -- is now served from the data instead: the Investigations page offers
+// the worst promotion event IN THE SELECTED PERIOD as a starter, through the
+// same hand-off an alert row uses, so it carries the event's codes and follows
+// the period rather than asserting one.
 const DEFAULT_QUESTION = ''
 
-// The old default question is still sitting in localStorage for anyone who
-// used the app before, and persisted state wins over the initial value — so
-// clearing the constant alone would fix nothing for existing users. Version 2
-// drops it on load.
+// The default questions earlier versions shipped are still sitting in
+// localStorage for anyone who used the app before, and persisted state wins
+// over the initial value — so clearing the constant alone would fix nothing
+// for existing users. The migration below drops both on load.
 const OLD_DEFAULT = 'Why did South Modern Trade Push underperform despite increased trade spend?'
+const V3_DEFAULT =
+  'Why did Buy3Get1 on Outdoor Fresh Dryer Sheets 240 ct return 0.91x ROI in B2B over weeks 19-22 of 2026?'
 
 export const useActiveInvestigationStore = create<ActiveInvestigationState>()(
   persist(
@@ -162,13 +175,15 @@ export const useActiveInvestigationStore = create<ActiveInvestigationState>()(
     }),
     {
       name: 'tiq.activeInvestigation',
-      version: 2,
+      // v4: the box starts empty again. Persisted state wins over the initial
+      // value, so anyone who opened this page while v3 was shipping has one of
+      // the two literal defaults saved and would keep seeing it; both are
+      // cleared on load. A question somebody TYPED is theirs and is left alone.
+      version: 4,
       migrate: (persisted) => {
         const state = (persisted ?? {}) as Partial<ActiveInvestigationState>
-        if (state.activeQuestion === OLD_DEFAULT) {
-          return { ...state, activeQuestion: '' } as ActiveInvestigationState
-        }
-        return state as ActiveInvestigationState
+        const stale = state.activeQuestion === OLD_DEFAULT || state.activeQuestion === V3_DEFAULT
+        return { ...state, activeQuestion: stale ? '' : (state.activeQuestion ?? '') } as ActiveInvestigationState
       },
     },
   ),

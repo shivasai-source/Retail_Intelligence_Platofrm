@@ -4,6 +4,7 @@ import { Icon } from '../../icons'
 import { useCommandFilters, type FilterStoreHook, type ListFilterKey } from '../../store/commandFilters'
 import { MultiSelect, SelectionChips, type MultiOption } from './MultiSelect'
 import { PeriodPicker } from '../planner/PeriodPicker'
+import { usePeriodSelection } from '../../hooks/usePeriodSelection'
 import type { Currency, FiltersResponse, Option } from '../../types/commandCenter'
 
 /** Where the More Filters panel sits, relative to its button.
@@ -209,6 +210,8 @@ export function FilterBar({
   const reset = store((s) => s.reset)
   const reconcile = store((s) => s.reconcile)
   const studio = layout === 'studio'
+  const { calendar, start: periodStart, end: periodEnd, apply: applyPeriod, clear: clearPeriod } =
+    usePeriodSelection(store, options)
 
   // THE PANEL IS AN OVERLAY NOW, so it needs a way out other than the button.
   // ESCAPE ONLY, DELIBERATELY. Every control inside the panel is a `Dropdown`,
@@ -256,39 +259,9 @@ export function FilterBar({
   const yearLabel = filters.year ? String(filters.year) : 'All Years'
 
   // THE PERIOD, as the calendar sees it: a custom range, or the selected
-  // year's own weeks, or nothing (all data).
-  const calendar = options.calendar ?? []
-  const weeksOf = (y: number) => calendar.find((c) => c.year === y)?.weeks ?? []
-  type WeekKey = [number, number]
-  const asKey = (code: number): WeekKey => [Math.floor(code / 100), code % 100]
-  let periodStart: WeekKey | null = null
-  let periodEnd: WeekKey | null = null
-  if (filters.period_from != null && filters.period_to != null) {
-    periodStart = asKey(filters.period_from)
-    periodEnd = asKey(filters.period_to)
-  } else if (filters.year != null && weeksOf(filters.year).length) {
-    const ws = weeksOf(filters.year)
-    periodStart = [filters.year, ws[0].week]
-    periodEnd = [filters.year, ws[ws.length - 1].week]
-  }
-  /** Apply a range. Exactly one whole year is held as `year`, so the year's
-   *  own comparisons and labels ("F25 (Annual)") read it as before. */
-  const applyPeriod = (a: WeekKey, b: WeekKey) => {
-    const ws = weeksOf(a[0])
-    const wholeYear = a[0] === b[0] && ws.length > 0 && a[1] === ws[0].week && b[1] === ws[ws.length - 1].week
-    store.setState((s) => ({
-      filters: {
-        ...s.filters,
-        year: wholeYear ? a[0] : null,
-        month: null,
-        period_from: wholeYear ? null : a[0] * 100 + a[1],
-        period_to: wholeYear ? null : b[0] * 100 + b[1],
-      },
-      lastTouched: 'year',
-    }))
-  }
-  const clearPeriod = () =>
-    store.setState((s) => ({ filters: { ...s.filters, year: null, month: null, period_from: null, period_to: null }, lastTouched: 'year' }))
+  // year's own weeks, or nothing (all data). The rules live in
+  // hooks/usePeriodSelection, because the alerts dialog on the Investigations
+  // page offers the same calendar over this same store.
 
   return (
     <>

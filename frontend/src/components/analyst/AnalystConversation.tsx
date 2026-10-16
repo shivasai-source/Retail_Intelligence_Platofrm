@@ -329,7 +329,7 @@ function Bubble({ message }: { message: AnalystMessage }) {
   return (
     <AssistantTurn>
       <div
-        className={`rounded-[16px] rounded-tl-[6px] px-4 py-3.5 text-base leading-[1.65] text-ink-primary shadow-[var(--shadow-card-soft)] ${
+        className={`ai-prose rounded-[16px] rounded-tl-[6px] px-4 py-3.5 shadow-[var(--shadow-card-soft)] ${
           message.error
             ? 'border border-status-danger/30 bg-status-danger/5 text-ink-primary'
             : 'border border-border-subtle bg-surface-card text-ink-primary'

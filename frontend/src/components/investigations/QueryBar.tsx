@@ -32,7 +32,7 @@ export function QueryBar({
             onSubmit()
           }
         }}
-        placeholder="Ask TIQ to investigate a promotion… e.g. Why did South MT Push underperform despite higher trade spend?"
+        placeholder="Ask TIQ to investigate a promotion… e.g. Why did Buy3Get1 underperform in B2B?"
         className="min-w-0 flex-1 border-0 bg-transparent p-[6px_2px] text-base font-medium text-ink-primary outline-none placeholder:font-normal placeholder:text-ink-muted"
       />
       <Button variant="primary" onClick={onSubmit} disabled={loading} className="shrink-0 whitespace-nowrap">

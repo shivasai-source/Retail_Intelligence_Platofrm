@@ -39,8 +39,8 @@ import {
   RecommendationsPanel,
   RiskPanel,
   TrendVsTarget,
-  fmtCr,
 } from '../components/promotionIntelligence/panels'
+import { fmtMoney } from '../lib/money'
 import { fmtRoi } from '../lib/roi'
 import { useChannelNames } from '../hooks/useCommandCenter'
 import type { KeyInsight } from '../types/promotionIntelligence'
@@ -84,7 +84,12 @@ function describeScope(scope: Record<string, unknown>, channelNames: Record<stri
   }
   const month = Number(scope.month)
   if (month >= 1 && month <= 12) parts.push(MONTHS[month])
-  if (scope.year) parts.push(`F${String(scope.year).slice(2)}`)
+  // THE PLAIN YEAR, not the F26 shorthand this line used to build. The scope
+  // strip directly above says "2026 (Full Year)", so the two labels for one
+  // period sat two inches apart on the same screen disagreeing about how to
+  // name it -- and "F26" means nothing to a reader seeing this on a projector
+  // (the same reason lib/labels.ts rewrites it on the Insights Hub).
+  if (scope.year) parts.push(String(scope.year))
   return parts.length ? parts.join(' · ') : 'whole business'
 }
 
@@ -488,14 +493,20 @@ export function Intelligence() {
           {[
             {
               label: 'Trade Spend in scope',
-              value: fmtCr(k.trade_spend),
+              // THE HEADLINE CARDS FOLLOW THE APP'S MONEY RULE (lib/money),
+              // not the table formatter beside them: these three figures are
+              // the same ones the Insights Hub and the investigation scope
+              // strip show, and they have to be spelled the same way there
+              // and here. The tables below keep `fmtCr` and its 10-lakh
+              // floor, which exists for dense columns -- see panels.tsx.
+              value: fmtMoney(k.trade_spend),
               sub: describeScope(investigation.scope, channelNames),
               icon: 'wallet' as const,
               tint: { bg: 'var(--brand-violet-50)', fg: 'var(--brand-violet)' },
             },
             {
               label: 'Incremental Sales',
-              value: fmtCr(k.incremental_sales),
+              value: fmtMoney(k.incremental_sales),
               icon: 'barChart' as const,
               tint: { bg: 'var(--brand-blue-50)', fg: 'var(--brand-blue)' },
               // No sub-line: the "target is 1.50 × trade spend" it carried
@@ -600,7 +611,7 @@ export function Intelligence() {
                 />
                 <div className="p-5 pt-3">
                   <SaturationChart curve={facts.saturation} />
-                  <p className="mt-3 text-base leading-[1.6] text-ink-secondary">
+                  <p className="mt-3 text-base leading-[1.6] text-ink-muted">
                     Each point is a real mechanic at its effective discount depth; dot size is share of trade spend.{' '}
                     {facts.saturation.saturation_depth_pct !== null ? (
                       <>
@@ -656,7 +667,7 @@ export function Intelligence() {
                         </div>
                         <ul className="mt-1.5 flex flex-col gap-1">
                           {analysis.uncertainties.map((u, i) => (
-                            <li key={i} className="text-sm leading-[1.5] text-ink-secondary">
+                            <li key={i} className="ai-prose text-ink-muted">
                               · {u}
                             </li>
                           ))}

@@ -144,7 +144,7 @@ export function Connections() {
   return (
     <AppShell activeKey="connections" crumbs={[{ label: 'TPO Intelligence' }, { label: 'Data Connections' }]}>
       <div className="fade-in mb-5">
-        <h1>Data Connections</h1>
+        <h1 className="text-2xl font-normal tracking-[-0.02em]">Data Connections</h1>
         <p className="mt-1.5 text-base text-ink-muted">
           {availableCount} of {CATALOG.length} sources connect today — the rest are in the catalog so the
           landscape stays visible.

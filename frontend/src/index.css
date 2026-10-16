@@ -275,6 +275,32 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* MODEL-WRITTEN PROSE. One style for every sentence an agent or the Analyst
+   wrote, on every page -- the body size, a looser line height because these
+   are paragraphs rather than labels, and the PRIMARY ink.
+
+   It exists because the same kind of text read differently on three pages:
+   the Investigations synthesis was 15px/1.65 in secondary ink, Promotion
+   Intelligence's answer card was 15px/1.70 in primary, the Analyst's turns
+   15px/1.65 in primary, and a node detail 15px/1.55 in secondary. Nothing
+   chose those differences; they accumulated. Colour stays in the class here,
+   unlike .kpi-value, because prose has no contextual tone to carry -- an
+   answer is not more or less urgent than another answer.
+
+   HEADLINES ARE NOT PROSE. A model-written HEADLINE (a root cause, a finding's
+   first line, an investigation subject) stays a medium-weight line at the body
+   leading, 1.45, beside its own figures. */
+/* IN `components`, NOT UNLAYERED, so a utility beside it still wins: a note
+   that is deliberately quieter writes `ai-prose text-ink-muted` and gets the
+   prose metrics with its own colour, the way `.kpi-value` takes a tone. */
+@layer components {
+  .ai-prose {
+    font-size: var(--text-base);
+    line-height: 1.65;
+    color: var(--text-primary);
+  }
+}
+
 .fade-in    { animation: fadeIn 220ms var(--ease-out) both; }
 .fade-in-up { animation: fadeInUp 320ms var(--ease-out) both; }
 

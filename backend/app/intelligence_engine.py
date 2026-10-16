@@ -18,7 +18,7 @@ import re
 from typing import Any
 
 from app.agents.star_tools import build_filter_state, run_analysis, segment_kpis
-from app.tpo import config, service
+from app.tpo import config, formatting, service
 from app.tpo.filters import rows_for
 
 # Effective discount depth per mechanic. Buy3Get1 is 25% (one unit free in
@@ -318,7 +318,7 @@ def roi_gap_decomposition(
             "incremental_sales": row.get("incremental_sales"),
             # The row a note can be written from without inventing anything.
             "measured_note": (
-                f"₹{spend / 1e7:,.2f} Cr of trade spend "
+                f"{formatting.money(spend)} of trade spend "
                 f"({round(spend / total_spend * 100, 2)}% of the scope) at {roi} ROI, "
                 f"{round(roi - target, 2):+} against the {target} target."
             ),
@@ -428,7 +428,7 @@ def _top_share(rows: list[dict[str, Any]] | None, lever: str, noun: str) -> dict
         "display": f"{top.get('name')} at {share}% of trade spend",
         "basis": (
             f"Largest {noun} by Trade Spend across {len(usable)} in scope: "
-            f"₹{top['trade_spend'] / 1e7:,.2f} Cr of ₹{total / 1e7:,.2f} Cr."
+            f"{formatting.money(top['trade_spend'])} of {formatting.money(total)}."
         ),
     }
 
@@ -471,7 +471,7 @@ def lever_positions(facts: dict[str, Any]) -> dict[str, dict[str, Any]]:
                 "display": f"{depth}% average depth",
                 "basis": (
                     f"Trade-spend-weighted mean of the depth {len(priced)} mechanics carry "
-                    f"in their names, over ₹{spend / 1e7:,.2f} Cr."
+                    f"in their names, over {formatting.money(spend)}."
                 ),
             }
 
@@ -499,7 +499,7 @@ def lever_positions(facts: dict[str, Any]) -> dict[str, dict[str, Any]]:
             "lever": "spend_allocation",
             "available": True,
             "value": round(float(spend_total), 2),
-            "display": f"₹{float(spend_total) / 1e7:,.2f} Cr of trade spend in scope",
+            "display": f"{formatting.money(float(spend_total))} of trade spend in scope",
             "basis": "Trade Spend KPI for this scope, from app/tpo/aggregate.py.",
         }
         if isinstance(spend_total, (int, float))

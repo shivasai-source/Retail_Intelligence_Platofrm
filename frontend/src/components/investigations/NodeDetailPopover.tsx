@@ -56,8 +56,8 @@ export function NodeDetailPopover({
         </div>
       </div>
 
-      <div className="text-base font-medium leading-[1.4] text-ink-primary">{detail.headline}</div>
-      <p className="mt-2 text-base leading-[1.55] text-ink-secondary">{detail.body}</p>
+      <div className="text-base font-medium leading-[1.45] text-ink-primary">{detail.headline}</div>
+      <p className="ai-prose mt-2">{detail.body}</p>
 
       {detail.viz && detail.viz.type === 'bars' && (
         <div className="mt-3 rounded-[10px] p-3" style={{ background: st.bg }}>

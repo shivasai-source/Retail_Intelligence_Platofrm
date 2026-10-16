@@ -182,6 +182,7 @@ export function PeriodPicker({
   onClear,
   renderTrigger,
   monthsOnly = false,
+  inline = false,
 }: {
   calendar: PlannerOptions['calendar']
   /** Null for "all data": the calendar opens on the data's whole extent. */
@@ -196,6 +197,13 @@ export function PeriodPicker({
   renderTrigger?: (t: { open: boolean; label: string; weeks: number | null; toggle: () => void }) => ReactNode
   /** Months only -- no Dates mode. */
   monthsOnly?: boolean
+  /** INLINE: the panel itself, in the page's flow, with no trigger button and
+   *  no portal. The alerts dialog on the Investigations page puts the calendar
+   *  beside the list it scopes, where a popover over a dialog would be a
+   *  second layer of overlay to dismiss. Everything else -- the two modes, the
+   *  shortcuts, Apply, All data -- is the same panel, because it IS the same
+   *  panel; only the trigger, the placement and Cancel are dropped. */
+  inline?: boolean
 }) {
   const spans = useMemo(() => weekSpans(calendar), [calendar])
   const minDay = spans[0]?.start ?? ''
@@ -227,7 +235,9 @@ export function PeriodPicker({
   const firstMonthKey = Math.min(...monthKeys)
   const lastMonthKey = Math.max(...monthKeys)
 
-  const [open, setOpen] = useState(false)
+  const [openState, setOpen] = useState(false)
+  // Inline, the panel is always open: there is no trigger to open it with.
+  const open = inline || openState
   const [mode, setMode] = useState<Mode>('days')
   const [range, setRange] = useState<Range>({ from: '', to: '' })
   const [pending, setPending] = useState<Pending>('new')
@@ -257,12 +267,12 @@ export function PeriodPicker({
     setCursorYear(Number(to.slice(0, 4)))
     showMonthOf(to)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [open, inline ? `${start?.join('-') ?? ''}|${end?.join('-') ?? ''}` : ''])
 
   // Sit under the button and never run past the bottom of the window (a
   // short window or a 90% zoom): re-measured on resize and scroll.
   useLayoutEffect(() => {
-    if (!open) return
+    if (!open || inline) return
     const measure = () => {
       if (!anchorRef.current) return
       const r = anchorRef.current.getBoundingClientRect()
@@ -278,7 +288,7 @@ export function PeriodPicker({
   }, [open])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || inline) return
     const onDown = (e: MouseEvent) => {
       if (panelRef.current?.contains(e.target as Node) || anchorRef.current?.contains(e.target as Node)) return
       setOpen(false)
@@ -413,8 +423,13 @@ export function PeriodPicker({
   const triggerLabel = start && end ? (monthsOnly ? monthPeriodLabel(start, end, calendar) : smartPeriodLabel(start, end, calendar)) : 'All data'
   const triggerWeeks = start && end ? weeksBetween(start, end, calendar) : null
 
+  /** The panel goes to document.body as a popover, or stays where it is
+   *  written when the caller asked for it inline. */
+  const host = (node: ReactNode) => (inline ? node : createPortal(node, document.body))
+
   return (
     <>
+      {!inline && (
       <span ref={anchorRef} className="inline-flex">
         {renderTrigger ? (
           renderTrigger({ open, label: triggerLabel, weeks: triggerWeeks, toggle: () => !locked && setOpen((v) => !v) })
@@ -439,14 +454,26 @@ export function PeriodPicker({
           </button>
         )}
       </span>
+      )}
       {open &&
-        createPortal(
+        host(
           <div
             ref={panelRef}
-            role="dialog"
+            // Inline it is a region of the page it sits in, not a dialog:
+            // there is nothing to dismiss, and a dialog inside the alerts
+            // dialog would be a second modal for a screen reader to escape.
+            role={inline ? 'group' : 'dialog'}
             aria-label="Choose the period"
-            className="dd-enter fixed z-[9999] flex flex-col overflow-hidden rounded-[var(--r-xl)] border border-border-default bg-surface-card shadow-[var(--shadow-lg)]"
-            style={{ left: place.left, top: place.top, width: PANEL_W, maxWidth: 'calc(100vw - 16px)', maxHeight: place.maxH }}
+            className={
+              inline
+                ? 'flex h-full w-full flex-col overflow-hidden rounded-[var(--r-lg)] border border-border-subtle bg-surface-card'
+                : 'dd-enter fixed z-[9999] flex flex-col overflow-hidden rounded-[var(--r-xl)] border border-border-default bg-surface-card shadow-[var(--shadow-lg)]'
+            }
+            style={
+              inline
+                ? undefined
+                : { left: place.left, top: place.top, width: PANEL_W, maxWidth: 'calc(100vw - 16px)', maxHeight: place.maxH }
+            }
           >
             {/* HEADER: the two ends -- click either to change just that one --
                 and exactly what the period will cover. */}
@@ -625,7 +652,7 @@ export function PeriodPicker({
                 <span />
               )}
               <div className="flex shrink-0 items-center gap-2">
-                <TextButton onClick={() => setOpen(false)}>Cancel</TextButton>
+                {!inline && <TextButton onClick={() => setOpen(false)}>Cancel</TextButton>}
                 <TextButton
                   strong
                   disabled={incomplete || !range.from || !range.to}
@@ -640,7 +667,6 @@ export function PeriodPicker({
               </div>
             </div>
           </div>,
-          document.body,
         )}
     </>
   )

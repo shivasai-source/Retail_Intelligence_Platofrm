@@ -128,7 +128,7 @@ export function AgentBoard({
             </div>
           </div>
 
-          <p className="mt-3 text-base leading-[1.6] text-ink-muted">{PLAIN_DESC[agent.key] ?? agent.desc}</p>
+          <p className="mt-3 text-base leading-[1.55] text-ink-muted">{PLAIN_DESC[agent.key] ?? agent.desc}</p>
 
           {finding?.contribution_pct != null && (
             <div className="mt-4 rounded-[var(--r-md)] border border-border-subtle p-[10px_14px]">
@@ -149,7 +149,7 @@ export function AgentBoard({
             <>
               <Divider label="What it found" />
               <div className="text-md font-medium leading-[1.45] text-ink-primary">{detail?.headline ?? finding.headline}</div>
-              <p className="mt-1.5 text-base leading-[1.65] text-ink-secondary">{detail?.body ?? finding.body}</p>
+              <p className="ai-prose mt-1.5">{detail?.body ?? finding.body}</p>
 
               {detail?.viz?.type === 'bars' && detail.viz.items.length > 0 && <Bars items={detail.viz.items} unit={detail.viz.unit} />}
 
@@ -165,7 +165,7 @@ export function AgentBoard({
                   <Divider label={supports.length === 1 ? 'Its root cause' : 'Root causes it supports'} />
                   <ul className="flex flex-col gap-2">
                     {supports.map((rc) => (
-                      <li key={rc.n} className="flex items-start gap-2.5 text-base leading-[1.5] text-ink-primary">
+                      <li key={rc.n} className="ai-prose flex items-start gap-2.5">
                         <span className="mt-[1px] inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-violet text-xs font-medium text-white">
                           {rc.n}
                         </span>

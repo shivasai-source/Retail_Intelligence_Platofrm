@@ -72,7 +72,7 @@ export function SettingsPage({
   return shell(
     <>
       <div className="fade-in mb-5">
-        <h1>Settings</h1>
+        <h1 className="text-2xl font-normal tracking-[-0.02em]">Settings</h1>
         <p className="mt-1.5 text-base text-ink-muted">Profile, preferences and integrations</p>
       </div>
 

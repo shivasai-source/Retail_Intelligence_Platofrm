@@ -204,6 +204,17 @@ def breakeven_uplift(d: float, c: float = PROMOTION_COST_RATE) -> float:
 BASE_CURRENCY = "INR"
 
 #: USD per 1 INR. ONE configurable value, applied once at display time.
-EXCHANGE_RATE_USD_PER_INR: float = float(os.environ.get("TPO_USD_PER_INR", "0.0115"))
+#:
+#: Quoted the way a reader thinks of it -- rupees per dollar -- and inverted
+#: here, so the number in the source is the one anybody can check against a
+#: rate they just looked up. 95 as of 15 Oct 2026.
+#:
+#: DELIBERATELY A CONSTANT, NOT A FEED. A live rate would put a network call
+#: between the reader and every money figure on the page: a slow or blocked
+#: lookup during a demo is a worse failure than a rate a few paise stale, and
+#: an FX move of a fraction of a percent changes no decision this platform
+#: supports. Override per environment with TPO_INR_PER_USD.
+INR_PER_USD: float = float(os.environ.get("TPO_INR_PER_USD", "95"))
+EXCHANGE_RATE_USD_PER_INR: float = 1.0 / INR_PER_USD
 
 SUPPORTED_CURRENCIES = ("INR", "USD")

@@ -30,6 +30,7 @@ from app.agents.pipeline import (
 from app.agents.roster import BY_KEY as ROSTER_BY_KEY
 from app.agents.roster import KEYS as ROSTER_KEYS
 from app.agents.roster import roster_catalogue
+from app.tpo import formatting
 from app.agents.star_tools import (
     FILTER_FIELDS, _bounded_int, offers_and_products_named_in, resolve_codes, schema_summary, segment_kpis,
 )
@@ -710,7 +711,14 @@ async def run_star_pipeline(
     chips["region"] = _named("region", global_filters.get("region")) or "All Regions"
 
     if scoped_totals.get("trade_spend") is not None:
-        chips["spend"] = f"₹{scoped_totals['trade_spend'] / 1e7:,.2f} Cr"
+        # THE CANONICAL FORMATTER, not a hand-rolled crore. Dividing by 1e7
+        # unconditionally rendered every scope under a crore with two
+        # significant digits -- this event's ₹29,18,518 read as "₹0.29 Cr" on
+        # the investigation card while Promotion Intelligence, which formats
+        # the SAME figure through the same rule as every KPI in the app,
+        # showed "₹29.19 L". One number, two pages, two spellings. `money`
+        # steps Cr -> L -> K (app/tpo/formatting), so both now agree.
+        chips["spend"] = formatting.money(scoped_totals["trade_spend"])
     if scoped_totals.get("promotion_roi") is not None:
         chips["roi"] = f"{scoped_totals['promotion_roi']:.2f}"  # the multiple's own two decimals
     chips["source"] = "TPO star schema"

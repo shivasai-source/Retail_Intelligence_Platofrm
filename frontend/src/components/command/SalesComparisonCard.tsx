@@ -142,9 +142,14 @@ function PeriodPicker({
           onChange({ year: nextYear, month: has.includes(month) ? month : Math.max(...has) })
         }}
       >
+        {/* THE PLAIN YEAR. This selector printed F25/F26 while the period
+            pill at the top of the same page printed 2025/2026 — the Insights
+            Hub's own label policy (lib/labels.ts), which this one control was
+            never put through. Only the label changes; the value is the year
+            it always was. */}
         {years.map((y) => (
           <option key={y} value={y}>
-            {`F${String(y).slice(2)}`}
+            {y}
           </option>
         ))}
       </Select>

@@ -27,6 +27,7 @@ import pandas as pd
 
 from app.agents.aggregates import ColumnRoles, build_analysis, overall
 from app.agents.client import complete_json
+from app.tpo import formatting
 from app.agents.confidence import finding_confidence, synthesis_confidence
 from app.agents.figures import (
     computed_delta,
@@ -757,7 +758,11 @@ def assemble_orchestration(
     if totals.get("period_start") and totals.get("period_end"):
         chips["period"] = f"{totals['period_start']} → {totals['period_end']}"
     if totals.get("total_spend") is not None:
-        chips["spend"] = f"{totals['total_spend']:,.0f}"
+        # The same canonical formatter the star path uses. This printed a bare
+        # grouped number -- "2,918,518", no symbol and no unit -- on the very
+        # card the star path fills with "₹29.19 L", so which of the two an
+        # investigation had run decided how its trade spend was spelled.
+        chips["spend"] = formatting.money(totals["total_spend"])
     if totals.get("overall_roi") is not None:
         chips["roi"] = f"{totals['overall_roi']:.2f}"
     chips["rows"] = f"{totals.get('rows', 0):,}"

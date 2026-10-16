@@ -81,7 +81,7 @@ export function MmmConnections() {
   return (
     <MmmShell activeKey="connections" page="Data Connections">
       <div className="fade-in mb-5">
-        <h1>Data Connections</h1>
+        <h1 className="text-2xl font-normal tracking-[-0.02em]">Data Connections</h1>
         <p className="mt-1.5 text-base text-ink-muted">
           {available} of {MMM_CATALOG.length} sources connect to MMM today — the rest are in the catalog so
           the landscape stays visible.

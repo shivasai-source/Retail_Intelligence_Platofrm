@@ -48,7 +48,7 @@ export function AiAnswerCard({
         </div>
       </div>
 
-      <div className="min-h-[60px] p-5 text-md leading-[1.7] text-ink-primary">
+      <div className="ai-prose min-h-[60px] p-5">
         {paragraphs.map((runs, pi) => (
           <p key={pi} className="mb-2.5 last:mb-0">
             {runs.map((r, ri) => (r.tone ? <strong key={ri} className={toneClass(r.tone)}>{r.text}</strong> : <span key={ri}>{r.text}</span>))}

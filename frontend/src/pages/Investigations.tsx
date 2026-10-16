@@ -26,6 +26,10 @@ import { AgentFindings } from '../components/investigations/AgentFindings'
 import { ProgressStrip } from '../components/investigations/ProgressStrip'
 import { QueryBar } from '../components/investigations/QueryBar'
 import { AlertsModal } from '../components/investigations/AlertsModal'
+import { ALERT_FETCH_LIMIT, topAlerts } from '../components/command/riskRanking'
+import { useRiskAlerts } from '../hooks/useCommandCenter'
+import { useEnsureCommandScope } from '../hooks/useCommandScope'
+import { fmtRoi } from '../lib/roi'
 import {
   CEILING,
   PhaseRail,
@@ -34,6 +38,7 @@ import {
   fmtElapsed,
   useRunClock,
 } from '../components/agents/RunProgress'
+import type { RiskAlert } from '../types/commandCenter'
 import type { Accelerator, OrchNode } from '../types/orchestration'
 import type { InvestigationType } from '../types/investigation'
 
@@ -62,9 +67,15 @@ function inferTypeOffline(q: string): InvestigationType {
 function AskSomething({
   types,
   onPick,
+  worst,
+  onPickWorst,
 }: {
   types: { key: string; title: string; desc?: string; questions?: string[] }[] | undefined
   onPick: (q: string) => void
+  /** The worst promotion event in the SELECTED PERIOD, or null while the
+   *  alerts are still loading or the period holds none. */
+  worst: RiskAlert | null
+  onPickWorst: () => void
 }) {
   return (
     <Card className="fade-in mt-4">
@@ -73,11 +84,40 @@ function AskSomething({
           <Icon name="search" className="h-6 w-6" />
         </div>
         <h2 className="text-lg font-normal">Ask a question to start an investigation</h2>
-        <p className="max-w-[520px] text-base leading-[1.6] text-ink-muted">
+        <p className="max-w-[520px] text-base leading-[1.55] text-ink-muted">
           Specialist agents will pick the analyses your question needs, run them against your data, and report a root
           cause with evidence. Ask in plain English, or start from one of these.
         </p>
       </div>
+
+      {/* THE ONE-CLICK START, FROM THE DATA RATHER THAN A LITERAL. The query
+          bar used to open pre-filled with a hardcoded question — a promotion,
+          an ROI and a year that went stale the moment the reader selected a
+          different period. This names the worst event in the period that IS
+          selected, and starts it through the same hand-off an alert row uses,
+          so the run carries the event's promotion, product and channel codes
+          instead of a planner's reading of a sentence. */}
+      {worst && (
+        <div className="mx-6 mb-1 rounded-[var(--r-lg)] border border-border-subtle bg-surface-muted p-[12px_14px]">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <div className="min-w-0">
+              <div className="text-xs font-medium text-ink-muted">Worst event in the selected period</div>
+              <div className="mt-0.5 truncate text-base font-medium text-ink-primary">
+                {worst.title.includes('—') ? worst.title.split('—').pop()?.trim() : worst.title}
+                <span className="font-normal text-ink-muted">
+                  {' '}· {worst.product} · {worst.channel} · {worst.week}
+                </span>
+              </div>
+              <div className="mt-0.5 text-sm tabular-nums text-ink-muted">
+                ROI {fmtRoi(worst.roi_multiple)} · {worst.at_stake_display} at stake
+              </div>
+            </div>
+            <Button variant="primary" onClick={onPickWorst} className="shrink-0 whitespace-nowrap">
+              <Icon name="zap" /> <span>Investigate this</span>
+            </Button>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3 p-[14px_24px_26px] @max-[900px]:grid-cols-1">
         {(types ?? []).map((t) => (
           <div key={t.key} className="rounded-[var(--r-lg)] border border-border-subtle p-[12px_14px]">
@@ -339,7 +379,7 @@ function OutOfScope({ question, reason, onReset }: { question: string; reason: s
           <Icon name="info" className="h-6 w-6" />
         </div>
         <h2 className="text-lg font-normal">That's outside what this data can answer</h2>
-        <p className="max-w-[540px] text-base leading-[1.6] text-ink-muted">{reason}</p>
+        <p className="ai-prose max-w-[540px] text-ink-muted">{reason}</p>
         {/* The reader's own question, quoted back so they can see what was
             parsed. Content, so it is read at the muted tone rather than the
             disabled one it used to borrow. */}
@@ -417,6 +457,14 @@ export function Investigations() {
     if (openAlertsKey) setAlertsOpen(true)
   }, [openAlertsKey])
   const handOffAlert = useAlertHandoff()
+
+  // THE WORST EVENT IN THE SELECTED PERIOD — what the page offers a reader who
+  // has not asked anything yet. The query is the alerts dialog's own, under
+  // the same key and the same Insights Hub scope, so this costs no extra
+  // request and cannot name an event the dialog would not list.
+  useEnsureCommandScope()
+  const scopeAlerts = useRiskAlerts(ALERT_FETCH_LIMIT)
+  const worstAlert: RiskAlert | null = topAlerts(scopeAlerts.data?.alerts, 1)[0] ?? null
 
   // Nothing is rendered until the user actually asks something. Opening the
   // page from the sidebar used to show a hardcoded question and a sample graph
@@ -822,7 +870,12 @@ export function Investigations() {
       )}
 
       {!showWorkspace ? (
-        <AskSomething types={types} onPick={(q) => { setQueryInput(q); void launch(q) }} />
+        <AskSomething
+          types={types}
+          onPick={(q) => { setQueryInput(q); void launch(q) }}
+          worst={worstAlert}
+          onPickWorst={() => worstAlert && handOffAlert(worstAlert)}
+        />
       ) : run?.status === 'done' && run.result && run.result.answerable === false ? (
         <OutOfScope
           question={run.question}

@@ -69,7 +69,7 @@ export function MmmConnections() {
       datasetComplete={complete}
     >
       <div className="fade-in mb-5">
-        <h1>Data Connections</h1>
+        <h1 className="text-2xl font-normal tracking-[-0.02em]">Data Connections</h1>
         <p className="mt-1.5 text-base text-ink-muted">
           MMM reads marketing, sales, pricing, trade and external business data. None of the{' '}
           {MMM_CATALOG.length} catalogued sources connect to MMM yet — they are listed so the data
