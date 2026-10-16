@@ -1,0 +1,206 @@
+{
+  "source_rev": "e58596a",
+  "kappa_multiple": 1.0,
+  "overall_roas": 1.5134,
+  "media_share_of_revenue": 0.2543,
+  "channels": {
+    "TV_Spend": {
+      "decay": 0.5,
+      "alpha": 0.9,
+      "kappa": 6756243.23,
+      "beta": 8523092.72,
+      "roas": 1.4,
+      "spend": 7333828877.0,
+      "incremental_revenue": 10267360427.8
+    },
+    "OTT_Spend": {
+      "decay": 0.4,
+      "alpha": 0.9,
+      "kappa": 1276717.63,
+      "beta": 2310671.36,
+      "roas": 1.6,
+      "spend": 1423022087.0,
+      "incremental_revenue": 2276835339.2
+    },
+    "Streaming_Audio_Spend": {
+      "decay": 0.3,
+      "alpha": 0.85,
+      "kappa": 408306.56,
+      "beta": 470271.92,
+      "roas": 0.9,
+      "spend": 401326853.0,
+      "incremental_revenue": 361194167.7
+    },
+    "Cinema_Advertising_Spend": {
+      "decay": 0.45,
+      "alpha": 0.85,
+      "kappa": 1265527.42,
+      "beta": 874414.79,
+      "roas": 0.7,
+      "spend": 492187127.0,
+      "incremental_revenue": 344530988.9
+    },
+    "Meta_Ads_Spend": {
+      "decay": 0.2,
+      "alpha": 0.85,
+      "kappa": 1164606.46,
+      "beta": 3282240.66,
+      "roas": 1.9,
+      "spend": 2213160041.0,
+      "incremental_revenue": 4205004077.9
+    },
+    "YouTube_Ads_Spend": {
+      "decay": 0.3,
+      "alpha": 0.85,
+      "kappa": 961021.57,
+      "beta": 2086341.65,
+      "roas": 1.7,
+      "spend": 1692323914.0,
+      "incremental_revenue": 2876950653.8
+    },
+    "Google_Ads_Spend": {
+      "decay": 0.1,
+      "alpha": 0.8,
+      "kappa": 751692.45,
+      "beta": 2808501.26,
+      "roas": 2.2,
+      "spend": 1525462056.0,
+      "incremental_revenue": 3356016523.2
+    },
+    "TikTok_Ads_Spend": {
+      "decay": 0.2,
+      "alpha": 0.85,
+      "kappa": 611126.56,
+      "beta": 1002109.33,
+      "roas": 1.1,
+      "spend": 156720706.0,
+      "incremental_revenue": 172392776.6
+    },
+    "Billboard_Spend": {
+      "decay": 0.5,
+      "alpha": 0.9,
+      "kappa": 1800428.38,
+      "beta": 1331234.57,
+      "roas": 0.8,
+      "spend": 1435497984.0,
+      "incremental_revenue": 1148398387.2
+    },
+    "Transit_Advertising_Spend": {
+      "decay": 0.45,
+      "alpha": 0.9,
+      "kappa": 769345.55,
+      "beta": 473675.16,
+      "roas": 0.6,
+      "spend": 493296326.0,
+      "incremental_revenue": 295977795.6
+    },
+    "Airport_Advertising_Spend": {
+      "decay": 0.45,
+      "alpha": 0.9,
+      "kappa": 311808.48,
+      "beta": 157334.45,
+      "roas": 0.5,
+      "spend": 382064146.0,
+      "incremental_revenue": 191032073.0
+    },
+    "Newspaper_Spend": {
+      "decay": 0.25,
+      "alpha": 0.9,
+      "kappa": 2095240.3,
+      "beta": 2077340.29,
+      "roas": 0.7,
+      "spend": 1874135522.0,
+      "incremental_revenue": 1311894865.4
+    },
+    "Magazine_Spend": {
+      "decay": 0.45,
+      "alpha": 0.9,
+      "kappa": 1248739.43,
+      "beta": 663103.43,
+      "roas": 0.5,
+      "spend": 610588908.0,
+      "incremental_revenue": 305294454.0
+    },
+    "Google_Search_Spend": {
+      "decay": 0.05,
+      "alpha": 0.8,
+      "kappa": 817181.05,
+      "beta": 4224450.91,
+      "roas": 2.8,
+      "spend": 1706462514.0,
+      "incremental_revenue": 4778095039.2
+    },
+    "Programmatic_Display_Spend": {
+      "decay": 0.15,
+      "alpha": 0.85,
+      "kappa": 494047.84,
+      "beta": 790462.83,
+      "roas": 1.0,
+      "spend": 971487934.0,
+      "incremental_revenue": 971487934.0
+    },
+    "Native_Advertising_Spend": {
+      "decay": 0.2,
+      "alpha": 0.85,
+      "kappa": 189714.26,
+      "beta": 339346.51,
+      "roas": 1.2,
+      "spend": 360814844.0,
+      "incremental_revenue": 432977812.8
+    },
+    "Ecommerce_Ads_Spend": {
+      "decay": 0.1,
+      "alpha": 0.8,
+      "kappa": 548192.49,
+      "beta": 2848483.3,
+      "roas": 3.0,
+      "spend": 1112408832.0,
+      "incremental_revenue": 3337226496.0
+    },
+    "Quick_Commerce_Ads_Spend": {
+      "decay": 0.05,
+      "alpha": 0.8,
+      "kappa": 486251.03,
+      "beta": 2211285.09,
+      "roas": 2.4,
+      "spend": 447191992.0,
+      "incremental_revenue": 1073260780.8
+    },
+    "In_Store_Digital_Ads_Spend": {
+      "decay": 0.1,
+      "alpha": 0.85,
+      "kappa": 211605.29,
+      "beta": 739643.59,
+      "roas": 2.0,
+      "spend": 252672822.0,
+      "incremental_revenue": 505345644.0
+    },
+    "Influencer_Marketing_Spend": {
+      "decay": 0.3,
+      "alpha": 0.85,
+      "kappa": 704820.98,
+      "beta": 1204059.75,
+      "roas": 1.3,
+      "spend": 580378227.0,
+      "incremental_revenue": 754491695.1
+    },
+    "Creator_Content_Spend": {
+      "decay": 0.3,
+      "alpha": 0.85,
+      "kappa": 699826.8,
+      "beta": 985347.54,
+      "roas": 1.1,
+      "spend": 396186264.0,
+      "incremental_revenue": 435804890.4
+    },
+    "Sponsored_Content_Spend": {
+      "decay": 0.3,
+      "alpha": 0.85,
+      "kappa": 516833.64,
+      "beta": 590600.6,
+      "roas": 0.9,
+      "spend": 429098132.0,
+      "incremental_revenue": 386188318.8
+    }
+  }
+}

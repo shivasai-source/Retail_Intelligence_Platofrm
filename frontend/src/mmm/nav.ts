@@ -3,6 +3,9 @@ import type { NavData } from '../types/nav'
 /** MMM's routes, in one place. Every MMM page lives under /mmm/. */
 export const MMM_ROUTES = {
   insights: '/mmm/insights',
+  budget: '/mmm/budget',
+  allocator: '/mmm/allocator',
+  forecast: '/mmm/forecast',
   calendar: '/mmm/calendar',
   reports: '/mmm/reports',
   connections: '/mmm/connections',
@@ -19,7 +22,12 @@ export const MMM_BRAND = 'MMM Intelligence'
  *  rule treats them identically — Connections and Settings stay open while no
  *  dataset is loaded, everything else is locked until one is. */
 export const MMM_NAV: NavData = {
-  navMain: [{ key: 'insights', label: 'Insights Hub', icon: 'grid', route: `#${MMM_ROUTES.insights}` }],
+  navMain: [
+    { key: 'insights', label: 'Insights Hub', icon: 'grid', route: `#${MMM_ROUTES.insights}` },
+    { key: 'budget', label: 'Budget Optimizer', icon: 'simulations', route: `#${MMM_ROUTES.budget}` },
+    { key: 'allocator', label: 'Budget Allocator', icon: 'coins', route: `#${MMM_ROUTES.allocator}` },
+    { key: 'forecast', label: 'Revenue Forecast', icon: 'trending', route: `#${MMM_ROUTES.forecast}` },
+  ],
   navSecondary: [
     { key: 'calendar', label: 'Calendar', icon: 'calendar', route: `#${MMM_ROUTES.calendar}` },
     { key: 'reports', label: 'Reports', icon: 'file', route: `#${MMM_ROUTES.reports}` },
