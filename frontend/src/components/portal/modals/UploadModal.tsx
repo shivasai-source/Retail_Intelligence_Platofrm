@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { Icon } from '../../../icons'
 import { Modal, Button, IconButton, useToast, useConfirm, BrandLogo, Spinner } from '../../ui'
 import { fmtSize } from '../../../lib/portalConnectors'
-import { useUploadDatasets, useStarStatus, useResetStar } from '../../../hooks/useDatasets'
+import {
+  useInspectStarUpload,
+  useResetStar,
+  useStarStatus,
+  useUploadDatasets,
+} from '../../../hooks/useDatasets'
 import {
   classifyFiles,
   crossFileProblems,
@@ -10,14 +15,17 @@ import {
   REQUIRED_ROLES,
   ROLE_COLUMNS,
   STAR_ROLE_LABELS,
+  withMapping,
 } from '../../../lib/starSchema'
 import type { ClassifiedFile } from '../../../lib/starSchema'
 import { ApiError } from '../../../lib/api'
 import type { PortalConnector } from '../../../types/portal'
-import type { StarRole } from '../../../types/dataset'
+import type { StarColumnMapping, StarRole } from '../../../types/dataset'
 import { StarFileViewer } from './StarFileViewer'
 import { InstallProgress } from './InstallProgress'
 import { DataRequirementsDetail } from './DataRequirementsDetail'
+import { ColumnMappingPanel } from './ColumnMappingPanel'
+import { UploadCoverageCard } from './UploadCoverageCard'
 
 // The Excel connector's upload screen.
 //
@@ -47,11 +55,15 @@ export function UploadModal({
   onClose: () => void
   onConnected: (detail: string) => void
 }) {
-  const [classified, setClassified] = useState<ClassifiedFile[]>([])
+  const [selection, setSelection] = useState<ClassifiedFile[]>([])
   const [dragging, setDragging] = useState(false)
   const [error, setError] = useState('')
   const [viewing, setViewing] = useState<StarRole | null>(null)
   const [showGuide, setShowGuide] = useState(false)
+  // What the mapping screen settled: which table each file is, and which of
+  // its columns holds each value we need. Empty until the user goes there.
+  const [mapping, setMapping] = useState<StarColumnMapping[]>([])
+  const [showMapping, setShowMapping] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const { show } = useToast()
   const confirm = useConfirm()
@@ -64,22 +76,45 @@ export function UploadModal({
   const addFiles = async (list: FileList | null) => {
     if (!list) return
     const next = await classifyFiles(Array.from(list))
-    setClassified((prev) => {
+    setSelection((prev) => {
       // De-duplicate by name+size: dropping the same folder twice is easy.
       const seen = new Set(prev.map((c) => `${c.file.name}:${c.file.size}`))
       return [...prev, ...next.filter((c) => !seen.has(`${c.file.name}:${c.file.size}`))]
     })
   }
 
-  // A role is satisfied by exactly one file carrying every required column —
+  // SEVERAL SALES FILES ARE A DELIVERY, so what they add up to has to be on
+  // screen before the user installs them: the span, the weeks nobody sent and
+  // the boundary rows that will be de-duplicated. Asked of the backend rather
+  // than worked out here, because the week rule that decides what counts as a
+  // gap is the loader's own (`_derive_week`) and a second copy of it would
+  // eventually describe a different dataset from the one installed.
+  const coverageProbe = useInspectStarUpload()
+
+  // Every check below reads the selection AS MAPPED. Without this a client's
+  // own export stays labelled "not one of the 6 tables" after the user has
+  // just finished saying what its columns are, and the upload button stays
+  // disabled over a problem that has been answered.
+  const classified = withMapping(selection, mapping)
+
+  // A role is satisfied when every file of it carries every required column —
   // the same rule the backend applies in star_dataset.validate.
+  //
+  // SEVERAL SALES FILES ARE A DELIVERY, NOT A MISTAKE: a client's history
+  // arrives as "Jan-Mar", "Apr-Jun", "Jul-Sep", and the backend merges them
+  // (app/fact_union.py). Several copies of a DIMENSION is still a mistake —
+  // two product masters are two versions of one list.
   const byRole = new Map<StarRole, ClassifiedFile[]>()
   for (const c of classified) {
     if (c.role) byRole.set(c.role, [...(byRole.get(c.role) ?? []), c])
   }
   const satisfied = new Set(
     [...byRole.entries()]
-      .filter(([, files]) => files.length === 1 && files[0].missingColumns.length === 0)
+      .filter(
+        ([role, files]) =>
+          files.every((f) => f.missingColumns.length === 0) &&
+          (role === 'fact' || files.length === 1),
+      )
       .map(([role]) => role),
   )
   // Only the REQUIRED tables can be "still missing". dim_channel, dim_promotion
@@ -89,7 +124,10 @@ export function UploadModal({
   // Leaving a derivable dimension out is only a problem when nothing stands in
   // for it — the same CROSS_FILE_RULES the backend enforces.
   const standInProblems = crossFileProblems(classified)
-  const duplicated = [...byRole.entries()].filter(([, f]) => f.length > 1).map(([role]) => role)
+  const duplicated = [...byRole.entries()]
+    .filter(([role, f]) => f.length > 1 && role !== 'fact')
+    .map(([role]) => role)
+  const factFiles = byRole.get('fact') ?? []
   const incompleteFiles = classified.filter((c) => c.role && c.missingColumns.length > 0)
   const derived = DERIVABLE_ROLES.filter((r) => !satisfied.has(r))
   // A workbook's header can't be read in the browser (see readHeader), so the
@@ -113,17 +151,43 @@ export function UploadModal({
   // the user has since edited.
   useEffect(() => setError(''), [classified.length])
 
+  // Ask what the sales files add up to, once there is more than one of them.
+  // Keyed on the files and the mapping, because the dates cannot be found
+  // until the mapping has renamed the client's date column to `Date`.
+  const factKey = factFiles.map((c) => `${c.file.name}:${c.file.size}`).join('|')
+  const mappingKey = JSON.stringify(mapping)
+  useEffect(() => {
+    if (factFiles.length < 2) return
+    coverageProbe.mutate({ files: classified.map((c) => c.file), mapping, coverage: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [factKey, mappingKey])
+  const coverage = factFiles.length >= 2 ? coverageProbe.data?.coverage : undefined
+
   const go = () => {
     setError('')
     upload.mutate(
-      classified.map((c) => c.file),
+      { files: classified.map((c) => c.file), mapping },
       {
         onSuccess: (result) => {
           const installed = result.star?.installed.length ?? 0
           if (installed) {
             const rows = result.star?.rows
             onConnected(`${installed} core tables${rows ? ` · ${rows.toLocaleString()} fact rows` : ''}`)
-            show(`Dataset loaded — ${rows?.toLocaleString() ?? ''} fact rows ready.`, { duration: 4000 })
+            // A delivery that silently lost rows to de-duplication is
+            // something the user should be told, not something they should
+            // have to notice from a total that looks low.
+            const union = result.star?.union
+            const merged =
+              union && union.files > 1
+                ? ` ${union.files} sales files merged${
+                    union.duplicates_removed
+                      ? `, ${union.duplicates_removed.toLocaleString()} repeated rows counted once`
+                      : ''
+                  }.`
+                : ''
+            show(`Dataset loaded — ${rows?.toLocaleString() ?? ''} fact rows ready.${merged}`, {
+              duration: merged ? 7000 : 4000,
+            })
           }
           if (result.errors.length) {
             setError(result.errors.map((e) => e.error).join(' '))
@@ -131,7 +195,8 @@ export function UploadModal({
           }
           // Stay open on success: the modal flips to the loaded view, so the
           // user can confirm what landed instead of the dialog just vanishing.
-          setClassified([])
+          setSelection([])
+          setMapping([])
         },
         onError: (e) => {
           setError(e instanceof ApiError ? e.message : "Couldn't reach the server — is the backend running?")
@@ -153,7 +218,8 @@ export function UploadModal({
         reset.mutate(undefined, {
           onSuccess: (result) => {
             setViewing(null)
-            setClassified([])
+            setSelection([])
+            setMapping([])
             show(`${result.removed.length} files cleared — upload a new dataset.`, { duration: 3500 })
           },
           onError: (e) => {
@@ -172,6 +238,22 @@ export function UploadModal({
   // Same takeover for the requirements guide, so files already picked survive it.
   if (showGuide) {
     return <DataRequirementsDetail onBack={() => setShowGuide(false)} onClose={onClose} />
+  }
+  // And for the mapping screen, which is where a file whose columns are named
+  // the client's way gets turned into one the loader can read.
+  if (showMapping) {
+    return (
+      <ColumnMappingPanel
+        files={selection.map((c) => c.file)}
+        initial={mapping}
+        onBack={() => setShowMapping(false)}
+        onClose={onClose}
+        onApply={(settled) => {
+          setMapping(settled)
+          setShowMapping(false)
+        }}
+      />
+    )
   }
 
   const installed = status.data?.files.filter((f) => f.present) ?? []
@@ -273,6 +355,22 @@ export function UploadModal({
             >
               <Icon name="book" /> Not sure what to upload? See what each file needs
             </button>
+            {/* Always available once files are picked, not only when something
+                is wrong: a file can be recognised and still have one column
+                under a name we don't know, and the user is the one who can
+                see that. */}
+            {selection.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowMapping(true)}
+                className="mt-1.5 flex items-center gap-1.5 text-sm font-medium text-brand-violet hover:underline [&_svg]:h-3.5 [&_svg]:w-3.5"
+              >
+                <Icon name="arrowTransform" />
+                {mapping.length > 0
+                  ? 'Review how your columns are matched'
+                  : 'Columns named differently? Match them to ours'}
+              </button>
+            )}
 
             {classified.length > 0 && (
               <div className="mt-3.5 flex flex-col gap-2">
@@ -301,14 +399,17 @@ export function UploadModal({
                             <span className="text-ink-muted">Excel workbook — checked on upload</span>
                           ) : (
                             <span className="text-[var(--pill-danger-ink)]">
-                              Not one of the 6 tables — remove it, it can't be uploaded
+                              Columns not recognised — match them, or remove it
                             </span>
                           )}
                         </div>
                       </div>
                       <span className="shrink-0 text-xs text-ink-muted">{fmtSize(c.file.size)}</span>
                       <button
-                        onClick={() => setClassified((prev) => prev.filter((_, idx) => idx !== i))}
+                        onClick={() => {
+                          setSelection((prev) => prev.filter((_, idx) => idx !== i))
+                          setMapping((prev) => prev.filter((m) => m.filename !== c.file.name))
+                        }}
                         className={`grid h-5 w-5 shrink-0 place-items-center rounded-full hover:bg-status-danger-bg hover:text-[var(--pill-danger-ink)] ${
                           extra ? 'text-[var(--pill-danger-ink)]' : 'text-ink-muted'
                         }`}
@@ -321,18 +422,29 @@ export function UploadModal({
               </div>
             )}
 
-            {/* Extra files block the upload outright — say so on its own, since
-                the fix (remove it) differs from "upload the missing table". */}
+            {/* A file whose headers matched nothing. TWO WAYS OUT NOW, and the
+                likelier one is first: a client's own export is not a wrong
+                file, it is the right file under its own column names. */}
             {extras.length > 0 && (
               <div className="mt-3.5 rounded-[var(--r-md)] bg-status-danger-bg p-[11px_13px]">
                 <div className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-[var(--pill-danger-ink)] [&_svg]:h-[14px] [&_svg]:w-[14px]">
                   <Icon name="alertTriangle" />
-                  {extras.length} file{extras.length > 1 ? 's are' : ' is'} not one of the standard tables
+                  {extras.length === 1
+                    ? "1 file's columns weren't recognised"
+                    : `${extras.length} files' columns weren't recognised`}
                 </div>
                 <div className="text-xs leading-[1.5] text-[var(--pill-danger-ink)]">
-                  Only the standard star-schema tables can be uploaded. Remove{' '}
-                  {extras.map((c) => `'${c.file.name}'`).join(', ')} to continue.
+                  {extras.map((c) => `'${c.file.name}'`).join(', ')} — if this is your own export,
+                  match its columns to ours. Otherwise remove it.
                 </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => setShowMapping(true)}
+                >
+                  <Icon name="arrowTransform" /> Match columns
+                </Button>
               </div>
             )}
 
@@ -378,6 +490,10 @@ export function UploadModal({
                 </ul>
               </div>
             )}
+
+            {/* What several sales files add up to — the span, the weeks
+                nobody sent, and the rows that will be de-duplicated. */}
+            {coverage && <UploadCoverageCard coverage={coverage} />}
 
             {classified.length > 0 && missingRoles.length === 0 && extras.length === 0 && standInProblems.length === 0 && (
               <div className="mt-3.5 flex items-start gap-2 rounded-[var(--r-md)] bg-surface-muted p-[10px_12px] text-sm leading-[1.5] text-ink-muted [&_svg]:mt-px [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0">

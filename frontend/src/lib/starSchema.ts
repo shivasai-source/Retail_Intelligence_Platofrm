@@ -180,6 +180,51 @@ export async function classifyFiles(files: File[]): Promise<ClassifiedFile[]> {
 }
 
 /**
+ * Re-state a selection in the light of a mapping the user has settled.
+ *
+ * WHY THIS IS NEEDED. The browser labels files by matching their headers
+ * against our own column names, so a client's export — `UnitsSold`, `TxnDate`,
+ * `MRP` — comes back with no role and looks like a wrong-file slip. Once the
+ * mapping screen has established what those columns are, the modal has to stop
+ * saying so: this folds the mapping back in, so a mapped file reads as the
+ * table it is and the upload button stops being disabled over a problem that
+ * has been answered.
+ *
+ * The mapping is `StarColumnMapping`-shaped (filename, role, canonical ->
+ * that file's column), carrying the WHOLE picture rather than only the user's
+ * edits — see ColumnMappingPanel's `effective`. The backend re-decides
+ * authoritatively on upload either way; this is about what the screen says.
+ */
+export function withMapping(
+  classified: ClassifiedFile[],
+  mapping: { filename: string; role: StarRole | null; columns: Record<string, string> }[],
+): ClassifiedFile[] {
+  const byName = new Map(mapping.map((m) => [m.filename, m]))
+  return classified.map((c) => {
+    const settled = byName.get(c.file.name)
+    if (!settled?.role) return c
+    const mapped = new Set(Object.keys(settled.columns).filter((k) => settled.columns[k]))
+    const groups = EITHER_COLUMNS[settled.role] ?? []
+    const inGroup = new Set(groups.flat())
+    const missingColumns = [
+      ...ROLE_COLUMNS[settled.role].filter((col) => !inGroup.has(col) && !mapped.has(col)),
+      ...groups.filter((g) => !g.some((m) => mapped.has(m))).map((g) => g.join(' or ')),
+    ]
+    return {
+      ...c,
+      role: settled.role,
+      missingColumns,
+      // The columns the loader will SEE once the rename is applied, so the
+      // CROSS_FILE_RULES check below reads a mapped file correctly: a store
+      // file whose channel name arrives as `ChannelDesc` does carry
+      // Channel_Name by the time anything reads it.
+      columns: [...c.columns, ...mapped],
+      undetermined: false,
+    }
+  })
+}
+
+/**
  * Leaving a derivable dimension out is fine; leaving it out when nothing
  * stands in for it is not. Returns one sentence per unmet rule, so the upload
  * modal can say what to add before the request is made rather than after the

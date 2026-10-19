@@ -66,6 +66,8 @@ export interface StarInstallResult {
   /** Fact rows the reloaded store holds — null when nothing was installed. */
   rows: number | null
   data_dir: string
+  /** What merging several sales files did. Absent for a single-file upload. */
+  union?: StarUnionStats
 }
 
 export interface StarStatusFile {
@@ -206,6 +208,35 @@ export interface StarInspectFile {
   label: string | null
   missing_columns: string[]
   recognised: boolean
+  /** How the role was decided: 'column headers' (the file already uses our
+   *  names), 'recognised column names' (reached through an alias) or
+   *  'chosen by you'. Null for a file that matched nothing. */
+  matched_by?: string | null
+  /** canonical column -> the file's own column standing for it. */
+  mapping?: Record<string, string>
+  /** canonical column -> 'exact' (already our name), 'alias' (a synonym) or
+   *  'chosen' (the user said so). Drives how settled each row looks. */
+  mapping_sources?: Record<string, string>
+  /** Columns the mapping displaced: the file carried a canonical name and
+   *  something else was mapped onto it. Two columns cannot share a name. */
+  dropped_columns?: string[]
+  /** Every column the file carries, as uploaded. Present even when the file
+   *  was not recognised — it is what the mapping screen offers to choose from. */
+  columns?: string[]
+  /** Up to three DISTINCT example values per column. The only way to tell
+   *  Base_Price from Actual_Price by eye, which no name check can do — and
+   *  several values rather than one because on an unpromoted row the two are
+   *  equal, so a single example proved nothing. */
+  samples?: Record<string, string[]>
+}
+
+/** What the user has settled for one file on the mapping screen: the table it
+ *  is, and canonical column -> that file's own column. Sent alongside the
+ *  files on both inspect and upload — see backend/app/column_mapping.py. */
+export interface StarColumnMapping {
+  filename: string
+  role: StarRole | null
+  columns: Record<string, string>
 }
 
 export interface StarInspectResult {
@@ -221,6 +252,44 @@ export interface StarInspectResult {
   /** Empty when ready; otherwise names exactly what is wrong. */
   message: string
   locked: boolean
+  /** Present only when several sales files were selected — what they add up
+   *  to, for the user to confirm before anything is installed. */
+  coverage?: StarCoverage
+}
+
+/** What a multi-file sales delivery spans, and where it is thin.
+ *  Mirrors backend/app/fact_union.py. */
+export interface StarCoverage {
+  files: {
+    filename: string
+    rows: number
+    first: string
+    last: string
+    missing_columns: string[]
+    unreadable: boolean
+  }[]
+  first: string
+  last: string
+  weeks: number
+  rows_delivered: number
+  /** Runs of absent weeks, each already phrased ("weeks 41-44 of 2024").
+   *  A missing week is NOT zero sales — it is no data at all, and nothing
+   *  downstream would flag it. */
+  gaps: string[]
+  /** Files whose periods touch the same week, so rows will be de-duplicated. */
+  overlaps: string[]
+  /** Columns dropped for not being present in every file. */
+  dropped_columns: string[]
+}
+
+/** What merging several sales files actually did. Empty for a single file. */
+export interface StarUnionStats {
+  files: number
+  rows_in: number
+  rows_out: number
+  duplicates_removed: number
+  conflicts: number
+  dropped_columns: string[]
 }
 
 // ===== Databricks Unity Catalog source =====

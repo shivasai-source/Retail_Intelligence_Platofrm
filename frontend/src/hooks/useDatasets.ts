@@ -11,6 +11,7 @@ import type {
   DbxTableSel,
   SourceStatus,
   SourceSyncResult,
+  StarColumnMapping,
   StarInspectResult,
   StarInstallResult,
   StarPreview,
@@ -95,12 +96,56 @@ export function useDataset(datasetId: string | undefined) {
 // Real multipart upload — the file actually lands on the backend, gets parsed
 // by pandas and profiled (see backend/app/dataset_store.py). Replaces the old
 // fake 1.1s setTimeout that never sent anything anywhere.
+// Identify a selection WITHOUT installing it, and get back what each file's
+// columns map to. The browser reads headers itself for instant labels (see
+// lib/starSchema.ts), but the MAPPING screen is server-driven: the alias table
+// lives in backend/app/column_mapping.py and mirroring 130 entries of it here
+// would be two contracts to keep in step instead of one. This also covers the
+// case the browser cannot: an .xlsx header, which it has no way to read.
+/** Enough of a CSV to hold its header and the rows the samples come from.
+ *  Matches HEADER_PREVIEW_BYTES in backend/app/routers/datasets.py. */
+const HEADER_SLICE_BYTES = 256 * 1024
+
+export function useInspectStarUpload() {
+  return useMutation({
+    mutationFn: ({
+      files,
+      mapping,
+      coverage,
+    }: {
+      files: File[]
+      mapping?: StarColumnMapping[]
+      /** Ask what several sales files add up to. Reads the files in full on
+       *  both sides, so only the upload screen's one-off probe sets it — not
+       *  the mapping screen, which re-inspects on every edit. */
+      coverage?: boolean
+    }) => {
+      const form = new FormData()
+      for (const f of files) {
+        // ONLY A SLICE UNLESS COVERAGE IS WANTED. Identification and column
+        // mapping need the header and a few rows, so sending a 3 MB extract
+        // for them wasted megabytes per edit — six monthly files made every
+        // dropdown change a 10 MB upload. A workbook has to go whole: it is a
+        // zip whose directory sits at the end of the file.
+        const whole = coverage || /\.(xlsx|xls)$/i.test(f.name)
+        form.append('files', whole ? f : f.slice(0, HEADER_SLICE_BYTES), f.name)
+      }
+      if (mapping?.length) form.append('mapping', JSON.stringify(mapping))
+      if (coverage) form.append('coverage', '1')
+      return apiUpload<StarInspectResult>('/datasets/star/inspect', form)
+    },
+  })
+}
+
 export function useUploadDatasets() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (files: File[]) => {
+    mutationFn: ({ files, mapping }: { files: File[]; mapping?: StarColumnMapping[] }) => {
       const form = new FormData()
       files.forEach((f) => form.append('files', f))
+      // Only sent when the user actually mapped something. Without it the
+      // backend decides on headers alone, exactly as it always did.
+      if (mapping?.length) form.append('mapping', JSON.stringify(mapping))
       return apiUpload<UploadResult>('/datasets', form)
     },
     onSuccess: (result) => {

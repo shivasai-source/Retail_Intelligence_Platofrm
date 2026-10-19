@@ -1,7 +1,8 @@
+import json
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
@@ -22,9 +23,49 @@ MAX_STAR_UPLOAD_BYTES = 512 * 1024 * 1024  # 512 MB per star-schema file
 HEADER_PREVIEW_BYTES = 256 * 1024
 
 
+def _parse_mapping(raw: str) -> dict[str, dict[str, Any]]:
+    """The upload screen's confirmed mappings, keyed by filename.
+
+    Arrives as a JSON array alongside the files, because a multipart upload
+    cannot carry a nested body: one entry per file the user mapped, holding the
+    table they said it is and canonical -> that file's own column. Malformed
+    JSON is ignored rather than refused — the files themselves are still
+    perfectly installable if their headers happen to be canonical, and
+    `star_dataset` will say so in its own words if they are not.
+    """
+    if not raw:
+        return {}
+    try:
+        entries = json.loads(raw)
+    except (ValueError, TypeError):
+        return {}
+    if not isinstance(entries, list):
+        return {}
+
+    out: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("filename")
+        if not isinstance(name, str) or not name:
+            continue
+        role = entry.get("role")
+        columns = entry.get("columns")
+        out[Path(name).name] = {
+            "role": role if isinstance(role, str) and role in star_dataset.ROLE_COLUMNS else None,
+            "columns": {
+                str(k): str(v)
+                for k, v in (columns or {}).items()
+                if isinstance(columns, dict) and v
+            },
+        }
+    return out
+
+
 @router.post("")
 async def upload_datasets(
     files: list[UploadFile] = File(...),
+    mapping: str = Form(""),
     user: dict[str, Any] = Depends(current_user),
 ) -> dict[str, Any]:
     """Ingest the six star-schema tables, and only those.
@@ -60,6 +101,7 @@ async def upload_datasets(
     saved: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
     unrecognised: list[str] = []
+    settled = _parse_mapping(mapping)
 
     for upload in files:
         name = upload.filename or "upload.csv"
@@ -68,7 +110,13 @@ async def upload_datasets(
             errors.append({"filename": name, "error": "File is empty."})
             continue
 
-        classified = star_dataset.classify(name, content)
+        # What the user settled on the mapping screen, if they visited it. A
+        # declared role is what lets a file whose names are entirely its own be
+        # uploaded at all — without one, headers are the only evidence there is.
+        chosen = settled.get(Path(name).name, {})
+        classified = star_dataset.classify(
+            name, content, role=chosen.get("role"), mapping=chosen.get("columns")
+        )
         if classified is not None:
             if len(content) > MAX_STAR_UPLOAD_BYTES:
                 errors.append({"filename": name, "error": "File is larger than the 512 MB limit."})
@@ -177,27 +225,40 @@ def preview_star_file(
 @router.post("/star/inspect")
 async def inspect_star_upload(
     files: list[UploadFile] = File(...),
+    mapping: str = Form(""),
+    coverage: str = Form(""),
     user: dict[str, Any] = Depends(current_user),
 ) -> dict[str, Any]:
-    """Identify a set of files by their headers WITHOUT installing anything.
+    """Identify a set of files, and map their columns, WITHOUT installing them.
 
-    Only the header row of each file is read, so the upload screen can name
-    which table each file is and what is still missing before the user commits
-    to sending a 21 MB fact table that might only be refused. Same rules as the
-    real install, so the preview cannot disagree with it.
+    Same rules as the real install, so the preview cannot disagree with it:
+    the mapping screen renders what comes back from here, and what it shows
+    has to be what the install will do.
+
+    HOW MUCH OF EACH FILE IS READ DEPENDS ON WHAT IS BEING ASKED.
+
+    Identification and column mapping need the header and a few rows, so a
+    256 KB prefix is enough — and that is the request the mapping screen makes
+    over and over as the user edits, so it stays cheap.
+
+    `coverage` asks a question a prefix cannot answer: which period each sales
+    file covers and which weeks nobody sent. A prefix of a 3 MB monthly
+    extract ends in February, and the screen would announce gaps that are not
+    there — worse than no preview at all. So that one request, made once per
+    selection rather than per keystroke, reads the files in full. The 512 MB
+    per-file ceiling still applies at install.
     """
+    want_coverage = coverage not in ("", "0", "false")
     uploads: list[tuple[str, bytes]] = []
     for upload in files:
         name = upload.filename or "upload.csv"
-        if Path(name).suffix.lower() in (".xlsx", ".xls"):
-            # A workbook is a zip: its central directory sits at the END, so a
-            # prefix cannot be opened at all and the whole file is needed.
+        if want_coverage or Path(name).suffix.lower() in (".xlsx", ".xls"):
+            # A workbook is a zip whose central directory sits at the END, so
+            # a prefix cannot be opened at all.
             uploads.append((name, await upload.read()))
         else:
-            # CSV headers live in the first line, so a slice is enough and a
-            # 21 MB fact table never has to be held in memory to preview it.
             uploads.append((name, await upload.read(HEADER_PREVIEW_BYTES)))
-    return star_dataset.inspect(uploads)
+    return star_dataset.inspect(uploads, _parse_mapping(mapping), want_coverage)
 
 
 # ======================================================== Azure Blob Storage ====

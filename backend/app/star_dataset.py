@@ -63,10 +63,13 @@ import io
 import os
 import threading
 import time
-from dataclasses import dataclass
+# `replace` is aliased: this module defines a function of that name (the
+# sync path), which would otherwise shadow dataclasses' at runtime.
+from dataclasses import dataclass, field, replace as _with_changes
 from pathlib import Path
 from typing import Any
 
+from app import column_mapping, fact_union
 from app.tpo import config
 
 #: role -> the filename the loader opens. Straight from config, so the two can
@@ -187,7 +190,10 @@ class Classified:
     original_name: str
     content: bytes
     #: How the role was decided — surfaced to the user so a wrong guess is
-    #: visible rather than mysterious. Always "column headers" now.
+    #: visible rather than mysterious. One of "column headers" (the file
+    #: already uses our names), "recognised column names" (our names were
+    #: reached through `column_mapping`'s aliases) or "chosen by you" (the
+    #: upload screen said which table this is).
     matched_by: str
     #: Columns `ROLE_COLUMNS[role]` requires that this file does not have.
     #: Empty for a usable file. Non-empty means the table was recognised but
@@ -197,12 +203,35 @@ class Classified:
     #: CROSS_FILE_RULES checks run over the whole upload rather than one file,
     #: and re-reading the header to answer them would mean parsing twice.
     columns: tuple[str, ...] = ()
+    #: canonical column -> the file's own column standing for it. Empty when
+    #: the file already uses our names for everything. Applied as a header
+    #: rename by `_to_csv_bytes`, so what lands on disk is always canonical
+    #: and nothing downstream of this module knows mapping happened.
+    mapping: dict[str, str] = field(default_factory=dict)
+    #: canonical column -> "exact", "alias" or "chosen". The upload screen
+    #: shows a guessed field differently from one that needed no guessing, so
+    #: the user's attention lands on the weak ones rather than being spread
+    #: evenly over eleven rows that all look equally settled.
+    mapping_sources: dict[str, str] = field(default_factory=dict)
+    #: Columns the mapping forced out: the file carried a canonical name AND
+    #: mapped something else onto it, and two columns cannot share a name.
+    #: Reported rather than silently resolved — see `column_mapping`.
+    dropped_columns: tuple[str, ...] = ()
 
     @property
     def is_usable(self) -> bool:
         return not self.missing_columns
 
     def has(self, column: str) -> bool:
+        """Can this file supply `column` — under our name OR a mapped one?
+
+        The CROSS_FILE_RULES checks ask this, and they are about what the
+        loader will be able to READ. A store file whose channel name arrives
+        as `ChannelDesc` does carry Channel_Name once the mapping is applied,
+        so answering on raw headers alone would refuse an upload that works.
+        """
+        if column in self.mapping:
+            return True
         return column.lower() in {c.strip().lower() for c in self.columns}
 
 
@@ -244,6 +273,145 @@ def read_header(filename: str, content: bytes) -> list[str]:
     return _read_header(content)
 
 
+#: How many data rows to look at for examples, and how many DISTINCT examples
+#: to keep per column. Scanning well past the first row is the whole point —
+#: see the docstring below.
+_SAMPLE_ROWS = 60
+_SAMPLE_VALUES = 3
+
+
+def read_samples(
+    filename: str, content: bytes, rows: int = _SAMPLE_ROWS
+) -> dict[str, list[str]]:
+    """A few DISTINCT example values per column, for the mapping screen.
+
+    THIS IS A SAFETY FEATURE, NOT A CONVENIENCE. Column names alone cannot
+    tell `Base_Price` from `Actual_Price`, and getting that pair the wrong way
+    round inverts every discount in the dataset — promotions become price
+    rises, and no validation anywhere would catch it, because both columns are
+    perfectly well-formed numbers. A value beside the proposal is what lets a
+    human notice in a second what no check can see at all.
+
+    DISTINCT VALUES, OVER MANY ROWS, BECAUSE ONE ROW CAN LIE. On an unpromoted
+    row the base and actual price are equal, so a single example showed `80`
+    against both and taught the user nothing about the one pair that matters
+    most. Reading sixty rows and keeping up to three distinct values per column
+    means a price column that varies shows that it varies — `80, 100, 64` reads
+    as a selling price where `80` alone read as nothing at all.
+
+    A genuinely constant column still shows its one value, which is itself
+    worth seeing: it is how someone spots that they have mapped a flag column
+    onto a measure.
+    """
+    header = read_header(filename, content)
+    if not header:
+        return {}
+
+    values: dict[str, list[str]] = {}
+
+    def offer(column: str, cell: str) -> None:
+        """Keep a value if it is new, until this column has enough."""
+        text = cell.strip()[:40]
+        if not text:
+            return
+        seen = values.setdefault(column, [])
+        if len(seen) < _SAMPLE_VALUES and text not in seen:
+            seen.append(text)
+
+    if Path(filename).suffix.lower() in (".xlsx", ".xls"):
+        try:
+            import pandas as pd
+
+            frame = pd.read_excel(io.BytesIO(content), nrows=rows)
+        except Exception:
+            return {}
+        for column in frame.columns:
+            for cell in frame[column].dropna().tolist():
+                offer(str(column), str(cell))
+        return values
+
+    try:
+        text = content[: 512 * 1024].decode("utf-8-sig", errors="replace")
+        reader = csv.reader(io.StringIO(text))
+        next(reader, None)  # the header, already in hand
+        for _, row in zip(range(rows), reader):
+            for index, column in enumerate(header):
+                if index < len(row):
+                    offer(column, row[index])
+    except Exception:
+        return {}
+    return values
+
+
+@dataclass(frozen=True)
+class Identified:
+    """Which table a header belongs to, and how its columns line up with ours."""
+
+    role: str
+    #: For `Classified.matched_by` — see its docstring for the three values.
+    matched_by: str
+    proposal: column_mapping.Proposal
+
+
+def propose_for(role: str, header: list[str]) -> column_mapping.Proposal:
+    """What each canonical column of `role` would be read from, in this file."""
+    return column_mapping.propose(
+        header,
+        ROLE_COLUMNS[role],
+        EITHER_COLUMNS.get(role, ()),
+        OPTIONAL_COLUMNS.get(role, ()),
+    )
+
+
+def _role_of(header: list[str]) -> tuple[str, str] | None:
+    """Which table this header is meant to be, by discriminators, or None.
+
+    TWO PASSES, AND THE ORDER MATTERS. The file's own names are tried first, so
+    an already-canonical upload is identified exactly as it always was and no
+    alias can come between a file and the role it plainly states. Only when
+    nothing matches are the aliases consulted — a file whose quantity is called
+    `UnitsSold` is still the sales fact, and refusing it as "not one of the
+    standard tables" was a message about the wrong problem.
+    """
+    present = {column_mapping.normalise(h) for h in header if h and h.strip()}
+    if not present:
+        return None
+
+    for role, discriminators in ROLE_DISCRIMINATORS:
+        if all(column_mapping.normalise(col) in present for col in discriminators):
+            return role, "column headers"
+
+    reachable = {column_mapping.normalise(c) for c in column_mapping.canonical_names(header)}
+    for role, discriminators in ROLE_DISCRIMINATORS:
+        if all(column_mapping.normalise(col) in reachable for col in discriminators):
+            return role, "recognised column names"
+
+    return None
+
+
+def identify(header: list[str], role: str | None = None) -> Identified | None:
+    """Work out what a file is and how its columns map, or None if unknown.
+
+    `role` overrides the discriminators: the upload screen lets a user say
+    "this is the sales fact" for a file whose names are too idiosyncratic to
+    recognise, and a declared role is never second-guessed. Everything else
+    about the file — which column stands for which, what is still absent — is
+    then answered against that role.
+    """
+    if role is not None:
+        if role not in ROLE_COLUMNS:
+            return None
+        return Identified(role=role, matched_by="chosen by you", proposal=propose_for(role, header))
+
+    found = _role_of(header)
+    if found is None:
+        return None
+    matched_role, matched_by = found
+    return Identified(
+        role=matched_role, matched_by=matched_by, proposal=propose_for(matched_role, header)
+    )
+
+
 def match_columns(header: list[str]) -> tuple[str, tuple[str, ...]] | None:
     """Match a column list to a star role, or None if it matches none.
 
@@ -255,27 +423,18 @@ def match_columns(header: list[str]) -> tuple[str, tuple[str, ...]] | None:
 
     Returns (role, missing_columns) — missing being empty for a usable table.
     """
-    # Case-insensitive so `PRODUCT_ID` and `Product_id` both match — Excel
-    # round-trips and hand-maintained exports rarely preserve exact casing.
-    present = {h.strip().lower() for h in header if h and h.strip()}
-    if not present:
+    found = identify(header)
+    if found is None:
         return None
-
-    for role, discriminators in ROLE_DISCRIMINATORS:
-        if all(col.lower() in present for col in discriminators):
-            missing = [col for col in ROLE_COLUMNS[role] if col.lower() not in present]
-            # An interchangeable group is missing only when NONE of its members
-            # is there, and it is then named as the choice it is ("Total_Cost
-            # or CP") rather than as one arbitrary member.
-            for group in EITHER_COLUMNS.get(role, ()):
-                if not any(col.lower() in present for col in group):
-                    missing.append(" or ".join(group))
-            return role, tuple(missing)
-
-    return None
+    return found.role, found.proposal.unmapped
 
 
-def classify(filename: str, content: bytes) -> Classified | None:
+def classify(
+    filename: str,
+    content: bytes,
+    role: str | None = None,
+    mapping: dict[str, str] | None = None,
+) -> Classified | None:
     """Identify one uploaded file BY ITS COLUMN HEADERS alone.
 
     The filename is never consulted — only its extension, to pick a reader.
@@ -286,6 +445,13 @@ def classify(filename: str, content: bytes) -> Classified | None:
     A file that IS recognised but lacks columns the loader needs comes back
     with `missing_columns` populated, so the caller can say which column is
     absent instead of reporting the whole table as missing.
+
+    `role` and `mapping` carry what the upload screen settled with the user: a
+    declared table, and canonical -> that file's own column. A CONFIRMED
+    MAPPING WINS over anything proposed here. The proposal exists to save the
+    user typing; once they have corrected it, this function must not quietly
+    re-guess a field they chose — that is the difference between a suggestion
+    and a decision made on their behalf.
     """
     safe = Path(filename).name
     if Path(safe).suffix.lower() not in (".csv", ".xlsx", ".xls"):
@@ -295,18 +461,52 @@ def classify(filename: str, content: bytes) -> Classified | None:
     if not header:
         return None
 
-    matched = match_columns(header)
-    if matched is None:
+    found = identify(header, role)
+    if found is None:
         return None
-    role, missing = matched
+
+    proposal = found.proposal
+    if mapping:
+        # Only the fields the user actually settled are overridden; the rest of
+        # the proposal stands. A mapping naming a column the file does not have
+        # is ignored rather than trusted — the browser may have been looking at
+        # a different file by the time it was sent.
+        actual_by_norm = {column_mapping.normalise(h): h.strip() for h in header if h and h.strip()}
+        confirmed = dict(proposal.mapping)
+        sources = dict(proposal.sources)
+        for canonical, chosen in mapping.items():
+            actual = actual_by_norm.get(column_mapping.normalise(chosen or ""))
+            if actual is None:
+                continue
+            confirmed[canonical] = actual
+            sources[canonical] = "chosen"
+        proposal = column_mapping.Proposal(
+            mapping=confirmed,
+            sources=sources,
+            unmapped=tuple(
+                c for c in ROLE_COLUMNS[found.role] if c not in confirmed
+            ) + tuple(
+                " or ".join(group)
+                for group in EITHER_COLUMNS.get(found.role, ())
+                if not any(m in confirmed for m in group)
+            ),
+            spare=tuple(c for c in proposal.spare if c not in confirmed.values()),
+        )
+
+    # Computed now, while the header is in hand, so the upload screen can warn
+    # about a collision before the install rather than after it.
+    _, dropped = column_mapping.apply_to_header(list(header), proposal.renames)
     return Classified(
-        role=role,
-        target_name=ROLE_FILES[role],
+        role=found.role,
+        target_name=ROLE_FILES[found.role],
         original_name=safe,
         content=content,
-        matched_by="column headers",
-        missing_columns=missing,
+        matched_by=found.matched_by,
+        missing_columns=proposal.unmapped,
         columns=tuple(header),
+        mapping=proposal.mapping,
+        mapping_sources=proposal.sources,
+        dropped_columns=tuple(dropped),
     )
 
 
@@ -351,7 +551,13 @@ def inspect_columns(sources: list[tuple[str, list[str]]]) -> dict[str, Any]:
     by_role: dict[str, list[Classified]] = {}
     for item in recognised:
         by_role.setdefault(item.role, []).append(item)
-    satisfied = {r for r, f in by_role.items() if len(f) == 1 and f[0].is_usable}
+    # Same rule as `validate`: several sales files are one delivery, a second
+    # copy of a dimension is a mistake.
+    satisfied = {
+        r
+        for r, f in by_role.items()
+        if f and all(c.is_usable for c in f) and (r == "fact" or len(f) == 1)
+    }
 
     return {
         "files": [
@@ -399,18 +605,162 @@ def _file_facts(data: bytes) -> dict[str, Any]:
 
 def _to_csv_bytes(item: Classified) -> bytes:
     """The bytes to write. Excel uploads are converted to CSV, because the
-    loader opens these paths with `csv.DictReader` and nothing else."""
-    if Path(item.original_name).suffix.lower() not in (".xlsx", ".xls"):
-        return item.content
-    try:
-        import pandas as pd
+    loader opens these paths with `csv.DictReader` and nothing else.
 
-        frame = pd.read_excel(io.BytesIO(item.content))
-    except Exception as e:
-        raise StarDatasetError(f"Couldn't read {item.original_name} as Excel: {e}") from e
-    buffer = io.StringIO()
-    frame.to_csv(buffer, index=False)
-    return buffer.getvalue().encode("utf-8")
+    THE MAPPING IS APPLIED HERE, AND ONLY HERE. A client's `UnitsSold` becomes
+    `Actual_Quantity` on the way to disk, so every file the loader opens is
+    canonical and nothing downstream of this module — not the loader, not a
+    KPI, not a frozen module — can tell a mapped upload from a native one.
+    Rewriting the header is also all it takes: the loader indexes by column
+    NAME, so the row data is passed through untouched.
+    """
+    excel = Path(item.original_name).suffix.lower() in (".xlsx", ".xls")
+    renames = {
+        actual: canonical
+        for canonical, actual in item.mapping.items()
+        if column_mapping.normalise(actual) != column_mapping.normalise(canonical)
+    }
+
+    if excel:
+        try:
+            import pandas as pd
+
+            frame = pd.read_excel(io.BytesIO(item.content))
+        except Exception as e:
+            raise StarDatasetError(f"Couldn't read {item.original_name} as Excel: {e}") from e
+        if renames:
+            header, dropped = column_mapping.apply_to_header(
+                [str(c) for c in frame.columns], renames
+            )
+            frame = frame.drop(columns=dropped, errors="ignore")
+            frame.columns = header
+        buffer = io.StringIO()
+        frame.to_csv(buffer, index=False)
+        return buffer.getvalue().encode("utf-8")
+
+    if not renames:
+        return item.content
+    return _rename_csv_header(item.content, renames)
+
+
+def _rename_csv_header(content: bytes, renames: dict[str, str]) -> bytes:
+    """Rewrite a CSV's first row, leaving every data row byte-identical.
+
+    The header alone is parsed and re-emitted; the rest of the file is sliced
+    off and concatenated untouched. A 21 MB fact table is therefore renamed
+    without being parsed, re-quoted or re-encoded — which also means no
+    opportunity to mangle a value on the way through.
+
+    A column dropped by the rename (a collision — see `apply_to_header`) has
+    to come out of every row, so that one case does read the whole file. It is
+    rare by construction: it needs the file to carry both a canonical name and
+    something else mapped onto it.
+    """
+    text = content.decode("utf-8-sig", errors="replace")
+    first, sep, rest = text.partition("\n")
+    newline = "\r\n" if first.endswith("\r") else "\n"
+    header = next(csv.reader(io.StringIO(first.rstrip("\r"))), [])
+    if not header:
+        return content
+
+    renamed, dropped = column_mapping.apply_to_header(header, renames)
+
+    out = io.StringIO()
+    writer = csv.writer(out, lineterminator=newline)
+    writer.writerow(renamed)
+
+    if not dropped:
+        # Nothing to take out of the rows, so they are concatenated as bytes
+        # rather than parsed — the 21 MB path.
+        return (out.getvalue() + rest).encode("utf-8") if sep else out.getvalue().encode("utf-8")
+
+    # `apply_to_header` left the dropped names out of `renamed`, so the columns
+    # it kept and the indices to keep are the same set, in the same order.
+    keep = [i for i, name in enumerate(header) if name not in dropped]
+    for row in csv.reader(io.StringIO(rest)):
+        if row:
+            writer.writerow([row[i] if i < len(row) else "" for i in keep])
+    return out.getvalue().encode("utf-8")
+
+
+def _coverage_of(classified: list[tuple[str, Classified | None]]) -> dict[str, Any]:
+    """The coverage preview for a multi-file sales upload, or {} if not one.
+
+    Computed from the MAPPED bytes, as the install will see them — the dates
+    are in a column called `TxnDate` until the rename is applied, and a
+    coverage report that disagreed with the installed dataset would be worse
+    than none.
+
+    Inspection reads only a prefix of each CSV (see HEADER_PREVIEW_BYTES in the
+    datasets router), so the row counts and the last date here describe what
+    was read, not necessarily the whole file. `truncated` says so rather than
+    letting the screen state a span it cannot see the end of.
+    """
+    facts = [c for _, c in classified if c is not None and c.role == "fact"]
+    if len(facts) < 2:
+        return {}
+
+    # The files are read AS UPLOADED, with each one's own date column named
+    # rather than renamed. Rewriting a 3 MB extract just to turn `TxnDate`
+    # into `Date` for a copy nobody keeps was pure cost.
+    payloads = [(item.original_name, item.content) for item in facts]
+    plan = fact_union.coverage(
+        payloads,
+        {item.original_name: item.mapping.get("Date", "Date") for item in facts},
+    )
+    return {
+        "files": [
+            {
+                "filename": f.filename,
+                "rows": f.rows,
+                "first": f.first,
+                "last": f.last,
+                "missing_columns": list(f.missing_columns),
+                "unreadable": f.unreadable,
+            }
+            for f in plan.files
+        ],
+        "first": plan.first,
+        "last": plan.last,
+        "weeks": plan.weeks,
+        "rows_delivered": plan.rows_delivered,
+        "gaps": list(plan.gaps),
+        "overlaps": list(plan.overlaps),
+        "dropped_columns": list(plan.dropped_columns),
+    }
+
+
+def _payloads_to_write(
+    items: list[Classified],
+) -> tuple[list[tuple[Classified, bytes]], dict[str, Any]]:
+    """The bytes for each table, with several sales files merged into one.
+
+    ORDER MATTERS HERE. The column mapping is applied first (`_to_csv_bytes`),
+    so every file speaks canonical names, and only then are the sales files
+    merged — `fact_union` keys rows on `Date` and `Product_id`, which do not
+    exist until the rename has happened.
+
+    Returns the list to stage plus what the merge did, which the caller passes
+    back to the user: a set of monthly extracts that silently lost 2,340 rows
+    to de-duplication is something they should be told, not something they
+    should have to notice.
+    """
+    rendered = [(item, _to_csv_bytes(item)) for item in items]
+    facts = [(item, payload) for item, payload in rendered if item.role == "fact"]
+    if len(facts) < 2:
+        return rendered, {}
+
+    merged, stats = fact_union.merge([(item.original_name, payload) for item, payload in facts])
+    first = facts[0][0]
+    combined = _with_changes(
+        first,
+        original_name=f"{first.original_name} + {len(facts) - 1} more",
+        # The merged header is the intersection, so a column one file lacked
+        # is no longer there to be claimed.
+        columns=tuple(fact_union._header(merged)),
+    )
+    others = [(item, payload) for item, payload in rendered if item.role != "fact"]
+    return [(combined, merged), *others], stats
 
 
 def _discard(folder: Path, names: list[str]) -> None:
@@ -564,15 +914,31 @@ def validate(items: list[Classified], unrecognised: list[str] | None = None) -> 
             f"remove it, only the standard star-schema tables can be uploaded."
         )
 
-    duplicates = {role: found for role, found in by_role.items() if len(found) > 1}
+    # SEVERAL SALES FILES ARE A DELIVERY, NOT A MISTAKE. A client's history
+    # arrives as "Jan-Mar", "Apr-Jun", "Jul-Sep", so the fact table is merged
+    # (see app/fact_union.py) rather than refused. Several copies of a
+    # DIMENSION is still a mistake: two product masters are two versions of
+    # one list, and silently picking either would join the new fact against
+    # whichever happened to be chosen.
+    duplicates = {
+        role: found
+        for role, found in by_role.items()
+        if len(found) > 1 and role != "fact"
+    }
     for role, found in duplicates.items():
         names = ", ".join(f"'{f.original_name}'" for f in found)
         problems.append(
             f"{ROLE_LABELS[role]}: {len(found)} files have these columns ({names}) — keep one."
         )
 
+    # EVERY file of a role, not just the first: with four sales files, a
+    # missing column in the third one has to be named as the third one's.
     incomplete = [
-        found[0] for role, found in by_role.items() if role not in duplicates and not found[0].is_usable
+        item
+        for role, found in by_role.items()
+        if role not in duplicates
+        for item in found
+        if not item.is_usable
     ]
     for item in incomplete:
         problems.append(
@@ -583,7 +949,9 @@ def validate(items: list[Classified], unrecognised: list[str] | None = None) -> 
 
     # A role is only satisfied by exactly one file that carries every column.
     satisfied = {
-        role for role, found in by_role.items() if len(found) == 1 and found[0].is_usable
+        role
+        for role, found in by_role.items()
+        if found and all(f.is_usable for f in found) and (role == "fact" or len(found) == 1)
     }
     unusable_roles = {i.role for i in incomplete} | set(duplicates)
     never_uploaded = [
@@ -663,9 +1031,9 @@ def install(items: list[Classified], unrecognised: list[str] | None = None) -> d
     folder = data_dir()
     folder.mkdir(parents=True, exist_ok=True)
 
-    payloads = [(item, _to_csv_bytes(item)) for item in items]
-    names = [item.target_name for item in items]
-    replaced = [item.target_name for item in items if (folder / item.target_name).is_file()]
+    payloads, union = _payloads_to_write(items)
+    names = [item.target_name for item, _ in payloads]
+    replaced = [item.target_name for item, _ in payloads if (folder / item.target_name).is_file()]
 
     # Derivable dimensions this upload left out: their old files belong to the
     # previous dataset and must not survive into this one.
@@ -731,6 +1099,10 @@ def install(items: list[Classified], unrecognised: list[str] | None = None) -> d
         "replaced": replaced,
         "rows": rows,
         "data_dir": str(folder),
+        # Empty unless several sales files were merged. Reported because a
+        # delivery that quietly lost rows to de-duplication is something the
+        # user should be told, not something they should have to notice.
+        "union": union,
     }
 
 
@@ -756,7 +1128,7 @@ def replace(items: list[Classified], unrecognised: list[str] | None = None) -> d
 
     folder = data_dir()
     folder.mkdir(parents=True, exist_ok=True)
-    payloads = [(item, _to_csv_bytes(item)) for item in items]
+    payloads, _union = _payloads_to_write(items)
 
     from app.tpo.loader import get_store
     # Each table as it was before this replace, to say which files changed.
@@ -1010,17 +1382,48 @@ def preview(role: str, limit: int = PREVIEW_LIMIT, offset: int = 0) -> dict[str,
     }
 
 
-def inspect(uploads: list[tuple[str, bytes]]) -> dict[str, Any]:
+def inspect(
+    uploads: list[tuple[str, bytes]],
+    settled: dict[str, dict[str, Any]] | None = None,
+    with_coverage: bool = False,
+) -> dict[str, Any]:
     """Classify a set of files WITHOUT installing them.
 
     Lets the upload screen tell the user which table each file was recognised
     as, and what is still missing, before committing to a 21 MB round trip that
     can only be refused. Identical rules to `install`, so the preview and the
     real thing can never disagree.
+
+    `settled` carries what the mapping screen has established so far, keyed by
+    filename — a declared role, and any column choices the user has corrected.
+    Passing it back through the same function is what keeps the mapping screen
+    honest: the proposals it renders, the readiness it reports and the install
+    that follows are all one code path, so the screen cannot promise something
+    the install then refuses.
     """
-    classified = [(name, classify(name, content)) for name, content in uploads]
+    chosen = settled or {}
+    classified = [
+        (
+            name,
+            classify(
+                name,
+                content,
+                role=chosen.get(Path(name).name, {}).get("role"),
+                mapping=chosen.get(Path(name).name, {}).get("columns"),
+            ),
+        )
+        for name, content in uploads
+    ]
     recognised = [c for _, c in classified if c is not None]
     unrecognised = [name for name, c in classified if c is None]
+    # An unrecognised file still has to offer its columns to the mapping
+    # screen: "say which table this is" is useless without them.
+    header_of = {
+        name: read_header(name, content)
+        for name, content in uploads
+        if name in set(unrecognised)
+    }
+    samples_of = {name: read_samples(name, content) for name, content in uploads}
 
     try:
         validate(recognised, unrecognised)
@@ -1031,7 +1434,13 @@ def inspect(uploads: list[tuple[str, bytes]]) -> dict[str, Any]:
     by_role: dict[str, list[Classified]] = {}
     for item in recognised:
         by_role.setdefault(item.role, []).append(item)
-    satisfied = {r for r, f in by_role.items() if len(f) == 1 and f[0].is_usable}
+    # Same rule as `validate`: several sales files are one delivery, a second
+    # copy of a dimension is a mistake.
+    satisfied = {
+        r
+        for r, f in by_role.items()
+        if f and all(c.is_usable for c in f) and (r == "fact" or len(f) == 1)
+    }
 
     return {
         "files": [
@@ -1041,6 +1450,17 @@ def inspect(uploads: list[tuple[str, bytes]]) -> dict[str, Any]:
                 "label": ROLE_LABELS[c.role] if c else None,
                 "missing_columns": list(c.missing_columns) if c else [],
                 "recognised": c is not None,
+                # What the mapping settled, so the upload screen can show which
+                # of the user's columns will be read as which of ours — and,
+                # for an unrecognised file, offer every column as a candidate.
+                "matched_by": c.matched_by if c else None,
+                "mapping": dict(c.mapping) if c else {},
+                "mapping_sources": dict(c.mapping_sources) if c else {},
+                "dropped_columns": list(c.dropped_columns) if c else [],
+                "columns": list(c.columns) if c else list(header_of.get(name, [])),
+                # One example value per column, so a price mapping can be
+                # checked by eye — see `read_samples`.
+                "samples": samples_of.get(name, {}),
             }
             for name, c in classified
         ],
@@ -1059,4 +1479,10 @@ def inspect(uploads: list[tuple[str, bytes]]) -> dict[str, Any]:
         "ready": not message,
         "message": message,
         "locked": is_locked(),
+        # What several sales files add up to, for the preview the user
+        # confirms before anything is installed. Empty for a single-file
+        # upload, and ASKED FOR rather than always computed: it is the only
+        # part of this function that reads past the first rows of a file, and
+        # the mapping screen re-inspects on every edit without needing it.
+        "coverage": _coverage_of(classified) if with_coverage else {},
     }
