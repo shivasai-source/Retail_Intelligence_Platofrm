@@ -25,9 +25,38 @@ import type { StarCoverage } from '../../../types/dataset'
 //
 // So this card states the span, the per-file periods, and the two kinds of
 // hole, and it does it at the moment the user is deciding to press Upload.
-export function UploadCoverageCard({ coverage }: { coverage: StarCoverage }) {
+//
+// EVERY FIELD BELOW IS READ THROUGH A DEFAULT, and that is load-bearing rather
+// than defensive habit. This card is the one screen rendered straight from a
+// server payload with no fallback behind it, so a backend that answers in an
+// older shape — a process left running from before a field existed, a
+// half-deployed pair — used to reach `undefined.length` here and throw during
+// render. The error boundary then replaced the WHOLE connections page, which
+// reads as "the app is broken" when the only thing wrong is one missing key in
+// one optional card. A card that quietly says less is always the better
+// failure: the user can still see the span and press Upload.
+function normalise(coverage: StarCoverage) {
+  return {
+    files: coverage.files ?? [],
+    first: coverage.first ?? '—',
+    last: coverage.last ?? '—',
+    weeks: coverage.weeks ?? 0,
+    rows_delivered: coverage.rows_delivered ?? 0,
+    gaps: coverage.gaps ?? [],
+    overlaps: coverage.overlaps ?? [],
+    same_period: coverage.same_period ?? [],
+    duplicate_rows: coverage.duplicate_rows ?? 0,
+    conflicting_rows: coverage.conflicting_rows ?? 0,
+    dropped_columns: coverage.dropped_columns ?? [],
+  }
+}
+
+export function UploadCoverageCard({ coverage: raw }: { coverage: StarCoverage }) {
+  const coverage = normalise(raw)
   const readable = coverage.files.filter((f) => !f.unreadable)
-  const deduped = coverage.overlaps.length > 0
+  const deduped = coverage.duplicate_rows > 0
+  const restated = coverage.conflicting_rows > 0
+  const split = coverage.same_period.length > 0
 
   return (
     <div className="mt-3.5 overflow-hidden rounded-[var(--r-md)] border border-border-subtle">
@@ -65,6 +94,7 @@ export function UploadCoverageCard({ coverage }: { coverage: StarCoverage }) {
 
       {(coverage.gaps.length > 0 ||
         deduped ||
+        split ||
         coverage.dropped_columns.length > 0) && (
         <div className="flex flex-col gap-1.5 border-t border-border-subtle p-[10px_12px]">
           {coverage.gaps.length > 0 && (
@@ -81,8 +111,40 @@ export function UploadCoverageCard({ coverage }: { coverage: StarCoverage }) {
             <div className="flex items-start gap-1.5 text-xs leading-[1.55] text-ink-muted [&_svg]:mt-px [&_svg]:h-[13px] [&_svg]:w-[13px] [&_svg]:shrink-0">
               <Icon name="info" />
               <span>
-                {coverage.overlaps.join('; ')}. Repeated rows are counted once, so the installed
-                total will be lower than the rows delivered.
+                {coverage.overlaps.join('; ')}.{' '}
+                {coverage.duplicate_rows.toLocaleString()} repeated row
+                {coverage.duplicate_rows === 1 ? '' : 's'} will be counted once, so the installed
+                total comes to{' '}
+                {(coverage.rows_delivered - coverage.duplicate_rows).toLocaleString()}.
+              </span>
+            </div>
+          )}
+          {/* A RESTATED EXTRACT, which is a decision rather than a tidy-up:
+              the same row with different numbers in two files means one of
+              them is out of date, and the user is the only one who knows
+              which. Said in its own line, in warning ink, because "rows were
+              de-duplicated" reads like housekeeping and this is not. */}
+          {restated && (
+            <div className="flex items-start gap-1.5 text-xs leading-[1.55] text-[var(--pill-warning-ink)] [&_svg]:mt-px [&_svg]:h-[13px] [&_svg]:w-[13px] [&_svg]:shrink-0">
+              <Icon name="alertTriangle" />
+              <span>
+                <strong className="font-medium">
+                  {coverage.conflicting_rows.toLocaleString()} of those repeated rows hold
+                  different values.
+                </strong>{' '}
+                One of these files is a restatement of the other. The copy from the later period
+                is used — check you meant to upload both.
+              </span>
+            </div>
+          )}
+          {/* Same months, different rows: a region or channel split. This
+              looks exactly like an overlap and nothing is dropped, so the
+              reassurance IS the message. */}
+          {split && (
+            <div className="flex items-start gap-1.5 text-xs leading-[1.55] text-ink-muted [&_svg]:mt-px [&_svg]:h-[13px] [&_svg]:w-[13px] [&_svg]:shrink-0">
+              <Icon name="checkCircle" />
+              <span>
+                {coverage.same_period.join('; ')} — nothing is dropped, both are kept in full.
               </span>
             </div>
           )}

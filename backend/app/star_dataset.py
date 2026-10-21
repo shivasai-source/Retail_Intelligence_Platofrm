@@ -706,7 +706,7 @@ def _coverage_of(classified: list[tuple[str, Classified | None]]) -> dict[str, A
     payloads = [(item.original_name, item.content) for item in facts]
     plan = fact_union.coverage(
         payloads,
-        {item.original_name: item.mapping.get("Date", "Date") for item in facts},
+        {item.original_name: dict(item.mapping) for item in facts},
     )
     return {
         "files": [
@@ -726,6 +726,9 @@ def _coverage_of(classified: list[tuple[str, Classified | None]]) -> dict[str, A
         "rows_delivered": plan.rows_delivered,
         "gaps": list(plan.gaps),
         "overlaps": list(plan.overlaps),
+        "same_period": list(plan.same_period),
+        "duplicate_rows": plan.duplicate_rows,
+        "conflicting_rows": plan.conflicting_rows,
         "dropped_columns": list(plan.dropped_columns),
     }
 

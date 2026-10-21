@@ -81,8 +81,23 @@ class Coverage:
     rows_delivered: int = 0
     #: Runs of absent weeks, each as a human phrase ("weeks 40-44 of 2024").
     gaps: tuple[str, ...] = ()
-    #: Files whose periods touch the same week.
+    #: Files that actually hold the SAME ROWS, phrased for the user.
+    #:
+    #: Sharing a PERIOD is not sharing rows, and saying otherwise was a bug:
+    #: a client who splits one month into a north file and a south file has
+    #: two files covering the same weeks and not one duplicated row between
+    #: them, yet the screen announced that rows would be de-duplicated and
+    #: the installed total would come out lower. It would not. This names
+    #: only real repetition, counted on the sales grain.
     overlaps: tuple[str, ...] = ()
+    #: Files that cover the same weeks WITHOUT sharing rows — a region or
+    #: channel split. Worth stating, because it looks like an overlap and the
+    #: reassurance that nothing will be dropped is the useful part.
+    same_period: tuple[str, ...] = ()
+    #: Rows that appear in more than one file, and how many of those disagree
+    #: about their measures. A restated extract is the second kind.
+    duplicate_rows: int = 0
+    conflicting_rows: int = 0
     #: Columns dropped because not every file had them.
     dropped_columns: tuple[str, ...] = ()
 
@@ -173,22 +188,27 @@ def _phrase(run: list[tuple[int, int]]) -> str:
 
 def coverage(
     payloads: list[tuple[str, bytes]],
-    date_column_of: dict[str, str] | None = None,
+    columns_of: dict[str, dict[str, str]] | None = None,
 ) -> Coverage:
-    """What a set of fact files spans, and where it is thin.
+    """What a set of fact files spans, where it is thin, and what repeats.
 
-    `payloads` is (filename, CSV bytes). By default the date is read from a
-    column called `Date`, so canonical bytes work with no further argument.
+    `payloads` is (filename, CSV bytes). With no second argument the canonical
+    names are assumed, so already-renamed bytes work unchanged.
 
-    `date_column_of` names each file's OWN date column instead, which lets the
-    upload screen report coverage without renaming anything first: a 3 MB
-    extract would otherwise have to be rewritten in full just to turn
-    `TxnDate` into `Date` for a column nobody is going to keep.
+    `columns_of` maps each file to its OWN names (canonical -> actual), which
+    lets the upload screen report coverage without renaming anything first: a
+    3 MB extract would otherwise have to be rewritten in full just to turn
+    `TxnDate` into `Date` for a copy nobody keeps. It is also what makes real
+    duplicate detection possible before the mapping is applied, since the
+    grain is `Product_id` and `Store_Id`, not only the date.
     """
     if not payloads:
         return Coverage()
 
-    named = date_column_of or {}
+    named = columns_of or {}
+
+    def actual(name: str, canonical: str) -> str:
+        return named.get(name, {}).get(canonical, canonical)
     headers = {name: _header(payload) for name, payload in payloads}
     shared = [c for c in headers[payloads[0][0]] if all(c in h for h in headers.values())]
     shared_set = set(shared)
@@ -200,13 +220,30 @@ def coverage(
     # share no dates, but each file repeats its own fifty over and over.
     memo: dict[str, tuple[date, int] | None] = {}
 
+    # Which file first claimed each sales row, and what it said about it.
+    # This is what makes "these files repeat rows" a measurement rather than
+    # an inference from their periods.
+    owner: dict[tuple[str, ...], str] = {}
+    stated: dict[tuple[str, ...], tuple[str, ...]] = {}
+    repeated: dict[tuple[str, str], int] = {}
+    duplicate_rows = 0
+    conflicting_rows = 0
+
     for name, payload in payloads:
         header = headers[name]
-        column = named.get(name, "Date")
+        column = actual(name, "Date")
         if column not in header:
             spans.append(FileSpan(filename=name, rows=0, unreadable=True))
             continue
         index = header.index(column)
+        # The grain, in this file's own names. Only the parts it actually has:
+        # a file without Promotion_Id is keyed on what it does carry.
+        grain = [
+            header.index(actual(name, c))
+            for c in GRAIN
+            if actual(name, c) in header
+        ]
+        measures = [header.index(c) for c in shared if c in header]
         weeks: set[tuple[int, int]] = set()
         earliest: date | None = None
         latest: date | None = None
@@ -226,6 +263,18 @@ def coverage(
                 earliest = day
             if latest is None or day > latest:
                 latest = day
+
+            key = tuple(row[i] if i < len(row) else "" for i in grain)
+            held = owner.get(key)
+            if held is None:
+                owner[key] = name
+                stated[key] = tuple(row[i] if i < len(row) else "" for i in measures)
+            else:
+                duplicate_rows += 1
+                pair = (held, name) if held <= name else (name, held)
+                repeated[pair] = repeated.get(pair, 0) + 1
+                if stated[key] != tuple(row[i] if i < len(row) else "" for i in measures):
+                    conflicting_rows += 1
         delivered += count
         all_weeks |= weeks
         spans.append(
@@ -239,14 +288,28 @@ def coverage(
             )
         )
 
-    # Two files covering the same week is how a re-cut extract shows up.
-    overlaps: list[str] = []
+    # Files that genuinely hold the same rows.
+    overlaps = [
+        f"{left} and {right} share {count:,} row{'' if count == 1 else 's'}"
+        for (left, right), count in sorted(repeated.items())
+    ]
+    # Files that cover the same weeks and share nothing — a region or channel
+    # split, which looks alarming and is not.
+    shared_period: list[str] = []
     for i, left in enumerate(spans):
         for right in spans[i + 1 :]:
-            common = left.weeks & right.weeks
-            if common:
-                weeks_said = ", ".join(f"week {w} of {y}" for y, w in sorted(common)[:3])
-                overlaps.append(f"{left.filename} and {right.filename} both cover {weeks_said}")
+            if not (left.weeks & right.weeks):
+                continue
+            pair = (
+                (left.filename, right.filename)
+                if left.filename <= right.filename
+                else (right.filename, left.filename)
+            )
+            if pair not in repeated:
+                shared_period.append(
+                    f"{left.filename} and {right.filename} cover the same period "
+                    f"but hold different rows"
+                )
 
     ordered_days = [s for s in spans if s.first]
     return Coverage(
@@ -257,6 +320,9 @@ def coverage(
         rows_delivered=delivered,
         gaps=_describe_gaps(all_weeks),
         overlaps=tuple(overlaps),
+        same_period=tuple(shared_period),
+        duplicate_rows=duplicate_rows,
+        conflicting_rows=conflicting_rows,
         dropped_columns=tuple(
             c for c in dict.fromkeys(sum((list(h) for h in headers.values()), []))
             if c not in shared_set
@@ -279,6 +345,15 @@ def merge(payloads: list[tuple[str, bytes]]) -> tuple[bytes, dict[str, Any]]:
     Files are merged in PERIOD order, earliest first, so "the later file wins"
     means the later period's version of a re-sent week — not whichever file the
     OS happened to hand over first.
+
+    TWO FILES COVERING THE SAME PERIOD TIE, and a tie has to be broken by
+    something the user can predict. It was broken by upload order, which meant
+    a restated extract dropped beside its original produced one answer dragged
+    in one order and the opposite answer dragged in the other — the same two
+    files, two different datasets. Filename settles it instead: not because
+    alphabetical order is meaningful, but because it is stable, and a
+    restatement that disagrees with its original is reported as a conflict
+    either way rather than being silently resolved.
     """
     if len(payloads) == 1:
         return payloads[0][1], {
@@ -294,7 +369,7 @@ def merge(payloads: list[tuple[str, bytes]]) -> tuple[bytes, dict[str, Any]]:
     by_name = dict(payloads)
     order = sorted(
         (s for s in plan.files if not s.unreadable),
-        key=lambda s: _sortable(s.first),
+        key=lambda s: (_sortable(s.first), s.filename),
     )
     columns = [
         c

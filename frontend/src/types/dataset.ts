@@ -276,8 +276,17 @@ export interface StarCoverage {
    *  A missing week is NOT zero sales — it is no data at all, and nothing
    *  downstream would flag it. */
   gaps: string[]
-  /** Files whose periods touch the same week, so rows will be de-duplicated. */
+  /** Files that genuinely hold the SAME ROWS, counted on the sales grain.
+   *  Sharing a period is not sharing rows: a client who splits a month into a
+   *  north file and a south file overlaps in time and duplicates nothing. */
   overlaps: string[]
+  /** Files covering the same period that share no rows — a region or channel
+   *  split. Stated because it looks like an overlap and is not. */
+  same_period: string[]
+  /** Rows appearing in more than one file, and how many of those disagree
+   *  about their measures. A restated extract is the second kind. */
+  duplicate_rows: number
+  conflicting_rows: number
   /** Columns dropped for not being present in every file. */
   dropped_columns: string[]
 }
