@@ -161,42 +161,48 @@ export function MmmInsights() {
 
         {/* THE TOOLBAR, IN TWO GROUPS, as TPO's: the scope on the left; on the
             right Add KPI, which changes the cards shown and never the scope,
-            then a hairline, Refresh and Export. */}
-        <div className="mt-4 flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <MmmFilterBar options={options.data} year={year} />
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <MmmAddKpiMenu
-              kpis={data?.kpis}
-              selected={added}
-              onToggle={(key) => setAdded(added.includes(key) ? added.filter((k) => k !== key) : [...added, key])}
-              onClear={() => setAdded([])}
-            />
-            <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border-subtle" />
-            <IconButton
-              icon="refresh"
-              className="!h-9 !w-9"
-              title="Refresh data"
-              spinning={refreshing}
-              disabled={refreshing}
-              onClick={() => void queryClient.invalidateQueries({ queryKey: ['mmm'] })}
-            />
-            <ExportReportButton
-              module="mmm-insights"
-              label="Export"
-              collapse
-              scope={() => ({})}
-              options={() => ({
-                filters: scope,
-                filename_hint: isCustomRange(view) ? 'Custom_range' : year === null ? 'All_years' : String(year),
-              })}
-              currency={currency}
-              reportsHref={MMM_ROUTES.reports}
-              disabled={!data || data.meta.days === 0}
-              disabledReason="Loading the MMM dataset…"
-            />
-          </div>
+            then a hairline, Refresh and Export.
+            Both groups live inside MmmFilterBar's own surface, because a pill
+            there expands that surface downwards rather than opening a menu
+            over the KPI deck — see the note at the top of that file. */}
+        <div className="mt-4">
+          <MmmFilterBar
+            options={options.data}
+            year={year}
+            actions={
+              <>
+                <MmmAddKpiMenu
+                  kpis={data?.kpis}
+                  selected={added}
+                  onToggle={(key) => setAdded(added.includes(key) ? added.filter((k) => k !== key) : [...added, key])}
+                  onClear={() => setAdded([])}
+                />
+                <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border-subtle" />
+                <IconButton
+                  icon="refresh"
+                  className="!h-9 !w-9"
+                  title="Refresh data"
+                  spinning={refreshing}
+                  disabled={refreshing}
+                  onClick={() => void queryClient.invalidateQueries({ queryKey: ['mmm'] })}
+                />
+                <ExportReportButton
+                  module="mmm-insights"
+                  label="Export"
+                  collapse
+                  scope={() => ({})}
+                  options={() => ({
+                    filters: scope,
+                    filename_hint: isCustomRange(view) ? 'Custom_range' : year === null ? 'All_years' : String(year),
+                  })}
+                  currency={currency}
+                  reportsHref={MMM_ROUTES.reports}
+                  disabled={!data || data.meta.days === 0}
+                  disabledReason="Loading the MMM dataset…"
+                />
+              </>
+            }
+          />
         </div>
       </div>
 
