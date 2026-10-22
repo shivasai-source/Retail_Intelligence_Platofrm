@@ -6,7 +6,9 @@ import { fmtSize } from '../../lib/portalConnectors'
 import { readHeader } from '../../lib/starSchema'
 import { ApiError } from '../../lib/api'
 import { useMmmInspect, useMmmPreview, useMmmReset, useMmmStatus, useMmmUpload } from '../hooks'
-import { checkHeader, columnsIn, MEDIA_CHANNELS, type MmmHeaderCheck } from '../schema'
+import { MmmColumnMapper } from './MmmColumnMapper'
+import type { MmmCoverage, MmmDeliveryInspect } from '../types'
+import { checkFromInspect, checkHeader, columnsIn, MEDIA_CHANNELS, type MmmHeaderCheck } from '../schema'
 import { MmmDataRequirements } from './MmmDataRequirements'
 
 // MMM — UPLOAD. The Excel / Shared Drives connector for MMM, laid out like
@@ -22,16 +24,43 @@ import { MmmDataRequirements } from './MmmDataRequirements'
 // The server then validates every ROW on upload and reports every problem at
 // once.
 //
-// ONE FILE, AND IT REPLACES. TPO installs six tables as a set and makes you
-// reset first; MMM is one table, so a new upload simply replaces the loaded
-// one. With data loaded the dialog opens on what is installed — View data,
-// Replace file, Remove — rather than on an empty dropzone.
+// ONE TABLE, AND IT REPLACES — BUT IT CAN ARRIVE IN SEVERAL FILES. TPO
+// installs six DIFFERENT tables as a set and makes you reset first. MMM has
+// one table, so a selection of several files is several PERIODS of it
+// ("Jan-Mar", "Apr-Jun"), merged on the day by the server
+// (backend/app/mmm/day_union.py) and installed as the single daily table every
+// MMM page reads. A new upload simply replaces the loaded one. With data
+// loaded the dialog opens on what is installed — View data, Replace file,
+// Remove — rather than on an empty dropzone.
+//
+// WHAT THE SCREEN OWES THE READER BEFORE AN INSTALL is what the merge is about
+// to decide, because none of it is visible afterwards: which period each file
+// covers, which days NOBODY sent (an absent month is not zero spend), which
+// files repeat days, and which columns are not in every file and will
+// therefore be left out rather than filled with zeros.
+//
+// A HEADER THAT IS NOT OURS IS MAPPED, NOT REFUSED. A client extract calling
+// revenue `NetSales` used to be turned away as "Missing required column:
+// Revenue" — a message about the wrong problem. Now the server is asked what
+// the file's columns could mean (POST /api/mmm/dataset/inspect →
+// app/mmm/mapping.py) and the reader confirms the mapping on MmmColumnMapper
+// before anything is installed. A file that already uses MMM's names never
+// sees that screen.
 
 interface Picked {
-  file: File
-  /** null while a workbook's header is being checked on the server. */
+  /** The delivery, in the order it was chosen. */
+  files: File[]
+  /** null while the server is reading the files. */
   check: MmmHeaderCheck | null
   checkError?: string
+  /** The server's reading of the whole delivery: one entry per file with its
+   *  own proposal, the coverage arithmetic, and whether the MERGED table would
+   *  install. Absent for a single CSV whose header the browser read and found
+   *  canonical — nothing needs mapping and there is nothing to merge, so
+   *  nothing is asked. */
+  delivery?: MmmDeliveryInspect
+  /** The reader's confirmed renames, per filename. */
+  mappings?: Record<string, Record<string, string>>
 }
 
 export function MmmUploadModal({ onClose }: { onClose: () => void }) {
@@ -50,53 +79,76 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
   const [notes, setNotes] = useState<string[]>([])
   const [guide, setGuide] = useState(false)
   const [viewing, setViewing] = useState(false)
+  /** On the mapping screen rather than the dropzone. */
+  const [mapping, setMapping] = useState(false)
+  /** Which file of the delivery the mapping screen is showing. */
+  const [mappingFile, setMappingFile] = useState(0)
 
   const loaded = Boolean(status.data?.complete)
   const showDropzone = !loaded || replacing
 
   const choose = async (list: FileList | null) => {
-    const file = list?.[0]
-    if (!file) return
+    const files = [...(list ?? [])]
+    if (!files.length) return
     setError('')
     setNotes([])
-    const headers = await readHeader(file)
-    if (headers.length) {
-      setPicked({ file, check: checkHeader(headers) })
-      return
+    setMapping(false)
+    setMappingFile(0)
+
+    // ONE CSV WHOSE HEADER IS ALREADY OURS needs neither the server nor the
+    // mapping screen: the browser has read the names and they match, and a
+    // single file has no periods to reconcile.
+    if (files.length === 1) {
+      const headers = await readHeader(files[0])
+      if (headers.length && checkHeader(headers).ok) {
+        setPicked({ files, check: checkHeader(headers) })
+        return
+      }
     }
-    // A workbook: the server reads its header.
-    setPicked({ file, check: null })
-    inspect.mutate(file, {
-      onSuccess: (r) =>
-        setPicked({
-          file,
-          check: {
-            media: r.media_columns,
-            rollups: r.rollup_columns ?? [],
-            promo: columnsIn('promo')
-              .map((c) => c.name)
-              .filter((n) => !r.missing_optional.includes(n)),
-            missingRequired: r.missing_required,
-            missingOptional: r.missing_optional.filter((c) => !c.endsWith('_Spend')),
-            ignored: r.ignored,
-            ok: r.ok,
-          },
-        }),
-      onError: (e) => setPicked({ file, check: null, checkError: e.message }),
-    })
+    // Anything else goes to the server: a workbook it must open, a header that
+    // does not match as it stands, or SEVERAL FILES, whose spans and repeats
+    // only the rows can answer. `coverage` is asked for once per selection,
+    // not on every edit — it reads every row.
+    setPicked({ files, check: null })
+    inspect.mutate(
+      { files, coverage: files.length > 1 },
+      {
+        onSuccess: (r) => setPicked({ files, check: checkFromInspect(r), delivery: r }),
+        onError: (e) => setPicked({ files, check: null, checkError: e.message }),
+      },
+    )
   }
 
-  const go = () => {
+  /** Re-ask the server with the mapping as it stands, so the verdict under the
+   *  rows is the install's own and not this screen's opinion. */
+  const recheck = (mappings: Record<string, Record<string, string>>) => {
+    if (!picked) return
+    inspect.mutate(
+      { files: picked.files, mappings, coverage: picked.files.length > 1 },
+      {
+        onSuccess: (r) =>
+          setPicked((prev) =>
+            prev ? { ...prev, check: checkFromInspect(r), delivery: r, mappings } : prev,
+          ),
+        onError: (e) => setError(e.message),
+      },
+    )
+  }
+
+  const go = (mappings?: Record<string, Record<string, string>>) => {
     if (!picked) return
     setError('')
-    upload.mutate(picked.file, {
+    upload.mutate({ files: picked.files, mappings: mappings ?? picked.mappings }, {
       onSuccess: (result) => {
-        show(`MMM dataset loaded — ${result.rows.toLocaleString()} days, ${result.media_columns.length} channels.`, {
-          duration: 4000,
-        })
+        const from = picked.files.length > 1 ? ` from ${picked.files.length} files` : ''
+        show(
+          `MMM dataset loaded${from} — ${result.rows.toLocaleString()} days, ${result.media_columns.length} channels.`,
+          { duration: 4000 },
+        )
         setNotes(result.warnings)
         setPicked(null)
         setReplacing(false)
+        setMapping(false)
       },
       onError: (e) => setError(e instanceof ApiError ? e.message : "Couldn't reach the server — is the backend running?"),
     })
@@ -123,8 +175,104 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
   if (guide) return <MmmDataRequirements onBack={() => setGuide(false)} onClose={onClose} />
   if (viewing) return <MmmDataViewer onBack={() => setViewing(false)} onClose={onClose} />
 
+  // THE MAPPING SCREEN. Its own view rather than a section of the dropzone:
+  // it is a decision about every column in the file, and reading it next to a
+  // drop target invites dropping another file half way through.
+  //
+  // ONE FILE AT A TIME, with a switcher when the delivery has several. A
+  // client who renamed a column half way through the year is the ordinary
+  // case, so each file keeps its OWN mapping and the screen never applies one
+  // file's answer to another's columns. The tick on a tab is the file's own
+  // verdict; the line under the tabs is the delivery's, which is what the
+  // install actually judges.
+  if (mapping && picked?.delivery) {
+    const files = picked.delivery.files
+    const current = files[Math.min(mappingFile, files.length - 1)]
+    const confirmed = picked.mappings ?? {}
+    return (
+      <Modal open onClose={onClose} maxWidthClassName="max-w-[640px]">
+        <div className="flex items-center justify-between border-b border-border-subtle p-[16px_20px]">
+          <div className="flex items-center gap-2.5">
+            <div className="grid h-9 w-9 place-items-center overflow-hidden rounded-[9px]">
+              <BrandLogo logo="excel" name="Excel / Shared Drives" />
+            </div>
+            <div>
+              <h3 className="text-md font-medium">Match your columns to MMM's</h3>
+              <div className="mt-0.5 text-sm text-ink-muted">
+                {files.length > 1
+                  ? `${files.length} files · each keeps its own column names`
+                  : current.filename}{' '}
+                · nothing is read until you confirm
+              </div>
+            </div>
+          </div>
+          <IconButton icon="x" onClick={onClose} />
+        </div>
+
+        {files.length > 1 && (
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-border-subtle px-5 py-2.5">
+            {files.map((f, i) => (
+              <button
+                key={f.filename}
+                type="button"
+                onClick={() => setMappingFile(i)}
+                className={`inline-flex max-w-[220px] items-center gap-1.5 rounded-[var(--r-pill)] border px-2.5 py-1 text-sm transition-colors [&_svg]:h-3.5 [&_svg]:w-3.5 [&_svg]:shrink-0 ${
+                  i === mappingFile
+                    ? 'border-brand-violet bg-brand-violet-50 text-brand-violet'
+                    : 'border-border-subtle text-ink-secondary hover:border-brand-violet'
+                }`}
+                title={f.filename}
+              >
+                <Icon
+                  name={f.ok ? 'check' : 'info'}
+                  className={f.ok ? 'text-[var(--pill-success-ink)]' : 'text-[var(--pill-warning-ink)]'}
+                />
+                <span className="truncate">{f.filename}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <MmmColumnMapper
+          /* Remounted per file so the rows reset to THAT file's proposal
+             rather than carrying the last file's choices across. */
+          key={current.filename}
+          inspection={current}
+          busy={upload.isPending || inspect.isPending}
+          deliveryOk={picked.delivery.ok}
+          deliveryProblems={picked.delivery.problems}
+          onBack={() => setMapping(false)}
+          onTry={(renames) => recheck({ ...confirmed, [current.filename]: renames })}
+          onConfirm={(renames) => {
+            const next = { ...confirmed, [current.filename]: renames }
+            setPicked((prev) => (prev ? { ...prev, mappings: next } : prev))
+            // More files still to map: move on rather than installing.
+            const unmapped = files.findIndex((f, i) => i !== mappingFile && !f.ok && !next[f.filename])
+            if (unmapped >= 0) {
+              setMappingFile(unmapped)
+              recheck(next)
+              return
+            }
+            go(next)
+          }}
+        />
+        {error && (
+          <div className="border-t border-border-subtle p-[12px_20px] text-sm leading-[1.55] text-[var(--pill-danger-ink)]">
+            {error}
+          </div>
+        )}
+      </Modal>
+    )
+  }
+
   const s = status.data
   const check = picked?.check
+  /** Files the install would SKIP as they stand — unreadable, or missing a
+   *  column MMM needs that nothing maps to. Named here because the delivery
+   *  can be installable while a file in it is not. */
+  const skipped = (picked?.delivery?.files ?? []).filter((f) => !f.ok)
+  /** Whether the mapping screen is worth offering at all. */
+  const needsMapping = Boolean(picked?.delivery) && (!check?.ok || skipped.length > 0)
   const referenceFound = check ? check.media.filter((m) => (MEDIA_CHANNELS as readonly string[]).includes(m)).length : 0
   const extraChannels = check ? check.media.length - referenceFound : 0
 
@@ -139,7 +287,9 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
             <h3 className="text-md font-medium">{showDropzone ? 'Upload your MMM dataset' : 'Your MMM dataset'}</h3>
             <div className="mt-0.5 text-sm text-ink-muted">
               {showDropzone
-                ? 'One daily file · columns are matched on their headers'
+                ? picked && picked.files.length > 1
+                  ? `${picked.files.length} files · read as ${picked.files.length} periods of one table`
+                  : 'One daily table · one file, or several periods'
                 : 'Loaded · view, replace or remove'}
             </div>
           </div>
@@ -214,15 +364,19 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
               <div className="mx-auto mb-2.5 grid h-10 w-10 place-items-center rounded-[10px] bg-tint-lavender text-tint-lavender-icon [&_svg]:h-5 [&_svg]:w-5">
                 <Icon name="plus" />
               </div>
-              <strong className="mb-1 block text-base">Click to choose a file, or drag it here</strong>
+              <strong className="mb-1 block text-base">
+                Click to choose files, or drag them here
+              </strong>
               <span className="text-sm text-ink-muted">
-                One row per day · Date, Revenue and at least one _Spend column
+                One row per day · Date, Revenue and at least one _Spend column. Several files are
+                read as several periods of one table.
               </span>
             </div>
             <input
               ref={inputRef}
               type="file"
               accept=".csv,.xlsx,.xls"
+              multiple
               className="hidden"
               onChange={(e) => { void choose(e.target.files); e.target.value = '' }}
             />
@@ -235,46 +389,130 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
             </button>
 
             {picked && (
-              <div className="mt-3.5 rounded-[var(--r-md)] bg-surface-muted p-[10px_12px]">
-                <div className="flex items-center gap-2.5">
-                  <Icon
-                    name={check?.ok ? 'check' : check ? 'info' : 'file'}
-                    className={`h-4 w-4 shrink-0 ${check?.ok ? 'text-[var(--pill-success-ink)]' : check ? 'text-[var(--pill-danger-ink)]' : 'text-ink-muted'}`}
-                  />
-                  <span className="min-w-0 flex-1 truncate text-base font-medium">{picked.file.name}</span>
-                  <span className="shrink-0 text-xs text-ink-muted">{fmtSize(picked.file.size)}</span>
-                  <button
-                    type="button"
-                    onClick={() => setPicked(null)}
-                    aria-label="Remove file"
-                    className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-status-danger-bg hover:text-[var(--pill-danger-ink)]"
-                  >
-                    <Icon name="x" className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+              <div className="mt-3.5 flex flex-col gap-1.5">
+                {picked.files.map((file, i) => {
+                  const span = picked.delivery?.coverage?.files.find(
+                    (f) => f.filename === file.name,
+                  )
+                  const own = picked.delivery?.files[i]
+                  return (
+                    <div key={file.name} className="rounded-[var(--r-md)] bg-surface-muted p-[10px_12px]">
+                      <div className="flex items-center gap-2.5">
+                        <Icon
+                          name={span?.unreadable ? 'x' : own ? (own.ok ? 'check' : 'info') : check?.ok ? 'check' : 'file'}
+                          className={`h-4 w-4 shrink-0 ${
+                            span?.unreadable
+                              ? 'text-[var(--pill-danger-ink)]'
+                              : own?.ok || (!own && check?.ok)
+                                ? 'text-[var(--pill-success-ink)]'
+                                : own
+                                  ? 'text-[var(--pill-warning-ink)]'
+                                  : 'text-ink-muted'
+                          }`}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-base font-medium" title={file.name}>
+                          {file.name}
+                        </span>
+                        <span className="shrink-0 text-xs text-ink-muted">{fmtSize(file.size)}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const left = picked.files.filter((f) => f !== file)
+                            if (!left.length) setPicked(null)
+                            else void choose(left as unknown as FileList)
+                          }}
+                          aria-label={`Remove ${file.name}`}
+                          className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-status-danger-bg hover:text-[var(--pill-danger-ink)]"
+                        >
+                          <Icon name="x" className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      {/* WHAT PERIOD THIS FILE HOLDS — the whole reason several
+                          files are allowed, so it is said per file. */}
+                      {span && !span.unreadable && (
+                        <div className="mt-1 pl-[26px] text-xs text-ink-muted [font-variant-numeric:tabular-nums]">
+                          {span.first} – {span.last} · {span.days.toLocaleString()} days
+                          {span.missing_columns.length > 0 && (
+                            <span className="text-[var(--pill-warning-ink)]">
+                              {' '}· missing {span.missing_columns.join(', ')}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {span?.unreadable && (
+                        <div className="mt-1 pl-[26px] text-xs text-[var(--pill-danger-ink)]">
+                          {span.error || 'MMM cannot read this file; it will be skipped.'}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
 
-                {!check && !picked.checkError && (
-                  <div className="mt-2 flex items-center gap-2 pl-[26px] text-xs text-ink-muted">
-                    <Spinner className="h-3.5 w-3.5" /> Excel workbook — reading its columns on the server…
+                {inspect.isPending && (
+                  <div className="flex items-center gap-2 px-1 text-xs text-ink-muted">
+                    <Spinner className="h-3.5 w-3.5" />{' '}
+                    {picked.files.length > 1
+                      ? 'Reading each file’s columns and period on the server…'
+                      : 'Reading the columns on the server…'}
                   </div>
                 )}
                 {picked.checkError && (
-                  <div className="mt-2 pl-[26px] text-xs text-[var(--pill-danger-ink)]">{picked.checkError}</div>
+                  <div className="px-1 text-xs text-[var(--pill-danger-ink)]">{picked.checkError}</div>
                 )}
-
               </div>
             )}
+
+            {/* THE DELIVERY, AS THE MERGE WILL SEE IT. None of this is visible
+                after the install, so it is said before. */}
+            {picked?.delivery?.coverage && <CoveragePanel coverage={picked.delivery.coverage} />}
 
             {/* WHAT THE FILE HOLDS, group by group — the rows TPO's dialog
                 draws for its six files: a tick or a flag, the group, and in
                 a line what was found or what is missing. */}
             {check && <GroupChecklist check={check} referenceFound={referenceFound} extraChannels={extraChannels} />}
+
+            {/* A FILE THE INSTALL WOULD LEAVE OUT, while the rest of the
+                delivery is fine. Said plainly: it is the one case where
+                everything looks right and a quarter of the history is
+                silently absent. */}
+            {check?.ok && skipped.length > 0 && (
+              <div className="mt-2.5 flex items-start gap-2 rounded-[var(--r-md)] bg-status-warning-bg p-[10px_12px] text-sm leading-[1.5] text-[var(--pill-warning-ink)] [&_svg]:mt-px [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0">
+                <Icon name="warning" />
+                <span>
+                  The rest of this delivery will load, but{' '}
+                  <strong className="font-medium">
+                    {skipped.map((f) => f.filename).join(', ')}
+                  </strong>{' '}
+                  {skipped.length === 1 ? 'does' : 'do'} not match the contract and would be left
+                  out. Match {skipped.length === 1 ? 'its' : 'their'} columns, or upload without{' '}
+                  {skipped.length === 1 ? 'it' : 'them'}.
+                </span>
+              </div>
+            )}
+
+            {/* WHAT TO DO ABOUT A HEADER THAT IS NOT OURS. Said here rather
+                than only on the button, because the checklist above it reads
+                as a refusal otherwise. */}
+            {picked?.delivery && !check?.ok && (
+              <div className="mt-2.5 flex items-start gap-2 rounded-[var(--r-md)] bg-surface-muted p-[10px_12px] text-sm leading-[1.5] text-ink-muted [&_svg]:mt-px [&_svg]:h-[15px] [&_svg]:w-[15px] [&_svg]:shrink-0">
+                <Icon name="info" />
+                <span>
+                  This file uses its own column names.{' '}
+                  {picked.delivery.files.every((f) => f.proposal.is_complete)
+                    ? 'MMM has matched every column it needs — check the mapping and confirm it.'
+                    : 'Match them to MMM’s columns and it can be loaded.'}
+                </span>
+              </div>
+            )}
           </>
         )}
 
         <InstallProgress
           active={upload.isPending}
-          estimateMs={Math.max(3000, ((picked?.file.size ?? 0) / (2 * 1024 * 1024)) * 1000)}
+          estimateMs={Math.max(
+            3000,
+            ((picked?.files ?? []).reduce((sum, f) => sum + f.size, 0) / (2 * 1024 * 1024)) * 1000,
+          )}
           label="Uploading & validating"
           note="Every row is checked; the file is then written to MMM's data folder and every MMM page reloads from it."
         />
@@ -288,7 +526,11 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
 
       <div className="flex items-center justify-between gap-2 border-t border-border-subtle p-[14px_22px]">
         <span className="text-xs text-ink-muted">
-          {loaded && !replacing ? `${s?.rows.toLocaleString()} days loaded` : '.csv, .xlsx or .xls'}
+          {loaded && !replacing
+            ? `${s?.rows.toLocaleString()} days loaded`
+            : picked && picked.files.length > 1
+              ? `${picked.files.length} files${picked.delivery?.coverage ? ` · ${picked.delivery.coverage.days.toLocaleString()} days` : ''}`
+              : '.csv, .xlsx or .xls'}
         </span>
         <div className="flex gap-2">
           {loaded && !replacing ? (
@@ -308,10 +550,31 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
               >
                 Cancel
               </Button>
-              <Button variant="primary" onClick={go} disabled={!check?.ok || upload.isPending}>
-                <Icon name="plus" />{' '}
-                {upload.isPending ? 'Loading dataset…' : check && !check.ok ? 'Fix the columns first' : 'Upload & Process'}
-              </Button>
+              {/* A file whose header is not ours is not a dead end any more:
+                  the same button leads to the mapping screen instead. */}
+              {needsMapping && (
+                <Button
+                  variant={check?.ok ? 'secondary' : 'primary'}
+                  onClick={() => {
+                    const first = picked!.delivery!.files.findIndex((f) => !f.ok)
+                    setMappingFile(first < 0 ? 0 : first)
+                    setMapping(true)
+                  }}
+                  disabled={inspect.isPending || upload.isPending}
+                >
+                  <Icon name="arrowRight" /> Match columns
+                </Button>
+              )}
+              {(!needsMapping || check?.ok) && (
+                <Button variant="primary" onClick={() => go()} disabled={!check?.ok || upload.isPending}>
+                  <Icon name="plus" />{' '}
+                  {upload.isPending
+                    ? 'Loading dataset…'
+                    : skipped.length > 0
+                      ? `Upload without ${skipped.length === 1 ? 'it' : 'them'}`
+                      : 'Upload & Process'}
+                </Button>
+              )}
             </>
           )}
         </div>
@@ -320,8 +583,92 @@ export function MmmUploadModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-/** One row per column group, as TPO's upload dialog lists its six tables. */
-function GroupChecklist({
+/** WHAT THE MERGE IS ABOUT TO DO, before it does it.
+ *
+ *  Three things, each of which is invisible once the install has happened and
+ *  each of which is a silent wrong number if nobody says it:
+ *
+ *    the SPAN      what the delivery covers end to end, and how many days;
+ *    the GAPS      days inside that span nobody sent — an absent month is not
+ *                  zero spend, and MMM derives its calendar from Date itself,
+ *                  so a missing October would simply cease to exist;
+ *    the REPEATS   days in more than one file, counted once, later period
+ *                  winning — and how many of those disagreed, which is a data
+ *                  problem the reader should know they have;
+ *    the COLUMNS   not in every file, so left out rather than filled with
+ *                  zeros — a channel that looks switched off for one quarter
+ *                  moves its whole response curve.
+ *
+ *  Exported because the source browser shows the same panel for a selection of
+ *  blobs or tables: the merge does not care how the periods arrived. */
+export function CoveragePanel({ coverage }: { coverage: MmmCoverage }) {
+  const readable = coverage.files.filter((f) => !f.unreadable)
+  if (!readable.length) return null
+  return (
+    <div className="mt-3 rounded-[var(--r-md)] border border-border-subtle p-[11px_13px]">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <span className="text-base font-medium">
+          {readable.length === 1 ? 'This file covers' : `These ${readable.length} files cover`}
+        </span>
+        <span className="text-sm text-ink-muted [font-variant-numeric:tabular-nums]">
+          {coverage.first} – {coverage.last} · {coverage.days.toLocaleString()} days
+        </span>
+      </div>
+
+      {coverage.gaps.length > 0 && (
+        <div className="mt-2 flex items-start gap-2 rounded-[var(--r-md)] bg-status-warning-bg p-[9px_11px] text-xs leading-[1.5] text-[var(--pill-warning-ink)] [&_svg]:mt-px [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0">
+          <Icon name="warning" />
+          <span>
+            <strong className="font-medium">
+              Nobody sent {coverage.gaps.length === 1 ? 'these days' : 'these runs of days'}:
+            </strong>{' '}
+            {coverage.gaps.join('; ')}. They will be absent rather than zero, and the baseline is
+            estimated over the days that are there.
+          </span>
+        </div>
+      )}
+
+      {coverage.overlaps.length > 0 && (
+        <div className="mt-2 flex items-start gap-2 text-xs leading-[1.5] text-ink-muted [&_svg]:mt-px [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0">
+          <Icon name="info" />
+          <span>
+            {coverage.overlaps.join('; ')} — counted once, keeping the later period's version.
+            {coverage.conflicting_rows > 0 && (
+              <>
+                {' '}
+                <strong className="font-medium text-[var(--pill-warning-ink)]">
+                  {coverage.conflicting_rows.toLocaleString()} of them disagree about their figures.
+                </strong>
+              </>
+            )}
+          </span>
+        </div>
+      )}
+
+      {coverage.dropped_columns.length > 0 && (
+        <div className="mt-2 flex items-start gap-2 text-xs leading-[1.5] text-ink-muted [&_svg]:mt-px [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0">
+          <Icon name="info" />
+          <span>
+            Not in every file, so left out rather than filled with zeros:{' '}
+            {coverage.dropped_columns.join(', ')}.
+          </span>
+        </div>
+      )}
+
+      {!coverage.has_warnings && readable.length > 1 && (
+        <div className="mt-2 flex items-start gap-2 text-xs leading-[1.5] text-ink-muted [&_svg]:mt-px [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0">
+          <Icon name="check" />
+          <span>Continuous, no repeated days, and every file holds the same columns.</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** One row per column group, as TPO's upload dialog lists its six tables.
+ *  Exported because the source browser shows the same checklist for a blob or
+ *  a warehouse table — the contract does not change with the transport. */
+export function GroupChecklist({
   check,
   referenceFound,
   extraChannels,

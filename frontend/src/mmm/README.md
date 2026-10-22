@@ -29,13 +29,69 @@ mmm/
     RequireMmmDataset.tsx   the gate on MMM's own dataset status
     MmmDataRequirements.tsx "What do I upload?" — every column, template download
     MmmUploadModal.tsx      upload with in-browser column check; view / replace / remove
-    MmmSourceBrowser.tsx    Azure / Databricks browse-only
+    MmmSourceBrowser.tsx    Azure / Databricks — browse, check, install one blob or table
+    MmmColumnMapper.tsx     "your column -> MMM's column", for a header that is not ours
+                            (one file at a time, with a switcher for a delivery)
+    MmmSyncStatus.tsx       the Live pill: pull the connected source again
+    MmmSyncSummary.tsx      what that sync changed (days, period, channels: before -> now)
     MmmToolbar.tsx          year + currency controls (Calendar)
     MmmFilterBar.tsx        the Insights Hub filter bar and More Filters panel (TPO's layout)
     MmmAddKpiMenu.tsx       Add KPI, as TPO's
     MmmPanels.tsx           comparison, events, promotion type and baseline cards
     charts.tsx              trend (revenue, spend, baseline, ROAS), columns, share bars
 ```
+
+## Loading data
+
+Four connectors do something today, as TPO's four do:
+
+  * **Excel / Shared Drives** — one daily file, installed through
+    `POST /api/mmm/dataset`.
+  * **Azure Blob** and **Databricks** — browse the account or Unity Catalog,
+    check the columns, install one blob or one table. The browse requests go
+    through TPO's own hooks (`hooks/useDatasets.ts`); the install goes to MMM's
+    routes, which write MMM's data folder and never TPO's star schema.
+  * **Power BI** — signs in and lists workspaces. It installs no dataset, on
+    either module.
+
+A HEADER THAT IS NOT OURS IS MAPPED, NOT REFUSED. `backend/app/mmm/mapping.py`
+proposes which of the file's columns stands for each of MMM's and says which
+pass found it (our own name, a synonym, a channel under another spend word, a
+misspelling, or a spend column read as a channel of its own). A name that could
+mean two channels — `Print`, `OOH`, `Social` — is never guessed at: the reader
+is asked. Only the confirmed mapping is installed.
+
+ONE TABLE, BUT IT CAN ARRIVE IN SEVERAL FILES. TPO installs six DIFFERENT
+tables as a set and makes you reset first. MMM has one table, so a selection of
+several files — or several blobs, or several warehouse tables — is several
+PERIODS of it: "Jan-Mar", "Apr-Jun", "Jul-Sep", out of order, with a month
+nobody cut and a boundary day re-sent. `backend/app/mmm/day_union.py` merges
+them on the day, making the same three decisions TPO's `app/fact_union.py`
+makes about its fact table:
+
+  * SCHEMA — a column only some files have is dropped and reported, never
+    filled with zeros. A channel that looks switched off for one quarter moves
+    its whole response curve, and so every Budget Optimizer recommendation.
+  * OVERLAP — a day in two files is counted once and the later period wins. A
+    disagreement is counted separately from a harmless re-send, because a
+    conflict is a data problem the reader should know they have.
+  * COVERAGE — a month nobody sent is an absent month, not zero spend, and the
+    upload screen says so BEFORE the install (`CoveragePanel`).
+
+Whatever comes out of the merge is validated by the code a single upload goes
+through, so a delivery can never be judged by looser rules than one file. Any
+install then replaces what was loaded.
+
+EACH FILE KEEPS ITS OWN MAPPING. A client who renamed a column half way
+through the year is the ordinary case, so the mapping is keyed by filename and
+one file's names are never applied to another's columns — the API refuses a
+flat mapping sent with several files rather than guessing.
+
+A SOURCE INSTALL CAN BE PULLED AGAIN. The connection, EVERY blob or table of
+the delivery and the confirmed mappings are saved
+(`backend/app/mmm/source_sync.py`), so the Live pill in the top bar re-reads
+the same selection the same way and picks up the days added since. An upload or
+a reset clears that record — a file on a laptop cannot be re-read.
 
 ## The data contract
 

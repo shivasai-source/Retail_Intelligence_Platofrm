@@ -34,6 +34,7 @@ export function AppShell({
   datasetComplete,
   settingsHref,
   tpoTools,
+  tools,
 }: {
   activeKey?: string
   crumbs?: Crumb[]
@@ -50,6 +51,8 @@ export function AppShell({
    *  and sync pill belong in its top bar. Omitted, both are TPO's. */
   settingsHref?: string
   tpoTools?: boolean
+  /** See Topbar — a module's own live pill, in the slot TPO's would take. */
+  tools?: (live: { label: string; reset: () => void }) => ReactNode
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const pinned = useSidebar((s) => s.pinned)
@@ -92,6 +95,7 @@ export function AppShell({
             onMenuClick={() => setSidebarOpen(true)}
             settingsHref={settingsHref}
             tpoTools={tpoTools}
+            tools={tools}
           />
           <main
             data-scroll-root

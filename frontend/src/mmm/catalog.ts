@@ -15,11 +15,11 @@ import { CATALOG, type CatalogEntry } from '../components/portal/catalog'
 //               /api/proxy/powerbi. It installs nothing, on either module, so it
 //               is reused verbatim.
 //
-//   azure-blob  BROWSE ONLY. Authenticating and listing is generic and reused
-//   databricks  (MmmSourceBrowser drives the same hooks TPO's modals use). Their
-//               INSTALL half is TPO's star-schema installer, which MMM must not
-//               reach; an MMM install from these sources is not built yet, so
-//               the browser says so and stops.
+//   azure-blob  FUNCTIONAL. MmmSourceBrowser browses through the same hooks
+//   databricks  TPO's modals use, then installs the chosen blob or table
+//               through MMM's own routes (POST /api/mmm/dataset/azure/install
+//               and .../databricks/install, backend/app/mmm/sources.py) — one
+//               file in, MMM's data folder out, never TPO's star schema.
 //
 //   everything  SOON. No backend at all, for TPO or MMM.
 //   else
@@ -34,9 +34,9 @@ const MMM_DESCRIPTIONS: Record<string, string> = {
   excel:
     'Upload the daily MMM file — date, revenue and spend per media channel — as .csv, .xlsx or .xls. Columns are matched on their headers, so the file name does not matter.',
   'azure-blob':
-    'Browse containers and blobs in an Azure storage account — authenticated with a SAS token — to find the daily MMM extract.',
+    'Browse containers and blobs in an Azure storage account — authenticated with a SAS token — and load the daily MMM extract straight from it.',
   databricks:
-    'Browse Unity Catalog catalogs, schemas and tables over a SQL warehouse endpoint to find the daily MMM table.',
+    'Browse Unity Catalog catalogs, schemas and tables, then export the daily MMM table over a SQL warehouse and load it.',
   powerbi:
     'Sign in with your Microsoft account to list the workspaces, dashboards and reports the platform can read alongside your marketing data.',
 }

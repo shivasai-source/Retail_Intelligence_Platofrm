@@ -8,10 +8,24 @@ import { InstallProgress } from '../portal/modals/InstallProgress'
 // strip the Data Connections installs use -- a percentage, the time elapsed
 // and roughly how long is left. The percentage is an estimate (the sync is one
 // request that streams no progress), so the strip eases towards it and only
-// fills once the sync has actually returned (`done`).
+// fills once the work has actually finished.
+//
+// A SYNC IS TWO WAITS, and the card names both. `pulling` is the request to
+// the source; `loading` is every screen coming back on the data it brought in,
+// which on a large dataset is the longer of the two. Each stage gets its own
+// strip (`key={stage}`) so the elapsed clock and the bar restart with it,
+// rather than one bar sitting at 100% through a wait it has already claimed to
+// have finished.
+
+/** What the sync is doing: pulling from the source, reloading the screens on
+ *  what it brought back, or finished. */
+export type SyncStage = 'pulling' | 'loading' | 'done'
 
 /** Rough sync times, from the connectors' own install estimates. */
 const ESTIMATE_MS: Record<string, number> = { databricks: 60_000, azure: 45_000 }
+
+/** Rough time for the invalidated queries to come back. */
+const RELOAD_ESTIMATE_MS = 12_000
 
 /** The source kinds the sync knows, as the connector catalogue's logo ids --
  *  so the real Databricks / Azure marks show, the same ones Data Connections
@@ -50,14 +64,22 @@ export function SyncOverlay({
   kind,
   source,
   items,
-  done,
+  stage,
 }: {
   kind: string
   source: string
   items: string[]
-  done: boolean
+  stage: SyncStage
 }) {
   const tables = items.length
+  const done = stage === 'done'
+  const title = stage === 'pulling' ? `Syncing from ${source}` : 'Sync complete'
+  const subtitle =
+    stage === 'pulling'
+      ? `Pulling ${tables || 'all'} ${tables === 1 ? 'table' : 'tables'}`
+      : stage === 'loading'
+        ? 'Loading the new data into every screen…'
+        : 'Preparing the summary…'
   return createPortal(
     <div
       role="status"
@@ -70,14 +92,18 @@ export function SyncOverlay({
           <div className="flex items-center gap-4">
             <SourceMark kind={kind} name={source} state={done ? 'done' : 'busy'} />
             <div className="min-w-0">
-              <div className="text-lg font-normal text-ink-primary">{done ? 'Sync complete' : `Syncing from ${source}`}</div>
-              <div className="truncate text-sm text-ink-muted">
-                {done ? 'Preparing the summary…' : `Pulling ${tables || 'all'} ${tables === 1 ? 'table' : 'tables'}`}
-              </div>
+              <div className="text-lg font-normal text-ink-primary">{title}</div>
+              <div className="truncate text-sm text-ink-muted">{subtitle}</div>
             </div>
           </div>
 
-          <InstallProgress active={!done} done={done} estimateMs={ESTIMATE_MS[kind] ?? 60_000} label={`Exporting from ${source}`} />
+          <InstallProgress
+            key={stage === 'pulling' ? 'pulling' : 'loading'}
+            active={!done}
+            done={done}
+            estimateMs={stage === 'pulling' ? (ESTIMATE_MS[kind] ?? 60_000) : RELOAD_ESTIMATE_MS}
+            label={stage === 'pulling' ? `Exporting from ${source}` : 'Rebuilding the screens'}
+          />
 
           {tables > 0 && (
             <div className="mt-4 flex flex-wrap gap-1.5">
@@ -87,8 +113,10 @@ export function SyncOverlay({
                   title={name}
                   className="inline-flex max-w-[210px] items-center gap-1.5 rounded-[var(--r-pill)] border border-border-subtle bg-surface-muted px-2.5 py-1 text-xs text-ink-secondary [&_svg]:h-3 [&_svg]:w-3 [&_svg]:shrink-0"
                 >
-                  <span className={done ? 'text-status-success' : 'text-ink-muted'}>
-                    <Icon name={done ? 'check' : 'database'} />
+                  {/* Pulled is pulled: the ticks appear when the export
+                      finishes, not when the reload behind it does. */}
+                  <span className={stage === 'pulling' ? 'text-ink-muted' : 'text-status-success'}>
+                    <Icon name={stage === 'pulling' ? 'database' : 'check'} />
                   </span>
                   <span className="truncate">{name.split('.').pop()}</span>
                 </span>

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useIsFetching } from '@tanstack/react-query'
 import { Icon } from '../../icons'
 import { LiveStatus, useToast } from '../ui'
 import { useSourceStatus, useSourceSync } from '../../hooks/useDatasets'
@@ -19,6 +20,16 @@ import type { SourceSyncResult } from '../../types/dataset'
 // timer pill it always had.
 
 const ROWS = new Intl.NumberFormat('en-IN')
+
+/** How long "Sync complete" stays on screen once the page has its new numbers,
+ *  so a quick reload reads as a confirmation rather than a flicker. */
+const MIN_DONE_MS = 900
+/** Grace for the invalidated queries to START coming back after the sync has
+ *  returned — react-query invalidates them a tick later than this callback. */
+const START_GRACE_MS = 700
+/** The overlay never holds the page longer than this, whatever is still in
+ *  flight; the summary goes up and the rest finishes behind it. */
+const MAX_DONE_MS = 25_000
 
 function ago(iso: string, now: number): string {
   const s = Math.max(0, Math.floor((now - Date.parse(iso)) / 1000))
@@ -45,14 +56,59 @@ export function SyncStatus({
   const [now, setNow] = useState(() => Date.now())
   /** The last successful sync, shown in the "what changed" panel until closed. */
   const [summary, setSummary] = useState<SourceSyncResult | null>(null)
-  /** The sync has returned: the overlay's bar fills to 100% for a beat
-   *  before the summary takes its place. */
+  /** The sync has returned: the overlay's bar is full and stays up until the
+   *  page has actually reloaded on the new data. */
   const [finishing, setFinishing] = useState(false)
+  /** The summary to show once that reload has landed. */
+  const pending = useRef<SourceSyncResult | null>(null)
+  const returnedAt = useRef(0)
+  const sawReload = useRef(false)
+  /** Queries in flight anywhere in the app. useSourceSync invalidates every
+   *  one of them, so while this is above zero the screens are rebuilding
+   *  themselves on the data the sync just brought in. */
+  const reloading = useIsFetching()
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 15000)
     return () => window.clearInterval(timer)
   }, [])
+
+  // THE RELOAD IS PART OF THE SYNC.
+  //
+  // When the request returns, the page is still showing the OLD numbers:
+  // useSourceSync has just invalidated every query and all of them have to
+  // come back. On a large dataset that second wait is the longer of the two,
+  // and it used to be invisible — the overlay closed after a flat 900ms, the
+  // summary took its place, and the only sign left that anything was still
+  // loading was the refresh icon turning in the Insights Hub toolbar.
+  //
+  // So the overlay holds its "Sync complete" state until those queries have
+  // landed, and only then does the summary appear over a page that is ready.
+  useEffect(() => {
+    if (!finishing) return
+    if (reloading > 0) {
+      sawReload.current = true
+      return
+    }
+    const elapsed = Date.now() - returnedAt.current
+    const wait = Math.max(sawReload.current ? 0 : START_GRACE_MS, MIN_DONE_MS - elapsed)
+    const timer = window.setTimeout(() => {
+      setFinishing(false)
+      setSummary(pending.current)
+    }, wait)
+    return () => window.clearTimeout(timer)
+  }, [finishing, reloading])
+
+  // Nothing holds the page for ever — a background poll that never settles
+  // must not keep the overlay up.
+  useEffect(() => {
+    if (!finishing) return
+    const timer = window.setTimeout(() => {
+      setFinishing(false)
+      setSummary(pending.current)
+    }, MAX_DONE_MS)
+    return () => window.clearTimeout(timer)
+  }, [finishing])
 
   if (!source?.syncable) return <LiveStatus label={liveLabel} className={className} />
 
@@ -77,12 +133,12 @@ export function SyncStatus({
           }))
         }
         // The panel replaces the old toast: it says what the data held
-        // before and what changed, and stays until the reader closes it.
+        // before and what changed, and stays until the reader closes it. It
+        // waits for the reload above, so it never covers a half-loaded page.
+        pending.current = r
+        returnedAt.current = Date.now()
+        sawReload.current = false
         setFinishing(true)
-        window.setTimeout(() => {
-          setFinishing(false)
-          setSummary(r)
-        }, 900)
       },
       onError: (e) => {
         show(`Sync failed — the previous data is still loaded. ${e.message}`, { variant: 'error', duration: 7000 })
@@ -100,7 +156,12 @@ export function SyncStatus({
   return (
     <>
     {(busy || finishing) && (
-      <SyncOverlay kind={source.kind ?? ''} source={source.label ?? 'the source'} items={source.items} done={finishing && !busy} />
+      <SyncOverlay
+        kind={source.kind ?? ''}
+        source={source.label ?? 'the source'}
+        items={source.items}
+        stage={busy ? 'pulling' : reloading > 0 || !sawReload.current ? 'loading' : 'done'}
+      />
     )}
     {summary && <SyncSummaryPanel kind={source.kind ?? ''} result={summary} onClose={() => setSummary(null)} />}
     <button

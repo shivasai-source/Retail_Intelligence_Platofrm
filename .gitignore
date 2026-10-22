@@ -37,6 +37,8 @@ backend/.store/
 
 # Runtime-written; holds the connected source's token — see app/source_sync.py
 backend/app/data/source-connection.json
+# The same, for MMM's own source — see app/mmm/source_sync.py
+backend/app/data/mmm-source-connection.json
 
 # The uploaded MMM future plan (Revenue Forecast) -- see app/mmm/forecast.py
 Data/mmm/forecast/

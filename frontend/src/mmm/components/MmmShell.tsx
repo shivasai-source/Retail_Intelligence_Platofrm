@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { AppShell } from '../../components/layout/AppShell'
 import { MMM_BRAND, MMM_NAV, MMM_ROUTES } from '../nav'
 import { useMmmStatus } from '../hooks'
+import { MmmSyncStatus } from './MmmSyncStatus'
 
 /** THE MMM PAGE SHELL — TPO's AppShell, configured for MMM once.
  *
@@ -12,6 +13,8 @@ import { useMmmStatus } from '../hooks'
  *    datasetComplete MMM's own dataset status, never TPO's star schema
  *    settingsHref    /mmm/settings, so the gear keeps the reader in MMM
  *    tpoTools=false  TPO's alert bell and sync pill read TPO's data — off here
+ *    tools           MMM's OWN live pill in that corner instead, which syncs
+ *                    MMM's connected source (MmmSyncStatus)
  *
  *  While the status request is in flight the rail is treated as unlocked, as
  *  TPO's is, so it does not flash a wall of padlocks on every load. */
@@ -38,6 +41,13 @@ export function MmmShell({
       datasetComplete={status.data ? status.data.complete : true}
       settingsHref={MMM_ROUTES.settings}
       tpoTools={false}
+      tools={(live) => (
+        <MmmSyncStatus
+          liveLabel={live.label}
+          onSynced={live.reset}
+          className="mr-1.5 hidden sm:inline-flex"
+        />
+      )}
     >
       {children}
     </AppShell>

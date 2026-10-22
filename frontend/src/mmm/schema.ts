@@ -212,6 +212,34 @@ export interface MmmHeaderCheck {
   ok: boolean
 }
 
+/** The same check, from a SERVER inspect (POST /api/mmm/dataset/inspect and
+ *  its azure / databricks twins) rather than from a header read in the
+ *  browser. Needed wherever the columns cannot be read here: a workbook, a
+ *  blob, a warehouse table. The two paths must agree, so this maps the server's
+ *  answer into the very shape `checkHeader` returns rather than re-deciding
+ *  anything. */
+export function checkFromInspect(r: {
+  ok: boolean
+  media_columns: string[]
+  rollup_columns?: string[]
+  missing_required: string[]
+  missing_optional: string[]
+  ignored: string[]
+}): MmmHeaderCheck {
+  return {
+    media: r.media_columns,
+    rollups: r.rollup_columns ?? [],
+    promo: columnsIn('promo')
+      .map((c) => c.name)
+      .filter((n) => !r.missing_optional.includes(n)),
+    missingRequired: r.missing_required,
+    // Spend columns are reported as channels, never as missing optionals.
+    missingOptional: r.missing_optional.filter((c) => !c.endsWith('_Spend')),
+    ignored: r.ignored,
+    ok: r.ok,
+  }
+}
+
 export function checkHeader(header: string[]): MmmHeaderCheck {
   const byName = new Map(MMM_COLUMNS.map((c) => [c.name.toLowerCase(), c]))
   const found = new Set<string>()

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Icon } from '../../icons'
 import { Dropdown, IconButton, ThemeToggle, useLiveStatus } from '../ui'
@@ -19,6 +19,7 @@ export function Topbar({
   onMenuClick,
   settingsHref = '/settings',
   tpoTools = true,
+  tools,
 }: {
   crumbs?: Crumb[]
   onMenuClick?: () => void
@@ -27,6 +28,13 @@ export function Topbar({
   /** TPO's alert bell and its source-sync pill. Both read TPO's star schema,
    *  so another module's pages turn them off rather than show TPO alerts. */
   tpoTools?: boolean
+  /** A module's OWN pill, in the slot TPO's would occupy. MMM has a connected
+   *  source of its own to sync (mmm/components/MmmSyncStatus), and a live
+   *  pill belongs in the one corner that is the same on every page rather
+   *  than wherever a page's title happens to end. It is rendered with the
+   *  same page-visit timer TPO's gets, so a module that cannot sync still
+   *  shows the plain timer and the corner never changes shape. */
+  tools?: (live: { label: string; reset: () => void }) => ReactNode
 }) {
   // B12: see Sidebar — the real signed-in session, not the authored persona.
   const { data: user } = useCurrentUser()
@@ -92,6 +100,7 @@ export function Topbar({
         {tpoTools && (
           <SyncStatus liveLabel={live.label} onSynced={live.reset} className="mr-1.5 hidden sm:inline-flex" />
         )}
+        {!tpoTools && tools?.({ label: live.label, reset: live.reset })}
         <ThemeToggle />
         {tpoTools && <NotificationBell />}
         <IconButton icon="settings" title="Settings" onClick={() => navigate(settingsHref)} />

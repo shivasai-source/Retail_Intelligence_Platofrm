@@ -23,8 +23,11 @@ import { MmmDataRequirements } from '../components/MmmDataRequirements'
 //   * "What do I upload?" opens MMM's requirements guide, which also opens on
 //     its own while nothing is loaded, until the reader asks it not to —
 //     exactly TPO's behaviour, with its own remembered setting;
-//   * Excel / Shared Drives opens MMM's upload dialog, which installs into
-//     MMM's data folder; Azure and Databricks browse; Power BI signs in.
+//   * Excel / Shared Drives opens MMM's upload dialog and Azure / Databricks
+//     the source browser; all three install into MMM's data folder, and the
+//     tile that is lit is the one the loaded dataset actually came from
+//     (`source_kind`). Power BI signs in and installs nothing, on either
+//     module.
 
 const GUIDE_MUTED_KEY = 'mmm.dataGuide.muted'
 
@@ -63,7 +66,12 @@ export function MmmConnections() {
     // Only the first settled status matters; later changes must not reopen it.
   }, [statusKnown]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const connected: ReadonlySet<string> = new Set(complete ? ['excel'] : [])
+  // THE LIT TILE IS THE SOURCE THE DATA CAME FROM, which the backend records
+  // with the dataset (app/mmm/dataset.py#install). Older installs predate that
+  // and read back as 'excel', which is what they were.
+  const connected: ReadonlySet<string> = new Set(
+    complete ? [status?.source_kind ?? 'excel'] : [],
+  )
 
   const openTile = (entry: CatalogEntry) => {
     if (entry.status !== 'available') return
@@ -103,7 +111,7 @@ export function MmmConnections() {
         body={
           complete && status
             ? `${status.rows.toLocaleString()} days (${status.period.from} – ${status.period.to}) across ${status.media_channels} media channels. Upload another file at any time to replace it.`
-            : 'MMM reads one daily file — date, revenue and spend per media channel. Upload it through Excel / Shared Drives to unlock the Insights Hub, Calendar and Reports.'
+            : 'MMM reads one daily file — date, revenue and spend per media channel. Load it from a file, an Azure container or a Databricks table to unlock the Insights Hub, Calendar and Reports.'
         }
         action={
           <>

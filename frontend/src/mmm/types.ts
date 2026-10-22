@@ -20,15 +20,66 @@ export interface MmmStatus {
   rows: number
   period: { from: string | null; to: string | null }
   media_channels: number
+  /** Which connector installed it — 'excel', 'azure-blob' or 'databricks'. */
+  source_kind: 'excel' | 'azure-blob' | 'databricks' | null
   source_name: string | null
   size_bytes: number
   modified_at: string | null
 }
 
 /** POST /api/mmm/dataset */
+/** What app/mmm/day_union.py decided when a delivery was several files. */
+export interface MmmUnionReport {
+  files: number
+  rows_in: number
+  rows_out: number
+  duplicates_removed: number
+  conflicts: number
+  dropped_columns: string[]
+}
+
+/** One file of a delivery, as the coverage panel reports it. */
+export interface MmmFileSpan {
+  filename: string
+  rows: number
+  first: string
+  last: string
+  days: number
+  missing_columns: string[]
+  unreadable: boolean
+  error: string
+}
+
+/** What a whole delivery spans, where it is thin, and what repeats. The MMM
+ *  twin of TPO's star coverage — days rather than weeks, since MMM's row is a
+ *  day. */
+export interface MmmCoverage {
+  files: MmmFileSpan[]
+  first: string
+  last: string
+  days: number
+  rows_delivered: number
+  /** Runs of absent days inside the delivered span, already phrased. */
+  gaps: string[]
+  /** Files that hold the same days, phrased. */
+  overlaps: string[]
+  duplicate_rows: number
+  conflicting_rows: number
+  /** Columns dropped because not every file had them. */
+  dropped_columns: string[]
+  unreadable: string[]
+  has_warnings: boolean
+}
+
 export interface MmmInstallResult {
   installed: boolean
   rows: number
+  /** The confirmed mappings, keyed by filename. */
+  mapping?: Record<string, Record<string, string>>
+  /** The files the delivery arrived in. */
+  files?: string[]
+  /** Absent when one file was installed — there was nothing to merge. */
+  union?: MmmUnionReport | null
   media_columns: string[]
   missing_optional: string[]
   ignored: string[]
@@ -36,10 +87,37 @@ export interface MmmInstallResult {
   status: MmmStatus
 }
 
+/** What app/mmm/mapping.py suggests for one file's header: which of the
+ *  file's own columns stands for each of MMM's, which pass found it, what is
+ *  still missing, and the columns nothing claimed. */
+export interface MmmProposal {
+  /** canonical column -> the file's own column standing for it. */
+  mapping: Record<string, string>
+  /** canonical column -> 'exact' | 'alias' | 'channel' | 'typo' | 'new'. */
+  sources: Record<string, MmmMatchSource>
+  /** Required columns nothing matched — what the reader is asked about. */
+  unmapped: string[]
+  /** The file's columns nothing claimed, offered in the dropdowns. */
+  spare: string[]
+  /** actual -> canonical, for the columns that actually change name. */
+  renames: Record<string, string>
+  is_complete: boolean
+}
+
+export type MmmMatchSource = 'exact' | 'alias' | 'channel' | 'typo' | 'new'
+
 /** POST /api/mmm/dataset/inspect */
 export interface MmmInspectResult {
   filename: string
+  /** The header AFTER the mapping sent with the request, if any. */
   columns: string[]
+  /** The file's own column names, whatever the mapping says. */
+  source_columns: string[]
+  /** The mapping this answer was computed with. */
+  mapping: Record<string, string>
+  /** Columns the mapping collided with and had to drop. */
+  dropped: string[]
+  proposal: MmmProposal
   ok: boolean
   problems: string[]
   media_columns: string[]
@@ -48,6 +126,118 @@ export interface MmmInspectResult {
   missing_required: string[]
   missing_optional: string[]
   ignored: string[]
+}
+
+/** POST /api/mmm/dataset/azure/{inspect,install} — one blob. MMM reads a
+ *  single daily table, so the selection is one file, not a set of six. */
+/** One blob or table of a selection. */
+export interface MmmBlobSel {
+  container: string
+  name: string
+}
+
+export interface MmmTableSel {
+  catalog: string
+  schema_name: string
+  name: string
+}
+
+export interface MmmAzureRef {
+  account: string
+  sas: string
+  /** Several blobs are several PERIODS of the one daily table. */
+  blobs?: MmmBlobSel[]
+  container?: string
+  name?: string
+  /** Read every row to work out which days each file covers. */
+  coverage?: boolean
+  /** Lets the dialog poll the install's real byte progress. */
+  progress_id?: string
+  /** One object for a single file, or one per filename for a delivery. */
+  mapping?: Record<string, string> | Record<string, Record<string, string>>
+}
+
+/** POST /api/mmm/dataset/databricks/{inspect,install} — one table. */
+export interface MmmDbxRef {
+  workspace_url: string
+  token: string
+  tables?: MmmTableSel[]
+  catalog?: string
+  schema_name?: string
+  name?: string
+  coverage?: boolean
+  /** One object for a single file, or one per filename for a delivery. */
+  mapping?: Record<string, string> | Record<string, Record<string, string>>
+}
+
+/** GET /api/mmm/dataset/source — where the loaded dataset came from. Shaped
+ *  like TPO's /api/datasets/source, so MMM's pill is TPO's pill. The token is
+ *  never part of it. */
+export interface MmmSourceStatus {
+  kind: 'azure' | 'databricks' | null
+  syncable: boolean
+  label: string | null
+  origin: string | null
+  items: string[]
+  /** How many columns the saved mapping renames on every pull. */
+  mapped_columns: number
+  saved_at: string | null
+  last_sync: MmmSyncOutcome | null
+  syncing: boolean
+}
+
+export interface MmmSyncOutcome {
+  at: string
+  ok: boolean
+  rows: number | null
+  previous_rows: number | null
+  error: string | null
+}
+
+/** The data, before and after a sync. Days, period and channels only — never
+ *  a KPI, which belongs to the pages. */
+export interface MmmDataSnapshot {
+  rows: number
+  media_channels: number
+  first_day: string | null
+  last_day: string | null
+  source_name: string | null
+}
+
+/** POST /api/mmm/dataset/source/sync */
+export interface MmmSyncResult {
+  source: string
+  kind: string
+  /** Every item of the selection, joined — for a one-line label. */
+  item: string
+  items?: string[]
+  before: MmmDataSnapshot
+  after: MmmDataSnapshot
+  warnings: string[]
+  last_sync: MmmSyncOutcome
+  synced_at: string
+  status: MmmStatus
+}
+
+/** POST /api/mmm/dataset/inspect, and the azure / databricks twins.
+ *
+ *  A DELIVERY, not a file: one entry per file, then the verdict for the MERGED
+ *  table. That distinction is the point — a file holding only Q1's spend is
+ *  missing nothing when another file carries Q1's revenue, so `ok` is asked of
+ *  the delivery and `files[].ok` of each file on its own. */
+export interface MmmDeliveryInspect {
+  files: MmmInspectResult[]
+  /** Every column the delivery maps to, across its files. */
+  columns: string[]
+  ok: boolean
+  problems: string[]
+  media_columns: string[]
+  rollup_columns: string[]
+  missing_required: string[]
+  missing_optional: string[]
+  ignored: string[]
+  /** Only when `coverage` was asked for: it costs a full read. */
+  coverage?: MmmCoverage
 }
 
 /** GET /api/mmm/dataset/preview */

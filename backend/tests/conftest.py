@@ -97,6 +97,16 @@ REFERENCE_DATA = _materialise_reference_data()
 # Set BEFORE app imports, so config.DATA_DIR resolves here. See the docstring.
 os.environ["TPO_DATA_DIR"] = str(REFERENCE_DATA)
 
+# THE CONNECTED-SOURCE RECORDS, likewise pointed somewhere throwaway for the
+# whole session. Installing from Azure or Databricks SAVES the connection
+# (app/source_sync.py, app/mmm/source_sync.py), so without this a connector
+# test would overwrite the record the developer's own browser is using — and
+# with it the token behind their Live pill. A test that wants its own record
+# still sets the variable itself; this is the floor, not the fixture.
+_SOURCE_RECORDS = Path(tempfile.mkdtemp(prefix="tpo-source-records-"))
+os.environ.setdefault("TPO_SOURCE_CONN_PATH", str(_SOURCE_RECORDS / "source-connection.json"))
+os.environ.setdefault("MMM_SOURCE_CONN_PATH", str(_SOURCE_RECORDS / "mmm-source-connection.json"))
+
 
 @pytest.fixture(scope="session")
 def reference_data() -> Path:
