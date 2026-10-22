@@ -20,6 +20,24 @@ call, which sit on the same engine as the KPI cards. So the bot cannot
 contradict the dashboard on the same dataset: they are not two implementations,
 they are one. The model's job is turning words into a scope, and the result
 back into a sentence.
+
+IT CAN ALSO DRIVE THE PAGE. "Change the period to 2024", "drop the region chart
+and put product performance there", "undo that" — the Hub's period, filters,
+cards and charts are all things a reader can now ask for in words instead of
+hunting for the control (`set_period`, `set_filter`, `set_layout`, `undo`).
+
+  THE SERVER CHANGES NOTHING. Those tools compute no data and hold no state;
+  each returns a DESCRIBED ACTION, which travels back beside the answer and is
+  applied by the browser — the same way a chart spec already does. So there is
+  one place where the page changes, the reader can see what changed, and every
+  change can be undone.
+
+  AN ACTION IT CANNOT NAME IS REFUSED, not approximated. A tool that silently
+  did nothing would leave the model saying "I've set the period to 2019" over a
+  page still showing 2025, which is worse than any error message. So the ids
+  are enumerated in the tool schemas (`hub_layout.py`), the values are checked
+  against the dataset (`hub_scope.py`), and a miss comes back as something the
+  model must read and relay.
 """
 import json
 import logging
@@ -28,6 +46,7 @@ from datetime import date
 from typing import Any, Literal
 
 from app.agents import analyst_knowledge as knowledge
+from app.agents import hub_layout, hub_scope
 from app.agents import analyst_memory as memory_store
 from app.agents import star_tools as T
 from app.agents.analyst_charts import CHART_TYPES, build_chart
@@ -65,6 +84,50 @@ _WHY_OPENERS = (
     "explain why", "reason for", "reasons for", "root cause",
     "what led to", "what made",
 )
+
+# --- "undo that" ---------------------------------------------------------
+#
+# AN UNDO IS NOT A QUESTION, so it does not go to the model.
+#
+# This was found by watching it fail. Asked to "undo that" after removing a
+# chart, the model answered "The last change has been reverted, and the Sales
+# by Region chart is back on the dashboard" — and called nothing. The chart
+# stayed off and the sentence was simply false, which is the worst outcome this
+# feature can produce: the reader has no reason to doubt it and nothing on
+# screen contradicts it.
+#
+# The fix is to stop asking. "Undo" has exactly one meaning, the browser owns
+# the stack that knows what to put back, and the model adds nothing but the
+# opportunity to be wrong. So the request is recognised here, answered with the
+# undo action and no model call at all — instant, free, and identical every
+# time. The sentence the reader sees is then written by what the stack ACTUALLY
+# did (see lib/analystActions.ts), not by a guess about it.
+_UNDO_REQUESTS = (
+    "undo", "undo that", "undo it", "undo this", "undo the last change",
+    "revert", "revert that", "revert it", "revert this", "revert the last change",
+    "put it back", "put that back", "put them back",
+    "go back", "never mind", "nevermind", "cancel that", "take that back",
+    "roll that back", "roll it back", "unset that",
+)
+
+
+def is_undo_request(question: str) -> bool:
+    """A bare instruction to put the last change back.
+
+    Deliberately narrow: the WHOLE message has to be the instruction, so
+    "undo the discount and tell me what ROI was" still reaches the model
+    rather than being answered as a bare undo. Trailing punctuation and a
+    leading please are allowed, because that is how people type.
+    """
+    text = (question or "").strip().lower().strip(".!?,")
+    for prefix in ("please ", "can you ", "could you ", "would you "):
+        if text.startswith(prefix):
+            text = text[len(prefix):].strip()
+    return text in _UNDO_REQUESTS
+
+
+UNDO_ANSWER = "Putting that back."
+
 
 WHY_DEFLECTION = (
     "I can't answer *why* something happened — I look numbers up and do the "
@@ -282,6 +345,125 @@ TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "set_period",
+            "description": (
+                "Change WHICH PERIOD the Insights Hub is showing — its Period control and "
+                "every card, chart and table under it. Use when the reader asks to see a "
+                "different year, month or week range ('show me 2024', 'change the period to "
+                "March 2025', 'look at all the data'). This does not answer a question: it "
+                "moves the page. To quote a figure for another period WITHOUT moving the "
+                "page, use get_kpis with filters instead."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "year": {"type": "integer", "description": "A calendar year in the data."},
+                    "month": {
+                        "type": "integer",
+                        "description": "Month 1-12. Needs `year` too — a month alone is ambiguous.",
+                    },
+                    "week_from": {
+                        "type": "integer",
+                        "description": "Start of a custom range as yyyyww (202611 = week 11 of 2026).",
+                    },
+                    "week_to": {"type": "integer", "description": "End of the range, as yyyyww."},
+                    "all_data": {
+                        "type": "boolean",
+                        "description": "Every period in the dataset — the Hub's own default.",
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_filter",
+            "description": (
+                "Narrow or widen WHAT the Insights Hub is showing, by one of its filter "
+                "dimensions — 'just Modern Trade', 'filter to the North region', 'clear the "
+                "channel filter', 'remove all filters'. Moves the page; it does not answer a "
+                "question."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "dimension": {
+                        "type": "string",
+                        "enum": list(hub_scope.FILTER_KEYS),
+                        "description": "Which filter to set.",
+                    },
+                    "values": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "The values to select. Only channel, retailer, category and brand "
+                            "take more than one at a time."
+                        ),
+                    },
+                    "clear": {"type": "boolean", "description": "Clear just this dimension."},
+                    "clear_all": {"type": "boolean", "description": "Clear every filter."},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_layout",
+            "description": (
+                "Change WHICH CHARTS AND CARDS are on the Insights Hub — add one, remove one, "
+                "swap one for another ('remove the region chart', 'put product performance "
+                "where the mix chart is', 'add the volume uplift card', 'put the dashboard "
+                "back to normal'). A swap is one call: hide_charts the old, show_charts the "
+                "new.\n\nTHE CHARTS:\n"
+                + hub_layout.panel_catalogue()
+                + "\n\nTHE CARDS:\n"
+                + hub_layout.card_catalogue()
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "show_charts": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": list(hub_layout.PANEL_IDS)},
+                    },
+                    "hide_charts": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": list(hub_layout.PANEL_IDS)},
+                    },
+                    "show_cards": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": list(hub_layout.CARD_IDS)},
+                    },
+                    "hide_cards": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": list(hub_layout.CARD_IDS)},
+                    },
+                    "reset": {
+                        "type": "boolean",
+                        "description": "Back to the default charts and cards.",
+                    },
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "undo",
+            "description": (
+                "Put back whatever the last change to the page changed — the period, a "
+                "filter, a chart, a card. Use for 'undo', 'revert that', 'put it back', 'no, "
+                "go back'. Only changes made through this chat can be undone; say so if the "
+                "reader is asking about something they did with the controls themselves."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_schema",
             "description": (
                 "The dimensions that exist and the real values they take — years, channels, "
@@ -404,6 +586,35 @@ def _run_tool(name: str, args: dict[str, Any], currency: str) -> dict[str, Any]:
     Every figure that leaves here carries a `*_display` string beside it — see
     `_with_display` for why the model is not trusted to make one.
     """
+    # THE PAGE-DRIVING TOOLS come first and return early: they take no
+    # `filters` argument, compute nothing, and must not be run through the
+    # scope resolver below.
+    if name == "set_period":
+        return {"action": hub_scope.period_action(
+            year=args.get("year"),
+            month=args.get("month"),
+            week_from=args.get("week_from"),
+            week_to=args.get("week_to"),
+            all_data=bool(args.get("all_data")),
+        )}
+    if name == "set_filter":
+        return {"action": hub_scope.filter_action(
+            dimension=str(args.get("dimension") or ""),
+            values=args.get("values"),
+            clear=bool(args.get("clear")),
+            clear_all=bool(args.get("clear_all")),
+        )}
+    if name == "set_layout":
+        return {"action": hub_layout.layout_action(
+            show_charts=args.get("show_charts"),
+            hide_charts=args.get("hide_charts"),
+            show_cards=args.get("show_cards"),
+            hide_cards=args.get("hide_cards"),
+            reset=bool(args.get("reset")),
+        )}
+    if name == "undo":
+        return {"action": {"kind": "undo", "summary": "undid the last change"}}
+
     filters = T.resolve_codes(args.get("filters") or {})
     if name == "get_kpis":
         payload = T.segment_kpis(filters)
@@ -519,6 +730,35 @@ WHAT YOU DO
   in your own words. NEVER improvise a formula — the definitions are
   transcribed from the code that computes the numbers, and an invented one is
   wrong in a way the reader cannot check.
+- CHANGE THE PAGE when that is what was asked (set_period, set_filter,
+  set_layout, undo). "Change the period to 2024", "just Modern Trade", "drop
+  the region chart", "put it back" are instructions, not questions.
+
+  TELL THE DIFFERENCE between moving the page and quoting a number, because
+  they feel the same in words and are not:
+    * "What was ROI in 2024?" — a question. get_kpis with year 2024. The page
+      does not move.
+    * "Show me 2024" / "change the period to 2024" — an instruction. set_period.
+    * "Show me ROI by channel" — a chart in the chat (draw_chart), not a change
+      to the dashboard's own charts.
+    * "Add a channel chart to the dashboard" — set_layout.
+  When it is genuinely ambiguous, move the page AND say what you did in one
+  short sentence; the reader can see the result and can undo it.
+
+  THE CHANGE IS ALREADY MADE once the tool returns, and the reader can see it.
+  So confirm it in ONE short sentence — "Period's now 2024." — and stop. Do not
+  re-quote the figures that moved; they are on screen. Do not list what else
+  they could ask for.
+
+  IF A TOOL REFUSES, the page did NOT change. Relay what it said — the years
+  that exist, the charts there are — and never claim a change you were refused.
+
+  AND IF YOU CALLED NOTHING, YOU CHANGED NOTHING. There is no other way to
+  move the page: not by describing the change, not by saying it is done, not
+  by agreeing that it should be. A sentence like "the chart is back" with no
+  tool call behind it is simply false, and the reader has no way to tell. If
+  you are not going to call a tool, say what you are not doing and why.
+
 - Draw a chart (draw_chart) when the reader asks to see/plot/graph something,
   or when a comparison across three or more groups reads better as a picture.
 
@@ -671,6 +911,7 @@ def _result(
     charts: list[dict[str, Any]],
     store: dict[str, Any],
     question: str,
+    actions: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """One turn's reply, with the conversation's memory folded forward.
 
@@ -697,6 +938,10 @@ def _result(
                     figures.append(f"{key[:-8].replace('_', ' ')}{where} = {value}")
 
     facts = [f"Asked: {question[:160]}"]
+    for action in actions or []:
+        if action.get("summary") and action.get("kind") != "undo":
+            facts.append(f"Changed the page: {action['summary']}")
+
     for chart in charts:
         if chart.get("title"):
             facts.append(f"Drew a chart: {chart['title']}")
@@ -721,6 +966,9 @@ def _result(
         "answer": strip_images(text),
         "steps": steps,
         "charts": charts,
+        # The browser applies these and can undo them; the server holds no
+        # page state, so they are not remembered here.
+        "actions": list(actions or []),
         "memory": updated,
         "memory_usage": memory_store.usage(updated),
     }
@@ -764,6 +1012,15 @@ async def answer(
     if not question:
         raise AnalystError("Ask me something about the promotion data.")
 
+    # An undo needs no model and no key — see `is_undo_request`. The answer
+    # the reader reads is written by the browser from what the undo stack
+    # actually put back, so this text is a placeholder for the one case where
+    # the client cannot: an old client that ignores `actions`.
+    if is_undo_request(question):
+        store = memory_store.normalise(memory)
+        return _result(UNDO_ANSWER, [], [], store, question,
+                       [{"kind": "undo", "summary": "undid the last change"}])
+
     currency = F.normalise_currency(currency)
     get_client()  # fail fast when no key is configured
 
@@ -782,6 +1039,9 @@ async def answer(
 
     steps: list[dict[str, Any]] = []
     charts: list[dict[str, Any]] = []
+    #: Changes to the page this turn asked for, in the order asked. The browser
+    #: applies them; nothing here does.
+    actions: list[dict[str, Any]] = []
 
     for _ in range(MAX_STEPS):
         response = await chat_completion(
@@ -798,7 +1058,7 @@ async def answer(
             text = (message.content or "").strip()
             if not text:
                 raise AnalystError("I couldn't put an answer together. Try rephrasing the question.")
-            return _result(text, steps, charts, store, question)
+            return _result(text, steps, charts, store, question, actions)
 
         messages.append(
             {
@@ -832,6 +1092,11 @@ async def answer(
             if isinstance(result, dict) and isinstance(result.get("chart"), dict):
                 charts.append(result["chart"])
 
+            # A page change, likewise — pulled out so the browser applies it
+            # once, from one place, with an Undo beside it.
+            if isinstance(result, dict) and isinstance(result.get("action"), dict):
+                actions.append(result["action"])
+
             # The schema dump is context for the model, not evidence for the
             # reader — kept out of `steps`.
             if name != "get_schema":
@@ -857,4 +1122,4 @@ async def answer(
     text = (final.choices[0].message.content or "").strip()
     if not text:
         raise AnalystError("That question needed more digging than I can do in one go. Try narrowing it.")
-    return _result(text, steps, charts, store, question)
+    return _result(text, steps, charts, store, question, actions)

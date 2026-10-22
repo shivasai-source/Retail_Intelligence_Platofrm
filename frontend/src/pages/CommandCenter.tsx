@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/layout/AppShell'
@@ -23,7 +23,10 @@ import { EmptyState as CcEmptyState, ErrorState, KpiSkeleton, PanelSkeleton, Sta
 import { AddKpiMenu } from '../components/command/AddKpiMenu'
 import { RefreshProgress } from '../components/command/RefreshProgress'
 import { SERIES_CLASS } from '../components/command/series'
-import { ADDABLE_KPI_ORDER, HERO_TILE_CLASS, readAddedKpis, writeAddedKpis } from '../components/command/kpiDeckState'
+import { HERO_TILE_CLASS } from '../components/command/kpiDeckState'
+import { panelRows } from '../components/command/hubPanels'
+import { ChartsMenu } from '../components/command/ChartsMenu'
+import { useHubLayout } from '../store/hubLayout'
 import { TrendPanels, type TrendSeries } from '../components/command/TrendPanels'
 import {
   ChannelSection,
@@ -165,16 +168,18 @@ export function CommandCenter() {
 
   const options = useFilterOptions()
   const kpis = useKpis()
-  // THE CARDS THE READER HAS ADDED beneath the headline three, in page order
-  // (see ADDABLE_KPI_ORDER) whatever order they were picked in. Page state
-  // seeded from the browser's memory of last time, written back on every
-  // change; nothing else on the page needs to know.
-  const [addedKpis, setAddedKpis] = useState<string[]>(readAddedKpis)
-  const setAdded = (keys: string[]) => {
-    const ordered = ADDABLE_KPI_ORDER.filter((k) => keys.includes(k))
-    writeAddedKpis(ordered)
-    setAddedKpis(ordered)
-  }
+  // WHAT THE PAGE IS SHOWING — the cards the reader added beneath the
+  // headline three, and which charts are on screen in what order.
+  //
+  // In a store rather than page state since the Analyst can change both
+  // ("add the volume uplift card", "drop the region chart"): the drawer
+  // portals to <body> and cannot reach a page's useState, and threading a
+  // setter into it would make the Analyst a prop of the dashboard. Still
+  // remembered per browser, the same guarded way it was — see
+  // store/hubLayout.ts.
+  const addedKpis = useHubLayout((s) => s.cards)
+  const setAdded = useHubLayout((s) => s.setCards)
+  const visibleCharts = useHubLayout((s) => s.charts)
   const trend = useTrend(granularity)
   // Both metrics per SCHEME for the Promotion Mix toggle.
   //
@@ -332,6 +337,123 @@ export function CommandCenter() {
   const isEmpty = meta.row_count === 0
 
 
+  // WHAT EACH CHART IS, by the id the list refers to. Built here rather than
+  // in hubPanels.ts because every one of these closes over the page's own
+  // queries and state — the trend alone needs `granularity`, `trendHidden`
+  // and `meta`, none of which a module could see. hubPanels.ts holds what the
+  // Analyst and the Charts menu need instead: the ids, the labels and the
+  // widths.
+  const panelNodes: Record<string, ReactNode> = {
+    trend: (
+          <Card>
+            <CardHeader
+              title={
+                <span className="flex items-center gap-1.5">
+                  Promotion Performance Trend
+                  <InfoPopover label="About Promotion Performance Trend" title="Promotion Performance Trend">
+                    <InfoBlock label="Incremental Sales">Actual Sales − Expected Sales without the promotion</InfoBlock>
+                    <InfoBlock label="Trade Spend">Discount Given + Promotion Cost</InfoBlock>
+                    <InfoBlock label="ROI">Incremental Sales ÷ Trade Spend — 1.00 is break-even</InfoBlock>
+                    <InfoBlock label="Target ROI">{fmtRoi(meta.target_roi)}</InfoBlock>
+                    <InfoBlock label="Legend">Click an item to hide or show that line.</InfoBlock>
+                  </InfoPopover>
+                </span>
+              }
+              actions={
+                <Dropdown
+                  selected={GRANULARITIES.find((g) => g.value === granularity)?.label ?? 'Weekly'}
+                  options={GRANULARITIES.map((g) => ({ label: g.label }))}
+                  onSelect={(picked) => {
+                    const next = GRANULARITIES.find((g) => g.label === picked)
+                    if (next) setGranularity(next.value)
+                  }}
+                  trigger={
+                    <Button variant="ghost" size="sm" className="cursor-pointer">
+                      {GRANULARITIES.find((g) => g.value === granularity)?.label} <Icon name="chevronDown" />
+                    </Button>
+                  }
+                />
+              }
+            />
+            <CardBody>
+              {/* Three business series, all lines, plus the dashed reference. The
+                  swatches mirror the stroke colours in TrendPanels; each item
+                  toggles its series. */}
+              <div className="mb-2 flex flex-wrap gap-4 pb-2">
+                <LegendItem
+                  swatch={<span className="h-0.5 w-[18px] rounded-sm bg-brand-violet" />}
+                  label={`Incremental Sales (${meta.currency})`}
+                  on={!trendHidden.has('sales')}
+                  onToggle={() => toggleTrend('sales')}
+                />
+                <LegendItem
+                  swatch={<span className={`h-0.5 w-[18px] rounded-sm ${SERIES_CLASS.spend}`} />}
+                  label={`Trade Spend (${meta.currency})`}
+                  on={!trendHidden.has('spend')}
+                  onToggle={() => toggleTrend('spend')}
+                />
+                <LegendItem
+                  swatch={<span className={`h-0.5 w-[18px] rounded-sm ${SERIES_CLASS.roi}`} />}
+                  label="ROI"
+                  on={!trendHidden.has('roi')}
+                  onToggle={() => toggleTrend('roi')}
+                />
+                <LegendItem
+                  swatch={<span className="h-0 w-[18px] border-t-2 border-dashed border-ink-muted" />}
+                  label={`Target ROI (${fmtRoi(meta.target_roi)})`}
+                  on={!trendHidden.has('target')}
+                  onToggle={() => toggleTrend('target')}
+                />
+              </div>
+              {trend.isLoading ? (
+                <PanelSkeleton height={300} />
+              ) : trend.error ? (
+                <ErrorState error={trend.error} onRetry={() => void trend.refetch()} retrying={trend.isFetching} compact />
+              ) : trend.data && trend.data.labels.length > 0 ? (
+                <Stale when={trend.isFetching}>
+                  {/* Symbol AND rate both come from the trend response. Taking
+                      the symbol from the KPI response instead let the two
+                      disagree mid-switch — the axis briefly rendered ₹ against
+                      USD-converted numbers while the slower query settled. */}
+                  <TrendPanels
+                    data={trend.data}
+                    rate={trend.data.meta.exchange_rate}
+                    symbol={trend.data.meta.currency === 'USD' ? '$' : '₹'}
+                    granularity={granularity}
+                    /* The height the card settled on while a Risk Alerts sibling
+                       drove the row. Kept now the row is its own: at the
+                       previous 320 the plot stopped ~88px short of the card's
+                       border; 408 left 30px once the card chrome tightened. */
+                    height={438}
+                    hidden={trendHidden}
+                  />
+                </Stale>
+              ) : (
+                <CcEmptyState compact message="No promotions in this selection." />
+              )}
+            </CardBody>
+          </Card>
+  
+        
+    ),
+    region: <SalesByRegionSection />,
+    comparison: <SalesComparisonCard />,
+    mix: (
+      <PromotionMixCard
+        mix={mix.data}
+        breakdown={mixBreakdown.data}
+        tradeSpendTotal={kpis.data.kpis.trade_spend?.display_value ?? '—'}
+        incrementalSalesTotal={kpis.data.kpis.incremental_sales?.display_value ?? '—'}
+        emptyState={<EmptyState message="No promotional spend in this selection." />}
+      />
+    ),
+    channel: <ChannelSection />,
+    top: <TopPerformingSection />,
+    contribution: <PromotionContributionSection />,
+    product: <ProductSection />,
+    promotion_type: <PromotionTypeSection />,
+  }
+
   return (
     <AppShell activeKey="command" crumbs={crumbs}>
       <RefreshProgress token={reload.token} title={reload.title} />
@@ -416,6 +538,10 @@ export function CommandCenter() {
               }
               onClear={() => setAdded([])}
             />
+            {/* WHICH CHARTS, beside which cards. Both change what is on screen
+                and neither changes the scope, so they belong on the same side
+                of the hairline. */}
+            <ChartsMenu />
             {/* The hairline separates the control that changes the VIEW from
                 the two that act on it. Decoration only. */}
             <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border-subtle" />
@@ -479,128 +605,41 @@ export function CommandCenter() {
         )}
       </div>
 
-      {/* The trend has the row to itself. The Risk Alerts card that shared it
-          — "Promotion Events Below ROI Target" — is the second step of the
-          alerts dialog on Investigations now; see the title row above. */}
-      <div className="mt-[14px]">
-        <Card>
-          <CardHeader
-            title={
-              <span className="flex items-center gap-1.5">
-                Promotion Performance Trend
-                <InfoPopover label="About Promotion Performance Trend" title="Promotion Performance Trend">
-                  <InfoBlock label="Incremental Sales">Actual Sales − Expected Sales without the promotion</InfoBlock>
-                  <InfoBlock label="Trade Spend">Discount Given + Promotion Cost</InfoBlock>
-                  <InfoBlock label="ROI">Incremental Sales ÷ Trade Spend — 1.00 is break-even</InfoBlock>
-                  <InfoBlock label="Target ROI">{fmtRoi(meta.target_roi)}</InfoBlock>
-                  <InfoBlock label="Legend">Click an item to hide or show that line.</InfoBlock>
-                </InfoPopover>
-              </span>
-            }
-            actions={
-              <Dropdown
-                selected={GRANULARITIES.find((g) => g.value === granularity)?.label ?? 'Weekly'}
-                options={GRANULARITIES.map((g) => ({ label: g.label }))}
-                onSelect={(picked) => {
-                  const next = GRANULARITIES.find((g) => g.label === picked)
-                  if (next) setGranularity(next.value)
-                }}
-                trigger={
-                  <Button variant="ghost" size="sm" className="cursor-pointer">
-                    {GRANULARITIES.find((g) => g.value === granularity)?.label} <Icon name="chevronDown" />
-                  </Button>
-                }
-              />
-            }
-          />
-          <CardBody>
-            {/* Three business series, all lines, plus the dashed reference. The
-                swatches mirror the stroke colours in TrendPanels; each item
-                toggles its series. */}
-            <div className="mb-2 flex flex-wrap gap-4 pb-2">
-              <LegendItem
-                swatch={<span className="h-0.5 w-[18px] rounded-sm bg-brand-violet" />}
-                label={`Incremental Sales (${meta.currency})`}
-                on={!trendHidden.has('sales')}
-                onToggle={() => toggleTrend('sales')}
-              />
-              <LegendItem
-                swatch={<span className={`h-0.5 w-[18px] rounded-sm ${SERIES_CLASS.spend}`} />}
-                label={`Trade Spend (${meta.currency})`}
-                on={!trendHidden.has('spend')}
-                onToggle={() => toggleTrend('spend')}
-              />
-              <LegendItem
-                swatch={<span className={`h-0.5 w-[18px] rounded-sm ${SERIES_CLASS.roi}`} />}
-                label="ROI"
-                on={!trendHidden.has('roi')}
-                onToggle={() => toggleTrend('roi')}
-              />
-              <LegendItem
-                swatch={<span className="h-0 w-[18px] border-t-2 border-dashed border-ink-muted" />}
-                label={`Target ROI (${fmtRoi(meta.target_roi)})`}
-                on={!trendHidden.has('target')}
-                onToggle={() => toggleTrend('target')}
-              />
+      {/* ---- THE CHARTS, as the reader (or the Analyst) arranged them ----
+
+          One list, rendered in rows: `panelRows` chunks the visible ids two to
+          a row and gives each row the grid template its panels' weights ask
+          for. The default list and those weights reproduce the five hardcoded
+          rows this replaced, down to Product Performance's wider column — see
+          components/command/hubPanels.ts.
+
+          EVERY PANEL READS THE SAME FILTER STATE as the cards, exactly as
+          before: what moved is which ones are drawn and where, never what
+          they are scoped to. */}
+      {panelRows(visibleCharts).map((row) => (
+        <div
+          key={row.ids.join('+')}
+          className="mt-[14px] grid gap-4 @max-[1000px]:grid-cols-1"
+          style={{ gridTemplateColumns: row.template }}
+        >
+          {row.ids.map((id) => (
+            <div key={id} className="min-w-0">
+              {panelNodes[id]}
             </div>
-            {trend.isLoading ? (
-              <PanelSkeleton height={300} />
-            ) : trend.error ? (
-              <ErrorState error={trend.error} onRetry={() => void trend.refetch()} retrying={trend.isFetching} compact />
-            ) : trend.data && trend.data.labels.length > 0 ? (
-              <Stale when={trend.isFetching}>
-                {/* Symbol AND rate both come from the trend response. Taking
-                    the symbol from the KPI response instead let the two
-                    disagree mid-switch — the axis briefly rendered ₹ against
-                    USD-converted numbers while the slower query settled. */}
-                <TrendPanels
-                  data={trend.data}
-                  rate={trend.data.meta.exchange_rate}
-                  symbol={trend.data.meta.currency === 'USD' ? '$' : '₹'}
-                  granularity={granularity}
-                  /* The height the card settled on while a Risk Alerts sibling
-                     drove the row. Kept now the row is its own: at the
-                     previous 320 the plot stopped ~88px short of the card's
-                     border; 408 left 30px once the card chrome tightened. */
-                  height={438}
-                  hidden={trendHidden}
-                />
-              </Stale>
-            ) : (
-              <CcEmptyState compact message="No promotions in this selection." />
-            )}
-          </CardBody>
-        </Card>
+          ))}
+        </div>
+      ))}
 
-      </div>
-
-      {/* Sales by Region gives up the wide column it used to have: an even
-          split leaves the comparison card room for two full-width bars and
-          their labels, and the region list reads fine at half width. */}
-      <div className="mt-[14px] grid grid-cols-2 gap-4 @max-[1000px]:grid-cols-1">
-        <SalesByRegionSection />
-        <SalesComparisonCard />
-      </div>
-
-      {/* ---- Chart sections. Each reads the same filter state as the cards. ---- */}
-      <div className="mt-[14px] grid grid-cols-2 gap-4 @max-[1000px]:grid-cols-1">
-        <PromotionMixCard
-          mix={mix.data}
-          breakdown={mixBreakdown.data}
-          tradeSpendTotal={kpis.data.kpis.trade_spend?.display_value ?? '—'}
-          incrementalSalesTotal={kpis.data.kpis.incremental_sales?.display_value ?? '—'}
-          emptyState={<EmptyState message="No promotional spend in this selection." />}
-        />
-        <ChannelSection />
-      </div>
-      <div className="mt-[14px] grid grid-cols-2 gap-4 @max-[1000px]:grid-cols-1">
-        <TopPerformingSection />
-        <PromotionContributionSection />
-      </div>
-      <div className="mt-[14px] grid grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] gap-4 @max-[1000px]:grid-cols-1">
-        <ProductSection />
-        <PromotionTypeSection />
-      </div>
+      {/* Every chart hidden is a legitimate choice, but a page that simply
+          ends under the cards reads as one that failed to load. */}
+      {visibleCharts.length === 0 && (
+        <div className="mt-[14px] rounded-[var(--r-lg)] border border-dashed border-border-strong p-7 text-center">
+          <p className="text-base text-ink-secondary">No charts on the dashboard.</p>
+          <p className="mt-1 text-sm text-ink-muted">
+            Add them back from the Charts menu above, or ask the Analyst to put them back.
+          </p>
+        </div>
+      )}
       </Stale>
       </>
       )}

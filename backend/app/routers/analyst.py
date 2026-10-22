@@ -70,6 +70,10 @@ async def ask(
             "answer": refusal,
             "steps": [],
             "charts": [],
+            # One shape for every turn: the browser reads `actions` on all of
+            # them, and a missing key would be a second code path in the UI
+            # for a turn that simply changed nothing.
+            "actions": [],
             "deflected": True,
             "memory": store,
             "memory_usage": analyst_memory.usage(store),

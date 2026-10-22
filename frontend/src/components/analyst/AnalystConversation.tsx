@@ -10,11 +10,17 @@ import type { IconName } from '../../icons'
  *  four questions of DIFFERENT SHAPES — a lookup, a ranking, a comparison and
  *  a piece of arithmetic — because the first question a reader asks sets what
  *  they think the thing can do. */
+// FOUR SHAPES, NOT FOUR SENTENCES — each labelled with the KIND of thing it
+// is, so a reader learns what can be asked rather than four things that work.
+// The fourth is an INSTRUCTION rather than a question, because changing the
+// dashboard by asking is the capability nobody would think to try: there is no
+// control that hints at it, and a feature discovered by accident may as well
+// not exist.
 const STARTERS: { kind: string; icon: IconName; q: string }[] = [
   { kind: 'Look up', icon: 'search', q: 'What was our trade spend last year?' },
   { kind: 'Rank', icon: 'barChart', q: 'Which channel had the best ROI?' },
   { kind: 'Chart', icon: 'pieChart', q: 'Chart trade spend by channel' },
-  { kind: 'Compare', icon: 'variance', q: 'How much more did we spend in 2025 than 2024?' },
+  { kind: 'Change the page', icon: 'filter', q: 'Change the period to 2024' },
 ]
 
 /** "Good morning" / "Good afternoon" / "Good evening", by the reader's clock. */
@@ -64,7 +70,7 @@ export function AnalystConversation({
   actions?: ReactNode
   centered?: boolean
 }) {
-  const { messages, busy, ask, clear, usage, resetMemory } = analyst
+  const { messages, busy, ask, clear, usage, resetMemory, undoChange } = analyst
   const { data: user } = useCurrentUser()
   const firstName = user?.name?.trim().split(/\s+/)[0] ?? ''
   const [draft, setDraft] = useState('')
@@ -150,7 +156,7 @@ export function AnalystConversation({
           ) : (
             <div className="space-y-5">
               {messages.map((m) => (
-                <Bubble key={m.id} message={m} />
+                <Bubble key={m.id} message={m} onUndo={undoChange} />
               ))}
             </div>
           )}
@@ -265,8 +271,9 @@ function Empty({ name, onPick }: { name: string; onPick: (q: string) => void }) 
           {name ? `, ${name}` : ''}.
         </h3>
         <p className="mx-auto mt-2 max-w-[36ch] text-base font-medium leading-relaxed text-ink-secondary">
-          What would you like to know about your promotions today? Ask about spend, sales or ROI, by year,
-          channel, region, brand or promotion.
+          What would you like to know about your promotions today? Ask about spend, sales or ROI, by
+          year, channel, region, brand or promotion — or tell me to change the period, the filters or
+          which charts are on screen.
         </p>
       </div>
       <div className="mb-2.5 px-0.5 text-xs font-medium text-ink-secondary">Try asking</div>
@@ -293,7 +300,7 @@ function Empty({ name, onPick }: { name: string; onPick: (q: string) => void }) 
 /** One turn. The reader's question is a compact violet bubble on the right;
  *  the answer is full-width on the left, because an answer carrying a table
  *  needs the width and a bubble around a table reads as a quotation. */
-function Bubble({ message }: { message: AnalystMessage }) {
+function Bubble({ message, onUndo }: { message: AnalystMessage; onUndo?: () => void }) {
   if (message.role === 'user') {
     return (
       <div className="analyst-turn flex flex-col items-end">
@@ -341,8 +348,64 @@ function Bubble({ message }: { message: AnalystMessage }) {
           <AnalystChart key={i} spec={chart} />
         ))}
         <AnalystMarkdown text={message.content} />
+        <ChangeNote message={message} onUndo={onUndo} />
       </div>
     </AssistantTurn>
+  )
+}
+
+/** WHAT THIS TURN DID TO THE DASHBOARD, under the sentence that says so.
+ *
+ *  The answer already claims the change in words. This is the receipt: what
+ *  actually happened, in the page's own terms, with the way back beside it.
+ *  Without it a reader has to take the sentence on trust and then go hunting
+ *  through the filter bar to confirm — and if the model overstated what it
+ *  did, nothing on screen would contradict it.
+ *
+ *  A turn that only answered a question renders nothing here. */
+function ChangeNote({
+  message,
+  onUndo,
+}: {
+  message: AnalystMessage
+  onUndo?: () => void
+}) {
+  const changed = message.changed ?? []
+  const unchanged = message.unchanged ?? []
+  if (!changed.length && !unchanged.length) return null
+  return (
+    <div className="mt-2.5 border-t border-border-subtle pt-2.5">
+      {changed.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-ink-muted">
+          <span className="inline-flex items-center gap-1.5 [&_svg]:h-3.5 [&_svg]:w-3.5 [&_svg]:shrink-0">
+            <Icon name="check" className="text-[var(--pill-success-ink)]" />
+            <span>
+              {changed.map((c, i) => (
+                <span key={i}>
+                  {i > 0 ? '; ' : ''}
+                  {c.charAt(0).toUpperCase() + c.slice(1)}
+                </span>
+              ))}
+            </span>
+          </span>
+          {message.undoable && onUndo && (
+            <button
+              type="button"
+              onClick={onUndo}
+              className="cursor-pointer rounded-[var(--r-md)] px-1.5 py-0.5 text-sm font-medium text-brand-violet hover:bg-brand-violet-50 hover:underline"
+            >
+              Undo
+            </button>
+          )}
+        </div>
+      )}
+      {unchanged.length > 0 && (
+        <div className="mt-1 flex items-start gap-1.5 text-sm text-[var(--pill-warning-ink)] [&_svg]:mt-px [&_svg]:h-3.5 [&_svg]:w-3.5 [&_svg]:shrink-0">
+          <Icon name="info" />
+          <span>Not changed: {unchanged.join('; ')}.</span>
+        </div>
+      )}
+    </div>
   )
 }
 

@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { ApiError, apiPost } from '../lib/api'
+import { applyAnalystActions, type AnalystAction } from '../lib/analystActions'
+import { useHubLayout } from '../store/hubLayout'
 import type { AnalystChartSpec } from '../components/analyst/AnalystChart'
 
 /** One turn in the thread. `pending` marks the assistant bubble that is still
@@ -19,6 +21,13 @@ export interface AnalystMessage {
   /** Charts drawn for this turn. Computed server-side from the KPI engine and
    *  rendered by the UI — never parsed out of the answer text. */
   charts?: AnalystChartSpec[]
+  /** What this turn CHANGED on the Insights Hub, already applied, in the
+   *  reader's words — and whether it can still be undone. A turn that only
+   *  answered a question carries neither. */
+  changed?: string[]
+  /** What it was asked to change and could not. */
+  unchanged?: string[]
+  undoable?: boolean
 }
 
 /** How full the conversation's memory is. The backend owns the arithmetic; the
@@ -36,6 +45,9 @@ interface AskResponse {
   deflected: boolean
   steps: { tool: string; arguments: unknown; result: unknown }[]
   charts?: AnalystChartSpec[]
+  /** Changes to the dashboard this turn asked for. The server computes nothing
+   *  and changes nothing — see lib/analystActions.ts. */
+  actions?: AnalystAction[]
   /** The conversation's fact store with this turn folded in. Opaque to the
    *  UI — it is held and sent back unchanged, never edited here. */
   memory?: Record<string, unknown>
@@ -109,15 +121,23 @@ export function useAnalyst() {
       })
       if (res.memory) memoryRef.current = res.memory
       if (res.memory_usage) setUsage(res.memory_usage)
+      // THE PAGE CHANGES HERE, once, before the bubble renders — so the
+      // reader's eye arrives at a sentence that is already true. Applying it
+      // in a render or an effect would mean the answer "Period's now 2024"
+      // could be on screen a frame before the period was.
+      const change = applyAnalystActions(res.actions)
       setMessages((current) =>
         current.map((m) =>
           m.id === placeholder.id
             ? {
                 ...m,
-                content: res.answer,
+                content: change.answerOverride ?? res.answer,
                 pending: false,
                 deflected: res.deflected,
                 charts: res.charts ?? [],
+                changed: change.applied,
+                unchanged: change.skipped,
+                undoable: change.undoable,
               }
             : m,
         ),
@@ -176,5 +196,24 @@ export function useAnalyst() {
     setUsage(snap.usage)
   }, [])
 
-  return { messages, busy, ask, clear, usage, resetMemory, snapshot, restore }
+  /** Put back the last change the Analyst made, from the chip under the
+   *  answer. The same stack the `undo` tool pops, so typing "undo" and
+   *  clicking Undo cannot disagree about what "the last change" was. */
+  const undoChange = useCallback(() => {
+    const result = useHubLayout.getState().undo()
+    if (!result.ok) return
+    setMessages((current) => [
+      ...current,
+      {
+        id: nextId(),
+        role: 'assistant',
+        content: `Put that back — ${result.label}.`,
+        changed: [],
+        unchanged: [],
+        undoable: useHubLayout.getState().history.length > 0,
+      },
+    ])
+  }, [])
+
+  return { messages, busy, ask, clear, usage, resetMemory, snapshot, restore, undoChange }
 }
