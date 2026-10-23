@@ -10,6 +10,9 @@ export const MMM_ROUTES = {
   reports: '/mmm/reports',
   connections: '/mmm/connections',
   settings: '/mmm/settings',
+  /** The Analyst in its own window — what "Open in a new window" opens. Not
+   *  in the rail: it is reached from the hub's launcher, never navigated to. */
+  analyst: '/mmm/analyst',
 } as const
 
 export const MMM_BRAND = 'MMM Intelligence'

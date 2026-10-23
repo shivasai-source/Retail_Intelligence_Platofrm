@@ -10,6 +10,12 @@ mmm/
   store.ts           shared filter scope (year, quarter, month, week, date range,
                      channels, promotion type, event) and currency across MMM pages
   kpiDeck.ts         the hub's headline three KPIs and the six a reader can add
+  mmmPanels.ts       the hub's six charts, and which the reader is showing
+                     (mirror of backend/app/agents/mmm_layout.py)
+  hubLayout.ts       what the hub is showing — charts, cards, pinned charts, the
+                     trend's granularity — plus the undo stack the Analyst pops
+  analystActions.ts  turns the Analyst's described actions into that state
+  analystModule.ts   the Analyst, configured for this hub (endpoint, copy, keys)
   hooks.ts           react-query hooks for every /api/mmm/* endpoint
   types.ts           payload types, one per backend module
   schema.ts          the column contract (mirror of backend/app/mmm/schema.py),
@@ -37,9 +43,35 @@ mmm/
     MmmToolbar.tsx          year + currency controls (Calendar)
     MmmFilterBar.tsx        the Insights Hub filter bar and More Filters panel (TPO's layout)
     MmmAddKpiMenu.tsx       Add KPI, as TPO's
+    MmmPinnedChartCard.tsx  a chart the Analyst was asked to keep on the hub
     MmmPanels.tsx           comparison, events, promotion type and baseline cards
     charts.tsx              trend (revenue, spend, baseline, ROAS), columns, share bars
 ```
+
+## The Analyst
+
+The Insights Hub carries the same conversational Analyst TPO's does — the launcher in
+the bottom-right corner, the panel that shares the screen rather than covering it, the
+pop-out window (`#/mmm/analyst`), the receipt under each answer and the Undo beside it.
+
+What is SHARED is the conversation: `hooks/useAnalyst.ts` and
+`components/analyst/*` are the same code on both hubs. What differs is one object,
+`analystModule.ts`: the endpoint (`POST /api/mmm/analyst/ask`), how to read what the
+page is showing, who applies the actions, the copy, and its own pair of hand-off keys —
+localStorage is shared by every window of this origin, so one pair would let a
+conversation about trade spend arrive here and be answered from the wrong dataset.
+
+It can answer questions about the MMM data (`backend/app/agents/mmm_tools.py`, which
+reads `service.hub()` — the same call that draws this page, so the two cannot disagree)
+and it can change the page: the period, the channel / promotion-type / event filters,
+the trend's granularity, which of the six charts and which KPI cards are on screen, and
+charts of its own pinned beside them. Every change is snapshotted first, so "revert
+that" means the same thing whichever of them the last turn touched.
+
+What it is ALLOWED to name lives in `backend/app/agents/mmm_layout.py` and
+`mmm_scope.py`; `mmmPanels.ts` and `kpiDeck.ts` are the page's own copies of those
+lists, and `backend/tests/test_mmm_analyst.py` reads these files and fails if the two
+drift.
 
 ## Loading data
 

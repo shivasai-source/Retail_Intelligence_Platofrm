@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react'
 import { Navigate, Route } from 'react-router-dom'
+import { AnalystWindow } from '../pages/AnalystWindow'
 import { RequireAuth } from '../components/RequireAuth'
 import { RequireMmmDataset } from './components/RequireMmmDataset'
+import { MMM_ANALYST } from './analystModule'
 import { MMM_ROUTES } from './nav'
 import { MmmAllocator } from './pages/MmmAllocator'
 import { MmmBudget } from './pages/MmmBudget'
@@ -36,6 +38,13 @@ export function mmmRoutes() {
       <Route path={MMM_ROUTES.reports} element={gated(<MmmReports />)} />
       <Route path={MMM_ROUTES.connections} element={<RequireAuth><MmmConnections /></RequireAuth>} />
       <Route path={MMM_ROUTES.settings} element={<RequireAuth><MmmSettings /></RequireAuth>} />
+      {/* THE ANALYST'S POP-OUT WINDOW. The same component TPO's #/analyst
+          route mounts, carrying the MMM module — so it asks the MMM endpoint
+          and takes its thread from the MMM hand-off keys. Behind the dataset
+          gate like every other MMM page that reads data: a window that opened
+          to a conversation it could not answer would be worse than one that
+          says the dataset is missing. */}
+      <Route path={MMM_ROUTES.analyst} element={gated(<AnalystWindow module={MMM_ANALYST} />)} />
     </>
   )
 }

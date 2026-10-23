@@ -206,6 +206,7 @@ from app.routers import (  # noqa: E402
     intelligence,
     investigations,
     misc,
+    mmm_analyst,
     nav,
     planner,
     promotion_calendar,
@@ -218,7 +219,7 @@ from app.mmm import router as mmm  # noqa: E402  — every /api/mmm/* route
 
 for r in (nav, command_center, investigations, misc, connectors,
           promotion_calendar, simulation, planner, decision, decision_brief, briefing, store, reports,
-          auth, datasets, intelligence, analyst, mmm):
+          auth, datasets, intelligence, analyst, mmm, mmm_analyst):
     app.include_router(r.router)
 
 
