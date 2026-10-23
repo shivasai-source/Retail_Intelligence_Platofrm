@@ -37,6 +37,11 @@ class AskRequest(BaseModel):
     # `None` and `{}` both mean "a fresh conversation", which is what the
     # reader's Reset sends.
     memory: dict[str, Any] | None = None
+    #: What the Insights Hub is showing: the charts this chat added (with
+    #: their ids), which of the Hub's own charts are hidden, and which KPI
+    #: cards were added. The browser owns that state — see store/hubLayout.ts
+    #: — so it is sent, never remembered here.
+    dashboard: dict[str, Any] | None = None
 
 
 class RouteRequest(BaseModel):
@@ -85,6 +90,7 @@ async def ask(
             history=[t.model_dump() for t in body.history],
             currency=body.currency,
             memory=body.memory,
+            dashboard=body.dashboard,
         )
     except AgentConfigError as e:
         # The one failure with a fix the reader can act on, so it keeps its own

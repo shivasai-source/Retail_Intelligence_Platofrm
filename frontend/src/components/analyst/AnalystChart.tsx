@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { downloadCsv, downloadSvgPng, slugify } from './chartDownload'
 import { seriesColor, seriesColors } from './chartPalette'
 
@@ -34,6 +34,15 @@ export interface AnalystChartSpec {
   /** Set when the tail was folded into an "Other" row, so the chart can say
    *  so rather than implying six groups are all of them. */
   truncated?: boolean
+  /** A horizontal line the bars are read against — the ROI target.
+   *
+   *  WHY A RATIO NEEDS ONE. A bar chart must start at zero or its lengths
+   *  lie, and ROI across a dashboard's groups is typically 1.4 to 1.9 — so
+   *  every bar is between 74% and 100% of the longest and the chart says
+   *  almost nothing. The reference line is what makes it readable without
+   *  making it dishonest: the eye reads each bar against break-even or the
+   *  target rather than against the leader. */
+  reference?: { value: number; label: string }
 }
 
 const fmtNumber = (n: number) =>
@@ -89,7 +98,17 @@ function toCsv(spec: AnalystChartSpec) {
  *  identically but cannot be rasterised — and a chart that cannot become a
  *  PNG cannot be downloaded as one.
  */
-export function AnalystChart({ spec }: { spec: AnalystChartSpec }) {
+export function AnalystChart({
+  spec,
+  plain = false,
+}: {
+  spec: AnalystChartSpec
+  /** Drawn INSIDE a dashboard card, which already has a border and a heading:
+   *  the figure drops its own frame and title so the panel is not two nested
+   *  boxes with the same name at the top of each. The toolbar stays — Table,
+   *  CSV and PNG are as useful on the page as they are in the chat. */
+  plain?: boolean
+}) {
   const [showTable, setShowTable] = useState(false)
   const [hover, setHover] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
@@ -126,10 +145,16 @@ export function AnalystChart({ spec }: { spec: AnalystChartSpec }) {
   const common = { colors, hover, setHover, svgRef }
 
   return (
-    <figure className="my-2.5 rounded-[var(--r-md)] border border-border-subtle bg-surface-card p-3">
+    <figure
+      className={
+        plain
+          ? 'm-0'
+          : 'my-2.5 rounded-[var(--r-md)] border border-border-subtle bg-surface-card p-3'
+      }
+    >
       <figcaption className="mb-2 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          {spec.title && (
+          {spec.title && !plain && (
             <div className="truncate text-sm font-medium text-ink-primary">{spec.title}</div>
           )}
           {spec.unit && <div className="truncate text-xs text-ink-muted">{spec.unit}</div>}
@@ -165,9 +190,17 @@ export function AnalystChart({ spec }: { spec: AnalystChartSpec }) {
       ) : spec.type === 'line' || spec.type === 'area' ? (
         <Line points={points} color={colors[0]} label={label} max={max} min={min} area={spec.type === 'area'} {...common} />
       ) : spec.type === 'column' || spec.type === 'histogram' ? (
-        <Columns points={points} color={colors[0]} label={label} max={max} gap={spec.type === 'histogram' ? 1 : 3} {...common} />
+        <Columns
+          points={points}
+          color={colors[0]}
+          label={label}
+          max={max}
+          gap={spec.type === 'histogram' ? 1 : 8}
+          reference={spec.reference}
+          {...common}
+        />
       ) : (
-        <Bars points={points} color={colors[0]} label={label} max={max} {...common} />
+        <Bars points={points} color={colors[0]} label={label} max={max} reference={spec.reference} {...common} />
       )}
 
       {spec.type === 'histogram' && spec.axis_label && !showTable && (
@@ -233,9 +266,28 @@ function Tip({ text, x, y }: { text: string; x: string; y: string }) {
 
 /* ---------------------------------------------------------------- bar (horizontal) */
 
-// Sized for 15px labels: a label line, then the bar beneath it.
-const BAR_ROW = 36
-const BAR_W = 320
+// A BAR CHART IS DRAWN AT THE WIDTH IT IS GIVEN, not scaled to it.
+//
+// This used to be `viewBox="0 0 320 H"` with `width="100%"`, which looks like
+// responsive sizing and is not: the browser SCALES the whole drawing to the
+// container. In the Analyst drawer, ~390px wide, every one of those 320 units
+// was stretched by 1.22 — so the 15px type that matches the dashboard's charts
+// rendered at ~18px, the 6px bars at 7.3px, and the gaps between rows grew to
+// match. The chart was not styled differently from the page; it was the page's
+// own geometry, enlarged, which is why it read as subtly wrong rather than
+// obviously wrong.
+//
+// So the container is measured and the viewBox is the real pixel size, exactly
+// as the dashboard's own charts do it (components/command/ChartSections.tsx,
+// `useChartSize`). 15px is then 15px in both places.
+const BAR_ROW = 38
+//: Used only until the container has been measured, and as the floor for a
+//: drawer narrow enough that bars would otherwise vanish.
+const BAR_W_FALLBACK = 320
+//: The bar itself, thicker than the 6px hairline it was: at 6px against a
+//: 15px label and a 15px figure the bar was the quietest thing in its own
+//: row, which is how a chart ends up reading as a list with underlines.
+const BAR_H = 10
 
 /** At 15px a character is ~9px wide; label every k-th slot so no two touch. */
 const labelStride = (labels: string[], slot: number) =>
@@ -244,19 +296,23 @@ const labelStride = (labels: string[], slot: number) =>
 /** HORIZONTAL BARS — the default for ranking named categories, because the
  *  labels read horizontally at any length. */
 function Bars({
-  points, color, label, max, hover, setHover, svgRef,
+  points, color, label, max, hover, setHover, svgRef, reference,
 }: MarkProps & {
   points: AnalystChartSpec['points']
   color: string
   label: (i: number) => string
   max: number
+  reference?: AnalystChartSpec['reference']
 }) {
+  const { ref, width } = useMeasuredWidth(BAR_W_FALLBACK)
+  const BAR_W = Math.max(200, width)
   const H = points.length * BAR_ROW
   return (
+    <div ref={ref} className="w-full">
     <svg
       ref={svgRef}
       viewBox={`0 0 ${BAR_W} ${H}`}
-      width="100%"
+      width={BAR_W}
       height={H}
       role="img"
       aria-label={`Bar chart with ${points.length} categories`}
@@ -273,8 +329,11 @@ function Bars({
           >
             {/* A transparent hit band, so hovering anywhere on the row works. */}
             <rect x="0" y={y} width={BAR_W} height={BAR_ROW} fill="transparent" />
+            {/* The label is truncated by CHARACTER COUNT against the width
+                actually available, not against a fixed 22: at a wider drawer
+                "Travel & Hospitality" had room to spare and was cut anyway. */}
             <text x="0" y={y + 14} fontSize={15} fill="var(--text-secondary)">
-              {p.label.length > 22 ? `${p.label.slice(0, 21)}…` : p.label}
+              {truncate(p.label, Math.max(12, Math.floor((BAR_W * 0.58) / 8)))}
             </text>
             {/* DIRECT LABELS on every row is right here and only here: the
                 rows are few and the number IS the answer to the question. */}
@@ -288,14 +347,63 @@ function Bars({
             >
               {label(i)}
             </text>
-            <rect x="0" y={y + 22} width={BAR_W} height="6" rx="3" fill="var(--surface-hover)" />
-            <rect x="0" y={y + 22} width={w} height="6" rx="3" fill={color} />
+            <rect x="0" y={y + 21} width={BAR_W} height={BAR_H} rx={BAR_H / 2} fill="var(--surface-hover)" />
+            <rect x="0" y={y + 21} width={w} height={BAR_H} rx={BAR_H / 2} fill={color} />
           </g>
         )
       })}
+      {/* THE REFERENCE, drawn over every row so one line crosses them all —
+          that is what makes it a scale rather than a decoration. */}
+      {reference && max > 0 && reference.value <= max && (
+        <g pointerEvents="none">
+          <line
+            x1={(reference.value / max) * BAR_W}
+            x2={(reference.value / max) * BAR_W}
+            y1={0}
+            y2={H}
+            stroke="var(--text-muted)"
+            strokeWidth={1}
+            strokeDasharray="3 3"
+          />
+          <text
+            x={Math.min((reference.value / max) * BAR_W + 4, BAR_W - 4)}
+            y={10}
+            fontSize={13}
+            fill="var(--text-muted)"
+            textAnchor={(reference.value / max) > 0.8 ? 'end' : 'start'}
+          >
+            {reference.label}
+          </text>
+        </g>
+      )}
     </svg>
+    </div>
   )
 }
+
+/** The width this chart has actually been given.
+ *
+ *  The dashboard's own charts measure their container (`useChartSize` in
+ *  components/command/ChartSections.tsx) rather than scaling a fixed drawing
+ *  to it; this is the same thing, kept local so the Analyst's charts do not
+ *  depend on a dashboard module. */
+function useMeasuredWidth(fallback: number) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(fallback)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const read = () => setWidth(el.clientWidth || fallback)
+    read()
+    const ro = new ResizeObserver(read)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [fallback])
+  return { ref, width }
+}
+
+const truncate = (text: string, max: number) =>
+  text.length > max ? `${text.slice(0, Math.max(1, max - 1))}…` : text
 
 /* ---------------------------------------------------------------- column (vertical) */
 
@@ -305,34 +413,70 @@ const COL_H = 132
  *  reading is left-to-right, and for a histogram's bins, which are ordered by
  *  construction and touch to show they are a continuum. */
 function Columns({
-  points, color, label, max, gap, hover, setHover, svgRef,
+  points, color, label, max, gap, hover, setHover, svgRef, reference,
 }: MarkProps & {
   points: AnalystChartSpec['points']
   color: string
   label: (i: number) => string
   max: number
   gap: number
+  reference?: AnalystChartSpec['reference']
 }) {
-  const W = 320
+  // DRAWN AT THE WIDTH IT IS GIVEN, like the bars — see BAR_W_FALLBACK. A
+  // fixed 320-unit viewBox stretched to a dashboard card left the columns
+  // huddled in the middle of a wide panel with empty space either side, which
+  // is what made a pinned chart look like a placeholder for a real one.
+  const { ref, width } = useMeasuredWidth(BAR_W_FALLBACK)
+  const W = Math.max(220, width)
   const labelH = 24
+  //: Room above the tallest column for its own figure.
+  const valueH = 18
   const slot = W / points.length
   const barW = Math.max(1, slot - gap)
   const every = labelStride(points.map((p) => p.label), slot)
+  //: Every column's figure, when they fit — a chart of five bars with no
+  //: numbers on it makes the reader hover each one to learn anything.
+  const showValues = points.length <= 8 && slot > 44
 
   return (
-    <div className="relative">
+    <div className="relative" ref={ref}>
       <svg
         ref={svgRef}
-        viewBox={`0 0 ${W} ${COL_H + labelH}`}
-        width="100%"
-        height={COL_H + labelH}
+        viewBox={`0 0 ${W} ${COL_H + labelH + valueH}`}
+        width={W}
+        height={COL_H + labelH + valueH}
         role="img"
         aria-label={`Column chart with ${points.length} bars`}
       >
-        <line x1="0" y1={COL_H} x2={W} y2={COL_H} stroke="var(--border-subtle)" strokeWidth="1" />
+        <line x1="0" y1={COL_H + valueH} x2={W} y2={COL_H + valueH} stroke="var(--border-subtle)" strokeWidth="1" />
+        {/* THE REFERENCE a ratio is read against — see `reference` on the
+            spec. Drawn under the columns so it never hides one. */}
+        {reference && max > 0 && reference.value <= max && (
+          <g pointerEvents="none">
+            <line
+              x1={0}
+              x2={W}
+              y1={valueH + COL_H - (reference.value / max) * COL_H}
+              y2={valueH + COL_H - (reference.value / max) * COL_H}
+              stroke="var(--text-muted)"
+              strokeWidth={1}
+              strokeDasharray="3 3"
+            />
+            <text
+              x={W}
+              y={valueH + COL_H - (reference.value / max) * COL_H - 4}
+              fontSize={13}
+              textAnchor="end"
+              fill="var(--text-muted)"
+            >
+              {reference.label}
+            </text>
+          </g>
+        )}
         {points.map((p, i) => {
           const h = max > 0 ? Math.max(1, (Math.max(0, p.value) / max) * COL_H) : 1
           const x = i * slot + gap / 2
+          const top = valueH + COL_H - h
           return (
             <g
               key={`${p.label}-${i}`}
@@ -340,18 +484,30 @@ function Columns({
               onMouseLeave={() => setHover(null)}
               opacity={hover === null || hover === i ? 1 : 0.45}
             >
-              <rect x={x} y="0" width={barW} height={COL_H} fill="transparent" />
+              <rect x={x} y="0" width={barW} height={COL_H + valueH} fill="transparent" />
               {/* 4px rounded data-end, anchored to the baseline. */}
-              <rect x={x} y={COL_H - h} width={barW} height={h} rx="3" fill={color} />
-              {i % every === 0 && (
+              <rect x={x} y={top} width={barW} height={h} rx="3" fill={color} />
+              {showValues && (
                 <text
                   x={x + barW / 2}
-                  y={COL_H + 17}
+                  y={top - 5}
+                  fontSize={14}
+                  fontWeight={500}
+                  textAnchor="middle"
+                  fill="var(--text-primary)"
+                >
+                  {label(i)}
+                </text>
+              )}
+              {(showValues || i % every === 0) && (
+                <text
+                  x={x + barW / 2}
+                  y={COL_H + valueH + 17}
                   fontSize={15}
                   textAnchor="middle"
                   fill="var(--text-muted)"
                 >
-                  {p.label.length > 10 ? `${p.label.slice(0, 9)}…` : p.label}
+                  {truncate(p.label, Math.max(6, Math.floor(slot / 8)))}
                 </text>
               )}
             </g>

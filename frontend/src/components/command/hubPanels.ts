@@ -73,8 +73,12 @@ export function panelRows(visible: string[]): Array<{ template: string; ids: str
   }
 
   for (const id of visible) {
-    const panel = HUB_PANEL_BY_ID[id]
-    if (!panel) continue
+    // AN ID THIS MODULE DOES NOT KNOW is a chart the Analyst added
+    // (`pinned:…`, see store/hubLayout.ts). It lays out as an ordinary
+    // half-width panel. Dropping it instead — which is what this did at
+    // first — meant a chart the reader had asked for was stored, counted and
+    // never drawn.
+    const panel = HUB_PANEL_BY_ID[id] ?? { id, label: id, weight: 1 }
     if (panel.full) {
       flush()
       rows.push({ template: 'minmax(0,1fr)', ids: [id] })

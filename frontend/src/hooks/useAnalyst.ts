@@ -115,6 +115,11 @@ export function useAnalyst() {
         question: text,
         history,
         memory: memoryRef.current,
+        // WHAT THE PAGE LOOKS LIKE, read at send time rather than held: the
+        // reader may have removed a chart since the last turn, and the model
+        // must not be told about one that is gone. It is what lets "make that
+        // a column chart" name a chart that actually exists.
+        dashboard: useHubLayout.getState().dashboardState(),
         // Currency is deliberately not sent: the bot answers in the dataset's
         // own base currency, and a reader toggling the cards to USD is
         // changing how the CARDS render, not what the data is.

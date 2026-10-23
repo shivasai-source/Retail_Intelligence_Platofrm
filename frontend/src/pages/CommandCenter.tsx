@@ -25,7 +25,7 @@ import { RefreshProgress } from '../components/command/RefreshProgress'
 import { SERIES_CLASS } from '../components/command/series'
 import { HERO_TILE_CLASS } from '../components/command/kpiDeckState'
 import { panelRows } from '../components/command/hubPanels'
-import { ChartsMenu } from '../components/command/ChartsMenu'
+import { PinnedChartCard } from '../components/command/PinnedChartCard'
 import { useHubLayout } from '../store/hubLayout'
 import { TrendPanels, type TrendSeries } from '../components/command/TrendPanels'
 import {
@@ -154,9 +154,18 @@ export function CommandCenter() {
   /** The Analyst drawer. Page state rather than global: it is opened from this
    *  page's header and closes with it, so nothing else needs to know. */
   const [analystOpen, setAnalystOpen] = useState(false)
-  // A short landing transition makes arrival feel intentional even when React
-  // Query already has this screen's data in memory. It is presentation state
-  // only; it neither delays nor changes any request, filter or KPI.
+  // A short landing transition makes arrival feel intentional WHEN THERE IS
+  // SOMETHING TO WAIT FOR.
+  //
+  // It used to run on every arrival, including the common one: coming back
+  // from Investigations with every query still cached, where the data is on
+  // screen in under a frame. Seven hundred milliseconds of "Preparing your
+  // insights" over data that was already prepared is not a transition, it is a
+  // tax on moving around the module — and the module is four pages a reader
+  // moves between constantly.
+  //
+  // So it is skipped when the KPI query already has data. Presentation state
+  // only either way: it neither delays nor changes any request, filter or KPI.
   const [showLandingTransition, setShowLandingTransition] = useState(true)
   const live = useLiveStatus()
   const queryClient = useQueryClient()
@@ -180,6 +189,10 @@ export function CommandCenter() {
   const addedKpis = useHubLayout((s) => s.cards)
   const setAdded = useHubLayout((s) => s.setCards)
   const visibleCharts = useHubLayout((s) => s.charts)
+  // Charts the Analyst was asked to keep on the page. They sit after the
+  // Hub's own nine, in the order they were asked for, and read the same
+  // filters — see components/command/PinnedChartCard.tsx.
+  const pinnedCharts = useHubLayout((s) => s.pinned)
   const trend = useTrend(granularity)
   // Both metrics per SCHEME for the Promotion Mix toggle.
   //
@@ -204,9 +217,16 @@ export function CommandCenter() {
   useEffect(() => {
     const dataIsReady = initialised && !options.isLoading && !kpis.isLoading
     if (!dataIsReady) return
+    // Already in memory: show it. `isFetching` is deliberately not consulted —
+    // a background refetch over data that is already on screen is exactly the
+    // case this must not stall for.
+    if (kpis.data) {
+      setShowLandingTransition(false)
+      return
+    }
     const timer = window.setTimeout(() => setShowLandingTransition(false), 700)
     return () => window.clearTimeout(timer)
-  }, [initialised, options.isLoading, kpis.isLoading])
+  }, [initialised, options.isLoading, kpis.isLoading, kpis.data])
 
   const crumbs = [{ label: 'TPO Intelligence' }, { label: 'Insights Hub' }]
 
@@ -538,10 +558,6 @@ export function CommandCenter() {
               }
               onClear={() => setAdded([])}
             />
-            {/* WHICH CHARTS, beside which cards. Both change what is on screen
-                and neither changes the scope, so they belong on the same side
-                of the hairline. */}
-            <ChartsMenu />
             {/* The hairline separates the control that changes the VIEW from
                 the two that act on it. Decoration only. */}
             <span aria-hidden="true" className="mx-1 h-5 w-px shrink-0 bg-border-subtle" />
@@ -616,7 +632,7 @@ export function CommandCenter() {
           EVERY PANEL READS THE SAME FILTER STATE as the cards, exactly as
           before: what moved is which ones are drawn and where, never what
           they are scoped to. */}
-      {panelRows(visibleCharts).map((row) => (
+      {panelRows([...visibleCharts, ...pinnedCharts.map((p) => p.id)]).map((row) => (
         <div
           key={row.ids.join('+')}
           className="mt-[14px] grid gap-4 @max-[1000px]:grid-cols-1"
@@ -624,7 +640,7 @@ export function CommandCenter() {
         >
           {row.ids.map((id) => (
             <div key={id} className="min-w-0">
-              {panelNodes[id]}
+              {panelNodes[id] ?? <PinnedPanel id={id} />}
             </div>
           ))}
         </div>
@@ -632,11 +648,11 @@ export function CommandCenter() {
 
       {/* Every chart hidden is a legitimate choice, but a page that simply
           ends under the cards reads as one that failed to load. */}
-      {visibleCharts.length === 0 && (
+      {visibleCharts.length === 0 && pinnedCharts.length === 0 && (
         <div className="mt-[14px] rounded-[var(--r-lg)] border border-dashed border-border-strong p-7 text-center">
           <p className="text-base text-ink-secondary">No charts on the dashboard.</p>
           <p className="mt-1 text-sm text-ink-muted">
-            Add them back from the Charts menu above, or ask the Analyst to put them back.
+            Ask the Analyst to put them back — "show every chart again".
           </p>
         </div>
       )}
@@ -683,4 +699,16 @@ function LegendItem({
  *  point — the alternative is a chart of zeros that reads as a real result. */
 function EmptyState({ message }: { message: string }) {
   return <div className="grid min-h-[120px] place-items-center px-4 text-center text-sm text-ink-muted">{message}</div>
+}
+
+/** A pinned chart, looked up by the id the layout list carries.
+ *
+ *  The row renderer works in ids; the Hub's own nine resolve through
+ *  `panelNodes`, and anything else is one of the Analyst's. Looking it up here
+ *  rather than building a second node map keeps one list of what is on the
+ *  page, in one order, however a panel got there. */
+function PinnedPanel({ id }: { id: string }) {
+  const chart = useHubLayout((s) => s.pinned.find((p) => p.id === id))
+  if (!chart) return null
+  return <PinnedChartCard chart={chart} />
 }

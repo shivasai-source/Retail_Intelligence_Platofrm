@@ -35,8 +35,22 @@ export function usePeriodSelection(store: FilterStoreHook, options: FiltersRespo
     end = asKey(filters.period_to)
   } else if (filters.year != null && weeksOf(filters.year).length) {
     const ws = weeksOf(filters.year)
-    start = [filters.year, ws[0].week]
-    end = [filters.year, ws[ws.length - 1].week]
+    // A MONTH IS A MONTH ON THE BUTTON TOO.
+    //
+    // `month` is part of the filter contract and the engine honours it, but
+    // this hook used to ignore it — so a scope of September 2025, which the
+    // Analyst sets as {year: 2025, month: 9}, drew the whole year's weeks and
+    // the period button read "2025". The figures underneath were September's.
+    // A control that disagrees with the numbers beside it is worse than one
+    // that is merely coarse: the reader has no way to tell which is lying.
+    //
+    // Each calendar week carries the month it belongs to, so the span is the
+    // first and last week of that month — which is exactly what the button's
+    // own month label is built from.
+    const inScope = filters.month == null ? ws : ws.filter((w) => w.month === filters.month)
+    const span = inScope.length ? inScope : ws
+    start = [filters.year, span[0].week]
+    end = [filters.year, span[span.length - 1].week]
   }
 
   /** Apply a range. Exactly one whole year is held as `year`, so the year's

@@ -175,6 +175,10 @@ const MIN_USEFUL_OPTIONS = 2
  *  promotion itself. */
 export type FilterBarLayout = 'insights' | 'studio'
 
+/** Short month names for the period pill, in the app's own spelling. */
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
+
 export function FilterBar({
   options,
   onRefresh,
@@ -212,6 +216,13 @@ export function FilterBar({
   const studio = layout === 'studio'
   const { calendar, start: periodStart, end: periodEnd, apply: applyPeriod, clear: clearPeriod } =
     usePeriodSelection(store, options)
+
+  /** "Sep 2025" when the scope is one month — the Analyst sets those, the
+   *  calendar itself only ever writes whole years or week ranges. */
+  const monthLabel =
+    filters.year != null && filters.month != null
+      ? `${MONTH_NAMES[filters.month - 1]} ${filters.year}`
+      : null
 
   // THE PANEL IS AN OVERLAY NOW, so it needs a way out other than the button.
   // ESCAPE ONLY, DELIBERATELY. Every control inside the panel is a `Dropdown`,
@@ -318,7 +329,11 @@ export function FilterBar({
                 title="Choose the period"
               >
                 <Icon name="calendar" />
-                <span>{label}</span>
+                {/* A MONTH IS NAMED, NOT SPANNED. The picker builds its label
+                    from the weeks it was handed, and September's business
+                    weeks run 1 Sep – 5 Oct — true, and a strange way to say
+                    "September". A month scope names itself. */}
+                <span>{monthLabel ?? label}</span>
                 <Icon name="chevronDown" className={open ? 'rotate-180 transition-transform' : 'transition-transform'} />
               </Button>
             )}

@@ -15,12 +15,28 @@ import { Spinner } from '../ui'
  *  the queries say, so it cannot reach the end before the data does.
  *
  *  A CENTRED DIALOG over a dimmed page, the same frame as the Sync now
- *  summary (SyncSummaryPanel), and on screen for at least MIN_SHOWN_MS so a
- *  fast reload reads as a confirmation rather than a flicker. */
+ *  summary (SyncSummaryPanel).
+ *
+ *  IT ONLY APPEARS IF THERE IS A WAIT WORTH REPORTING. It used to open the
+ *  instant a reload started and stay for a minimum of 1.2 seconds — so a
+ *  period the browser already had cached, which renders in under 100ms, still
+ *  cost the reader a second and a bit of dimmed page and a progress bar for
+ *  work that was already done. The dialog made fast changes feel slow, which
+ *  is the opposite of what a progress indicator is for.
+ *
+ *  So nothing is shown for GRACE_MS. If the data lands inside that window the
+ *  page simply updates — which is the honest rendering of "that was instant".
+ *  If it does not, the dialog opens and then obeys the minimum, because a
+ *  dialog that flashes for 200ms at the END of a long wait is its own kind of
+ *  noise. */
 
 const KEY = 'tpo.refreshDurations'
 const DEFAULT_MS = 4000
-const MIN_SHOWN_MS = 1200
+/** Below this, a reload is not worth a dialog: the page just updates. Chosen
+ *  as roughly the point where a change stops reading as instant. */
+const GRACE_MS = 350
+/** Once it HAS opened, how long it stays, so it cannot flash. */
+const MIN_SHOWN_MS = 700
 
 function readDurations(): number[] {
   try {
@@ -51,14 +67,29 @@ export function RefreshProgress({ token, title }: { token: number; title: string
   const [now, setNow] = useState(() => Date.now())
   const [done, setDone] = useState(false)
   const seenFetch = useRef(false)
+  /** The dialog is on screen. A run can exist without this — that is the
+   *  grace window, where the reload is tracked but nothing is drawn. */
+  const [shown, setShown] = useState(false)
+  const shownAt = useRef(0)
 
-  // A new reload: open the card and start the clock.
+  // A new reload: start the clock. Nothing is drawn yet.
   useEffect(() => {
     if (!token) return
     seenFetch.current = false
     setDone(false)
+    setShown(false)
     setRun({ started: Date.now(), estimate: estimateMs(), peak: 0 })
   }, [token])
+
+  // Still going after the grace window? Then it is worth saying so.
+  useEffect(() => {
+    if (!run || shown) return
+    const t = window.setTimeout(() => {
+      shownAt.current = Date.now()
+      setShown(true)
+    }, GRACE_MS)
+    return () => window.clearTimeout(t)
+  }, [run, shown])
 
   // Track the queries in flight; close when they have all landed.
   useEffect(() => {
@@ -68,17 +99,24 @@ export function RefreshProgress({ token, title }: { token: number; title: string
       if (fetching > run.peak) setRun({ ...run, peak: fetching })
       return
     }
-    // Nothing in flight. Wait briefly for the reload to begin, and keep the
-    // dialog up for its minimum time, then finish.
+    // Nothing in flight. Wait briefly for the reload to begin; then finish —
+    // immediately if the dialog was never drawn, or after its minimum if it
+    // was, so it cannot flash.
     const elapsed = Date.now() - run.started
-    const wait = Math.max(seenFetch.current ? 0 : 600, MIN_SHOWN_MS - elapsed)
+    const minimum = shown ? MIN_SHOWN_MS - (Date.now() - shownAt.current) : 0
+    const wait = Math.max(seenFetch.current ? 0 : 600, minimum)
     const t = window.setTimeout(() => {
       if (seenFetch.current) remember(elapsed)
+      if (!shown) {
+        // It was never on screen, so there is nothing to close gracefully.
+        setRun(null)
+        return
+      }
       setDone(true)
-      window.setTimeout(() => setRun(null), 900)
+      window.setTimeout(() => setRun(null), 700)
     }, wait)
     return () => window.clearTimeout(t)
-  }, [fetching, run])
+  }, [fetching, run, shown])
 
   // Tick the clock while open.
   useEffect(() => {
@@ -87,7 +125,7 @@ export function RefreshProgress({ token, title }: { token: number; title: string
     return () => window.clearInterval(t)
   }, [run, done])
 
-  if (!run) return null
+  if (!run || !shown) return null
 
   const elapsed = Math.max(0, now - run.started)
   const byQueries = run.peak ? (run.peak - fetching) / run.peak : 0

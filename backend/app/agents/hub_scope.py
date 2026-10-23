@@ -14,7 +14,13 @@ look-up tools use:
     display labels over `year`, and the Period calendar writes a part-year as
     `period_from`/`period_to` instead);
   * a part of a year is two BUSINESS WEEKS as yyyyww, which is what the Period
-    calendar means by a custom range;
+    calendar means by a custom range — AND THE MODEL MUST NOT WORK THOSE OUT.
+    Asked for "11 mar 2025 to 11 aug 2025" it answered "weeks 11-18 of 2025";
+    asked for "march 2025 to august 2025" it answered "weeks 11-36". Both are
+    wrong, differently, for the same reason: converting a date to a business
+    week needs the dataset's own week calendar, which the model cannot see. So
+    dates are passed AS DATES and resolved here, against the calendar the
+    engine itself filters on;
   * "all data" is every period field null, which is the Hub's own default.
 
 A MONTH NAME IS NOT A PERIOD ON ITS OWN. "March" without a year could be any
@@ -26,6 +32,7 @@ that exist.
 from __future__ import annotations
 
 import calendar
+from datetime import date, datetime
 from typing import Any
 
 from app.agents import star_tools as T
@@ -70,6 +77,90 @@ def _years() -> list[int]:
     return sorted(out)
 
 
+#: Formats tried in order, day-first — the convention of the dataset and of
+#: everyone who writes dates into this product.
+_DATE_FORMATS = (
+    "%d-%m-%Y", "%d/%m/%Y", "%Y-%m-%d", "%d %m %Y",
+    "%d %b %Y", "%d %B %Y", "%b %d %Y", "%B %d %Y",
+    "%d-%b-%Y", "%d-%B-%Y", "%d %b, %Y", "%d %B, %Y",
+)
+#: A month WITHOUT a day: "march 2025", "mar 2025", "2025-03".
+_MONTH_FORMATS = ("%b %Y", "%B %Y", "%Y-%m", "%m-%Y", "%m/%Y")
+
+
+def parse_day(text: str, *, end: bool = False) -> date:
+    """One date, from however a person wrote it.
+
+    A month with no day resolves to its FIRST day, or its last when `end` —
+    so "march 2025 to august 2025" is the whole of both months rather than
+    two single days, which is what those words mean.
+    """
+    raw = " ".join(str(text or "").replace(",", " ").split())
+    if not raw:
+        raise ScopeError("Give a date, like 11 Mar 2025.")
+    for fmt in _DATE_FORMATS:
+        try:
+            return datetime.strptime(raw, fmt).date()
+        except ValueError:
+            continue
+    for fmt in _MONTH_FORMATS:
+        try:
+            first = datetime.strptime(raw, fmt).date().replace(day=1)
+        except ValueError:
+            continue
+        if not end:
+            return first
+        days = calendar.monthrange(first.year, first.month)[1]
+        return first.replace(day=days)
+    raise ScopeError(
+        f"'{text}' is not a date I can read. Try 11 Mar 2025, 11-03-2025 or 2025-03-11."
+    )
+
+
+def _calendar() -> dict[date, tuple[int, int]]:
+    """Every day the dataset covers, mapped to the business week that holds it.
+
+    The engine's own week calendar (`store.dims.week_dates`), inverted. Using
+    anything else — ISO weeks, or arithmetic on day-of-year — would select
+    different rows from the ones the Insights Hub shows for the same words.
+    """
+    from app.tpo.loader import get_store
+
+    store = get_store()
+    return {
+        day: (year, week)
+        for (year, week), days in store.dims.week_dates.items()
+        for day in days
+    }
+
+
+def week_containing(day: date, *, after: bool) -> int:
+    """The yyyyww business week a date falls in.
+
+    A date the data does not cover — a weekend the calendar skips, or a day
+    before the first week — resolves to the NEAREST week in the direction the
+    range is growing: `after` for the start of a range, before it for the end.
+    That is what makes "11 Mar to 11 Aug" include both ends rather than
+    silently dropping one.
+    """
+    days = _calendar()
+    if not days:
+        raise ScopeError("The dataset has no week calendar to read dates against.")
+    if day in days:
+        year, week = days[day]
+        return year * 100 + week
+    candidates = [d for d in days if (d >= day if after else d <= day)]
+    if not candidates:
+        first, last = min(days), max(days)
+        raise ScopeError(
+            f"{day:%d %b %Y} is outside the data, which covers "
+            f"{first:%d %b %Y} to {last:%d %b %Y}."
+        )
+    nearest = min(candidates) if after else max(candidates)
+    year, week = days[nearest]
+    return year * 100 + week
+
+
 def _week_of(value: int, label: str) -> int:
     """yyyyww, checked. 202611 is week 11 of 2026."""
     if value < 100_001:
@@ -92,16 +183,41 @@ def period_action(
     month: int | str | None = None,
     week_from: int | None = None,
     week_to: int | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     all_data: bool = False,
 ) -> dict[str, Any]:
     """The period the page should be on, as the filter bar holds it."""
     if all_data:
-        if year or month or week_from or week_to:
+        if year or month or week_from or week_to or date_from or date_to:
             raise ScopeError("Either all data, or a period — not both.")
         return {
             "kind": "period",
             "year": None, "month": None, "period_from": None, "period_to": None,
             "summary": "set the period to all data",
+        }
+
+    # A RANGE WRITTEN AS DATES is resolved here, against the dataset's own
+    # week calendar — never by the model, which has no calendar to read.
+    if date_from or date_to:
+        if not (date_from and date_to):
+            raise ScopeError("A date range needs both ends: date_from and date_to.")
+        start_day = parse_day(date_from)
+        end_day = parse_day(date_to, end=True)
+        if start_day > end_day:
+            start_day, end_day = end_day, start_day
+        start = week_containing(start_day, after=True)
+        end = week_containing(end_day, after=False)
+        if start > end:
+            raise ScopeError(
+                f"{start_day:%d %b %Y} to {end_day:%d %b %Y} covers no week of the data."
+            )
+        return {
+            "kind": "period",
+            "year": None, "month": None, "period_from": start, "period_to": end,
+            "summary": (
+                f"set the period to {start_day:%d %b %Y} – {end_day:%d %b %Y}"
+            ),
         }
 
     if (week_from is None) != (week_to is None):

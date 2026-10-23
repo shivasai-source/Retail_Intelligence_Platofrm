@@ -39,6 +39,7 @@ hunting for the control (`set_period`, `set_filter`, `set_layout`, `undo`).
   against the dataset (`hub_scope.py`), and a miss comes back as something the
   model must read and relay.
 """
+import calendar
 import json
 import logging
 import re
@@ -141,6 +142,85 @@ WHY_DEFLECTION = (
 )
 
 
+# --- the period a question names -------------------------------------------
+#
+# THE BACKSTOP BEHIND THE MODEL'S OWN READING, in the same spirit as
+# `star_tools.offers_and_products_named_in`: a question that says "August 2026"
+# is about that month whatever the model made of it.
+#
+# This exists because of two observed failures on the same question. Asked
+# "what was our trade spend in august 2026?", the model called `get_kpis` with
+# the YEAR alone — and a part-year is labelled "Jan–Aug 2026" by the engine, so
+# the reader was shown eight months of spend under a question about one. On
+# another run it refused outright: "The data does not cover August 2026. It
+# only includes the years 2024, 2025, and 2026" — which lists the very year it
+# had just denied.
+#
+# So the month is extracted here, deterministically, and stated to the model as
+# the filter to use. Nothing is guessed: a month is only recognised next to a
+# four-digit year, because "March" on its own could be any March in the data
+# and picking one would be a different quarter's numbers under a confident
+# sentence.
+_MONTH_WORDS: dict[str, int] = {}
+for _i, _name in enumerate(calendar.month_name):
+    if _name:
+        _MONTH_WORDS[_name.lower()] = _i
+for _i, _name in enumerate(calendar.month_abbr):
+    if _name:
+        _MONTH_WORDS.setdefault(_name.lower(), _i)
+
+#: "august 2026", "aug 2026", "2026 august", "august of 2026".
+_MONTH_YEAR = re.compile(
+    r"\b(?P<month>" + "|".join(sorted(_MONTH_WORDS, key=len, reverse=True)) + r")\b"
+    r"(?:\s+of)?\s+(?P<year>20\d{2})\b",
+    re.IGNORECASE,
+)
+_YEAR_MONTH = re.compile(
+    r"\b(?P<year>20\d{2})\s+(?P<month>"
+    + "|".join(sorted(_MONTH_WORDS, key=len, reverse=True))
+    + r")\b",
+    re.IGNORECASE,
+)
+
+
+def period_named_in(question: str) -> dict[str, int] | None:
+    """`{"year": 2026, "month": 8}` when a question names a month AND a year.
+
+    None when it names a month alone, several different months, or no month —
+    all cases where the model's own reading is better than a guess.
+    """
+    text = " ".join((question or "").split())
+    if not text:
+        return None
+    found: list[tuple[int, int]] = []
+    for pattern in (_MONTH_YEAR, _YEAR_MONTH):
+        for match in pattern.finditer(text):
+            month = _MONTH_WORDS.get(match.group("month").lower())
+            if month:
+                found.append((int(match.group("year")), month))
+    unique = list(dict.fromkeys(found))
+    if len(unique) != 1:
+        # Two different months is a comparison ("August 2026 vs August 2025"),
+        # which is the model's job to scope, one call each.
+        return None
+    year, month = unique[0]
+    return {"year": year, "month": month}
+
+
+def period_hint(question: str) -> str | None:
+    """The note appended to a question that names a month, or None."""
+    period = period_named_in(question)
+    if not period:
+        return None
+    name = calendar.month_name[period["month"]]
+    return (
+        f"[The question names {name} {period['year']}. If you look a figure up for that "
+        f'period, the filter is {{"year": {period["year"]}, "month": {period["month"]}}} — '
+        f"that month alone, not the year to date. The data does cover it if "
+        f"{period['year']} is in the list of years above.]"
+    )
+
+
 def deflect_why(question: str) -> str | None:
     """The reader-facing reply for a purely causal question, or None.
 
@@ -210,8 +290,16 @@ _FILTER_SCHEMA: dict[str, Any] = {
     ),
     "properties": {
         "year": {"type": "integer"},
-        "month": {"type": "integer", "description": "1-12"},
-        "week": {"type": "integer", "description": "1-53"},
+        "month": {
+            "type": "integer",
+            "description": (
+                "ONE calendar month, 1-12, sent WITH `year`. It selects that month ALONE: "
+                "{year: 2026, month: 8} is August 2026, not January to August. A month "
+                "without a year selects that month in EVERY year, which is almost never "
+                "what was asked."
+            ),
+        },
+        "week": {"type": "integer", "description": "1-53, sent with `year`."},
         "channel": {"type": "array", "items": {"type": "string"}},
         "retailer": {"type": "array", "items": {"type": "string"}},
         "region": {"type": "array", "items": {"type": "string"}},
@@ -349,10 +437,12 @@ TOOLS: list[dict[str, Any]] = [
             "description": (
                 "Change WHICH PERIOD the Insights Hub is showing — its Period control and "
                 "every card, chart and table under it. Use when the reader asks to see a "
-                "different year, month or week range ('show me 2024', 'change the period to "
-                "March 2025', 'look at all the data'). This does not answer a question: it "
-                "moves the page. To quote a figure for another period WITHOUT moving the "
-                "page, use get_kpis with filters instead."
+                "different year, month, date range or week range ('show me 2024', 'change "
+                "the period to March 2025', '11 mar 2025 to 11 aug 2025', 'look at all the "
+                "data'). This does not answer a question: it moves the page. To quote a "
+                "figure for another period WITHOUT moving the page, use get_kpis with "
+                "filters instead.\n\nCALL IT ONCE. One period is one call — a second call "
+                "in the same turn contradicts the first."
             ),
             "parameters": {
                 "type": "object",
@@ -362,11 +452,33 @@ TOOLS: list[dict[str, Any]] = [
                         "type": "integer",
                         "description": "Month 1-12. Needs `year` too — a month alone is ambiguous.",
                     },
+                    "date_from": {
+                        "type": "string",
+                        "description": (
+                            "Start of a range, AS THE READER WROTE IT: '11 Mar 2025', "
+                            "'11-03-2025', '2025-03-11', or a bare month like 'March 2025' "
+                            "(which means from its first day). ALWAYS use this for a date or "
+                            "month range — never convert dates to week numbers yourself. You "
+                            "cannot see the dataset's week calendar, and working it out has "
+                            "produced the wrong period every time it has been tried."
+                        ),
+                    },
+                    "date_to": {
+                        "type": "string",
+                        "description": (
+                            "End of the range, written the same way. A bare month means its "
+                            "LAST day, so 'March 2025' to 'August 2025' is both months whole."
+                        ),
+                    },
                     "week_from": {
                         "type": "integer",
-                        "description": "Start of a custom range as yyyyww (202611 = week 11 of 2026).",
+                        "description": (
+                            "Only when the reader names BUSINESS WEEKS themselves ('weeks 11 "
+                            "to 20 of 2025'), as yyyyww: 202611 is week 11 of 2026. For "
+                            "dates, use date_from/date_to."
+                        ),
                     },
-                    "week_to": {"type": "integer", "description": "End of the range, as yyyyww."},
+                    "week_to": {"type": "integer", "description": "End of the week range, as yyyyww."},
                     "all_data": {
                         "type": "boolean",
                         "description": "Every period in the dataset — the Hub's own default.",
@@ -444,7 +556,84 @@ TOOLS: list[dict[str, Any]] = [
                         "type": "boolean",
                         "description": "Back to the default charts and cards.",
                     },
+                    "clear_pinned": {
+                        "type": "boolean",
+                        "description": "Remove the charts this chat added to the dashboard.",
+                    },
                 },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "pin_chart",
+            "description": (
+                "Put a chart ON THE INSIGHTS HUB itself, beside its own charts — not in "
+                "this chat. Use when the reader says 'on the dashboard', 'to the insights "
+                "hub', 'add a chart of ...', 'keep this on the page'. `draw_chart` draws in "
+                "the conversation and is gone when the thread is cleared; this one stays, "
+                "and redraws itself whenever the page's period or filters change.\n\n"
+                "Say one short sentence confirming it. The chart is already on the page."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "chart_type": {
+                        "type": "string",
+                        "enum": list(hub_layout.PINNABLE_TYPES),
+                        "description": (
+                            "bar = ranked categories (the default), column = few categories "
+                            "or a time order, donut = shares of one whole, line = a trend."
+                        ),
+                    },
+                    "by": {
+                        "type": "string",
+                        "enum": list(T.BREAKDOWN_DIMENSIONS),
+                        "description": "The dimension to group by.",
+                    },
+                    "metric": {
+                        "type": "string",
+                        "enum": list(T.BREAKDOWN_METRICS),
+                        "description": "What to measure. Defaults to incremental_sales.",
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "The card's heading. One left out is written from the shape.",
+                    },
+                },
+                "required": ["by"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_chart",
+            "description": (
+                "Change a chart ALREADY on the dashboard — its type, what it measures, how "
+                "it is grouped, or its title. Use for 'make that a column chart', 'show it "
+                "by brand instead', 'measure ROI instead of spend'. The ids are listed in "
+                "the system prompt under what is on the Insights Hub. NEVER remove and "
+                "re-add a chart to change it: that is two changes, two undos, and it loses "
+                "its place on the page."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "chart_id": {
+                        "type": "string",
+                        "description": "The id of the chart to change, exactly as listed.",
+                    },
+                    "chart_type": {
+                        "type": "string",
+                        "enum": list(hub_layout.PINNABLE_TYPES),
+                    },
+                    "by": {"type": "string", "enum": list(T.BREAKDOWN_DIMENSIONS)},
+                    "metric": {"type": "string", "enum": list(T.BREAKDOWN_METRICS)},
+                    "title": {"type": "string"},
+                },
+                "required": ["chart_id"],
             },
         },
     },
@@ -574,7 +763,8 @@ def _with_display(payload: dict[str, Any], currency: str) -> dict[str, Any]:
     return out
 
 
-def _run_tool(name: str, args: dict[str, Any], currency: str) -> dict[str, Any]:
+def _run_tool(name: str, args: dict[str, Any], currency: str,
+              dashboard: dict[str, Any] | None = None) -> dict[str, Any]:
     """Dispatch one tool call to the KPI engine.
 
     Filter values go through `resolve_codes` first, so a model that writes a
@@ -595,6 +785,8 @@ def _run_tool(name: str, args: dict[str, Any], currency: str) -> dict[str, Any]:
             month=args.get("month"),
             week_from=args.get("week_from"),
             week_to=args.get("week_to"),
+            date_from=args.get("date_from"),
+            date_to=args.get("date_to"),
             all_data=bool(args.get("all_data")),
         )}
     if name == "set_filter":
@@ -611,6 +803,27 @@ def _run_tool(name: str, args: dict[str, Any], currency: str) -> dict[str, Any]:
             show_cards=args.get("show_cards"),
             hide_cards=args.get("hide_cards"),
             reset=bool(args.get("reset")),
+            clear_pinned=bool(args.get("clear_pinned")),
+        )}
+    if name == "update_chart":
+        return {"action": hub_layout.update_action(
+            chart_id=str(args.get("chart_id") or ""),
+            on_dashboard=list(dashboard.get("pinned") or []) if dashboard else [],
+            chart_type=str(args.get("chart_type") or ""),
+            by=str(args.get("by") or ""),
+            metric=str(args.get("metric") or ""),
+            title=str(args.get("title") or ""),
+            dimensions=tuple(T.BREAKDOWN_DIMENSIONS),
+            metrics=tuple(T.BREAKDOWN_METRICS),
+        )}
+    if name == "pin_chart":
+        return {"action": hub_layout.pin_action(
+            chart_type=str(args.get("chart_type") or "bar"),
+            by=str(args.get("by") or ""),
+            metric=str(args.get("metric") or "incremental_sales"),
+            dimensions=tuple(T.BREAKDOWN_DIMENSIONS),
+            metrics=tuple(T.BREAKDOWN_METRICS),
+            title=str(args.get("title") or ""),
         )}
     if name == "undo":
         return {"action": {"kind": "undo", "summary": "undid the last change"}}
@@ -691,6 +904,13 @@ def _period_grounding() -> str:
             f"against a full year without saying so."
         )
     lines.append("Never filter to a year outside that list; say the data does not cover it instead.")
+    lines.append(
+        "EVERY ONE OF THOSE YEARS HOLDS MONTHS. A question naming a month and a year — "
+        '"August 2026" — is about that month alone: filter {year: 2026, month: 8}. Do not '
+        "answer it with the year, and never say the data does not cover a month of a year "
+        "that IS in the list. A year on its own that is still in progress is reported by the "
+        'engine as "Jan–Aug", which is the year to date and a different question.'
+    )
     return "\n".join(lines)
 
 
@@ -716,10 +936,33 @@ the data. If you have not called a tool, you do not know the answer. Never
 estimate, never illustrate with a plausible number, and never carry a figure
 from an earlier turn into a new scope — re-fetch it.
 
-THE ONE EXCEPTION, and it is not a loophole: you may explain what a metric
-MEANS without a lookup, using the glossary below. A definition is not a figure.
-Saying "ROI is incremental sales divided by trade spend" states no number about
-this business; saying "ROI was 1.34" does, and needs a tool.
+WHAT THE RULE IS ABOUT, so you can tell what it does not cover: a figure
+ABOUT THIS BUSINESS. Spend, sales, ROI, a count of promotions, a share, a
+growth rate. Those come from tools, always.
+
+IT DOES NOT MAKE YOU USELESS AT EVERYTHING ELSE. You are a competent
+assistant who happens to sit in a promotions dashboard, and refusing a
+reasonable question because it is not about trade promotions is unhelpful and
+faintly absurd. So:
+
+- PLAIN ARITHMETIC AND UNIT CONVERSION you simply do. "What is 2+2" is 4.
+  "How many crore is 85 million" is 8.5 crore. "What's 12% of 40 lakh" is
+  4.8 lakh. No tool, no hedging, no "my focus is trade-promotion data" —
+  which is what you used to say, and it reads as a malfunction.
+- A DEFINITION OR A CONCEPT you explain: what ROI means, why a baseline
+  matters, what cannibalisation is, what a trade promotion is. Use
+  `define_kpi` for the metrics this product computes, so the formula is the
+  one in the code; answer the general ones in your own words.
+- WHAT YOU AND THIS PRODUCT CAN DO you answer directly: which pages exist,
+  what you can change, what Investigations is for.
+- A GENERAL-KNOWLEDGE QUESTION WITH NOTHING TO DO WITH THE DASHBOARD —
+  history, sport, someone's biography — you answer briefly if you are sure,
+  or say you are not the right place to ask. Either is fine. What is not
+  fine is refusing the ones above.
+
+THE LINE IS THE SAME EITHER WAY: the moment an answer needs a number about
+THIS dataset, it needs a tool. "ROI is incremental sales divided by trade
+spend" states no number about this business; "ROI was 1.34" does.
 
 WHAT YOU DO
 - Look up KPIs for any selection (get_kpis).
@@ -730,6 +973,10 @@ WHAT YOU DO
   in your own words. NEVER improvise a formula — the definitions are
   transcribed from the code that computes the numbers, and an invented one is
   wrong in a way the reader cannot check.
+- ANSWER THE ORDINARY THINGS without a tool — arithmetic, a unit
+  conversion, what a term means, what you can do. See the rule above: a
+  calculation on numbers the reader gave you is not a figure about this
+  business.
 - CHANGE THE PAGE when that is what was asked (set_period, set_filter,
   set_layout, undo). "Change the period to 2024", "just Modern Trade", "drop
   the region chart", "put it back" are instructions, not questions.
@@ -741,7 +988,10 @@ WHAT YOU DO
     * "Show me 2024" / "change the period to 2024" — an instruction. set_period.
     * "Show me ROI by channel" — a chart in the chat (draw_chart), not a change
       to the dashboard's own charts.
-    * "Add a channel chart to the dashboard" — set_layout.
+    * "Add a chart of ROI by channel to the dashboard" — pin_chart. It stays on
+      the page and re-draws itself when the period or the filters change.
+    * "Put the region chart back" — set_layout, which turns one of the Hub's
+      OWN nine panels on or off.
   When it is genuinely ambiguous, move the page AND say what you did in one
   short sentence; the reader can see the result and can undo it.
 
@@ -905,6 +1155,103 @@ def strip_images(text: str) -> str:
     return cleaned.strip()
 
 
+#: A markdown table row: "| General Trade | ₹122.55 Cr |".
+_TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
+
+#: A list item: "- **General Trade**: ₹122.55 Cr", "* B2B — ₹17.74 Cr",
+#: "1. Modern Trade: ₹17.25 Cr". The LABEL is what is captured.
+_LIST_ROW = re.compile(
+    r"^\s*(?:[-*•]|\d+[.)])\s+(?P<label>.+?)\s*(?::|—|–|-|\s{2,})\s*\S",
+)
+
+
+def strip_duplicate_table(text: str, charts: list[dict[str, Any]]) -> str:
+    """Remove a table that only restates the chart above it.
+
+    THE PROMPT ALREADY FORBIDS THIS and the model does it anyway. Asked to
+    "chart trade spend by channel" it drew the chart, wrote "Here's the chart
+    showing trade spend by channel:" and then listed all six channels and all
+    six figures underneath — doubling the height of the answer with a copy of
+    what was already on screen.
+
+    An instruction the model ignores reliably is not an instruction, so this
+    is done deterministically. Only a table whose FIRST COLUMN is mostly the
+    chart's own labels is removed: a table about something else survives,
+    because the point is to delete duplication, not tables.
+    """
+    # Cheap exit: no chart to duplicate, or nothing that could be a row.
+    # (This guard used to require a "|", which is why a BULLET restatement —
+    # what the model actually writes — sailed straight through it.)
+    if not charts or not any(ch in text for ch in ("|", "-", "*", "•")):
+        return text
+
+    labels = {
+        str(label).strip().casefold()
+        for chart in charts
+        for label in (
+            [p.get("label") for p in chart.get("points") or []] + list(chart.get("labels") or [])
+        )
+        if label
+    }
+    if not labels:
+        return text
+
+    lines = text.split("\n")
+    keep: list[str] = []
+    i = 0
+    while i < len(lines):
+        kind = "table" if _TABLE_ROW.match(lines[i]) else ("list" if _LIST_ROW.match(lines[i]) else None)
+        if kind is None:
+            keep.append(lines[i])
+            i += 1
+            continue
+        # A run of rows of the same kind. Read it whole, then decide.
+        start = i
+        matcher = _TABLE_ROW if kind == "table" else _LIST_ROW
+        while i < len(lines) and matcher.match(lines[i]):
+            i += 1
+        block = lines[start:i]
+        if kind == "table":
+            cells = [row.strip().strip("|").split("|")[0] for row in block]
+        else:
+            cells = [(_LIST_ROW.match(row) or {}).group("label") for row in block]  # type: ignore[union-attr]
+        data = [_clean_cell(c) for c in cells if c]
+        # A table's header row and its |---| separator are not data.
+        data = [c for c in data if c and not set(c) <= {"-", ":"}]
+        hits = sum(1 for c in data if c in labels)
+        if data and hits >= max(2, len(data) // 2):
+            # Drop a lead-in line that exists only to introduce the block.
+            while keep and not keep[-1].strip():
+                keep.pop()
+            if keep and keep[-1].rstrip().endswith(":"):
+                keep.pop()
+            continue
+        keep.extend(block)
+
+    out = "\n".join(keep).strip()
+    # NOTHING LEFT means the whole answer was the restatement. The chart is on
+    # screen and needs a sentence beside it, so one is written from the chart
+    # itself — the leader, which is what the prompt asks the model for anyway.
+    return out or _leader_sentence(charts) or text
+
+
+def _clean_cell(cell: str) -> str:
+    return cell.strip().strip("*_` ").casefold()
+
+
+def _leader_sentence(charts: list[dict[str, Any]]) -> str:
+    """"General Trade leads at ₹122.55 Cr." — built from the chart's own
+    figures, so it cannot disagree with what is drawn."""
+    for chart in charts:
+        points = [p for p in (chart.get("points") or []) if p.get("label")]
+        if not points:
+            continue
+        top = max(points, key=lambda p: p.get("value") or 0)
+        shown = top.get("display")
+        return f"{top['label']} leads" + (f" at {shown}." if shown else ".")
+    return ""
+
+
 def _result(
     text: str,
     steps: list[dict[str, Any]],
@@ -963,7 +1310,9 @@ def _result(
     )
 
     return {
-        "answer": strip_images(text),
+        # The chart is on screen; a table of the same figures beneath it is
+        # duplication the model keeps adding despite being told not to.
+        "answer": strip_duplicate_table(strip_images(text), charts),
         "steps": steps,
         "charts": charts,
         # The browser applies these and can undo them; the server holds no
@@ -994,6 +1343,7 @@ async def answer(
     history: list[dict[str, Any]] | None = None,
     currency: str = "INR",
     memory: dict[str, Any] | None = None,
+    dashboard: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """One chat turn.
 
@@ -1028,13 +1378,21 @@ async def answer(
     remembered = memory_store.render(store)
 
     system = _system_prompt(currency)
+    # WHAT THE PAGE LOOKS LIKE RIGHT NOW. Sent by the browser with the
+    # question, because the model cannot see it and cannot change a chart it
+    # has no id for.
+    system = system + "\n\n" + hub_layout.dashboard_note(dashboard)
     if remembered:
         system = system + "\n\n" + remembered
 
+    # A month named with a year is stated as the filter to use — see
+    # `period_hint`. Appended to the question rather than to the system prompt
+    # so it is scoped to the turn that asked.
+    hint = period_hint(question)
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system},
         *_history_messages(history),
-        {"role": "user", "content": question},
+        {"role": "user", "content": f"{question}\n\n{hint}" if hint else question},
     ]
 
     steps: list[dict[str, Any]] = []
@@ -1082,7 +1440,7 @@ async def answer(
             except json.JSONDecodeError:
                 args = {}
             try:
-                result = _run_tool(name, args, currency)
+                result = _run_tool(name, args, currency, dashboard)
             except Exception as e:  # a bad scope must not take the whole turn down
                 log.warning("analyst tool %s failed: %s", name, e, exc_info=True)
                 result = {"error": f"{type(e).__name__}: {e}"}
@@ -1094,8 +1452,19 @@ async def answer(
 
             # A page change, likewise — pulled out so the browser applies it
             # once, from one place, with an Undo beside it.
+            #
+            # ONE PERIOD PER TURN. Asked for "march 2025 to august 2025" the
+            # model called set_period twice — once for March, then for the
+            # range — and the receipt read "Set the period to March 2025; Set
+            # the period to weeks 11-36 of 2025", two contradictory changes
+            # reported as though both had happened. The later call is the one
+            # it settled on, so the earlier is dropped here rather than
+            # applied and immediately overwritten.
             if isinstance(result, dict) and isinstance(result.get("action"), dict):
-                actions.append(result["action"])
+                action = result["action"]
+                if action.get("kind") == "period":
+                    actions[:] = [a for a in actions if a.get("kind") != "period"]
+                actions.append(action)
 
             # The schema dump is context for the model, not evidence for the
             # reader — kept out of `steps`.

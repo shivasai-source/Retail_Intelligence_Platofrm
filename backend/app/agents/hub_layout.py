@@ -128,6 +128,7 @@ def layout_action(
     show_cards: list[str] | None = None,
     hide_cards: list[str] | None = None,
     reset: bool = False,
+    clear_pinned: bool = False,
 ) -> dict[str, Any]:
     """One described change to what the Hub shows.
 
@@ -156,7 +157,7 @@ def layout_action(
         raise ValueError(
             f"No card called {', '.join(bad_cards)}. The cards are: {', '.join(CARD_IDS)}."
         )
-    if not (show_charts or hide_charts or show_cards or hide_cards or reset):
+    if not (show_charts or hide_charts or show_cards or hide_cards or reset or clear_pinned):
         raise ValueError("Say what to show, what to hide, or ask for a reset.")
 
     # Showing and hiding the same thing in one breath is a mistake worth
@@ -168,6 +169,8 @@ def layout_action(
     parts: list[str] = []
     if reset:
         parts.append("put the Insights Hub back to its default charts and cards")
+    if clear_pinned:
+        parts.append("removed the charts added to the dashboard from this chat")
     if show_charts:
         parts.append(f"added {describe_panels(show_charts)}")
     if hide_charts:
@@ -180,12 +183,186 @@ def layout_action(
     return {
         "kind": "layout",
         "reset": reset,
+        "clear_pinned": clear_pinned,
         "show_charts": show_charts,
         "hide_charts": hide_charts,
         "show_cards": show_cards,
         "hide_cards": hide_cards,
         "summary": _sentence(parts),
     }
+
+
+#: What a card's heading calls each metric and dimension. `.title()` alone
+#: produced "Roi by Channel", which is the product's own metric spelled wrong
+#: on its own dashboard.
+METRIC_LABELS: dict[str, str] = {
+    "incremental_sales": "Incremental Sales",
+    "trade_spend": "Trade Spend",
+    "incremental_units": "Incremental Units",
+    "roi": "ROI",
+}
+DIMENSION_LABELS: dict[str, str] = {
+    "channel": "Channel",
+    "retailer": "Retailer",
+    "product": "Product",
+    "category": "Category",
+    "brand": "Brand",
+    "promotion": "Promotion",
+    "promotion_mechanic": "Promotion Mechanic",
+    "promotion_type": "Promotion Type",
+    "distributor": "Distributor",
+    "region": "Region",
+    "state": "State",
+    "city": "City",
+}
+
+#: The chart shapes the Insights Hub can draw for a pinned chart. Fewer than
+#: the chat's: a dashboard panel is read at a glance beside eight others, and
+#: a scatter or a histogram there is a puzzle rather than a chart.
+PINNABLE_TYPES: tuple[str, ...] = ("bar", "column", "donut", "line")
+
+
+def pin_action(chart_type: str, by: str, metric: str, dimensions: tuple[str, ...],
+               metrics: tuple[str, ...], title: str = "") -> dict[str, Any]:
+    """A chart to keep ON THE DASHBOARD, described rather than drawn.
+
+    WHAT IS PINNED IS THE SHAPE, NOT THE NUMBERS. The browser redraws it from
+    the Hub's own filter state, so a pinned chart moves with the period and
+    the filters exactly as the nine built-in panels do. Pinning a computed
+    picture instead would leave a chart on the page that quietly disagreed
+    with every card around it the moment the reader changed the period — the
+    one thing `store/commandFilters.ts` exists to make impossible.
+    """
+    kind = (chart_type or "bar").strip().lower()
+    if kind not in PINNABLE_TYPES:
+        raise ValueError(
+            f"A dashboard chart can be {', '.join(PINNABLE_TYPES)} — not {chart_type}."
+        )
+    if by not in dimensions:
+        raise ValueError(f"Cannot group by {by}. Available: {', '.join(dimensions)}.")
+    if metric not in metrics:
+        raise ValueError(f"Cannot measure {metric}. Available: {', '.join(metrics)}.")
+
+    what = METRIC_LABELS.get(metric, metric.replace("_", " ").title())
+    where = DIMENSION_LABELS.get(by, by.replace("_", " ").title())
+    label = (title or f"{what} by {where}").strip()
+    return {
+        "kind": "pin_chart",
+        "chart_type": kind,
+        "by": by,
+        "metric": metric,
+        "title": label,
+        "summary": f"added a {kind} chart of {what} by {where} to the dashboard",
+    }
+
+
+def update_action(chart_id: str, on_dashboard: list[dict[str, Any]],
+                  chart_type: str = "", by: str = "", metric: str = "", title: str = "",
+                  dimensions: tuple[str, ...] = (), metrics: tuple[str, ...] = ()) -> dict[str, Any]:
+    """Change a chart that is ALREADY on the dashboard.
+
+    "Make that a column chart" used to be impossible: the only tools were add
+    and remove, so the model either removed the chart and added a new one — two
+    changes, two undos, and the card losing its place in the row — or, more
+    often, said it had changed it and did nothing.
+
+    The chart is named by the id the browser sent with the question, so this
+    cannot act on a chart that is not there. Only the parts named are changed;
+    everything else stays, which is what "make it a column chart" means.
+    """
+    known = {str(c.get("id")): c for c in on_dashboard if c.get("id")}
+    if not known:
+        raise ValueError(
+            "There are no charts from this chat on the dashboard to change. "
+            "Add one with pin_chart, or use set_layout for the Hub's own charts."
+        )
+    if chart_id not in known:
+        names = ", ".join(f"{c.get('title')} ({i})" for i, c in known.items())
+        raise ValueError(f"No chart with id {chart_id} on the dashboard. There is: {names}.")
+
+    current = known[chart_id]
+    patch: dict[str, Any] = {}
+    if chart_type:
+        kind = chart_type.strip().lower()
+        if kind not in PINNABLE_TYPES:
+            raise ValueError(
+                f"A dashboard chart can be {', '.join(PINNABLE_TYPES)} — not {chart_type}."
+            )
+        patch["chart_type"] = kind
+    if by:
+        if dimensions and by not in dimensions:
+            raise ValueError(f"Cannot group by {by}. Available: {', '.join(dimensions)}.")
+        patch["by"] = by
+    if metric:
+        if metrics and metric not in metrics:
+            raise ValueError(f"Cannot measure {metric}. Available: {', '.join(metrics)}.")
+        patch["metric"] = metric
+    if title:
+        patch["title"] = title.strip()
+    if not patch:
+        raise ValueError("Say what to change about it: its type, what it measures, or its grouping.")
+
+    # Re-title when the SHAPE changed and the reader did not name one, so the
+    # heading cannot go on describing the chart it used to be.
+    if ("by" in patch or "metric" in patch) and "title" not in patch:
+        what = METRIC_LABELS.get(patch.get("metric", current.get("metric", "")), "")
+        where = DIMENSION_LABELS.get(patch.get("by", current.get("by", "")), "")
+        if what and where:
+            patch["title"] = f"{what} by {where}"
+
+    described = []
+    if "chart_type" in patch:
+        described.append(f"a {patch['chart_type']} chart")
+    if "metric" in patch:
+        described.append(f"measuring {METRIC_LABELS.get(patch['metric'], patch['metric'])}")
+    if "by" in patch:
+        described.append(f"grouped by {DIMENSION_LABELS.get(patch['by'], patch['by'])}")
+    if "title" in patch and not described:
+        described.append(f'titled "{patch["title"]}"')
+
+    return {
+        "kind": "update_chart",
+        "id": chart_id,
+        "patch": patch,
+        "summary": f"made {current.get('title', 'that chart')} {' '.join(described)}",
+    }
+
+
+def dashboard_note(state: dict[str, Any] | None) -> str:
+    """What is on the Insights Hub right now, for the system prompt.
+
+    The model cannot see the page. Without this it cannot change a chart it
+    put there (it has no id to name), cannot avoid adding a second copy of
+    something already on screen, and cannot answer "what's on my dashboard".
+    """
+    state = state or {}
+    pinned = [c for c in (state.get("pinned") or []) if isinstance(c, dict)]
+    hidden = [c for c in (state.get("hidden_charts") or []) if c in BY_ID]
+    cards = [c for c in (state.get("cards") or []) if c in CARD_LABELS]
+
+    lines = ["WHAT IS ON THE INSIGHTS HUB RIGHT NOW"]
+    if hidden:
+        lines.append(f"  Hidden charts (show with set_layout): {describe_panels(hidden)}")
+    else:
+        lines.append("  All nine of the Hub's own charts are on screen.")
+    lines.append(
+        f"  Added KPI cards: {describe_cards(cards)}" if cards
+        else "  Added KPI cards: none beyond the headline three."
+    )
+    if pinned:
+        lines.append("  Charts YOU added, with the id to change or remove them:")
+        for c in pinned:
+            lines.append(
+                f"    id={c.get('id')} \u2014 \"{c.get('title')}\": a {c.get('chart_type')} chart of "
+                f"{c.get('metric')} by {c.get('by')}"
+            )
+        lines.append(
+            "  To change one of those, call update_chart with its id. Do NOT remove and "
+            "re-add it."
+        )
+    else:
+        lines.append("  Charts you added: none.")
+    return "\n".join(lines)
 
 
 def _sentence(parts: list[str]) -> str:

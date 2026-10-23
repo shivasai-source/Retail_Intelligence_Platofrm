@@ -8,6 +8,7 @@ deploy, no separate proxy. See DEV.md at the project root for exact run
 commands and the full phase-by-phase migration notes.
 """
 import logging
+import time
 import threading
 from pathlib import Path
 
@@ -50,6 +51,23 @@ def _warm_caches() -> None:
                 log.info("No dataset in the data folder yet — upload the star-schema CSVs to populate it.")
                 return
             log.info("Warmed fact store: %s rows", store.row_count)
+
+            # THE INSIGHTS HUB'S OWN PERIODS, FIRST — it is the landing page
+            # and the thing a reader changes most often.
+            #
+            # The engine memoises per scope, so the SECOND visit to a period is
+            # instant and the first pays for the whole computation. Measured on
+            # the reference dataset, one cold year costs about six seconds
+            # spread across the panels: ~3.5s for the KPI cards, ~2.0s for the
+            # region breakdown, ~0.6s for channel, the rest small. That is the
+            # "changing the period is slow" the reader actually feels, and it
+            # is paid once per period per server start.
+            #
+            # So it is paid HERE instead, on the warm-up thread, before the
+            # Simulation Studio's model fit (which can take two minutes and
+            # would otherwise hold the queue). Each period is warmed in the
+            # order a reader meets them: all data, then the latest year back.
+            _warm_insights_hub(store)
             # The latest year in the data, which is where the Insights Hub
             # opens -- not a year written down here that the data may have
             # moved past.
@@ -78,6 +96,54 @@ def _warm_caches() -> None:
             log.exception("Cache warmup failed; first request will be slow instead")
 
     threading.Thread(target=warm, name="tiq-warmup", daemon=True).start()
+
+
+def _warm_insights_hub(store) -> None:
+    """Precompute every panel of the Insights Hub, for every period it opens on.
+
+    WHAT IS WARMED IS WHAT THE PAGE ACTUALLY ASKS FOR: the KPI cards, the
+    weekly trend, the promotion mix, the top promotions, and the six
+    breakdowns its charts draw (see the `useBreakdown` calls in
+    frontend/src/components/command). Warming a scope the page never requests
+    would spend the startup budget on nothing.
+
+    Failures are logged per scope and never raised: a warm-up is an
+    optimisation, and a period that cannot be precomputed must still be
+    reachable — it simply pays its own cost on first use, as it did before.
+    """
+    from app.tpo import service
+    from app.tpo.filters import FilterState
+
+    #: Dimension and limit, exactly as the page requests them.
+    panels: tuple[tuple[str, int], ...] = (
+        ("promotion_mechanic", 50),
+        ("channel", 50),
+        ("promotion", 50),
+        ("promotion_type", 50),
+        ("product", 50),
+        ("region", 50),
+    )
+
+    years = sorted(store.years(), reverse=True)
+    # All data is the Hub's default period; then the years, latest first.
+    scopes: list[tuple[str, FilterState]] = [("all data", FilterState())]
+    scopes += [(str(y), FilterState(year=y)) for y in years]
+
+    started = time.perf_counter()
+    for label, state in scopes:
+        try:
+            service.kpis(state)
+            service.trend(state, "week")
+            service.promotion_mix(state)
+            service.top_promotions(state, limit=10)
+            for by, limit in panels:
+                service.breakdown(state, by, limit=limit)
+        except Exception:
+            log.exception("Insights Hub warm-up failed for %s; it will load on demand", label)
+        else:
+            log.info("Warmed Insights Hub: %s", label)
+    log.info("Warmed Insights Hub for %d periods in %.1fs",
+             len(scopes), time.perf_counter() - started)
 
 # Vite dev server origins. Only exercised when something calls the API directly
 # instead of through Vite's /api proxy (which makes requests same-origin already);

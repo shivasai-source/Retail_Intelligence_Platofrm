@@ -43,10 +43,30 @@ export type AnalystAction =
   | {
       kind: 'layout'
       reset: boolean
+      clear_pinned?: boolean
       show_charts: string[]
       hide_charts: string[]
       show_cards: string[]
       hide_cards: string[]
+      summary: string
+    }
+  | {
+      kind: 'pin_chart'
+      chart_type: 'bar' | 'column' | 'donut' | 'line'
+      by: string
+      metric: string
+      title: string
+      summary: string
+    }
+  | {
+      kind: 'update_chart'
+      id: string
+      patch: Partial<{
+        chart_type: 'bar' | 'column' | 'donut' | 'line'
+        by: string
+        metric: string
+        title: string
+      }>
       summary: string
     }
   | { kind: 'undo'; summary: string }
@@ -153,6 +173,13 @@ export function applyAnalystActions(actions: AnalystAction[] | undefined): Appli
           undoable = true
           break
         }
+        if (action.clear_pinned) {
+          const layout = useHubLayout.getState()
+          layout.change(action.summary, () => layout.clearPinned())
+          applied.push(action.summary)
+          undoable = true
+          break
+        }
         const layout = useHubLayout.getState()
         layout.change(action.summary, () => {
           const charts = layout.charts
@@ -164,6 +191,36 @@ export function applyAnalystActions(actions: AnalystAction[] | undefined): Appli
           layout.setCharts(charts)
           layout.setCards(cards)
         })
+        applied.push(action.summary)
+        undoable = true
+        break
+      }
+
+      case 'pin_chart': {
+        const layout = useHubLayout.getState()
+        layout.change(action.summary, () =>
+          layout.pinChart({
+            chart_type: action.chart_type,
+            by: action.by,
+            metric: action.metric,
+            title: action.title,
+          }),
+        )
+        applied.push(action.summary)
+        undoable = true
+        break
+      }
+
+      case 'update_chart': {
+        const layout = useHubLayout.getState()
+        if (!layout.pinned.some((p) => p.id === action.id)) {
+          // The page moved on between the question and the answer — the chart
+          // was removed while the turn was in flight. Saying so is better than
+          // silently doing nothing to a chart that is no longer there.
+          skipped.push('that chart is no longer on the dashboard')
+          break
+        }
+        layout.change(action.summary, () => layout.updateChart(action.id, action.patch))
         applied.push(action.summary)
         undoable = true
         break
