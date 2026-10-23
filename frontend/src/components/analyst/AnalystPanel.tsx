@@ -2,10 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { IconButton, useToast } from '../ui'
 import { AnalystConversation } from './AnalystConversation'
-import { useAnalyst } from '../../hooks/useAnalyst'
+import { TPO_ANALYST, useAnalyst, type AnalystModule } from '../../hooks/useAnalyst'
 import { useAnalystInbox } from '../../store/analystInbox'
 import { useAnalystLayout, ANALYST_MIN_W, ANALYST_MAX_W } from '../../store/analystLayout'
-import { TO_PANEL, TO_WINDOW, dropHandoff, readHandoff, sendHandoff, takeHandoff } from '../../lib/analystHandoff'
+import { dropHandoff, readHandoff, sendHandoff, takeHandoff } from '../../lib/analystHandoff'
 
 /** Wide enough to give the Analyst a column AND leave the dashboard a usable
  *  one. Below this the docked panel overlays the page instead of pushing it. */
@@ -41,18 +41,26 @@ function useMediaQuery(query: string): boolean {
  *  floating surface here is (see ui/Dropdown.tsx): the page's entrance
  *  animations establish stacking contexts, and an in-tree panel would be
  *  trapped beneath later siblings however it was z-indexed.
+ *
+ *  WHICH HUB IT IS ON comes in as `module` (hooks/useAnalyst.ts): the
+ *  endpoint, the page state, the action applier, the copy and its own pair of
+ *  hand-off keys. Everything this component does — the three ways of looking
+ *  at it, the resize, the pop-out, the Escape handling — is the same on both
+ *  hubs, so it is written once.
  */
 export function AnalystPanel({
   open,
   onClose,
   onOpen,
+  module = TPO_ANALYST,
 }: {
   open: boolean
   onClose: () => void
   /** Called when a conversation is handed back from the pop-out window. */
   onOpen?: () => void
+  module?: AnalystModule
 }) {
-  const analyst = useAnalyst()
+  const analyst = useAnalyst(module)
   const { restore } = analyst
 
   // A QUESTION HANDED OVER FROM INVESTIGATIONS (a figure lookup typed into
@@ -60,12 +68,16 @@ export function AnalystPanel({
   const inbox = useAnalystInbox((s) => s.question)
   const clearInbox = useAnalystInbox((s) => s.clear)
   const { ask } = analyst
+  const usesInbox = module.usesInbox ?? false
   useEffect(() => {
-    if (!inbox) return
+    // Only the hub that HAS an Investigations page beside it takes handed-over
+    // questions. Without this guard, opening the MMM hub's Analyst would
+    // swallow a question meant for TPO's and answer it from the wrong dataset.
+    if (!inbox || !usesInbox) return
     clearInbox()
     onOpen?.()
     void ask(inbox)
-  }, [inbox, clearInbox, onOpen, ask])
+  }, [inbox, usesInbox, clearInbox, onOpen, ask])
   const { show } = useToast()
   const mode = useAnalystLayout((s) => s.mode)
   const width = useAnalystLayout((s) => s.width)
@@ -109,23 +121,24 @@ export function AnalystPanel({
     },
     [restore, onOpen],
   )
+  const toPanel = module.handoff.toPanel
   useEffect(() => {
-    receive(takeHandoff(TO_PANEL))
+    receive(takeHandoff(toPanel))
     const onStorage = (e: StorageEvent) => {
-      if (e.key !== TO_PANEL || !e.newValue) return
-      receive(takeHandoff(TO_PANEL))
+      if (e.key !== toPanel || !e.newValue) return
+      receive(takeHandoff(toPanel))
       window.focus()
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
-  }, [receive])
+  }, [receive, toPanel])
 
   const popOut = () => {
-    sendHandoff(TO_WINDOW, analyst.snapshot())
-    const url = `${window.location.origin}${window.location.pathname}#/analyst`
-    const win = window.open(url, 'tpo-analyst', 'popup,width=620,height=860')
+    sendHandoff(module.handoff.toWindow, analyst.snapshot())
+    const url = `${window.location.origin}${window.location.pathname}${module.windowRoute}`
+    const win = window.open(url, module.windowName, 'popup,width=620,height=860')
     if (!win) {
-      dropHandoff(TO_WINDOW)
+      dropHandoff(module.handoff.toWindow)
       show('Your browser blocked the new window — allow pop-ups for this site and try again.', { duration: 4500 })
       return
     }

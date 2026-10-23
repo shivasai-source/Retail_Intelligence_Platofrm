@@ -71,6 +71,102 @@ class AnalystError(RuntimeError):
     """A question that could not be answered, with a reader-facing message."""
 
 
+# --- the period a question names -------------------------------------------
+#
+# THE BACKSTOP BEHIND THE MODEL'S OWN READING, in the same spirit as
+# `star_tools.offers_and_products_named_in`: a question that says "August 2026"
+# is about that month whatever the model made of it.
+#
+# This exists because of two observed failures on the same question. Asked
+# "what was our trade spend in august 2026?", the model called `get_kpis` with
+# the YEAR alone — and a part-year is labelled "Jan–Aug 2026" by the engine, so
+# the reader was shown eight months of spend under a question about one. On
+# another run it refused outright: "The data does not cover August 2026. It
+# only includes the years 2024, 2025, and 2026" — which lists the very year it
+# had just denied.
+#
+# So the month is extracted here, deterministically, and stated to the model as
+# the filter to use. Nothing is guessed: a month is only recognised next to a
+# four-digit year, because "March" on its own could be any March in the data
+# and picking one would be a different quarter's numbers under a confident
+# sentence.
+_MONTH_WORDS: dict[str, int] = {}
+for _i, _name in enumerate(calendar.month_name):
+    if _name:
+        _MONTH_WORDS[_name.lower()] = _i
+for _i, _name in enumerate(calendar.month_abbr):
+    if _name:
+        _MONTH_WORDS.setdefault(_name.lower(), _i)
+
+#: "august 2026", "aug 2026", "2026 august", "august of 2026".
+_MONTH_YEAR = re.compile(
+    r"\b(?P<month>" + "|".join(sorted(_MONTH_WORDS, key=len, reverse=True)) + r")\b"
+    r"(?:\s+of)?\s+(?P<year>20\d{2})\b",
+    re.IGNORECASE,
+)
+#: The same with a two-digit year behind an apostrophe — "may'24", "sep '25" —
+#: which is how a period gets typed in practice. The apostrophe is required:
+#: "may 24" is the 24th of May to as many readers as it is May 2024.
+_MONTH_SHORT_YEAR = re.compile(
+    r"\b(?P<month>" + "|".join(sorted(_MONTH_WORDS, key=len, reverse=True)) + r")\b"
+    r"\s*['\u2018\u2019]\s*(?P<year>\d{2})\b",
+    re.IGNORECASE,
+)
+_YEAR_MONTH = re.compile(
+    r"\b(?P<year>20\d{2})\s+(?P<month>"
+    + "|".join(sorted(_MONTH_WORDS, key=len, reverse=True))
+    + r")\b",
+    re.IGNORECASE,
+)
+
+
+def period_named_in(question: str) -> dict[str, int] | None:
+    """`{"year": 2026, "month": 8}` when a question names a month AND a year.
+
+    None when it names a month alone, several different months, or no month —
+    all cases where the model's own reading is better than a guess.
+    """
+    text = " ".join((question or "").split())
+    if not text:
+        return None
+    found: list[tuple[int, int]] = []
+    for pattern in (_MONTH_YEAR, _YEAR_MONTH):
+        for match in pattern.finditer(text):
+            month = _MONTH_WORDS.get(match.group("month").lower())
+            if month:
+                found.append((int(match.group("year")), month))
+    for match in _MONTH_SHORT_YEAR.finditer(text):
+        month = _MONTH_WORDS.get(match.group("month").lower())
+        if month:
+            try:
+                found.append((hub_scope._expand_year(int(match.group("year"))), month))
+            except hub_scope.ScopeError:
+                # An ambiguous or absent year is the model's problem to relay,
+                # not something to guess at in a hint.
+                continue
+    unique = list(dict.fromkeys(found))
+    if len(unique) != 1:
+        # Two different months is a comparison ("August 2026 vs August 2025"),
+        # which is the model's job to scope, one call each.
+        return None
+    year, month = unique[0]
+    return {"year": year, "month": month}
+
+
+def period_hint(question: str) -> str | None:
+    """The note appended to a question that names a month, or None."""
+    period = period_named_in(question)
+    if not period:
+        return None
+    name = calendar.month_name[period["month"]]
+    return (
+        f"[The question names {name} {period['year']}. If you look a figure up for that "
+        f'period, the filter is {{"year": {period["year"]}, "month": {period["month"]}}} — '
+        f"that month alone, not the year to date. The data does cover it if "
+        f"{period['year']} is in the list of years above.]"
+    )
+
+
 # --- the "why" line ----------------------------------------------------------
 #
 # A question that is ONLY a causal ask is turned away before the model is
@@ -130,6 +226,82 @@ def is_undo_request(question: str) -> bool:
 UNDO_ANSWER = "Putting that back."
 
 
+# --- a message that is ONLY a period ----------------------------------------
+#
+# "may 2024" is an instruction, and the model treated it as a question: it
+# called get_kpis and read nine figures back as a bullet list, leaving the page
+# on whatever period it was already showing. "sep'25" in the same session DID
+# move the page. Same shape of input, two different behaviours, because
+# nothing in the words says which it is and the model guesses.
+#
+# It is not ambiguous to a person. Typing a period and nothing else into a
+# dashboard's assistant means "show me that period" — nobody types "may 2024"
+# hoping for a paragraph. So when the WHOLE message is a period and nothing
+# else, the page moves, deterministically, without a model call: instant, free
+# and the same every time.
+#
+# Anything with a question or another word in it still goes to the model:
+# "what was spend in may 2024" is a question about a period, not a period.
+#: Longest alternative first: "show" would otherwise win against "show me"
+#: and leave a stray "me" behind, which then reads as noise and the whole
+#: message stops looking like a period.
+_PERIOD_LEAD = re.compile(
+    r"^(?:take me to|show me|go to|switch to|jump to|take me|show|set|change|switch|"
+    r"jump|filter|select|view|open)"
+    r"(?:\s+(?:to|the|it|me|period|date|data|dates|range|timeframe|time))*\s+",
+    re.IGNORECASE,
+)
+_PERIOD_TAIL = re.compile(r"\s*(?:period|only|please|data|view)?\s*$", re.IGNORECASE)
+
+
+def period_only_request(question: str) -> dict[str, Any] | None:
+    """The period a bare period message names, or None if it is not one.
+
+    Returns the filter the page should move to, already validated by
+    `hub_scope`, so the caller can answer without a model.
+    """
+    text = " ".join((question or "").strip().split())
+    if not text or "?" in text:
+        return None
+    stripped = _PERIOD_LEAD.sub("", text).strip().strip(".!,")
+    if not stripped:
+        return None
+
+    # A month with a year, in any of the forms the hint parser reads.
+    named = period_named_in(stripped)
+    if named and _is_only_period(stripped, named):
+        try:
+            return hub_scope.period_action(year=named["year"], month=named["month"])
+        except hub_scope.ScopeError:
+            return None
+
+    # A bare year, or "all data".
+    if re.fullmatch(r"20\d{2}", stripped):
+        try:
+            return hub_scope.period_action(year=int(stripped))
+        except hub_scope.ScopeError:
+            return None
+    if re.fullmatch(r"(?:all|all data|everything|all periods|full history)", stripped, re.IGNORECASE):
+        return hub_scope.period_action(all_data=True)
+    return None
+
+
+def _is_only_period(text: str, named: dict[str, int]) -> bool:
+    """True when the message carries nothing BUT that month and year.
+
+    Guards against "spend in may 2024" being read as an instruction: whatever
+    is left once the month, the year and the joining words are removed has to
+    be nothing at all.
+    """
+    words = [w for w in re.split(r"\W+", text.lower()) if w]
+    months = {w for w in words if w in _MONTH_WORDS}
+    numbers = {w for w in words if w.isdigit()}
+    noise = set(words) - months - numbers - {
+        "of", "in", "for", "the", "me", "data", "period", "please", "only", "view", "fy",
+    }
+    return bool(months) and not noise
+
+
 WHY_DEFLECTION = (
     "I can't answer *why* something happened — I look numbers up and do the "
     "arithmetic on them, but I don't do causal analysis.\n\n"
@@ -140,85 +312,6 @@ WHY_DEFLECTION = (
     "the figure was, how it compares across channels or regions, or how it "
     "moved versus last year."
 )
-
-
-# --- the period a question names -------------------------------------------
-#
-# THE BACKSTOP BEHIND THE MODEL'S OWN READING, in the same spirit as
-# `star_tools.offers_and_products_named_in`: a question that says "August 2026"
-# is about that month whatever the model made of it.
-#
-# This exists because of two observed failures on the same question. Asked
-# "what was our trade spend in august 2026?", the model called `get_kpis` with
-# the YEAR alone — and a part-year is labelled "Jan–Aug 2026" by the engine, so
-# the reader was shown eight months of spend under a question about one. On
-# another run it refused outright: "The data does not cover August 2026. It
-# only includes the years 2024, 2025, and 2026" — which lists the very year it
-# had just denied.
-#
-# So the month is extracted here, deterministically, and stated to the model as
-# the filter to use. Nothing is guessed: a month is only recognised next to a
-# four-digit year, because "March" on its own could be any March in the data
-# and picking one would be a different quarter's numbers under a confident
-# sentence.
-_MONTH_WORDS: dict[str, int] = {}
-for _i, _name in enumerate(calendar.month_name):
-    if _name:
-        _MONTH_WORDS[_name.lower()] = _i
-for _i, _name in enumerate(calendar.month_abbr):
-    if _name:
-        _MONTH_WORDS.setdefault(_name.lower(), _i)
-
-#: "august 2026", "aug 2026", "2026 august", "august of 2026".
-_MONTH_YEAR = re.compile(
-    r"\b(?P<month>" + "|".join(sorted(_MONTH_WORDS, key=len, reverse=True)) + r")\b"
-    r"(?:\s+of)?\s+(?P<year>20\d{2})\b",
-    re.IGNORECASE,
-)
-_YEAR_MONTH = re.compile(
-    r"\b(?P<year>20\d{2})\s+(?P<month>"
-    + "|".join(sorted(_MONTH_WORDS, key=len, reverse=True))
-    + r")\b",
-    re.IGNORECASE,
-)
-
-
-def period_named_in(question: str) -> dict[str, int] | None:
-    """`{"year": 2026, "month": 8}` when a question names a month AND a year.
-
-    None when it names a month alone, several different months, or no month —
-    all cases where the model's own reading is better than a guess.
-    """
-    text = " ".join((question or "").split())
-    if not text:
-        return None
-    found: list[tuple[int, int]] = []
-    for pattern in (_MONTH_YEAR, _YEAR_MONTH):
-        for match in pattern.finditer(text):
-            month = _MONTH_WORDS.get(match.group("month").lower())
-            if month:
-                found.append((int(match.group("year")), month))
-    unique = list(dict.fromkeys(found))
-    if len(unique) != 1:
-        # Two different months is a comparison ("August 2026 vs August 2025"),
-        # which is the model's job to scope, one call each.
-        return None
-    year, month = unique[0]
-    return {"year": year, "month": month}
-
-
-def period_hint(question: str) -> str | None:
-    """The note appended to a question that names a month, or None."""
-    period = period_named_in(question)
-    if not period:
-        return None
-    name = calendar.month_name[period["month"]]
-    return (
-        f"[The question names {name} {period['year']}. If you look a figure up for that "
-        f'period, the filter is {{"year": {period["year"]}, "month": {period["month"]}}} — '
-        f"that month alone, not the year to date. The data does cover it if "
-        f"{period['year']} is in the list of years above.]"
-    )
 
 
 def deflect_why(question: str) -> str | None:
@@ -1135,6 +1228,13 @@ def _history_messages(history: list[dict[str, Any]] | None) -> list[dict[str, An
 #: rendered as a broken image. The prompt forbids it; this makes it impossible,
 #: because a rule the model can ignore is not a guarantee.
 _IMAGE_MARKDOWN = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+#: AN IMAGE THE MODEL DID NOT FINISH WRITING. A fake PNG is long enough to hit
+#: the response limit, so the answer ends mid-blob with no closing bracket and
+#: the pattern above — which needs one — leaves "![Ad Spend by Channel](" on
+#: screen as literal text. Observed on the MMM hub's first chart request.
+#: Anchored to the end, so a complete image elsewhere in the text is still the
+#: pattern above's to remove.
+_UNCLOSED_IMAGE = re.compile(r"!\[[^\]]*\](?:\([^)]*)?$")
 _DATA_URI = re.compile(r"(?:data:[a-zA-Z0-9.+/-]+;base64,)[A-Za-z0-9+/=\s]{40,}")
 #: A bare base64 run with no data: prefix — the same failure, half-emitted.
 _BARE_BASE64 = re.compile(r"[A-Za-z0-9+/]{200,}={0,2}")
@@ -1150,6 +1250,9 @@ def strip_images(text: str) -> str:
     cleaned = _IMAGE_MARKDOWN.sub("", text)
     cleaned = _DATA_URI.sub("", cleaned)
     cleaned = _BARE_BASE64.sub("", cleaned)
+    # LAST, and anchored to the end: whatever the removals above leave dangling
+    # is an image the model ran out of room to finish.
+    cleaned = _UNCLOSED_IMAGE.sub("", cleaned.rstrip())
     # Collapse the blank lines the removal leaves behind.
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()
@@ -1371,6 +1474,14 @@ async def answer(
         return _result(UNDO_ANSWER, [], [], store, question,
                        [{"kind": "undo", "summary": "undid the last change"}])
 
+    # A message that is ONLY a period moves the page, with no model call —
+    # see `period_only_request` for why that is not a shortcut.
+    bare_period = period_only_request(question)
+    if bare_period:
+        store = memory_store.normalise(memory)
+        label = bare_period["summary"].replace("set the period to ", "")
+        return _result(f"Period's now {label}.", [], [], store, question, [bare_period])
+
     currency = F.normalise_currency(currency)
     get_client()  # fail fast when no key is configured
 
@@ -1464,7 +1575,37 @@ async def answer(
                 action = result["action"]
                 if action.get("kind") == "period":
                     actions[:] = [a for a in actions if a.get("kind") != "period"]
-                actions.append(action)
+                # A SWAP OF THE HUB'S OWN CHARTS IS ONE CHANGE, NOT TWO.
+                #
+                # Asked to "replace sales by region chart with product
+                # performance" the model did the swap correctly with
+                # set_layout — and then also edited a pinned chart called "ROI
+                # by Region", which the reader had never mentioned, because the
+                # two names look alike. The reader's own chart was silently
+                # re-grouped as a side effect of a sentence about a different
+                # one.
+                #
+                # One instruction changes one thing. When a turn produces both
+                # a layout change and an edit to a pinned chart, the layout
+                # change is the one that matches "replace <a chart on the
+                # page>", and the edit is dropped. A reader who genuinely
+                # wants both says so in two messages, and gets two undos —
+                # which is what they would want anyway.
+                #
+                # DROPPED FROM THE ACTION LIST, NOT SKIPPED: `continue` here
+                # jumped the tool-response message below, leaving an assistant
+                # tool_call with nothing answering it — and the provider
+                # rejects the next request outright ("must be followed by tool
+                # messages responding to each tool_call_id"). The model still
+                # sees what its call returned; the browser simply is not asked
+                # to apply it.
+                superseded = action.get("kind") == "update_chart" and any(
+                    a.get("kind") == "layout" for a in actions
+                )
+                if action.get("kind") == "layout":
+                    actions[:] = [a for a in actions if a.get("kind") != "update_chart"]
+                if not superseded:
+                    actions.append(action)
 
             # The schema dump is context for the model, not evidence for the
             # reader — kept out of `steps`.

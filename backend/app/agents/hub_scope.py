@@ -32,6 +32,8 @@ that exist.
 from __future__ import annotations
 
 import calendar
+import re
+from collections.abc import Sequence
 from datetime import date, datetime
 from typing import Any
 
@@ -77,41 +79,170 @@ def _years() -> list[int]:
     return sorted(out)
 
 
-#: Formats tried in order, day-first — the convention of the dataset and of
-#: everyone who writes dates into this product.
-_DATE_FORMATS = (
-    "%d-%m-%Y", "%d/%m/%Y", "%Y-%m-%d", "%d %m %Y",
-    "%d %b %Y", "%d %B %Y", "%b %d %Y", "%B %d %Y",
-    "%d-%b-%Y", "%d-%B-%Y", "%d %b, %Y", "%d %B, %Y",
-)
-#: A month WITHOUT a day: "march 2025", "mar 2025", "2025-03".
-_MONTH_FORMATS = ("%b %Y", "%B %Y", "%Y-%m", "%m-%Y", "%m/%Y")
+def _expand_year(two: int, years: Sequence[int] | None = None) -> int:
+    """'24 -> 2024, chosen from the years the data actually holds.
+
+    Blindly adding 2000 is right today and wrong the moment a dataset carries
+    1999 or 2101. Matching against the real years means the answer is either
+    a year that exists or a refusal naming the ones that do.
+
+    `years` is which dataset's years to read it against. None means the TPO
+    store's, which is what every caller on this page wants; the MMM Analyst
+    passes its own (see app/agents/mmm_scope.py) so one parser serves both
+    datasets rather than two copies drifting apart.
+    """
+    years = sorted(years) if years is not None else _years()
+    matches = [y for y in years if y % 100 == two]
+    if len(matches) == 1:
+        return matches[0]
+    if not years:
+        return 2000 + two
+    raise ScopeError(
+        f"'{two:02d} could be {' or '.join(str(y) for y in matches)}."
+        if matches else
+        f"There is no year ending {two:02d} in the data. It covers "
+        f"{', '.join(str(y) for y in years)}."
+    )
 
 
-def parse_day(text: str, *, end: bool = False) -> date:
+#: Spellings of a month that are not in the C library's tables but are in
+#: everyone's typing. Anything else resolves by unique prefix below.
+_MONTH_ALIASES: dict[str, int] = {
+    "sept": 9, "sepr": 9, "septr": 9,
+    "jun": 6, "jly": 7, "augt": 8, "dec": 12, "feburary": 2, "febuary": 2,
+}
+
+
+def resolve_month(word: str) -> int | None:
+    """A month from however it was written, or None if it is not one.
+
+    THE SAME TOLERANCE THE COLUMN MAPPER GIVES A HEADER (app/mmm/mapping.py,
+    app/column_mapping.py): case and punctuation are stripped before anything
+    is compared, so "SEPT.", " september " and "Sep" are one word. A prefix of
+    three letters or more resolves when it can only be one month — "septem" is
+    September — and an ambiguous one ("ma", which is March and May) resolves
+    to nothing rather than to a guess, because the wrong month is a whole
+    different quarter of the business.
+    """
+    key = "".join(ch for ch in str(word or "").lower() if ch.isalpha())
+    if not key:
+        return None
+    for table in (MONTHS, _MONTH_ALIASES):
+        if key in table:
+            return table[key]
+    if len(key) >= 3:
+        hits = {n for name, n in MONTHS.items() if name.startswith(key)}
+        if len(hits) == 1:
+            return hits.pop()
+    return None
+
+
+#: A whole date written in digits: 11-03-2025, 11/03/2025, 2025-03-11.
+_ALL_DIGITS = re.compile(r"^(\d{1,4})\s*[-/.]\s*(\d{1,2})\s*[-/.]\s*(\d{1,4})$")
+
+
+def parse_day(text: str, *, end: bool = False,
+              years: Sequence[int] | None = None) -> date:
     """One date, from however a person wrote it.
 
-    A month with no day resolves to its FIRST day, or its last when `end` —
-    so "march 2025 to august 2025" is the whole of both months rather than
-    two single days, which is what those words mean.
+    PARSED BY STRUCTURE, NOT BY A LIST OF FORMATS. Matching "%b %Y" and
+    friends meant "may 2024" worked and "may-2024" did not, which is a
+    distinction nobody intends to be making. The pieces are found instead: a
+    month word, a year, and a day if there is one. Case, spacing and
+    punctuation stop mattering, as they already do when a connector matches a
+    column header.
+
+    A month with no day resolves to its FIRST day, or its last when `end` — so
+    "march 2025 to august 2025" is both months whole, which is what those
+    words mean.
+
+    `years` is which dataset to read a two-digit year against — see
+    `_expand_year`. None is the TPO store's.
     """
-    raw = " ".join(str(text or "").replace(",", " ").split())
+    # Curly quotes become straight ones first, so "May \u201824" and "May '24"
+    # are the same input. A word processor's apostrophe is not a different
+    # intention.
+    raw = " ".join(str(text or "").replace("\u2018", "'").replace("\u2019", "'").split())
     if not raw:
         raise ScopeError("Give a date, like 11 Mar 2025.")
-    for fmt in _DATE_FORMATS:
+
+    # All digits: day-first, because that is this product's convention and the
+    # dataset's. A four-digit leading number is a year instead.
+    digits = _ALL_DIGITS.match(raw)
+    if digits:
+        a, b, c = (int(g) for g in digits.groups())
         try:
-            return datetime.strptime(raw, fmt).date()
-        except ValueError:
+            if a > 31:
+                return date(a, b, c)
+            year = c if c > 99 else _expand_year(c, years)
+            return date(year, b, a)
+        except ValueError as exc:
+            raise ScopeError(f"'{text}' is not a date on any calendar.") from exc
+
+    # "Mar-24", "Mar/24": a month word PUNCTUATED onto two digits is the month
+    # and year, the form a spreadsheet writes. Normalised to the apostrophe
+    # form below. A bare space ("mar 24") is left alone, because that one
+    # really is ambiguous and is asked about instead of guessed.
+    raw = re.sub(
+        r"([A-Za-z]{3,})\s*[-/.]\s*(?<!\d)(\d{2})(?!\d)", r"\1 '\2", raw
+    )
+
+    # A word form: find the month, the year, and a day if one is there.
+    tokens = [t for t in re.split(r"[^A-Za-z0-9']+", raw) if t]
+    month: int | None = None
+    year: int | None = None
+    day: int | None = None
+    #: Words that join a date together and mean nothing on their own.
+    joining = {"of", "the", "in", "on", "to", "from", "fy", "month", "period"}
+    for token in tokens:
+        apostrophe = re.fullmatch(r"['\u2018\u2019](\d{2})", token)
+        if apostrophe:
+            year = _expand_year(int(apostrophe.group(1)), years)
             continue
-    for fmt in _MONTH_FORMATS:
-        try:
-            first = datetime.strptime(raw, fmt).date().replace(day=1)
-        except ValueError:
+        # "may'24" arrives whole when the apostrophe is not a separator.
+        joined = re.fullmatch(r"([A-Za-z]+)['\u2018\u2019](\d{2})", token)
+        if joined:
+            month = month or resolve_month(joined.group(1))
+            year = _expand_year(int(joined.group(2)), years)
             continue
-        if not end:
-            return first
-        days = calendar.monthrange(first.year, first.month)[1]
-        return first.replace(day=days)
+        if token.isdigit():
+            if len(token) == 4:
+                year = int(token)
+            elif day is None and 1 <= int(token) <= 31:
+                day = int(token)
+            continue
+        found = resolve_month(token)
+        if found:
+            month = found
+        elif token.lower() not in joining:
+            # A word that is not a month and not grammar. "ma 2025" used to
+            # fall through to the whole of 2025, quietly dropping the half-
+            # written month the reader actually cared about.
+            raise ScopeError(
+                f"'{token}' is not a month I recognise. Write it out — "
+                "March 2025, or 11 Mar 2025."
+            )
+
+    if month and year:
+        if day:
+            try:
+                return date(year, month, day)
+            except ValueError as exc:
+                raise ScopeError(
+                    f"There is no {day} {calendar.month_name[month]} {year}."
+                ) from exc
+        first = date(year, month, 1)
+        return first.replace(day=calendar.monthrange(year, month)[1]) if end else first
+
+    if month and not year:
+        known = sorted(years) if years is not None else _years()
+        raise ScopeError(
+            f"Which year's {calendar.month_name[month]}? The data covers "
+            f"{', '.join(str(y) for y in known) if known else 'no years yet'}."
+        )
+    if year and not month:
+        return date(year, 12, 31) if end else date(year, 1, 1)
+
     raise ScopeError(
         f"'{text}' is not a date I can read. Try 11 Mar 2025, 11-03-2025 or 2025-03-11."
     )

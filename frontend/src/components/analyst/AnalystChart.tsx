@@ -154,10 +154,23 @@ export function AnalystChart({
     >
       <figcaption className="mb-2 flex items-start justify-between gap-2">
         <div className="min-w-0">
+          {/* THE TITLE IS NOT TRUNCATED TO ONE LINE any more. "Incremental
+              Sales (₹) by channel" came out as "Incremental Sales (₹) by
+              cha…", which tells the reader less than nothing: the chart is
+              about something, and they cannot see what. Two lines is enough
+              for every title the builder produces, and the toolbar beside it
+              no longer squeezes them. */}
           {spec.title && !plain && (
-            <div className="truncate text-sm font-medium text-ink-primary">{spec.title}</div>
+            <div className="line-clamp-2 text-sm font-medium leading-snug text-ink-primary">
+              {spec.title}
+            </div>
           )}
-          {spec.unit && <div className="truncate text-xs text-ink-muted">{spec.unit}</div>}
+          {/* The unit, UNLESS the title already says it. A chart headed
+              "Incremental Sales (₹) by channel" with "Incremental Sales (₹)"
+              underneath spends a line repeating itself. */}
+          {spec.unit && !(spec.title && !plain && spec.title.includes(spec.unit)) && (
+            <div className="truncate text-xs text-ink-muted">{spec.unit}</div>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           {/* THE TABLE VIEW is not a nicety: it is how the figures stay available
@@ -280,7 +293,7 @@ function Tip({ text, x, y }: { text: string; x: string; y: string }) {
 // So the container is measured and the viewBox is the real pixel size, exactly
 // as the dashboard's own charts do it (components/command/ChartSections.tsx,
 // `useChartSize`). 15px is then 15px in both places.
-const BAR_ROW = 38
+const BAR_ROW = 42
 //: Used only until the container has been measured, and as the floor for a
 //: drawer narrow enough that bars would otherwise vanish.
 const BAR_W_FALLBACK = 320
@@ -292,6 +305,27 @@ const BAR_H = 10
 /** At 15px a character is ~9px wide; label every k-th slot so no two touch. */
 const labelStride = (labels: string[], slot: number) =>
   Math.max(1, Math.ceil((Math.max(0, ...labels.map((l) => Math.min(l.length, 10))) * 9 + 8) / slot))
+
+/** The share of the total each point carries, when that is a meaningful
+ *  thing to say: one metric, all of it positive, and a total to be a share OF.
+ *
+ *  WHY A BAR CHART NEEDS IT. Incremental sales by channel is ₹226.93 Cr for
+ *  General Trade against ₹14 Cr for the smallest — so five of six bars are
+ *  slivers and the chart reads as "one big one and some noise". The bars are
+ *  honest and must stay zero-based; the share is what makes the small ones
+ *  legible, because "6%" is a figure a reader can compare even when the bar
+ *  is three pixels long. */
+function sharesOf(points: AnalystChartSpec['points']): string[] | null {
+  if (points.length < 2) return null
+  if (points.some((p) => (p.value ?? 0) < 0)) return null
+  const total = points.reduce((sum, p) => sum + (p.value ?? 0), 0)
+  if (total <= 0) return null
+  const shares = points.map((p) => ((p.value ?? 0) / total) * 100)
+  // All much of a muchness: the shares add nothing the bars do not already
+  // show, and a column of near-identical percentages is just clutter.
+  if (Math.max(...shares) - Math.min(...shares) < 5) return null
+  return shares.map((v) => (v >= 10 ? `${Math.round(v)}%` : `${v.toFixed(1)}%`))
+}
 
 /** HORIZONTAL BARS — the default for ranking named categories, because the
  *  labels read horizontally at any length. */
@@ -307,6 +341,10 @@ function Bars({
   const { ref, width } = useMeasuredWidth(BAR_W_FALLBACK)
   const BAR_W = Math.max(200, width)
   const H = points.length * BAR_ROW
+  const shares = sharesOf(points)
+  //: Room at the end of the bar line for the share, so the two never overlap.
+  const shareGap = shares ? 46 : 0
+  const trackW = Math.max(40, BAR_W - shareGap)
   return (
     <div ref={ref} className="w-full">
     <svg
@@ -318,7 +356,7 @@ function Bars({
       aria-label={`Bar chart with ${points.length} categories`}
     >
       {points.map((p, i) => {
-        const w = max > 0 ? Math.max(1, (Math.max(0, p.value) / max) * BAR_W) : 1
+        const w = max > 0 ? Math.max(1, (Math.max(0, p.value) / max) * trackW) : 1
         const y = i * BAR_ROW
         return (
           <g
@@ -347,7 +385,16 @@ function Bars({
             >
               {label(i)}
             </text>
-            <rect x="0" y={y + 21} width={BAR_W} height={BAR_H} rx={BAR_H / 2} fill="var(--surface-hover)" />
+            {/* The share sits at the end of the bar's own line, in the
+                width the bar gave up for it — quieter than the amount,
+                because the amount is the answer and the share is the
+                context. */}
+            {shares && (
+              <text x={BAR_W} y={y + 30} fontSize={13} textAnchor="end" fill="var(--text-muted)">
+                {shares[i]}
+              </text>
+            )}
+            <rect x="0" y={y + 21} width={trackW} height={BAR_H} rx={BAR_H / 2} fill="var(--surface-hover)" />
             <rect x="0" y={y + 21} width={w} height={BAR_H} rx={BAR_H / 2} fill={color} />
           </g>
         )
@@ -357,8 +404,8 @@ function Bars({
       {reference && max > 0 && reference.value <= max && (
         <g pointerEvents="none">
           <line
-            x1={(reference.value / max) * BAR_W}
-            x2={(reference.value / max) * BAR_W}
+            x1={(reference.value / max) * trackW}
+            x2={(reference.value / max) * trackW}
             y1={0}
             y2={H}
             stroke="var(--text-muted)"
@@ -366,7 +413,7 @@ function Bars({
             strokeDasharray="3 3"
           />
           <text
-            x={Math.min((reference.value / max) * BAR_W + 4, BAR_W - 4)}
+            x={Math.min((reference.value / max) * trackW + 4, trackW - 4)}
             y={10}
             fontSize={13}
             fill="var(--text-muted)"

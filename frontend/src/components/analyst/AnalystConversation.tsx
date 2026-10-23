@@ -16,13 +16,6 @@ import type { IconName } from '../../icons'
 // dashboard by asking is the capability nobody would think to try: there is no
 // control that hints at it, and a feature discovered by accident may as well
 // not exist.
-const STARTERS: { kind: string; icon: IconName; q: string }[] = [
-  { kind: 'Look up', icon: 'search', q: 'What was our trade spend last year?' },
-  { kind: 'Rank', icon: 'barChart', q: 'Which channel had the best ROI?' },
-  { kind: 'Chart', icon: 'pieChart', q: 'Chart trade spend by channel' },
-  { kind: 'Change the page', icon: 'filter', q: 'Change the period to 2024' },
-]
-
 /** "Good morning" / "Good afternoon" / "Good evening", by the reader's clock. */
 function greeting(): string {
   const h = new Date().getHours()
@@ -70,7 +63,7 @@ export function AnalystConversation({
   actions?: ReactNode
   centered?: boolean
 }) {
-  const { messages, busy, ask, clear, usage, resetMemory, undoChange } = analyst
+  const { messages, busy, ask, clear, usage, resetMemory, undoChange, module } = analyst
   const { data: user } = useCurrentUser()
   const firstName = user?.name?.trim().split(/\s+/)[0] ?? ''
   const [draft, setDraft] = useState('')
@@ -126,14 +119,26 @@ export function AnalystConversation({
             </span>
           </div>
           {/* Its state in one line: thinking while a question is out,
-              otherwise ready — so the reader never wonders if it heard. */}
-          <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm font-medium text-ink-secondary">
+              otherwise ready — so the reader never wonders if it heard.
+              THE LINE HAS TO FIT. It is `truncate`d inside a header that also
+              carries the orb, the title and four controls, so in the drawer
+              about twenty-six characters survive: "Online · your promotion
+              data assistant" was cut mid-word, which reads as a rendering
+              fault rather than a subtitle. The dot already says it is online —
+              it is green, and it carries that word for a screen reader — so
+              the text says what the thing IS instead of repeating the dot. */}
+          <p className="mt-0.5 flex items-center gap-1.5 text-sm font-medium text-ink-secondary">
             <span
+              role="img"
+              aria-label={busy ? 'Working' : 'Online'}
+              title={busy ? 'Working on your question' : 'Online'}
               className={`inline-block h-2 w-2 shrink-0 rounded-full ${
                 busy ? 'animate-[pulseDot_1.2s_ease-in-out_infinite] bg-brand-violet' : 'bg-status-success'
               }`}
             />
-            {busy ? 'Analysing your data…' : 'Online · your promotion data assistant'}
+            <span className="truncate">
+              {busy ? 'Analysing your data…' : module.subtitle}
+            </span>
           </p>
         </div>
         {messages.length > 0 && (
@@ -152,7 +157,12 @@ export function AnalystConversation({
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <div className={column + (messages.length === 0 ? ' h-full' : '')}>
           {messages.length === 0 ? (
-            <Empty name={firstName} onPick={(q) => void ask(q)} />
+            <Empty
+              name={firstName}
+              onPick={(q) => void ask(q)}
+              blurb={module.blurb}
+              starters={module.starters}
+            />
           ) : (
             <div className="space-y-5">
               {messages.map((m) => (
@@ -259,7 +269,17 @@ function MemoryMeter({ usage, onReset }: { usage: MemoryUsage; onReset: () => vo
 /** The empty thread: a greeting, what it can do, and four questions that show
  *  its range — each labelled with the KIND of question it is, so the reader
  *  learns the shapes it answers, not just four sentences. */
-function Empty({ name, onPick }: { name: string; onPick: (q: string) => void }) {
+function Empty({
+  name,
+  onPick,
+  blurb,
+  starters,
+}: {
+  name: string
+  onPick: (q: string) => void
+  blurb: string
+  starters: readonly { kind: string; icon: IconName; q: string }[]
+}) {
   return (
     <div className="flex h-full flex-col justify-center py-6">
       <div className="mb-6 text-center">
@@ -271,14 +291,12 @@ function Empty({ name, onPick }: { name: string; onPick: (q: string) => void }) 
           {name ? `, ${name}` : ''}.
         </h3>
         <p className="mx-auto mt-2 max-w-[36ch] text-base font-medium leading-relaxed text-ink-secondary">
-          What would you like to know about your promotions today? Ask about spend, sales or ROI, by
-          year, channel, region, brand or promotion — or tell me to change the period, the filters or
-          which charts are on screen.
+          {blurb}
         </p>
       </div>
       <div className="mb-2.5 px-0.5 text-xs font-medium text-ink-secondary">Try asking</div>
       <div className="grid grid-cols-2 gap-2">
-        {STARTERS.map(({ kind, icon, q }) => (
+        {starters.map(({ kind, icon, q }) => (
           <button
             key={q}
             type="button"

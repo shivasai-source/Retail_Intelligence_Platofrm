@@ -350,7 +350,13 @@ def dashboard_note(state: dict[str, Any] | None) -> str:
         else "  Added KPI cards: none beyond the headline three."
     )
     if pinned:
-        lines.append("  Charts YOU added, with the id to change or remove them:")
+        lines.append("  Charts YOU added, with the id to change or remove them.")
+        lines.append(
+            "  These are NOT the Hub's own charts above, even when the names are alike "
+            "\u2014 \"Sales by Region\" is the Hub's, \"ROI by Region\" may be yours. "
+            "Changing one of the Hub's own is set_layout; changing one of these is "
+            "update_chart."
+        )
         for c in pinned:
             lines.append(
                 f"    id={c.get('id')} \u2014 \"{c.get('title')}\": a {c.get('chart_type')} chart of "

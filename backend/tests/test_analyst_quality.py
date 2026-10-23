@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import pytest
 
+import asyncio
+from datetime import date
 from pathlib import Path
 
 from app.agents import analyst, hub_layout, hub_scope
@@ -384,3 +386,244 @@ def test_the_note_survives_a_client_that_sends_nothing():
 def test_the_turn_is_given_the_page_state():
     source = Path(analyst.__file__).read_text(encoding="utf-8")
     assert "hub_layout.dashboard_note(dashboard)" in source
+
+# --- 8. a period typed the way people type periods ---------------------------
+#
+# "may'24" was answered with invented nonsense ("...but only up to October
+# 2023 for specific months") and no tool call at all. "may 2024" was treated as
+# a QUESTION: nine KPIs read back as a bullet list, with the page left on
+# whatever period it was already showing. Same shape of input, two different
+# wrong behaviours.
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("may'24", (2024, 5)),
+    ("sep '25", (2025, 9)),
+    ("mar-24", (2024, 3)),
+])
+def test_a_two_digit_year_is_a_month_not_a_day(text, expected):
+    """The apostrophe form is unambiguous and common; "24" in it is a year."""
+    day = hub_scope.parse_day(text)
+    assert (day.year, day.month, day.day) == (*expected, 1)
+    end = hub_scope.parse_day(text, end=True)
+    assert end.day >= 28, "the end of a bare month is its last day"
+
+
+def test_a_two_digit_year_resolves_against_the_real_years():
+    """Not 2000 + nn: the answer is a year the data actually holds."""
+    assert hub_scope._expand_year(24) == 2024
+    with pytest.raises(hub_scope.ScopeError) as caught:
+        hub_scope._expand_year(99)
+    assert "no year ending 99" in str(caught.value)
+
+
+def test_a_written_out_day_is_still_a_day():
+    assert hub_scope.parse_day("11 may 2024").day == 11
+
+
+def test_a_month_and_a_bare_number_is_refused_rather_than_guessed():
+    """"may 24" is the 24th of May to as many readers as it is May 2024, and
+    it carries no year either way. Guessing would put the page on a period
+    nobody asked for."""
+    with pytest.raises(hub_scope.ScopeError):
+        hub_scope.parse_day("may 24")
+
+
+# --- a message that is ONLY a period moves the page --------------------------
+
+
+@pytest.mark.parametrize("text,summary", [
+    ("may'24", "set the period to May 2024"),
+    ("may 2024", "set the period to May 2024"),
+    ("show me sep'25", "set the period to September 2025"),
+    ("2025", "set the period to 2025"),
+    ("all data", "set the period to all data"),
+    ("change the period to march 2025", "set the period to March 2025"),
+])
+def test_a_bare_period_is_an_instruction(text, summary):
+    action = analyst.period_only_request(text)
+    assert action and action["summary"] == summary
+
+
+@pytest.mark.parametrize("text", [
+    "what was spend in may 2024",       # a question about a period
+    "compare may 2024 with may 2025",   # two periods
+    "may 2024 vs 2025",
+    "chart spend by channel",
+    "how did may 2024 compare?",
+])
+def test_anything_more_than_a_period_still_reaches_the_model(text):
+    assert analyst.period_only_request(text) is None
+
+
+def test_a_bare_period_costs_no_model_call(monkeypatch):
+    async def forbidden(*args, **kwargs):  # pragma: no cover - must not run
+        raise AssertionError("a bare period reached the model")
+
+    monkeypatch.setattr(analyst, "chat_completion", forbidden)
+    monkeypatch.setattr(analyst, "get_client", lambda: None)
+    result = asyncio.run(analyst.answer("may'24"))
+    assert result["actions"][0]["year"] == 2024
+    assert result["actions"][0]["month"] == 5
+    assert result["answer"] == "Period's now May 2024."
+
+
+# --- 9. one instruction changes one thing ------------------------------------
+#
+# Asked to "replace sales by region chart with product performance" the model
+# did the swap correctly AND edited a pinned chart called "ROI by Region" that
+# the reader had never mentioned, because the two names look alike. The
+# reader's own chart was re-grouped as a side effect of a sentence about a
+# different one.
+
+
+def test_a_layout_change_supersedes_a_stray_chart_edit():
+    source = Path(analyst.__file__).read_text(encoding="utf-8")
+    body = source[source.index("async def answer("):]
+    assert 'actions[:] = [a for a in actions if a.get("kind") != "update_chart"]' in body
+    assert "superseded" in body
+
+
+def test_the_edit_is_dropped_from_the_actions_not_from_the_conversation():
+    """`continue` here skipped the tool-response message, leaving an assistant
+    tool_call unanswered — which the provider rejects outright on the next
+    request."""
+    source = Path(analyst.__file__).read_text(encoding="utf-8")
+    body = source[source.index("async def answer("):]
+    start = body.index("superseded =")
+    end = body.index("messages.append(", start)
+    assert "continue" not in body[start:end]
+
+
+def test_the_note_warns_that_the_two_sets_of_names_look_alike():
+    note = hub_layout.dashboard_note({
+        "pinned": [{"id": "pinned:1", "title": "ROI by Region",
+                    "chart_type": "bar", "by": "region", "metric": "roi"}],
+        "hidden_charts": [], "cards": [],
+    })
+    assert "Sales by Region" in note and "ROI by Region" in note
+    assert "set_layout" in note and "update_chart" in note
+
+
+# --- 10. a date however it is written ----------------------------------------
+#
+# The parser used to work down a list of strptime formats, so "may 2024" was
+# read and "may-2024" was refused — a distinction nobody is making when they
+# type. It now finds the pieces instead, with the tolerance the column mapper
+# already gives a spreadsheet header: case, spacing and punctuation stop
+# mattering.
+
+
+@pytest.mark.parametrize("text", [
+    "may 2024", "May 2024", "MAY 2024", "may-2024", "MAY/2024",
+    "  May . 2024 ", "may of 2024", "2024 may", "may'24", "May \u201824",
+])
+def test_may_2024_is_may_2024_however_it_arrives(text):
+    """One month, ten spellings, one answer: the whole of May 2024."""
+    assert hub_scope.parse_day(text) == date(2024, 5, 1)
+    assert hub_scope.parse_day(text, end=True) == date(2024, 5, 31)
+
+
+@pytest.mark.parametrize("text,month", [
+    ("sept 2024", 9), ("SEPTEMBER 2024", 9), ("septem 2024", 9),
+    ("sep 2024", 9), ("feburary 2025", 2), ("jan 2025", 1),
+])
+def test_a_month_resolves_from_however_much_of_it_was_typed(text, month):
+    assert hub_scope.parse_day(text).month == month
+
+
+@pytest.mark.parametrize("word,month", [
+    ("SEPT.", 9), (" september ", 9), ("Sep", 9), ("octo", 10), ("DECEM", 12),
+])
+def test_resolve_month_strips_case_and_punctuation_like_the_column_mapper(word, month):
+    assert hub_scope.resolve_month(word) == month
+
+
+@pytest.mark.parametrize("word", ["ma", "j", "ju", "banana", "", "2024"])
+def test_an_ambiguous_or_unknown_month_resolves_to_nothing(word):
+    """"ma" is March and May. A guess between them is a different quarter of
+    the business, so there is no guess."""
+    assert hub_scope.resolve_month(word) is None
+
+
+@pytest.mark.parametrize("text", ["ma 2025", "mayy 2025", "banana 2025", "next tuesday"])
+def test_a_word_that_is_not_a_month_is_refused_not_dropped(text):
+    """"ma 2025" used to come back as the WHOLE of 2025 — the half-written
+    month silently discarded, and a year's figures answered as if they were a
+    month's."""
+    with pytest.raises(hub_scope.ScopeError) as caught:
+        hub_scope.parse_day(text)
+    assert "not a month I recognise" in str(caught.value)
+
+
+@pytest.mark.parametrize("text", [
+    "11 mar 2025", "11-03-2025", "2025-03-11", "11/3/2025", "11 March, 2025",
+])
+def test_a_specific_day_is_still_a_specific_day(text):
+    assert hub_scope.parse_day(text) == date(2025, 3, 11)
+    assert hub_scope.parse_day(text, end=True) == date(2025, 3, 11)
+
+
+def test_an_impossible_day_says_so_plainly():
+    with pytest.raises(hub_scope.ScopeError) as caught:
+        hub_scope.parse_day("31 feb 2025")
+    assert "no 31 February 2025" in str(caught.value)
+
+
+def test_a_month_with_no_year_asks_which_year():
+    """"may 24" is the 24th to as many readers as it is May 2024, so it is
+    asked about rather than assumed."""
+    with pytest.raises(hub_scope.ScopeError) as caught:
+        hub_scope.parse_day("may 24")
+    assert "Which year's May?" in str(caught.value)
+
+
+# --- 11. the conversation reaches the model ----------------------------------
+#
+# "it is not remembering even the just before message". It was not: the history
+# was assembled INSIDE a `setMessages` updater, and React runs an updater while
+# it processes the update, not when it is called. The variable was still the
+# empty array it was initialised to when the request went out, on every turn —
+# so no follow-up could ever resolve, however well the backend handled one.
+
+
+ANALYST_HOOK = (
+    Path(__file__).resolve().parents[2]
+    / "frontend" / "src" / "hooks" / "useAnalyst.ts"
+)
+
+
+def test_the_history_is_not_built_inside_a_state_updater():
+    source = ANALYST_HOOK.read_text(encoding="utf-8")
+    ask = source[source.index("const ask = useCallback"):source.index("const clear =")]
+    built = ask.index("const history = messagesRef.current")
+    sent = ask.index("apiPost")
+    assert built < sent, "the history must exist before the request goes out"
+    assert "let history" not in ask, "a history captured by an updater is empty"
+
+
+def test_every_write_to_the_thread_keeps_the_ref_in_step():
+    """A raw setMessages leaves the ref stale, and the NEXT turn's history is
+    then missing this one — the same bug, one turn later."""
+    source = ANALYST_HOOK.read_text(encoding="utf-8")
+    body = source[source.index("export function useAnalyst"):]
+    assert "setMessages((current)" not in body
+    assert body.count("setMessages(messagesRef.current)") == 1
+    assert "writeMessages" in body
+
+
+def test_the_backend_still_flattens_what_it_is_given():
+    """The other half: history arrives as turns and must reach the model as
+    plain user/assistant messages, trimmed to the window."""
+    turns = [{"role": "user", "content": "roi by channel"},
+             {"role": "assistant", "content": "Modern Trade leads at 1.80x."},
+             {"role": "system", "content": "ignored"},
+             {"role": "user", "content": ""}]
+    out = analyst._history_messages(turns)
+    assert [m["role"] for m in out] == ["user", "assistant"]
+    assert out[1]["content"].startswith("Modern Trade")
+    assert analyst._history_messages(None) == []
+    assert len(analyst._history_messages(
+        [{"role": "user", "content": f"q{i}"} for i in range(40)]
+    )) == analyst.HISTORY_TURNS
+
