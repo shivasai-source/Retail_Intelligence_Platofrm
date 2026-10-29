@@ -1,5 +1,5 @@
-import type { Band, Deltas, Figures, Trio } from '../../types/planner'
-import { toneClass, TYPE } from './shared'
+import type { Band, Deltas, Direction, Figures, Trio } from '../../types/planner'
+import { TYPE } from './shared'
 
 /** The current plan beside a plan, figure by figure.
  *
@@ -80,9 +80,22 @@ function deltaText(
   return { text: d.absolute_display, percent: null, direction: d.direction }
 }
 
+/** `toneClass`'s tint: the same good/bad decision, as a fill plus ink rather
+ *  than ink alone. The pair the KPI cards on both hubs use for a delta. */
+function toneTint(direction: Direction, lowerIsBetter = false): string {
+  if (direction === 'unchanged') return 'bg-ink-primary/[0.06] text-ink-muted'
+  const good = (direction === 'up') !== lowerIsBetter
+  return good ? 'bg-status-success/10 text-status-success' : 'bg-status-danger/10 text-status-danger'
+}
+
 export function FigureCompare({ columns, rows }: { columns: CompareColumn[]; rows?: RowKey[] }) {
   const shown = rows ? ROWS.filter((r) => rows.includes(r.key)) : ROWS
   const changed = columns.filter((c) => c.deltas)
+  /** Every figure on screen matches what it is compared with — ten dashes down
+   *  the Change column, which reads as a table that failed rather than as an
+   *  answer. Said once, in words, instead. */
+  const nothingMoved =
+    changed.length === 1 && shown.length > 0 && shown.every((r) => !r.delta || !deltaText(changed[0].deltas![r.delta]) || deltaText(changed[0].deltas![r.delta])!.direction === 'unchanged')
   //: The column the band belongs to -- the modelled plan. Its own figures
   //: stand in for the rows the plan fixes rather than models (see EXACT).
   const modelled = columns.find((c) => c.band) ?? null
@@ -93,7 +106,7 @@ export function FigureCompare({ columns, rows }: { columns: CompareColumn[]; row
   // than as a table to scan down.
   return (
     <div className="overflow-x-auto rounded-[var(--r-md)] border border-border-subtle">
-      <table className={`w-full ${band ? (columns.length > 2 ? 'min-w-[820px]' : 'min-w-[720px]') : 'min-w-[560px]'}`}>
+      <table className={`w-full ${columns.length > 2 ? 'min-w-[620px]' : 'min-w-[520px]'}`}>
         <thead className="bg-surface-muted">
           <tr className="border-b border-border-subtle">
             <th className={`${columns.length > 2 ? 'w-[22%]' : 'w-[26%]'} px-4 py-2.5 text-left align-bottom ${TYPE.eyebrow}`}>
@@ -108,14 +121,6 @@ export function FigureCompare({ columns, rows }: { columns: CompareColumn[]; row
             {changed.length === 1 && (
               <th className={`px-4 py-2.5 text-right align-bottom ${TYPE.eyebrow}`}>Change</th>
             )}
-            {band && (
-              <th
-                className={`px-4 py-2.5 text-right align-bottom ${TYPE.eyebrow}`}
-                title={`10th to 90th percentile over ${band.draws.toLocaleString()} Monte Carlo draws`}
-              >
-                Range P10 – P90
-              </th>
-            )}
           </tr>
         </thead>
         <tbody>
@@ -124,37 +129,61 @@ export function FigureCompare({ columns, rows }: { columns: CompareColumn[]; row
             return (
               <tr key={row.key} className="border-b border-border-subtle last:border-b-0">
                 <td className={`px-4 py-3 ${TYPE.label}`}>{row.label}</td>
-                {columns.map((c) => (
-                  <td
-                    key={c.title}
-                    className={`px-4 py-3 text-right ${TYPE.cell} ${c.recommended ? '!text-brand-violet' : ''} ${c.muted ? '!text-ink-secondary' : ''}`}
-                  >
-                    {c.figures[row.key].display}
-                  </td>
-                ))}
+                {columns.map((c) => {
+                  // THE RANGE BELONGS TO THE FIGURE IT IS THE RANGE OF, so it
+                  // sits under that figure rather than in a column of its own
+                  // at the far right. As a column it was the sixth thing on a
+                  // row, and the first to be cut off: at this panel's width
+                  // the table overflowed and "₹463.86 Cr – ₹465.34 Cr" was
+                  // read as "₹463.86 Cr – ₹465.3…". Under the value it is
+                  // narrow, it is beside what it qualifies, and the table
+                  // loses 200px it did not have.
+                  const range =
+                    c.band && band
+                      ? (BAND_OF[row.key] && (band[BAND_OF[row.key]!] as Trio | null)?.display) ||
+                        (EXACT.has(row.key) ? `${c.figures[row.key].display} exact` : null)
+                      : null
+                  return (
+                    <td
+                      key={c.title}
+                      className={`px-4 py-3 text-right ${TYPE.cell} ${c.recommended ? '!text-brand-violet' : ''} ${c.muted ? '!text-ink-secondary' : ''}`}
+                    >
+                      <span className="block">{c.figures[row.key].display}</span>
+                      {range && (
+                        <span
+                          className="mt-0.5 block whitespace-nowrap text-sm font-normal text-ink-muted"
+                          title={`10th to 90th percentile over ${band!.draws.toLocaleString()} Monte Carlo draws`}
+                        >
+                          {range}
+                        </span>
+                      )}
+                    </td>
+                  )
+                })}
                 {changed.length === 1 && (
-                  <td className={`px-4 py-3 text-right ${TYPE.delta} ${d && d.direction !== 'unchanged' ? (row.neutral ? 'text-ink-secondary' : toneClass(d.direction, row.lowerIsBetter)) : 'text-ink-muted'}`}>
+                  <td className={`px-4 py-3 text-right ${TYPE.delta}`}>
                     {d && d.direction !== 'unchanged' ? (
-                      <>
-                        <span className="block whitespace-nowrap">{d.text}</span>
-                        {d.percent && <span className="block text-sm font-normal text-ink-muted">{d.percent}</span>}
-                      </>
+                      // THE CHANGE IS THE ANSWER, so it is the one thing on
+                      // the row that carries a fill. Coloured text alone made
+                      // it the lightest mark in its own column -- four columns
+                      // of plain figures and then, at the far right, more
+                      // plain figures. A tinted pill is what the KPI cards on
+                      // both hubs already use for a delta, so the page reads
+                      // the same way here, and a column of them can be scanned
+                      // for green and red without reading a single number.
+                      <span
+                        className={`inline-flex flex-col items-end rounded-[var(--r-sm)] px-2 py-0.5 ${
+                          row.neutral
+                            ? 'bg-ink-primary/[0.06] text-ink-secondary'
+                            : toneTint(d.direction, row.lowerIsBetter)
+                        }`}
+                      >
+                        <span className="whitespace-nowrap">{d.text}</span>
+                        {d.percent && <span className="text-sm font-normal opacity-80">{d.percent}</span>}
+                      </span>
                     ) : (
-                      '—'
+                      <span className="text-ink-muted">—</span>
                     )}
-                  </td>
-                )}
-                {band && (
-                  <td className={`whitespace-nowrap px-4 py-3 text-right ${TYPE.cell} !text-ink-secondary`}>
-                    {(BAND_OF[row.key] && (band[BAND_OF[row.key]!] as Trio | null)?.display) ||
-                      (EXACT.has(row.key) && modelled
-                        ? (
-                            <span title="Set by the plan, so every draw sees the same value">
-                              {modelled.figures[row.key].display}{' '}
-                              <span className={TYPE.delta}>exact</span>
-                            </span>
-                          )
-                        : '—')}
                   </td>
                 )}
               </tr>
@@ -162,6 +191,11 @@ export function FigureCompare({ columns, rows }: { columns: CompareColumn[]; row
           })}
         </tbody>
       </table>
+      {nothingMoved && (
+        <p className={`border-t border-border-subtle px-4 py-2.5 ${TYPE.eyebrow} !font-normal`}>
+          Every figure matches what it is compared with — nothing in this plan has moved yet.
+        </p>
+      )}
     </div>
   )
 }
