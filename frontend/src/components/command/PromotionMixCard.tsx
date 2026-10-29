@@ -89,7 +89,14 @@ export function PromotionMixCard({
     // A flex column so the body can take the height its row partner (the
     // channel chart) sets, and centre the ring in it instead of leaving the
     // bottom third of the card blank.
-    <Card className="flex flex-col">
+    //
+    // `h-full` is what makes that actually happen. The grid stretches the CELL
+    // this card sits in, but the card itself still sat at its content height,
+    // so a scheme list shorter than the channel list beside it left a band of
+    // page background below the card's own border — the row's two cards ended
+    // at different heights. Filling the cell is also what gives the body the
+    // spare height the `flex-1` below is there to centre the ring in.
+    <Card className="flex h-full flex-col">
       <CardHeader
         title={
           <span className="flex items-center gap-1.5">
