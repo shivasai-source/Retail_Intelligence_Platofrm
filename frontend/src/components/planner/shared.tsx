@@ -27,7 +27,13 @@ export const TYPE = {
   //: A panel or section heading. Already the Studio's de-facto title role --
   //: Panel's own h3, the empty states, the Current plan strip -- but it was
   //: spelled out at each site, so nothing stopped the next one drifting.
-  title: 'text-md font-medium text-ink-primary',
+  //:
+  //: 17px SEMIBOLD, not 15px medium (2026-10-29, at the user's request): at
+  //: body size and one weight up, a panel's title read as the first line of
+  //: its contents rather than as the name of the panel. 17/600 are steps the
+  //: scale already has -- `--text-lg` and the heaviest weight in the app --
+  //: so this is a step up within the house scale, not a new size.
+  title: 'text-lg font-semibold text-ink-primary',
   cell: 'text-base text-ink-primary [font-variant-numeric:tabular-nums]',
   delta: 'text-base font-medium [font-variant-numeric:tabular-nums]',
   label: 'text-base font-medium text-ink-secondary',
@@ -204,9 +210,16 @@ export function PlanChanges({ impact }: { impact: Impact }) {
   if (impact.stopped.promotions) tiles.push({ value: impact.stopped.promotions, label: 'loss-making promotions stopped', title: across(impact.stopped.product_stores) })
   if (impact.added.promotions) tiles.push({ value: impact.added.promotions, label: 'new promotions added', title: across(impact.added.product_stores) })
   return (
-    <div className="grid grid-cols-2 gap-3">
+    // `h-full` and centred contents so these can carry some of a card's spare
+    // height: a summary panel is the shorter of a stretched pair, and a boxed
+    // figure that grows with its box still reads as a box -- unlike a gap.
+    <div className="grid h-full grid-cols-2 gap-3">
       {tiles.map((t) => (
-        <div key={t.label} title={t.title} className="rounded-[var(--r-md)] border border-border-subtle bg-surface-muted px-4 py-3.5">
+        <div
+          key={t.label}
+          title={t.title}
+          className="flex flex-col justify-center rounded-[var(--r-md)] border border-border-subtle bg-surface-muted px-4 py-3.5"
+        >
           <div className={TYPE.value}>
             {t.value.toLocaleString()}
             {t.sub && <span className={`ml-1 ${TYPE.label} !text-ink-muted`}>{t.sub}</span>}
@@ -249,18 +262,29 @@ export function StaleOverlay({ on, children }: { on: boolean; children: ReactNod
 /** The card shell every panel uses: same border, radius, shadow, padding. */
 export function Panel({ title, actions, children, className = '', tone }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; tone?: 'violet' }) {
   return (
+    // A COLUMN, SO A PAIR OF PANELS CAN END LEVEL. Two panels side by side are
+    // stretched to the taller one's height; with a plain block body the
+    // shorter one's contents stopped where they stopped and the rest of the
+    // card was dead white. The body is the column's growing child, so a panel
+    // whose contents know how to use the height (`h-full`, `justify-between`)
+    // takes it, and one whose contents do not is laid out exactly as before.
+    //
+    // SPREAD THE SLACK, DO NOT POOL IT. Pushing the last block to the bottom
+    // with `mt-auto` was tried and is worse than the gap it fixes: it moves
+    // one big hole into the middle of the card. Shared out between the
+    // sections it is a few pixels each and reads as the card's own rhythm.
     <section
-      className={`rounded-[var(--r-lg)] border shadow-[var(--shadow-card-soft)] ${
+      className={`flex flex-col rounded-[var(--r-lg)] border shadow-[var(--shadow-card-soft)] ${
         tone === 'violet' ? 'border-brand-violet-100 bg-brand-violet-50' : 'border-border-subtle bg-surface-card'
       } ${className}`}
     >
       {(title || actions) && (
-        <header className="flex h-[64px] items-center justify-between gap-3 border-b border-border-subtle px-6">
+        <header className="flex h-[64px] shrink-0 items-center justify-between gap-3 border-b border-border-subtle px-6">
           {title && <h3 className={TYPE.title}>{title}</h3>}
           {actions}
         </header>
       )}
-      <div className="p-6">{children}</div>
+      <div className="min-h-0 flex-1 p-6">{children}</div>
     </section>
   )
 }

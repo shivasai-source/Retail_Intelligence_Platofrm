@@ -204,6 +204,22 @@ export function PromotionPlanner() {
         </div>
       )}
 
+      {/* THE BOOTSTRAP CAN FAIL TOO. Everything below waits on the period and
+          the filter lists; if that call is the one that fails, nothing below
+          renders and the page was simply blank under its own title -- no
+          message, no retry, nothing to say the request was the problem. */}
+      {!effective && options.isError && (
+        <Card className="mt-4">
+          <CardBody>
+            <div className={TYPE.title}>Could not load this workspace</div>
+            <div className="mt-1 text-base text-ink-muted">{options.error.message}</div>
+            <Button variant="secondary" className="mt-3" onClick={() => options.refetch()}>
+              <Icon name="refresh" /> Retry
+            </Button>
+          </CardBody>
+        </Card>
+      )}
+
       {summary.isError && (
         <Card className="mt-4">
           <CardBody>
@@ -247,6 +263,8 @@ export function PromotionPlanner() {
                 result={whatif.data}
                 curve={curve.data}
                 fetching={whatif.isFetching}
+                error={whatif.error}
+                curveError={curve.error}
                 action={whatif.data && Math.abs(whatif.data.shift_pts) >= 0.005
                   ? addButton('What-if', whatif.data.scenario, whatif.data.deltas, whatif.data.current, whatif.isFetching)
                   : undefined}

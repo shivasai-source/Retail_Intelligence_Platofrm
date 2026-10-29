@@ -49,6 +49,20 @@ export function TargetPanel({
   const rp = data?.replan
   const reachable = !!rp?.reachable
   const pts = (v: number | null | undefined) => (v == null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(2)} pts`)
+  /** What the "How sure" list says. Lifted out of the markup because how many
+   *  facts there are decides whether the list shares the card's spare height:
+   *  several rows can take it between them, one row cannot. */
+  const sureFacts = rp?.band
+    ? [
+        { label: 'Likely profit added', value: rp.band.profit_change.display, dot: 'var(--brand-violet)', title: 'In 8 of every 10 simulations the profit added falls in this range (P10 – P90)' },
+        ...(reachable && rp.band.chance_reach_pct != null
+          ? [{ label: 'Chance of hitting the target', value: `${rp.band.chance_reach_pct.toFixed(2)}%`, dot: 'var(--brand-violet)', title: 'Share of simulations in which this plan adds the profit needed' }]
+          : []),
+        ...(!reachable && (rp.shortfall?.value ?? 0) > 0
+          ? [{ label: 'Still short of the target', value: rp.shortfall.display, dot: 'var(--status-warning)', tone: 'text-status-warning', title: 'What no plan can cover under these rules' }]
+          : []),
+      ]
+    : []
 
   return (
     <div className="grid gap-5">
@@ -145,35 +159,54 @@ export function TargetPanel({
                 </span>
               }
             >
-              <div className={TYPE.hero}>{rp.deltas.profit.absolute.display}</div>
-              <div className={`mt-2 ${TYPE.label}`}>
-                Profit % <span className="text-ink-primary">{data.profit_pct.display}</span> →{' '}
-                <span className="text-brand-violet">{rp.figures.profit_pct.display}</span>{' '}
-                <span className="text-status-success">({rp.deltas.profit_pct.absolute_display})</span>
-              </div>
-
-              <div className="mt-5">
-                <PlanChanges impact={rp.impact} />
-              </div>
-
-              {rp.band && (
-                <div className="mt-5">
-                  <div className={TYPE.eyebrow}>How sure · {rp.band.draws.toLocaleString()} simulations</div>
-                  <div className="mt-1">
-                    <FactList
-                      items={[
-                        { label: 'Likely profit added', value: rp.band.profit_change.display, dot: 'var(--brand-violet)', title: 'In 8 of every 10 simulations the profit added falls in this range (P10 – P90)' },
-                        ...(reachable && rp.band.chance_reach_pct != null
-                          ? [{ label: 'Chance of hitting the target', value: `${rp.band.chance_reach_pct.toFixed(2)}%`, dot: 'var(--brand-violet)', title: 'Share of simulations in which this plan adds the profit needed' }]
-                          : []),
-                        ...(!reachable && (rp.shortfall?.value ?? 0) > 0
-                          ? [{ label: 'Still short of the target', value: rp.shortfall.display, dot: 'var(--status-warning)', tone: 'text-status-warning', title: 'What no plan can cover under these rules' }]
-                          : []),
-                      ]}
-                    />
+              {/* THE CARD ENDS LEVEL WITH THE ONE BESIDE IT. This is the shorter
+                  of a stretched pair, so its sections share out whatever height is
+                  left over -- a few pixels between each, not one hole at the foot or
+                  in the middle. `justify-between` keeps the first block at the top
+                  and the last on the bottom edge, which is what makes the two cards
+                  finish on the same line. */}
+              {/* THE CARD ENDS LEVEL WITH THE ONE BESIDE IT, AND ITS BLOCKS
+                  TAKE THE SLACK -- the same rule as the What-if lever and the
+                  Best plan summary. What grows is what can: the change tiles,
+                  which are boxes, and a list of several rows, whose rows stay
+                  equal to each other. Headings stay with what they head. */}
+              <div className="flex h-full flex-col">
+                {/* The gain and the line that reads it are one thing: grouped, so
+                    that when this card shares out height the slack never lands
+                    between a figure and its own caption. */}
+                <div>
+                  <div className={TYPE.hero}>{rp.deltas.profit.absolute.display}</div>
+                  <div className={`mt-2 ${TYPE.label}`}>
+                    Profit % <span className="text-ink-primary">{data.profit_pct.display}</span> →{' '}
+                    <span className="text-brand-violet">{rp.figures.profit_pct.display}</span>{' '}
+                    <span className="text-status-success">({rp.deltas.profit_pct.absolute_display})</span>
                   </div>
                 </div>
-              )}
+
+                {/* The tiles take the larger share of the card's spare height
+                    (3:1 against the list below them). This card has only two
+                    facts under "How sure", and two rows splitting it evenly
+                    with the tiles left each row tall enough to strand its own
+                    heading; a box can grow further than a row can. */}
+                <div className="mt-6 flex flex-[3] flex-col">
+                  <PlanChanges impact={rp.impact} />
+                </div>
+
+                {rp.band && (
+                  <div className={`mt-6 ${sureFacts.length > 1 ? 'flex flex-1 flex-col' : ''}`}>
+                    <div className={TYPE.eyebrow}>How sure · {rp.band.draws.toLocaleString()} simulations</div>
+                    <div
+                      className={
+                        sureFacts.length > 1
+                          ? 'mt-1 flex flex-1 flex-col [&>ul]:flex [&>ul]:flex-1 [&>ul]:flex-col [&_li]:min-h-[44px] [&_li]:flex-1 [&_li]:py-2'
+                          : 'mt-1 [&_li]:py-3'
+                      }
+                    >
+                      <FactList items={sureFacts} />
+                    </div>
+                  </div>
+                )}
+              </div>
             </Panel>
 
             <Panel title="What the re-plan changes">

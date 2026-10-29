@@ -62,42 +62,63 @@ export function BestPlanPanel({
         <StaleOverlay on={fetching}>
           <div className="grid items-stretch gap-5 @min-[1100px]:grid-cols-[440px_minmax(0,1fr)]">
             <Panel title="Profit gain" actions={action}>
-              <div className={TYPE.hero}>{rp.deltas.profit.absolute.display}</div>
-              <div className={`mt-2 ${TYPE.label}`}>
-                Profit % <span className="text-ink-primary">{data.current.profit_pct.display}</span> →{' '}
-                <span className="text-brand-violet">{rp.figures.profit_pct.display}</span>{' '}
-                <span className="text-status-success">({rp.deltas.profit_pct.absolute_display})</span>
-              </div>
-
-              <div className="mt-5">
-                <PlanChanges impact={rp.impact} />
-              </div>
-
-              <div className="mt-5">
-                <div className={TYPE.eyebrow}>Result</div>
-                <div className="mt-1">
-                  <FactList
-                    items={[
-                      { label: 'Revenue', value: rp.deltas.revenue.absolute.display, dot: 'var(--border-strong)' },
-                      { label: 'ROI', value: `${data.current.roi.display} → ${rp.figures.roi.display}`, dot: 'var(--border-strong)' },
-                      { label: 'Average discount', value: `${data.current.avg_discount.display} → ${rp.figures.avg_discount.display}`, dot: 'var(--border-strong)' },
-                    ]}
-                  />
+              {/* THE CARD ENDS LEVEL WITH THE ONE BESIDE IT, AND ITS BLOCKS
+                  TAKE THE SLACK -- the same rule as the What-if lever. Three
+                  ways of using the extra height were tried in front of the
+                  user and rejected: leaving it under the last line (dead
+                  white), pushing the last block down (a hole in the middle),
+                  and sharing it between the sections (every gap grew, so the
+                  card read as stretched). What grows here is the things that
+                  can: the change tiles, which are boxes, and the two lists,
+                  whose rows stay equal to each other however much there is to
+                  go round. The headings stay with what they head. */}
+              <div className="flex h-full flex-col">
+                {/* The gain and the line that reads it are one thing: grouped, so
+                    that when this card shares out height the slack never lands
+                    between a figure and its own caption. */}
+                <div>
+                  <div className={TYPE.hero}>{rp.deltas.profit.absolute.display}</div>
+                  <div className={`mt-2 ${TYPE.label}`}>
+                    Profit % <span className="text-ink-primary">{data.current.profit_pct.display}</span> →{' '}
+                    <span className="text-brand-violet">{rp.figures.profit_pct.display}</span>{' '}
+                    <span className="text-status-success">({rp.deltas.profit_pct.absolute_display})</span>
+                  </div>
                 </div>
-              </div>
 
-              {rp.band && (
-                <div className="mt-5">
-                  <div className={TYPE.eyebrow}>How sure · {rp.band.draws.toLocaleString()} simulations</div>
-                  <div className="mt-1">
+                <div className="mt-6 flex flex-1 flex-col">
+                  <PlanChanges impact={rp.impact} />
+                </div>
+
+                <div className="mt-6 flex flex-1 flex-col">
+                  <div className={TYPE.eyebrow}>Result</div>
+                  <div className="mt-1 flex flex-1 flex-col [&>ul]:flex [&>ul]:flex-1 [&>ul]:flex-col [&_li]:min-h-[44px] [&_li]:flex-1 [&_li]:py-2">
                     <FactList
                       items={[
-                        { label: 'Likely profit gain', value: rp.band.profit_change.display, dot: 'var(--brand-violet)', title: 'In 8 of every 10 simulations the profit gain falls in this range (P10 – P90)' },
+                        { label: 'Revenue', value: rp.deltas.revenue.absolute.display, dot: 'var(--border-strong)' },
+                        { label: 'ROI', value: `${data.current.roi.display} → ${rp.figures.roi.display}`, dot: 'var(--border-strong)' },
+                        { label: 'Average discount', value: `${data.current.avg_discount.display} → ${rp.figures.avg_discount.display}`, dot: 'var(--border-strong)' },
                       ]}
                     />
                   </div>
                 </div>
-              )}
+
+                {/* ONE ROW DOES NOT GROW: a list of a single fact given a
+                    share of the card's height becomes one very tall row with
+                    its heading stranded above it. The rows that share the
+                    slack are the ones there are several of. */}
+                {rp.band && (
+                  <div className="mt-6">
+                    <div className={TYPE.eyebrow}>How sure · {rp.band.draws.toLocaleString()} simulations</div>
+                    <div className="mt-1 [&_li]:py-3">
+                      <FactList
+                        items={[
+                          { label: 'Likely profit gain', value: rp.band.profit_change.display, dot: 'var(--brand-violet)', title: 'In 8 of every 10 simulations the profit gain falls in this range (P10 – P90)' },
+                        ]}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             </Panel>
 
             <Panel title="What the best plan changes">

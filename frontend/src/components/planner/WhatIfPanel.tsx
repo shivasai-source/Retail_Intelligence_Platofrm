@@ -87,6 +87,8 @@ export function WhatIfPanel({
   result,
   curve,
   fetching,
+  error,
+  curveError,
   action,
 }: {
   lever: Lever
@@ -95,6 +97,12 @@ export function WhatIfPanel({
   result: WhatIfResponse | undefined
   curve: CurveResponse | undefined
   fetching: boolean
+  /** A failed pricing or curve request. Without these the panel sat on
+   *  "Pricing…" for ever when a request failed -- the spinner is the state
+   *  for "not back yet", and a request that is never coming back looked
+   *  exactly the same as one still in flight. */
+  error?: Error | null
+  curveError?: Error | null
   /** "Add to Decision Center", supplied by the page. */
   action?: ReactNode
 }) {
@@ -140,96 +148,112 @@ export function WhatIfPanel({
     <div className="grid gap-5">
       <div className="grid items-stretch gap-5 @min-[1100px]:grid-cols-[440px_minmax(0,1fr)]">
         <Panel title={<label htmlFor={id}>Average discount</label>} actions={action}>
-          <div className="flex items-end gap-3">
-            <span className={TYPE.hero}>{value.toFixed(2)}%</span>
-            <span
-              className={`mb-0.5 rounded-full px-2.5 py-0.5 ${TYPE.delta} ${atCurrent ? 'bg-ink-primary/[0.05] text-ink-secondary' : 'bg-brand-violet-50 text-brand-violet'}`}
-            >
-              {atCurrent ? 'Current plan' : shiftText(shift, rel)}
-            </span>
-          </div>
-
-          <div className="mt-5">
-            <input
-              id={id}
-              type="range"
-              min={lever.min}
-              max={lever.max}
-              step={lever.step}
-              value={value}
-              aria-valuetext={`${value.toFixed(2)} percent`}
-              onChange={(e) => onChange(Number(e.target.value))}
-              className="w-full cursor-pointer accent-brand-violet"
-            />
-            <div className="pointer-events-none relative h-4">
-              <span className="absolute -translate-x-1/2 text-sm text-brand-blue" style={{ left: `${pctOf(current)}%` }}>
-                ▲
+          {/* THE CARD ENDS LEVEL WITH THE ONE BESIDE IT, AND THE LIST TAKES
+              THE SLACK. This is the shorter of a stretched pair, and three
+              ways of using the extra height were tried in front of the user:
+              leaving it under the last line (a band of dead white), pushing
+              the last block down (one hole in the middle), and sharing it
+              between the sections (every gap in the controls grew, so the
+              lever read as stretched). The controls keep their own fixed
+              rhythm here; it is "At a glance" that grows, because a ruled list
+              with taller rows still reads as a list -- the rules stay evenly
+              spaced and nothing drifts away from its heading. */}
+          <div className="flex h-full flex-col">
+            <div className="flex items-end gap-3">
+              <span className={TYPE.hero}>{value.toFixed(2)}%</span>
+              <span
+                className={`mb-0.5 rounded-full px-2.5 py-0.5 ${TYPE.delta} ${atCurrent ? 'bg-ink-primary/[0.05] text-ink-secondary' : 'bg-brand-violet-50 text-brand-violet'}`}
+              >
+                {atCurrent ? 'Current plan' : shiftText(shift, rel)}
               </span>
             </div>
-            <div className={`flex justify-between ${TYPE.delta} text-ink-muted`}>
-              <span>0%</span>
-              <span>{lever.max.toFixed(0)}%</span>
-            </div>
-          </div>
 
-          {/* TYPE A DISCOUNT. The slider and the nudges below both move in
-              fixed amounts, which cannot express "price it at 12.75%" -- a
-              planner usually has a figure in mind rather than a step. This is
-              that figure, entered directly and clamped to the lever's own
-              bounds. The nudges stay because moving BY a number of points is a
-              different question from setting one, and they are now labelled
-              "pts" so which is which is unambiguous. */}
-          {/* Two rows, because they answer two different questions. The first
-              SETS a discount -- the figure a planner usually arrives with. The
-              second MOVES it by a number of points from today's, which is a
-              relative question and was the only one the panel used to ask.
-              Separating them also stops seven controls wrapping into a ragged
-              block: each row is now one homogeneous group. */}
-          <div className="mt-4 flex flex-wrap items-end gap-2">
-            <div>
-              <label htmlFor={`${id}-exact`} className={`block pb-1 ${TYPE.eyebrow}`}>
-                Set discount
-              </label>
-              <DiscountInput id={`${id}-exact`} value={value} min={lever.min} max={lever.max} onCommit={(v) => onChange(clamp(v))} />
+            <div className="mt-6">
+              <input
+                id={id}
+                type="range"
+                min={lever.min}
+                max={lever.max}
+                step={lever.step}
+                value={value}
+                aria-valuetext={`${value.toFixed(2)} percent`}
+                onChange={(e) => onChange(Number(e.target.value))}
+                className="w-full cursor-pointer accent-brand-violet"
+              />
+              <div className="pointer-events-none relative h-4">
+                <span className="absolute -translate-x-1/2 text-sm text-brand-blue" style={{ left: `${pctOf(current)}%` }}>
+                  ▲
+                </span>
+              </div>
+              <div className={`flex justify-between ${TYPE.delta} text-ink-muted`}>
+                <span>0%</span>
+                <span>{lever.max.toFixed(0)}%</span>
+              </div>
             </div>
-            <QuickChip onClick={() => onChange(current)} title={`Back to the current plan (${current.toFixed(2)}%)`}>
-              <Icon name="refresh" /> Reset
-            </QuickChip>
-            {best && (
-              <QuickChip accent active={Math.abs(value - best.discount_pct) < 0.005} onClick={() => onChange(best.discount_pct)} title="The most profitable average discount">
-                <Icon name="target" /> Best {best.discount_pct.toFixed(2)}%
+
+            {/* TYPE A DISCOUNT. The slider and the nudges below both move in
+                fixed amounts, which cannot express "price it at 12.75%" -- a
+                planner usually has a figure in mind rather than a step. This is
+                that figure, entered directly and clamped to the lever's own
+                bounds. The nudges stay because moving BY a number of points is a
+                different question from setting one, and they are now labelled
+                "pts" so which is which is unambiguous. */}
+            {/* Two rows, because they answer two different questions. The first
+                SETS a discount -- the figure a planner usually arrives with. The
+                second MOVES it by a number of points from today's, which is a
+                relative question and was the only one the panel used to ask.
+                Separating them also stops seven controls wrapping into a ragged
+                block: each row is now one homogeneous group. */}
+            <div className="mt-6 flex flex-wrap items-end gap-2">
+              <div>
+                <label htmlFor={`${id}-exact`} className={`block pb-1 ${TYPE.eyebrow}`}>
+                  Set discount
+                </label>
+                <DiscountInput id={`${id}-exact`} value={value} min={lever.min} max={lever.max} onCommit={(v) => onChange(clamp(v))} />
+              </div>
+              <QuickChip onClick={() => onChange(current)} title={`Back to the current plan (${current.toFixed(2)}%)`}>
+                <Icon name="refresh" /> Reset
               </QuickChip>
-            )}
-          </div>
-
-          <div className="mt-3">
-            {/* The group's label carries the unit, so the chips do not have to
-                repeat it. "+5" alone was the ambiguity worth fixing -- five
-                percent, or five points of it? -- and naming the baseline they
-                move from answers that once, for all five, and keeps them on
-                one row. */}
-            <div className={TYPE.eyebrow}>Or move it in points from today's {current.toFixed(2)}%</div>
-            <div className="mt-1.5 flex flex-wrap gap-2">
-              {STEPS.map((s) => (
-                <QuickChip key={s} active={step(s)} onClick={() => onChange(clamp(current + s))} title={`${s > 0 ? '+' : ''}${s} points on the current plan's ${current.toFixed(2)}% — ${clamp(current + s).toFixed(2)}%`}>
-                  {s > 0 ? '+' : ''}
-                  {s}
+              {best && (
+                <QuickChip accent active={Math.abs(value - best.discount_pct) < 0.005} onClick={() => onChange(best.discount_pct)} title="The most profitable average discount">
+                  <Icon name="target" /> Best {best.discount_pct.toFixed(2)}%
                 </QuickChip>
-              ))}
+              )}
             </div>
-          </div>
 
-          {(beyond || result?.clipped_at_zero) && (
-            <div className={`mt-4 flex items-center gap-2 rounded-[var(--r-md)] bg-status-warning/10 px-3 py-2 ${TYPE.label} [&_svg]:h-4 [&_svg]:w-4`}>
-              <Icon name="alertTriangle" className="shrink-0 text-status-warning" />
-              {beyond ? 'Deeper than the data — an estimate' : 'Some promotions reach 0% and stop'}
+            <div className="mt-5">
+              {/* The group's label carries the unit, so the chips do not have to
+                  repeat it. "+5" alone was the ambiguity worth fixing -- five
+                  percent, or five points of it? -- and naming the baseline they
+                  move from answers that once, for all five, and keeps them on
+                  one row. */}
+              <div className={TYPE.eyebrow}>Or move it in points from today's {current.toFixed(2)}%</div>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {STEPS.map((s) => (
+                  <QuickChip key={s} active={step(s)} onClick={() => onChange(clamp(current + s))} title={`${s > 0 ? '+' : ''}${s} points on the current plan's ${current.toFixed(2)}% — ${clamp(current + s).toFixed(2)}%`}>
+                    {s > 0 ? '+' : ''}
+                    {s}
+                  </QuickChip>
+                ))}
+              </div>
             </div>
-          )}
 
-          <div className="mt-5 border-t border-border-subtle pt-3">
-            <div className={TYPE.eyebrow}>At a glance</div>
-            <div className="mt-1">
-              <FactList items={facts} />
+            {(beyond || result?.clipped_at_zero) && (
+              <div className={`mt-4 flex items-center gap-2 rounded-[var(--r-md)] bg-status-warning/10 px-3 py-2 ${TYPE.label} [&_svg]:h-4 [&_svg]:w-4`}>
+                <Icon name="alertTriangle" className="shrink-0 text-status-warning" />
+                {beyond ? 'Deeper than the data — an estimate' : 'Some promotions reach 0% and stop'}
+              </div>
+            )}
+
+            <div className="mt-6 flex flex-1 flex-col border-t border-border-subtle pt-4">
+              <div className={TYPE.eyebrow}>At a glance</div>
+              {/* The rows share the card's spare height between them: the list
+                  fills what is left, and every row takes an equal part of it,
+                  so they stay the same height as each other however much there
+                  is to go round. */}
+              <div className="mt-1 flex flex-1 flex-col [&>ul]:flex [&>ul]:flex-1 [&>ul]:flex-col [&_li]:min-h-[44px] [&_li]:flex-1 [&_li]:py-2">
+                <FactList items={facts} />
+              </div>
             </div>
           </div>
         </Panel>
@@ -245,9 +269,14 @@ export function WhatIfPanel({
                   { title: 'Current plan', sub: `${current.toFixed(2)}%`, figures: result.current },
                   { title: 'Scenario', sub: `${result.discount_pct.toFixed(2)}%`, figures: result.scenario, deltas: result.deltas, band: result.band },
                 ]}
-                rows={['profit', 'profit_pct', 'revenue', 'trade_spend', 'roi', 'incremental_sales', 'units', 'margin_pct', 'avg_discount', 'promotions']}
+                rows={['profit', 'profit_pct', 'margin_pct', 'revenue', 'trade_spend', 'roi', 'incremental_sales', 'units', 'avg_discount', 'promotions']}
               />
             </StaleOverlay>
+          ) : error ? (
+            <div>
+              <div className={TYPE.title}>Could not price this discount</div>
+              <div className={`mt-1 ${TYPE.label}`}>{error.message}</div>
+            </div>
           ) : (
             <div className={`flex items-center gap-3 ${TYPE.label}`}>
               <Spinner /> Pricing…
@@ -273,6 +302,11 @@ export function WhatIfPanel({
             }
             format={(v) => axisMoney(v, rate, currency)}
           />
+        ) : curveError ? (
+          <div>
+            <div className={TYPE.title}>Could not work out every level</div>
+            <div className={`mt-1 ${TYPE.label}`}>{curveError.message}</div>
+          </div>
         ) : (
           <div className={`flex items-center gap-3 ${TYPE.label}`}>
             <Spinner /> Working out every level…
