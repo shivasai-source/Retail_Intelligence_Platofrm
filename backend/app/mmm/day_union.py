@@ -223,11 +223,25 @@ def coverage(delivered: list[Delivered]) -> Coverage:
 
         # Day by day, so a repeat is counted where it actually happens.
         measures = [c for c in shared if c in item.frame.columns]
-        for position, parsed in item.dates.items():
+        # EACH COLUMN IS CONVERTED ONCE, not each cell. What this needs is one
+        # tuple of stated values per row, and reading them with `frame.at` per
+        # cell cost one pandas scalar lookup per column per row — 3.4 million
+        # of them for a 103k-row file of 33 columns, which took 70 seconds, more
+        # than parsing the workbook it came from. Converting column-wise and
+        # transposing gives the identical tuples in about a second.
+        #
+        # Positional throughout: `dates` is `_parse_dates(frame["Date"])`, so it
+        # shares the frame's index AND its order, and row i of one is row i of
+        # the other.
+        if measures:
+            value_rows = list(zip(*(item.frame[c].astype(str).to_numpy() for c in measures)))
+        else:
+            value_rows = [()] * len(item.frame)
+        for position, parsed in enumerate(item.dates):
             if pd.isna(parsed):
                 continue
             day = parsed.date()
-            values = tuple(str(item.frame.at[position, c]) for c in measures)
+            values = value_rows[position]
             if day in owner:
                 duplicates += 1
                 if stated[day] != values:
