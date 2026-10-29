@@ -480,13 +480,15 @@ export function CommandCenter() {
       {/* Decorative ambient wash behind the header — the "lights" feel, kept to
           two very low-alpha radial gradients. */}
       <div className="cc-ambient" aria-hidden="true" />
-      {/* `relative z-20` so the More Filters popover inside this row can paint
-          over the KPI cards and alert banner below it. It is needed because
+      {/* `relative z-20` for the floating menus this row still owns — the
+          period calendar and the Channel/Retailer pickers. It is needed because
           `.fade-in` animates opacity and therefore ESTABLISHES A STACKING
-          CONTEXT — which traps the popover's own z-index inside this row, and
-          the row would otherwise paint in normal document order, i.e. beneath
-          its later siblings. Same trap components/ui/Dropdown.tsx documents.
-          No effect while the popover is closed: nothing else here overlaps. */}
+          CONTEXT — which traps a menu's own z-index inside this row, and the
+          row would otherwise paint in normal document order, i.e. beneath its
+          later siblings. Same trap components/ui/Dropdown.tsx documents.
+          No effect while they are closed: nothing else here overlaps.
+          Additional Filters no longer needs it — it expands the bar rather
+          than floating over the deck (see FilterBar). */}
       <div className="fade-in relative z-20">
         {/* THE TITLE ROW: the page's name and what it is looking at on the
             left; the way into the alerts on the right, where a reader looks
@@ -509,38 +511,17 @@ export function CommandCenter() {
               {calendarYear(meta.period)}
             </p>
           </div>
-          <div className="ml-auto">
-          </div>
-        </div>
-
-        {/* THE TOOLBAR, IN TWO GROUPS.
-         *
-         *  LEFT — what the page is looking at: the scope filters, which now fit
-         *  on a single line because the two controls that are not filters moved
-         *  out of them.
-         *
-         *  RIGHT — what the page shows about that scope, and what to do with
-         *  it: Add KPI, then a hairline, then Refresh and Export. Add KPI sits
-         *  apart from the filters because it does not change the SELECTION —
-         *  it changes which cards are on screen, over the very same rows.
-         *  The Target ROI control that stood beside it moved into the alerts
-         *  dialog on Investigations, as the first step before the events are
-         *  listed: the target is what those events are judged against, so it
-         *  is set where they are read.
-         *
-         *  The outer row never wraps; when the width runs out the filter group
-         *  wraps inside itself, so the action group keeps its corner instead of
-         *  dropping to a line of its own. */}
-        <div className="mt-4 flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <FilterBar
-              options={options.data}
-              onRefresh={handleRefresh}
-              refreshing={refreshing}
-              refreshInline={false}
-            />
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5">
+          {/* THE PAGE'S ACTIONS, BESIDE ITS NAME — not on the filter bar.
+              They sat on the tile's right-hand end, and the five of them plus
+              the currency switch took a third of its width; with the period
+              split into Year, Month and Date range there were six pills to fit
+              in what was left, so the filters wrapped onto a second line. They
+              are not scope controls — Investigate leaves the page, Add KPI
+              changes which cards are drawn over the very same rows, Refresh
+              and Export act on what is already chosen — so the title row is
+              where they belong, and it had an empty right half reserved for
+              exactly this. The tile below is now only the scope. */}
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
             {/* THE WAY INTO INVESTIGATIONS. The hub shows WHAT happened; the
                 question that follows is WHY, and that is what the
                 investigation agents answer. */}
@@ -577,6 +558,19 @@ export function CommandCenter() {
               disabledReason="This filter selection matches no sales rows, so there is nothing to report."
             />
           </div>
+        </div>
+
+        {/* THE SCOPE, AND ONLY THE SCOPE. One tile, one row: the three period
+            pills, Channel, Retailer, More Filters, and the currency switch at
+            its right-hand end. Everything that acts on the page rather than
+            choosing its rows moved up to the title row above. */}
+        <div className="mt-4">
+          <FilterBar
+            options={options.data}
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
+            refreshInline={false}
+          />
         </div>
         {/* THE BOT floats in the page's bottom-right corner rather than sitting
             in this row — it is the one control here that opens another surface

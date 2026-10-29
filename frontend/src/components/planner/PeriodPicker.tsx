@@ -144,6 +144,40 @@ export function smartPeriodLabel(start: WeekKey, end: WeekKey, calendar: Planner
     : periodLabel(start, end, calendar)
 }
 
+/** DAYS IN, WEEKS OUT — and back again.
+ *
+ *  The Insights Hub's Date range fields are two ordinary date inputs, and the
+ *  filter store holds a period as two BUSINESS WEEKS. These three convert
+ *  between the two off the same week table this picker reads, so a range typed
+ *  into the fields covers exactly the weeks the picker would have chosen for
+ *  it and the fields can show back the days those weeks actually span.
+ *
+ *  A day is snapped to the week that CONTAINS it, so a range is never narrower
+ *  than what was asked for: the data is weekly, and half a week is not a thing
+ *  the fact table can answer for. */
+export function weekForDay(calendar: PlannerOptions['calendar'], iso: string): WeekKey | null {
+  const spans = weekSpans(calendar)
+  return spans.length ? weekOf(iso, spans).key : null
+}
+
+/** The first and last DAY a week range covers. */
+export function daySpanOfWeeks(
+  calendar: PlannerOptions['calendar'],
+  start: WeekKey,
+  end: WeekKey,
+): { from: string; to: string } | null {
+  const spans = weekSpans(calendar)
+  const a = spans.find((s) => cmp(s.key, start) === 0)
+  const b = spans.find((s) => cmp(s.key, end) === 0)
+  return a && b ? { from: a.start, to: b.end } : null
+}
+
+/** The whole extent of the data, in days — what the fields clamp to. */
+export function dataDayRange(calendar: PlannerOptions['calendar']): { from: string; to: string } | null {
+  const spans = weekSpans(calendar)
+  return spans.length ? { from: spans[0].start, to: spans[spans.length - 1].end } : null
+}
+
 export function weeksBetween(start: WeekKey, end: WeekKey, calendar: PlannerOptions['calendar']): number {
   let n = 0
   for (const y of calendar) for (const w of y.weeks) if (cmp([y.year, w.week], start) >= 0 && cmp([y.year, w.week], end) <= 0) n++

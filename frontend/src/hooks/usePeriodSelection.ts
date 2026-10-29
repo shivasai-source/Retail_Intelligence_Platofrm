@@ -76,5 +76,49 @@ export function usePeriodSelection(store: FilterStoreHook, options: FiltersRespo
       lastTouched: 'year',
     }))
 
-  return { calendar, start, end, apply, clear }
+  /** EVERY MONTH THE DATA COVERS, oldest first, with the business weeks it
+   *  holds. Each calendar week names its own month, so a month's span is its
+   *  first and last week — the same rule `start`/`end` above read it by, and
+   *  the same one the period calendar's Months grid uses.
+   *
+   *  The compact period panel on the Insights Hub bar builds its month chips
+   *  from this, so a month chosen there covers exactly the weeks the calendar
+   *  would have chosen for it. */
+  const months = useMemo(() => {
+    const out: Array<{ year: number; month: number; from: WeekKey; to: WeekKey }> = []
+    for (const y of calendar) {
+      const spans = new Map<number, { from: WeekKey; to: WeekKey }>()
+      for (const w of y.weeks) {
+        const key: WeekKey = [y.year, w.week]
+        const cur = spans.get(w.month)
+        spans.set(w.month, cur ? { from: cur.from, to: key } : { from: key, to: key })
+      }
+      for (const [month, span] of [...spans.entries()].sort((a, b) => a[0] - b[0])) {
+        out.push({ year: y.year, month, ...span })
+      }
+    }
+    return out
+  }, [calendar])
+
+  /** A WHOLE YEAR, and A SINGLE MONTH, written as the store's own fields
+   *  rather than as a week range.
+   *
+   *  `apply` already folds a whole year back into `year`; a month has the same
+   *  claim on `month`, which is part of the filter contract and is what gives
+   *  the page its "September F25" labels and its month-aware comparisons. The
+   *  calendar could not use these — it only ever knew about weeks — but the
+   *  chip panel picks a year or a month by name, so it can say so exactly. */
+  const applyYear = (year: number) =>
+    store.setState((s) => ({
+      filters: { ...s.filters, year, month: null, period_from: null, period_to: null },
+      lastTouched: 'year',
+    }))
+
+  const applyMonth = (year: number, month: number) =>
+    store.setState((s) => ({
+      filters: { ...s.filters, year, month, period_from: null, period_to: null },
+      lastTouched: 'year',
+    }))
+
+  return { calendar, start, end, apply, clear, months, applyYear, applyMonth }
 }
