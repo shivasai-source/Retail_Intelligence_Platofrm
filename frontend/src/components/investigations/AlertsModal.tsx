@@ -5,6 +5,7 @@ import { Stale } from '../command/States'
 import { RiskAlertsPanel } from '../command/RiskAlertsPanel'
 import { ALERT_FETCH_LIMIT } from '../command/riskRanking'
 import { PeriodPicker, smartPeriodLabel, weeksBetween } from '../planner/PeriodPicker'
+import { PeriodRangeFields } from '../planner/PeriodRangeFields'
 import { useFilterOptions, useRiskAlerts } from '../../hooks/useCommandCenter'
 import { useEnsureCommandScope } from '../../hooks/useCommandScope'
 import { usePeriodSelection } from '../../hooks/usePeriodSelection'
@@ -127,6 +128,23 @@ export function AlertsModal({
               <main> is not this dialog's ancestor. */}
           <div className="grid grid-cols-[388px_1fr] max-[940px]:max-h-[calc(100vh-120px)] max-[940px]:grid-cols-1 max-[940px]:overflow-y-auto">
             <div className={`flex min-h-0 flex-col gap-2 border-r border-border-subtle p-4 max-[940px]:border-b max-[940px]:border-r-0 ${COLUMN_H} max-[940px]:h-[600px]`}>
+              {/* THE SAME TWO FIELDS THE INSIGHTS HUB OFFERS, above the
+                  calendar rather than instead of it. The note below says this
+                  IS the Hub's period, so the way into it should look the way
+                  it does there: either end set outright, with the platform's
+                  own date popover. The calendar underneath still browses by
+                  month and carries the rolling windows, and both write the
+                  same business weeks through `period.apply`. */}
+              {period.calendar.length > 0 && (
+                <PeriodRangeFields
+                  calendar={period.calendar}
+                  start={period.start}
+                  end={period.end}
+                  onApply={period.apply}
+                  onClear={period.clear}
+                  className="shrink-0"
+                />
+              )}
               <div className="min-h-0 flex-1">
                 {period.calendar.length > 0 ? (
                   <PeriodPicker
