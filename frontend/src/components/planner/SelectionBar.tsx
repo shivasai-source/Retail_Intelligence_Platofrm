@@ -1,8 +1,8 @@
+import { useState } from 'react'
 import { StudioButton as Button } from './shared'
 import { Icon, type IconName } from '../../icons'
 import { FilterSelect } from './FilterSelect'
-import { PeriodPicker } from './PeriodPicker'
-import { PeriodRangeFields } from './PeriodRangeFields'
+import { PERIOD_PANEL_TITLE, PeriodPanel, PeriodPills, usePeriodScope, type PeriodPanelKey } from './PeriodControl'
 import { usePlannerSelection, type PlannerDimension } from '../../store/plannerSelection'
 import type { PlannerOptions } from '../../types/planner'
 
@@ -37,71 +37,51 @@ export function SelectionBar({
   const setPeriod = usePlannerSelection((s) => s.setPeriod)
   const anySelected = DIMS.some(({ dim }) => selection[dim].length > 0)
 
+  // THE PERIOD, AS THE INSIGHTS HUB ASKS IT — Year, Month and Date range,
+  // three pills that expand this bar rather than a button that opened a
+  // 380x590 calendar over the plan below. The arrangement and the rules are
+  // planner/PeriodControl's, shared with the Hub and the alerts dialog on
+  // Investigations, so the same question looks the same on all three.
+  //
+  // NO YEAR OR MONTH FIELD HERE. The planner's store holds a period as two
+  // business weeks and nothing else, so no `onYear`/`onMonth` is passed and
+  // every pick lands as the span it covers; the control works out which year
+  // or month that span IS. There is no "All data" either -- the Studio always
+  // plans inside some period -- which is why no `onClear` goes with it.
+  const [panel, setPanel] = useState<PeriodPanelKey | null>(null)
+  const period = usePeriodScope({
+    calendar: options?.calendar ?? [],
+    start,
+    end,
+    onApply: (from, to) => {
+      setPeriod(from, to)
+      setPanel(null)
+    },
+  })
+
   return (
     <div
       role="group"
       aria-label="Simulation Studio filters"
-      className="flex flex-wrap items-center gap-2 rounded-[var(--r-lg)] border border-border-subtle bg-surface-card px-3 py-2.5 shadow-[var(--shadow-card-soft)]"
+      className="rounded-[var(--r-lg)] border border-border-subtle bg-surface-card px-3 py-2.5 shadow-[var(--shadow-card-soft)]"
     >
+      <div className="flex flex-wrap items-center gap-2">
       {options && start && end ? (
-        <>
-          {/* THE SAME TWO FIELDS THE INSIGHTS HUB OFFERS, beside the button
-              rather than instead of it. The button BROWSES — months, the
-              rolling windows — and opens a panel over the plan below to do it;
-              the fields set either end outright, with the platform's own date
-              popover, covering nothing. Neither can say anything the other
-              cannot: both end in `setPeriod` over the same business weeks.
-
-              So the button no longer spells the span out — the fields carry
-              the dates now, and printing "Jan – Aug 2026" beside
-              "01-01-2026 / 24-08-2026" was the same answer twice and pushed
-              Region onto a second row. It keeps the week count, which is the
-              one thing neither field shows.
-
-              The fields are hidden while a promotion focus fixes the period:
-              the button says so in that state, and two dead fields beside it
-              would not. */}
-          <PeriodPicker
-            calendar={options.calendar}
-            start={start}
-            end={end}
-            onApply={setPeriod}
-            locked={periodLocked}
-            renderTrigger={({ open, label, weeks, toggle }) => (
-              <button
-                type="button"
-                onClick={toggle}
-                title={periodLocked ?? `Choose the period to plan — ${label}`}
-                aria-haspopup="dialog"
-                aria-expanded={open}
-                aria-label={`Period, ${label}`}
-                className={`inline-flex h-10 cursor-pointer items-center gap-2 rounded-[var(--r-md)] border px-3 text-base transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet [&_svg]:h-4 [&_svg]:w-4 ${
-                  open
-                    ? 'border-brand-violet/50 bg-brand-violet-50 text-brand-violet'
-                    : 'border-border-default bg-surface-card text-ink-secondary hover:border-border-strong hover:bg-surface-hover'
-                } ${periodLocked ? 'cursor-default' : ''}`}
-              >
-                <Icon name="calendar" />
-                <span className="font-medium">Period</span>
-                {weeks !== null && (
-                  <span className="rounded-[var(--r-sm)] bg-brand-violet-50 px-1.5 py-0.5 text-sm font-medium text-brand-violet">
-                    {weeks} weeks
-                  </span>
-                )}
-                {periodLocked ? <Icon name="lock" /> : <Icon name="chevronDown" />}
-              </button>
-            )}
-          />
-          {!periodLocked && (
-            <PeriodRangeFields
-              calendar={options.calendar}
-              start={start}
-              end={end}
-              onApply={setPeriod}
-              className="shrink-0"
-            />
-          )}
-        </>
+        periodLocked ? (
+          // A promotion focus fixes the period, so it is stated rather than
+          // offered. Three dead pills would read as controls that do nothing.
+          <span
+            className="inline-flex h-10 items-center gap-2 rounded-[var(--r-md)] border border-border-default bg-surface-muted px-3 text-base text-ink-secondary [&_svg]:h-4 [&_svg]:w-4"
+            title={periodLocked}
+          >
+            <Icon name="calendar" />
+            <span className="font-medium">Period</span>
+            <span className="text-ink-primary">{period.labels.year}</span>
+            <Icon name="lock" />
+          </span>
+        ) : (
+          <PeriodPills scope={period} open={panel} onOpen={setPanel} controls="studio-period-panel" big />
+        )
       ) : (
         <Button variant="secondary" size="md" disabled>
           <Icon name="calendar" /> <span>Loading…</span>
@@ -124,6 +104,22 @@ export function SelectionBar({
         <Button variant="ghost" size="md" onClick={() => DIMS.forEach(({ dim }) => setList(dim, []))} className="ml-auto">
           <Icon name="x" /> Clear filters
         </Button>
+      )}
+      </div>
+
+      {/* The open pill's choices, on a row inside the bar under a hairline —
+          the Hub's arrangement, so the plan below is pushed down rather than
+          painted over. */}
+      {panel && !periodLocked && (
+        <div
+          id="studio-period-panel"
+          role="region"
+          aria-label={PERIOD_PANEL_TITLE[panel]}
+          className="panel-enter mt-2.5 border-t border-border-subtle px-1 pb-1 pt-3"
+        >
+          <div className="mb-2 text-base font-medium text-ink-primary">{PERIOD_PANEL_TITLE[panel]}</div>
+          <PeriodPanel scope={period} which={panel} />
+        </div>
       )}
     </div>
   )

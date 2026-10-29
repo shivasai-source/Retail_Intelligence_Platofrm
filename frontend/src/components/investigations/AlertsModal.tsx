@@ -1,11 +1,12 @@
+import { useState } from 'react'
 import { IconButton, Modal, Spinner } from '../ui'
 import { InfoBlock, InfoPopover } from '../ui/InfoPopover'
 import { Icon } from '../../icons'
 import { Stale } from '../command/States'
 import { RiskAlertsPanel } from '../command/RiskAlertsPanel'
 import { ALERT_FETCH_LIMIT } from '../command/riskRanking'
-import { PeriodPicker, smartPeriodLabel, weeksBetween } from '../planner/PeriodPicker'
-import { PeriodRangeFields } from '../planner/PeriodRangeFields'
+import { smartPeriodLabel, weeksBetween } from '../planner/PeriodPicker'
+import { PERIOD_PANEL_TITLE, PeriodPanel, PeriodPills, usePeriodScope, type PeriodPanelKey } from '../planner/PeriodControl'
 import { useFilterOptions, useRiskAlerts } from '../../hooks/useCommandCenter'
 import { useEnsureCommandScope } from '../../hooks/useCommandScope'
 import { usePeriodSelection } from '../../hooks/usePeriodSelection'
@@ -48,12 +49,11 @@ import type { RiskAlert } from '../../types/commandCenter'
  *  copy: a range chosen here is the range the Hub shows on the way back, and
  *  every panel that reads the scope re-answers for it. */
 
-/** ONE HEIGHT FOR BOTH COLUMNS, so the dialog does not resize as the reader
- *  steps through months — tall enough for the calendar's own layout (its
- *  header, the shortcuts, a twelve-month grid and its footer) and capped
- *  against the window, because a laptop at 768px tall cannot show 600px of
- *  dialog plus its header. The calendar scrolls inside itself when capped. */
-const COLUMN_H = 'h-[min(648px,calc(100vh-150px))]'
+/** THE LIST'S HEIGHT, capped against the window: a laptop at 768px tall
+ *  cannot show 600px of dialog plus its header, and the list scrolls inside
+ *  itself when capped. It no longer has to be tall enough to hold a calendar
+ *  beside it -- the period is a row of pills above, not a column. */
+const COLUMN_H = 'h-[min(648px,calc(100vh-210px))]'
 
 export function AlertsModal({
   open,
@@ -69,7 +69,25 @@ export function AlertsModal({
   const alerts = useRiskAlerts(ALERT_FETCH_LIMIT)
   const meta = alerts.data?.meta
   const options = useFilterOptions()
-  const period = usePeriodSelection(useCommandFilters, options.data)
+  const selection = usePeriodSelection(useCommandFilters, options.data)
+  const [panel, setPanel] = useState<PeriodPanelKey | null>(null)
+  const filters = useCommandFilters((st) => st.filters)
+  const customRange = filters.period_from != null && filters.period_to != null
+  // THE HUB'S PERIOD, ASKED THE HUB'S WAY. The note below has always said this
+  // IS that period; now the control is that control too, so a reader who has
+  // set a scope on the Insights Hub meets the same three pills here rather
+  // than a calendar that happens to write the same fields.
+  const period = usePeriodScope({
+    calendar: selection.calendar,
+    start: selection.start,
+    end: selection.end,
+    onApply: (from, to) => { selection.apply(from, to); setPanel(null) },
+    onClear: () => { selection.clear(); setPanel(null) },
+    onYear: (y) => { selection.applyYear(y); setPanel(null) },
+    onMonth: (y, m) => { selection.applyMonth(y, m); setPanel(null) },
+    year: customRange ? null : filters.year,
+    month: customRange ? null : filters.month,
+  })
 
   return (
     <Modal open={open} onClose={onClose} closeOnBackdrop={false} maxWidthClassName="max-w-[1080px]">
@@ -126,46 +144,32 @@ export function AlertsModal({
               squeeze the list's figures; this is a portalled overlay, so the
               breakpoint is the VIEWPORT's rather than a container query —
               <main> is not this dialog's ancestor. */}
-          <div className="grid grid-cols-[388px_1fr] max-[940px]:max-h-[calc(100vh-120px)] max-[940px]:grid-cols-1 max-[940px]:overflow-y-auto">
-            <div className={`flex min-h-0 flex-col gap-2 border-r border-border-subtle p-4 max-[940px]:border-b max-[940px]:border-r-0 ${COLUMN_H} max-[940px]:h-[600px]`}>
-              {/* THE SAME TWO FIELDS THE INSIGHTS HUB OFFERS, above the
-                  calendar rather than instead of it. The note below says this
-                  IS the Hub's period, so the way into it should look the way
-                  it does there: either end set outright, with the platform's
-                  own date popover. The calendar underneath still browses by
-                  month and carries the rolling windows, and both write the
-                  same business weeks through `period.apply`. */}
-              {period.calendar.length > 0 && (
-                <PeriodRangeFields
-                  calendar={period.calendar}
-                  start={period.start}
-                  end={period.end}
-                  onApply={period.apply}
-                  onClear={period.clear}
-                  className="shrink-0"
-                />
-              )}
-              <div className="min-h-0 flex-1">
-                {period.calendar.length > 0 ? (
-                  <PeriodPicker
-                    inline
-                    calendar={period.calendar}
-                    start={period.start}
-                    end={period.end}
-                    onApply={period.apply}
-                    onClear={period.clear}
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center gap-2 rounded-[var(--r-lg)] border border-border-subtle text-sm text-ink-muted">
-                    <Spinner /> Loading the calendar…
-                  </div>
-                )}
-              </div>
-              <p className="shrink-0 text-sm leading-[1.45] text-ink-muted">
+          {/* THE PERIOD, THEN THE EVENTS IN IT. A row across the top rather
+              than a 388px column beside the list: the period is three pills
+              and a panel now, which is nowhere near a column's worth of
+              control, and the list gets the dialog's whole width for figures
+              that were being squeezed into 690px of it. */}
+          <div className="border-b border-border-subtle px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <PeriodPills scope={period} open={panel} onOpen={setPanel} controls="alerts-period-panel" />
+              <span className="ml-auto text-sm leading-[1.45] text-ink-muted">
                 This is the Insights Hub's period — changing it here changes it there too.
-              </p>
+              </span>
             </div>
+            {panel && (
+              <div
+                id="alerts-period-panel"
+                role="region"
+                aria-label={PERIOD_PANEL_TITLE[panel]}
+                className="panel-enter mt-2.5 border-t border-border-subtle px-1 pb-1 pt-3"
+              >
+                <div className="mb-2 text-base font-medium text-ink-primary">{PERIOD_PANEL_TITLE[panel]}</div>
+                <PeriodPanel scope={period} which={panel} />
+              </div>
+            )}
+          </div>
 
+          <div className="min-w-0">
             <div className={`flex min-h-0 min-w-0 flex-col ${COLUMN_H} max-[940px]:h-[460px]`}>
               {alerts.error ? (
                 <Message text="Alerts could not be loaded." />
