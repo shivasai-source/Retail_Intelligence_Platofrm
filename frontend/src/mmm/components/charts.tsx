@@ -118,6 +118,63 @@ function wrapLabel(label: string, maxW: number): string[] {
   return k < words.length ? [first, cut(words.slice(k).join(' '))] : [first]
 }
 
+/** A value label on one line, or broken at its last space — "₹113.49" over
+ *  "Cr" — where one line would be wider than the room its column has. A
+ *  label with no space ("1.34x") always stays on one line; `spreadLabels`
+ *  is what keeps that one clear of its neighbour. */
+function valueLines(display: string, room: number): string[] {
+  if (measure(display) <= room) return [display]
+  const at = display.lastIndexOf(' ')
+  return at > 0 ? [display.slice(0, at), display.slice(at + 1)] : [display]
+}
+
+/** The width of the widest line of a label. */
+const linesW = (lines: string[]) => Math.max(0, ...lines.map(measure))
+
+/** Whether a row of labels needs more width than the plot has — the case
+ *  `spreadLabels` cannot resolve, and the caller answers by splitting the
+ *  labels over two lines. */
+const labelsFit = (widths: number[], room: number, gap = 8) =>
+  widths.reduce((t, w) => t + w, 0) + gap * Math.max(0, widths.length - 1) <= room
+
+/** Two levels for a row of labels too crowded to separate sideways — a
+ *  dozen short labels such as "1.45x" leave nothing to nudge. Each label
+ *  that would still cover the one before it steps up a line, so every
+ *  figure stays over its own column and stays readable. */
+function stagger(xs: number[], widths: number[], gap = 6): number[] {
+  const ends = [-Infinity, -Infinity]
+  return xs.map((x, i) => {
+    const level = x - widths[i] / 2 >= ends[0] + gap ? 0 : 1
+    ends[level] = x + widths[i] / 2
+    return level
+  })
+}
+
+/** Nudges centred value labels apart until no two touch, keeping every one
+ *  inside [left, right]. `xs` are the labels' preferred centres, in
+ *  ascending order; each is pushed off the one before it, then the row is
+ *  pushed back off the right edge. Two highlighted months side by side used
+ *  to print one money label over the other; now the pair separates and
+ *  still reads left to right in column order.
+ *
+ *  A row that needs more width than the plot has is left on its columns,
+ *  only pulled inside the edges: spreading what cannot fit would march the
+ *  labels off the plot and over the axis without separating them. */
+function spreadLabels(xs: number[], widths: number[], left: number, right: number, gap = 8): number[] {
+  const clamp = (x: number, w: number) => Math.min(Math.max(x, left + w / 2), right - w / 2)
+  if (!labelsFit(widths, right - left, gap)) return xs.map((x, i) => clamp(x, widths[i]))
+  const out = xs.slice()
+  for (let i = 0; i < out.length; i++) {
+    const min = i === 0 ? left + widths[i] / 2 : out[i - 1] + (widths[i - 1] + widths[i]) / 2 + gap
+    out[i] = Math.max(out[i], min)
+  }
+  for (let i = out.length - 1; i >= 0; i--) {
+    const max = i === out.length - 1 ? right - widths[i] / 2 : out[i + 1] - (widths[i] + widths[i + 1]) / 2 - gap
+    out[i] = Math.min(out[i], max)
+  }
+  return out
+}
+
 /** Year-aware x-axis ticks (see `yearAwareTicks`) at the smallest spacing
  *  where no two neighbouring labels come within 16px of each other. `step`
  *  is the pixel distance between consecutive labels' centres. */
@@ -412,18 +469,39 @@ export function ValueColumns({
   const { ref, width, height } = useChartSize(520, 240)
   const [hover, setHover] = useState<number | null>(null)
   const padR = 8
-  const padT = 22
   const padB = columns.some((c) => c.sub) ? 48 : 30
-  const innerH = Math.max(80, height - padT - padB)
   const values = columns.map((c) => c.value).filter((v): v is number => v !== null)
   const { lo, hi, ticks } = axisWithLabelRoom(values.length ? values : [1])
   // Sized from the tick labels, so the longest fits beside the plot.
   const padL = axisPad(ticks.map(format))
   const innerW = Math.max(120, width - padL - padR)
-  const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
   const slot = innerW / Math.max(1, columns.length)
   const barW = Math.max(10, Math.min(56, slot * 0.5))
   const cx = (i: number) => padL + slot * i + slot / 2
+
+  // A money label is often wider than its column. Any that would not fit
+  // goes on two lines, the unit under the figure, and the row is then nudged
+  // apart so no label runs into its neighbour or off the plot.
+  //
+  // THE ROW IS MEASURED AS A ROW, NOT COLUMN BY COLUMN. Sizing each label
+  // against its own slot alone was not enough: four money labels each a
+  // little narrower than its own column are still wider than the plot when
+  // laid side by side, so none of them split, and `spreadLabels` can only
+  // clamp a row it has no room to separate — which printed one figure over
+  // the next. So the single-line row is costed first, and only if it does not
+  // fit does every label go to two lines. ContextColumns lays its two
+  // highlighted labels out the same way.
+  const oneLine = columns.map((c) => (c.value === null ? ['—'] : [c.display]))
+  const labelRoom = (innerW - 8 * Math.max(0, columns.length - 1)) / Math.max(1, columns.length)
+  const valueText = labelsFit(oneLine.map(linesW), innerW)
+    ? oneLine
+    : columns.map((c) => (c.value === null ? ['—'] : valueLines(c.display, labelRoom)))
+  const valueSplit = valueText.some((l) => l.length > 1)
+  const valueX = spreadLabels(columns.map((_, i) => cx(i)), valueText.map(linesW), padL, padL + innerW)
+
+  const padT = valueSplit ? 22 + LINE_H : 22
+  const innerH = Math.max(80, height - padT - padB)
+  const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
   const zeroY = y(0)
   const active = hover !== null && hover < columns.length ? hover : null
 
@@ -441,6 +519,7 @@ export function ValueColumns({
         {lo < 0 && <line x1={padL} x2={padL + innerW} y1={zeroY} y2={zeroY} stroke="var(--border-strong)" />}
         {columns.map((c, i) => {
           const isActive = active === i
+          const v = c.value
           return (
             <g key={c.key}>
               <rect
@@ -453,29 +532,32 @@ export function ValueColumns({
                 opacity={isActive ? 1 : 0}
                 className="transition-opacity duration-150"
               />
-              {c.value !== null && (
+              {v !== null && (
                 <>
                   <path
-                    d={columnPath(cx(i) - barW / 2, Math.min(y(c.value), zeroY), barW, Math.max(Math.abs(y(c.value) - zeroY), 2), c.value < 0)}
+                    d={columnPath(cx(i) - barW / 2, Math.min(y(v), zeroY), barW, Math.max(Math.abs(y(v) - zeroY), 2), v < 0)}
                     fill={FILL[c.role]}
                     stroke={c.role === 'against' ? STROKE_AGAINST : 'transparent'}
                     opacity={active === null || isActive ? 1 : 0.5}
                     className="transition-opacity duration-150"
                   />
-                  <text
-                    x={cx(i)}
-                    y={c.value < 0 ? y(c.value) + 13 : y(c.value) - 6}
-                    textAnchor="middle"
-                    fontSize={15}
-                    fontWeight={500}
-                    fill="var(--text-primary)"
-                  >
-                    {c.display}
-                  </text>
+                  {valueText[i].map((line, k, all) => (
+                    <text
+                      key={k}
+                      x={valueX[i]}
+                      y={v < 0 ? y(v) + 13 + LINE_H * k : y(v) - 6 - LINE_H * (all.length - 1 - k)}
+                      textAnchor="middle"
+                      fontSize={15}
+                      fontWeight={500}
+                      fill="var(--text-primary)"
+                    >
+                      {line}
+                    </text>
+                  ))}
                 </>
               )}
-              {c.value === null && (
-                <text x={cx(i)} y={zeroY - 6} textAnchor="middle" fontSize={15} fill="var(--text-muted)">
+              {v === null && (
+                <text x={valueX[i]} y={zeroY - 6} textAnchor="middle" fontSize={15} fill="var(--text-muted)">
                   —
                 </text>
               )}
@@ -546,18 +628,25 @@ export function PairedColumns({
   const [hover, setHover] = useState<number | null>(null)
   const padR = 8
   const padT = 16
-  const padB = 48
-  const innerH = Math.max(80, height - padT - padB)
   const values = groups.flatMap((g) => [g.with_avg, g.without_avg]).filter((v): v is number => v !== null)
   const { lo, hi, ticks } = axis(values.length ? values : [1])
   // Sized from the tick labels, so the longest fits beside the plot.
   const padL = axisPad(ticks.map((t) => axisMoney(t * rate, currency)))
   const innerW = Math.max(120, width - padL - padR)
-  const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
   const slot = innerW / Math.max(1, groups.length)
   const barW = Math.max(8, Math.min(30, slot * 0.3))
   const gap = 4
   const cx = (i: number) => padL + slot * i + slot / 2
+
+  // An event name wider than its group wraps onto a second line, and the
+  // difference printed under it is nudged clear of its neighbours — a long
+  // name beside a long name used to run the two together.
+  const names = groups.map((g) => wrapLabel(g.label, slot - 6))
+  const nameLines = Math.max(1, ...names.map((l) => l.length))
+  const diffX = spreadLabels(groups.map((_, i) => cx(i)), groups.map((g) => measure(g.difference_display)), padL, padL + innerW, 6)
+  const padB = 12 + LINE_H * (nameLines + 1)
+  const innerH = Math.max(80, height - padT - padB)
+  const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
   const active = hover !== null && hover < groups.length ? hover : null
 
   return (
@@ -601,10 +690,20 @@ export function PairedColumns({
                   />
                 ),
               )}
-              <text x={cx(i)} y={height - 25} textAnchor="middle" fontSize={15} fontWeight={500} fill="var(--text-primary)">
-                {g.label}
-              </text>
-              <text x={cx(i)} y={height - 6} textAnchor="middle" fontSize={15} fill="var(--text-muted)">
+              {names[i].map((line, k) => (
+                <text
+                  key={k}
+                  x={cx(i)}
+                  y={height - 6 - LINE_H * (nameLines - k)}
+                  textAnchor="middle"
+                  fontSize={15}
+                  fontWeight={500}
+                  fill="var(--text-primary)"
+                >
+                  {line}
+                </text>
+              ))}
+              <text x={diffX[i]} y={height - 6} textAnchor="middle" fontSize={15} fill="var(--text-muted)">
                 {g.difference_display}
               </text>
               <rect
@@ -672,14 +771,18 @@ export function RankedColumns({
   const innerW = Math.max(120, width - padL - padR)
   const slot = innerW / Math.max(1, n)
   // A value label wider than its slot ("₹245.93 Cr") stands on two lines,
-  // the unit under the figure, so neighbours never run into each other.
-  const valueSplit = items.some((c) => c.value !== null && measure(c.display) > slot - 6)
-  const valueLines = (c: (typeof items)[number]): string[] => {
-    if (c.value === null) return ['—']
-    const at = c.display.lastIndexOf(' ')
-    return valueSplit && at > 0 ? [c.display.slice(0, at), c.display.slice(at + 1)] : [c.display]
-  }
-  const padT = valueSplit ? 22 + LINE_H : 22
+  // the unit under the figure, so neighbours never run into each other. One
+  // that is still too wide — a figure with no unit to drop — is nudged
+  // sideways instead, as far as the plot's edges allow.
+  const valueText = items.map((c) => (c.value === null ? ['—'] : valueLines(c.display, slot - 6)))
+  const valueSplit = valueText.some((l) => l.length > 1)
+  const valueW = valueText.map(linesW)
+  const valueX = spreadLabels(items.map((_, i) => padL + slot * i + slot / 2), valueW, padL, padL + innerW)
+  // Labels that still touch after the nudge — a narrow plot has nowhere to
+  // move them sideways — go on two levels instead of over one another.
+  const crowded = valueX.some((x, i) => i > 0 && x - valueW[i] / 2 < valueX[i - 1] + valueW[i - 1] / 2)
+  const valueLevel = crowded ? stagger(valueX, valueW) : items.map(() => 0)
+  const padT = (valueSplit ? 22 + LINE_H : 22) + (crowded ? LINE_H : 0)
   // A name wider than its slot wraps onto a second line at a space; only a
   // name too long even for two lines is cut, and the full name is in the
   // tooltip. Every column gets the same number of lines, so names align.
@@ -730,16 +833,16 @@ export function RankedColumns({
                   className="transition-opacity duration-150"
                 />
               )}
-              {valueLines(c).map((line, k, all) => (
+              {valueText[i].map((line, k, all) => (
                 <text
                   key={k}
-                  x={cx(i)}
+                  x={valueX[i]}
                   y={
                     c.value === null
-                      ? zeroY - 6
+                      ? zeroY - 6 - LINE_H * valueLevel[i]
                       : negative
-                        ? y(c.value) + 15 + LINE_H * k
-                        : y(c.value) - 6 - LINE_H * (all.length - 1 - k)
+                        ? y(c.value) + 15 + LINE_H * (k + valueLevel[i])
+                        : y(c.value) - 6 - LINE_H * (all.length - 1 - k + valueLevel[i])
                   }
                   textAnchor="middle"
                   fontSize={15}
@@ -833,19 +936,51 @@ export function ContextColumns({
   const [hover, setHover] = useState<number | null>(null)
   const n = points.length
   const padR = 8
-  const padT = 20
   const padB = 48
-  const innerH = Math.max(80, height - padT - padB)
   const values = points.map((p) => p.value).filter((v): v is number => v !== null)
   const { lo, hi, ticks } = axisWithLabelRoom(values.length ? values : [1])
   // Sized from the tick labels, so the longest fits beside the plot.
   const padL = axisPad(ticks.map(format))
   const innerW = Math.max(120, width - padL - padR)
-  const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
-  const zeroY = y(0)
   const slot = innerW / Math.max(1, n)
   const barW = Math.max(6, Math.min(26, slot * 0.56))
   const cx = (i: number) => padL + slot * i + slot / 2
+
+  // THE TWO VALUE LABELS. The selected month and the month it is compared
+  // with are usually neighbours, and a money label is several columns wide,
+  // so the two were printing over each other. They are laid out together:
+  // on two lines each where the plot cannot hold both side by side, then
+  // nudged apart, which also keeps them off the axis at either edge.
+  const marks = points.map((p, i) => ({ p, i })).filter(({ p }) => p.role !== 'idle' && p.value !== null)
+  const flat = marks.map(({ p }) => [p.display])
+  const markLines = labelsFit(flat.map(linesW), innerW)
+    ? flat
+    : marks.map(({ p }) => valueLines(p.display, (innerW - 8 * Math.max(0, marks.length - 1)) / Math.max(1, marks.length)))
+  const markSplit = markLines.some((l) => l.length > 1)
+  const markX = spreadLabels(marks.map(({ i }) => cx(i)), markLines.map(linesW), padL, padL + innerW)
+  const markAt = new Map(marks.map(({ i }, k) => [i, k]))
+
+  // THE MONTH ROW. Thirteen names do not fit under a narrow card, where
+  // they ran into one another. The two highlighted months always keep
+  // theirs, then the months carrying a year, then as many of the rest as
+  // the width holds — and any name that would touch a highlighted one goes.
+  const monthStep = Math.max(1, Math.ceil((Math.max(0, ...points.map((p) => measure(p.month))) + 10) / slot))
+  const keepsMonth = (i: number) => {
+    const p = points[i]
+    if (p.role !== 'idle') return true
+    const clear = marks.every(({ i: j }) => Math.abs(i - j) * slot >= (measure(p.month) + measure(points[j].month)) / 2 + 8)
+    return clear && (p.year !== null || i % monthStep === 0)
+  }
+  // The names that stay are then nudged apart like the value labels, which
+  // is what separates two highlighted months standing side by side.
+  const monthKeep = points.map((_, i) => i).filter(keepsMonth)
+  const monthX = spreadLabels(monthKeep.map(cx), monthKeep.map((i) => measure(points[i].month)), padL, padL + innerW, 6)
+  const monthAt = new Map(monthKeep.map((i, k) => [i, monthX[k]]))
+
+  const padT = markSplit ? 20 + LINE_H : 20
+  const innerH = Math.max(80, height - padT - padB)
+  const y = (v: number) => padT + innerH * (1 - (v - lo) / (hi - lo || 1))
+  const zeroY = y(0)
   const active = hover !== null && hover < n ? hover : null
   const TIP_W = 208
 
@@ -886,32 +1021,36 @@ export function ContextColumns({
                   className="transition-opacity duration-150"
                 />
               )}
-              {highlighted && v !== null && (
-                // The first and last columns align their label inward, so it
-                // never overhangs the plot onto the axis labels.
+              {highlighted &&
+                v !== null &&
+                markAt.has(i) &&
+                markLines[markAt.get(i) as number].map((line, k, all) => (
+                  <text
+                    key={k}
+                    x={markX[markAt.get(i) as number]}
+                    y={v < 0 ? y(v) + 13 + LINE_H * k : y(v) - 6 - LINE_H * (all.length - 1 - k)}
+                    textAnchor="middle"
+                    fontSize={15}
+                    fontWeight={500}
+                    fill="var(--text-primary)"
+                  >
+                    {line}
+                  </text>
+                ))}
+              {monthAt.has(i) && (
                 <text
-                  x={i === 0 ? cx(i) - barW / 2 : i === n - 1 ? cx(i) + barW / 2 : cx(i)}
-                  y={v < 0 ? y(v) + 13 : y(v) - 6}
-                  textAnchor={i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
+                  x={monthAt.get(i)}
+                  y={height - 25}
+                  textAnchor="middle"
                   fontSize={15}
-                  fontWeight={500}
-                  fill="var(--text-primary)"
+                  fontWeight={highlighted ? 700 : 500}
+                  fill={highlighted ? 'var(--text-primary)' : 'var(--text-muted)'}
                 >
-                  {p.display}
+                  {p.month}
                 </text>
               )}
-              <text
-                x={cx(i)}
-                y={height - 25}
-                textAnchor="middle"
-                fontSize={15}
-                fontWeight={highlighted ? 700 : 500}
-                fill={highlighted ? 'var(--text-primary)' : 'var(--text-muted)'}
-              >
-                {p.month}
-              </text>
-              {p.year && (
-                <text x={cx(i)} y={height - 6} textAnchor="middle" fontSize={15} fontWeight={500} fill="var(--text-muted)">
+              {p.year && monthAt.has(i) && (
+                <text x={monthAt.get(i)} y={height - 6} textAnchor="middle" fontSize={15} fontWeight={500} fill="var(--text-muted)">
                   {/* Too narrow a slot for "2024" beside "2025" prints "’24". */}
                   {slot < textW(p.year) + 12 ? `’${p.year.slice(-2)}` : p.year}
                 </text>
@@ -993,6 +1132,7 @@ export function RunningLines({
   const x = (i: number) => padL + step * i + step / 2
   const path = (vals: Array<number | null>) =>
     vals.map((v, i) => (v === null ? null : `${x(i)},${y(v)}`)).filter(Boolean).join(' ')
+  const xTicks = spacedTicks(labels, step)
   const active = hover !== null && hover < n ? hover : null
   const TIP_W = 220
   const PREV = 'var(--text-muted)'
@@ -1021,9 +1161,19 @@ export function RunningLines({
         {previous.map((v, i) =>
           v === null ? null : <circle key={`p${i}`} cx={x(i)} cy={y(v)} r={active === i || i === n - 1 ? 4 : 2.5} fill={PREV} />,
         )}
-        {labels.map((l, i) => (
-          <text key={l} x={x(i)} y={height - 8} textAnchor="middle" fontSize={15} fontWeight={active === i ? 700 : 500} fill="var(--text-muted)">
-            {l}
+        {/* Only as many month names as the width holds: twelve of them in a
+            narrow card printed one over the next. */}
+        {xTicks.map((t) => (
+          <text
+            key={t.i}
+            x={x(t.i)}
+            y={height - 8}
+            textAnchor="middle"
+            fontSize={15}
+            fontWeight={active === t.i ? 700 : 500}
+            fill="var(--text-muted)"
+          >
+            {t.text}
           </text>
         ))}
         {labels.map((l, i) => (
@@ -1384,7 +1534,7 @@ export function DecompositionDonut({
                     setPreview(null)
                   }}
                   className={`grid min-h-10 w-full items-center gap-x-2 py-1 rounded-[var(--r-md)] px-2.5 text-left transition-[background-color,opacity] duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
-                    level === 'drivers' ? 'grid-cols-[12px_minmax(0,1fr)_6.5rem_4.2rem] text-md' : 'grid-cols-[12px_minmax(0,1fr)_6.5rem_4.2rem] text-base'
+                    level === 'drivers' ? 'grid-cols-[12px_minmax(0,1fr)_minmax(6.5rem,auto)_minmax(4.2rem,auto)] text-md' : 'grid-cols-[12px_minmax(0,1fr)_minmax(6.5rem,auto)_minmax(4.2rem,auto)] text-base'
                   } ${clickable ? 'cursor-pointer' : 'cursor-default'} ${isOn(sg.key) ? 'bg-surface-hover' : ''} ${isDim(sg.key) ? 'opacity-50' : ''}`}
                 >
                   <span className="h-3 w-3 rounded-full" style={{ background: sg.color }} />
@@ -1539,7 +1689,7 @@ export function ShareDonut({
                   onFocus={() => point(p.key)}
                   onBlur={leave}
                   onClick={onPick ? () => onPick(p.key) : undefined}
-                  className={`grid min-h-10 w-full grid-cols-[12px_minmax(0,1fr)_6rem_4.2rem] py-1 items-center gap-x-2 rounded-[var(--r-md)] px-2 text-left text-base transition-[background-color,opacity] duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
+                  className={`grid min-h-10 w-full grid-cols-[12px_minmax(0,1fr)_minmax(6rem,auto)_minmax(4.2rem,auto)] py-1 items-center gap-x-2 rounded-[var(--r-md)] px-2 text-left text-base transition-[background-color,opacity] duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-violet ${
                     onPick ? 'cursor-pointer' : 'cursor-default'
                   } ${on ? 'bg-surface-hover' : ''} ${hover !== null && !on ? 'opacity-50' : ''}`}
                 >
