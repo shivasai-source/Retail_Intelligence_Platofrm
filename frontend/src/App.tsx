@@ -1,16 +1,30 @@
+import { lazy, Suspense, type ComponentType } from 'react'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Login } from './pages/Login'
-import { Home } from './pages/Home'
-import { CommandCenter } from './pages/CommandCenter'
-import { Investigations } from './pages/Investigations'
-import { Intelligence } from './pages/Intelligence'
-import { PromotionPlanner } from './pages/PromotionPlanner'
-import { Decision } from './pages/Decision'
-import { Calendar } from './pages/Calendar'
-import { Reports } from './pages/Reports'
-import { Connections } from './pages/Connections'
-import { Settings } from './pages/Settings'
-import { AnalystWindow } from './pages/AnalystWindow'
+import { Spinner } from './components/ui'
+
+/** A PAGE AT A TIME. Everything used to be one 1.1 MB bundle: opening the
+ *  login screen downloaded the Studio, the MMM product and every page besides,
+ *  and any change to any of them re-sent the lot. Each page is its own chunk
+ *  now, fetched when it is first opened; `Login` stays eager because it is the
+ *  first thing anyone sees. The pages export by name, hence the `.then` -- an
+ *  import() has to resolve to a default for `lazy`. */
+const page = <P extends object, K extends string, T extends Record<K, ComponentType<P>>>(
+  load: () => Promise<T>,
+  name: K,
+) => lazy(() => load().then((m) => ({ default: m[name] })))
+
+const Home = page(() => import('./pages/Home'), 'Home')
+const CommandCenter = page(() => import('./pages/CommandCenter'), 'CommandCenter')
+const Investigations = page(() => import('./pages/Investigations'), 'Investigations')
+const Intelligence = page(() => import('./pages/Intelligence'), 'Intelligence')
+const PromotionPlanner = page(() => import('./pages/PromotionPlanner'), 'PromotionPlanner')
+const Decision = page(() => import('./pages/Decision'), 'Decision')
+const Calendar = page(() => import('./pages/Calendar'), 'Calendar')
+const Reports = page(() => import('./pages/Reports'), 'Reports')
+const Connections = page(() => import('./pages/Connections'), 'Connections')
+const Settings = page(() => import('./pages/Settings'), 'Settings')
+const AnalystWindow = page(() => import('./pages/AnalystWindow'), 'AnalystWindow')
 import { RequireAuth } from './components/RequireAuth'
 import { RequireDataset } from './components/RequireDataset'
 import { RouteErrorBoundary } from './components/ErrorBoundary'
@@ -35,6 +49,15 @@ function App() {
       {/* Any page that throws while rendering shows the error screen instead
           of a white page; moving to another route clears it. */}
       <RouteErrorBoundary>
+      {/* While a page's chunk is on its way. Full height, so the shell does
+          not jump as it arrives. */}
+      <Suspense
+        fallback={
+          <div className="flex min-h-screen items-center justify-center">
+            <Spinner />
+          </div>
+        }
+      >
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
@@ -52,6 +75,7 @@ function App() {
         <Route path="/settings" element={<RequireAuth><Settings /></RequireAuth>} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      </Suspense>
       </RouteErrorBoundary>
     </HashRouter>
   )

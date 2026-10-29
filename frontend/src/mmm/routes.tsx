@@ -1,18 +1,29 @@
-import type { ReactNode } from 'react'
+import { lazy, type ComponentType, type ReactNode } from 'react'
 import { Navigate, Route } from 'react-router-dom'
-import { AnalystWindow } from '../pages/AnalystWindow'
 import { RequireAuth } from '../components/RequireAuth'
 import { RequireMmmDataset } from './components/RequireMmmDataset'
 import { MMM_ANALYST } from './analystModule'
 import { MMM_ROUTES } from './nav'
-import { MmmAllocator } from './pages/MmmAllocator'
-import { MmmBudget } from './pages/MmmBudget'
-import { MmmCalendar } from './pages/MmmCalendar'
-import { MmmConnections } from './pages/MmmConnections'
-import { MmmForecast } from './pages/MmmForecast'
-import { MmmInsights } from './pages/MmmInsights'
-import { MmmReports } from './pages/MmmReports'
-import { MmmSettings } from './pages/MmmSettings'
+
+/** MMM IS A WHOLE SECOND PRODUCT, and most sessions never open it, so its
+ *  pages are fetched when one is. Same shape as App.tsx's loader. */
+const page = <P extends object, K extends string, T extends Record<K, ComponentType<P>>>(
+  load: () => Promise<T>,
+  name: K,
+) => lazy(() => load().then((m) => ({ default: m[name] })))
+
+//: Lazy here too, and for the same reason App.tsx loads it that way: a
+//: static import from this file would pull the Analyst back into the
+//: entry chunk and undo the split on both sides.
+const AnalystWindow = page(() => import('../pages/AnalystWindow'), 'AnalystWindow')
+const MmmAllocator = page(() => import('./pages/MmmAllocator'), 'MmmAllocator')
+const MmmBudget = page(() => import('./pages/MmmBudget'), 'MmmBudget')
+const MmmCalendar = page(() => import('./pages/MmmCalendar'), 'MmmCalendar')
+const MmmConnections = page(() => import('./pages/MmmConnections'), 'MmmConnections')
+const MmmForecast = page(() => import('./pages/MmmForecast'), 'MmmForecast')
+const MmmInsights = page(() => import('./pages/MmmInsights'), 'MmmInsights')
+const MmmReports = page(() => import('./pages/MmmReports'), 'MmmReports')
+const MmmSettings = page(() => import('./pages/MmmSettings'), 'MmmSettings')
 
 /** Every MMM route, mounted by App.tsx as `{mmmRoutes()}`.
  *
