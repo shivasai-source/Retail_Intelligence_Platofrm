@@ -219,12 +219,33 @@ export function useTrend(granularity: 'week' | 'month') {
   })
 }
 
+/** THE ALERTS FOLLOW THE MONTH TOO, which the rest of `span` does not.
+ *
+ *  `span` is "the year, or a custom week range" — enough for the charts, whose
+ *  question is about the year. The alerts are different: the dialog on
+ *  Investigations puts the period control beside the list and names the period
+ *  in its own header, so a list that answered for the whole year while the
+ *  pill above it said "May" was the control disagreeing with the figures
+ *  beside it.
+ *
+ *  It is reachable now in a way it was not: the period could only be a year or
+ *  a week range until the dialog grew a Month pill, and `{year, month}` was
+ *  something only the Analyst ever set. The backend has always honoured
+ *  `month` here — 2025 answers 359 events, May 2025 answers 39 — so this only
+ *  had to ask.
+ *
+ *  Deliberately NOT widened to `span` itself: that would put every chart on
+ *  the Insights Hub onto the month as well, which is a different question and
+ *  a different change. */
 export function useRiskAlerts(limit = 20) {
   const { span, currency, targetRoi, enabled } = useScope()
+  const month = useCommandFilters((s) => s.filters.month)
   return useQuery({
-    queryKey: [...key('risk-alerts', span, currency, targetRoi), limit],
+    queryKey: [...key('risk-alerts', span, currency, targetRoi), limit, month],
     queryFn: () =>
-      apiFetch<RiskAlertsResponse>(`/command-center/risk-alerts?${commandQuery(span, currency, { limit }, targetRoi)}`),
+      apiFetch<RiskAlertsResponse>(
+        `/command-center/risk-alerts?${commandQuery(span, currency, { limit, month: month ?? undefined }, targetRoi)}`,
+      ),
     enabled,
     ...CACHED,
   })
