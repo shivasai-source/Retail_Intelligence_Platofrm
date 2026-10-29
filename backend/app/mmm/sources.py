@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
+from fastapi.concurrency import run_in_threadpool
 
 from app import azure_blob, databricks_catalog
 from app.azure_blob import BlobRef
@@ -66,7 +67,11 @@ async def azure_inspect(account: str, sas: str, blobs: list[BlobRef],
             for blob in blobs:
                 content = await azure_blob.fetch_header(client, account, sas, blob)
                 uploads.append((_basename(blob.name), content))
-    return dataset.inspect_files(uploads, mappings, coverage=coverage)
+    # Off the event loop: a workbook is parsed whole however little is asked of
+    # it, and `coverage` reads every row. See `azure_install` below.
+    return await run_in_threadpool(
+        dataset.inspect_files, uploads, mappings, coverage=coverage
+    )
 
 
 async def azure_fetch(
@@ -121,7 +126,10 @@ async def databricks_inspect(workspace_url: str, token: str, refs: list[TableRef
     """
     if coverage:
         uploads = [await databricks_fetch(workspace_url, token, ref) for ref in refs]
-        return dataset.inspect_files(uploads, mappings, coverage=True)
+        # Reads every row of every export, so off the event loop.
+        return await run_in_threadpool(
+            dataset.inspect_files, uploads, mappings, coverage=True
+        )
 
     pairs = await databricks_catalog.columns_for(workspace_url, token, refs)
     chosen = mappings or {}

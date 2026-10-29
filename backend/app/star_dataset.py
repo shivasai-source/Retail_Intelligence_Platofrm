@@ -303,10 +303,6 @@ def read_samples(
     worth seeing: it is how someone spots that they have mapped a flag column
     onto a measure.
     """
-    header = read_header(filename, content)
-    if not header:
-        return {}
-
     values: dict[str, list[str]] = {}
 
     def offer(column: str, cell: str) -> None:
@@ -318,6 +314,12 @@ def read_samples(
         if len(seen) < _SAMPLE_VALUES and text not in seen:
             seen.append(text)
 
+    # A WORKBOOK IS OPENED ONCE HERE, not twice. The frame this reads already
+    # carries the column names, so it answers what `read_header` would have
+    # been asked — and opening a workbook means unzipping it and parsing its
+    # sheet XML, which is the expensive part of every Excel code path in this
+    # module. The mapping screen re-inspects on every edit, over as many as six
+    # files, so a parse saved per file is a parse saved per keystroke.
     if Path(filename).suffix.lower() in (".xlsx", ".xls"):
         try:
             import pandas as pd
@@ -329,6 +331,10 @@ def read_samples(
             for cell in frame[column].dropna().tolist():
                 offer(str(column), str(cell))
         return values
+
+    header = read_header(filename, content)
+    if not header:
+        return {}
 
     try:
         text = content[: 512 * 1024].decode("utf-8-sig", errors="replace")

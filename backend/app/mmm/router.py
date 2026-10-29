@@ -188,8 +188,16 @@ async def upload_dataset(
     """
     uploads = await _uploads(files, file)
     try:
-        result = dataset.install_files(
-            uploads, mappings=_mappings(mapping, [n for n, _c in uploads])
+        # Parsing a workbook, validating every row and rewriting the table is
+        # blocking work; off the event loop, so the rest of the API keeps
+        # answering while it runs — the same reason the Azure and Databricks
+        # installs below run off it. A 100k-row .xlsx takes openpyxl the better
+        # part of a minute, and on the loop that minute froze EVERY request,
+        # which read as "the other connectors are slow too".
+        result = await run_in_threadpool(
+            dataset.install_files,
+            uploads,
+            mappings=_mappings(mapping, [n for n, _c in uploads]),
         )
     except dataset.MmmDatasetError as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -223,7 +231,13 @@ async def inspect_dataset(
     want_coverage = coverage not in ("", "0", "false")
     uploads = await _uploads(files, file, None if want_coverage else HEADER_PREVIEW_BYTES)
     settled = _mappings(mapping, [n for n, _c in uploads])
-    return dataset.inspect_files(uploads, settled, coverage=want_coverage)
+    # Off the event loop for the same reason the install is: a workbook is
+    # parsed whole however little is being asked of it, and `coverage` reads
+    # every row of every file. On the loop a single large .xlsx held the whole
+    # API — /api/health included — for a minute and a half.
+    return await run_in_threadpool(
+        dataset.inspect_files, uploads, settled, coverage=want_coverage
+    )
 
 
 @router.get("/dataset/preview")

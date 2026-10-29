@@ -258,7 +258,14 @@ async def inspect_star_upload(
             uploads.append((name, await upload.read()))
         else:
             uploads.append((name, await upload.read(HEADER_PREVIEW_BYTES)))
-    return star_dataset.inspect(uploads, _parse_mapping(mapping), want_coverage)
+    # Off the event loop, as the install is. A workbook has to be parsed whole
+    # however little is being asked of it, and `coverage` reads every row of
+    # every sales file; on the loop that work froze every other request — the
+    # other connectors' preflights and progress polls included, which is what
+    # made them look slow whenever an Excel upload was in progress.
+    return await run_in_threadpool(
+        star_dataset.inspect, uploads, _parse_mapping(mapping), want_coverage
+    )
 
 
 # ======================================================== Azure Blob Storage ====
@@ -349,7 +356,9 @@ async def azure_inspect(
         uploads = await azure_blob.inspect_blobs(req.account, req.sas, _refs(req))
     except AzureError as e:
         raise HTTPException(400, str(e)) from e
-    return star_dataset.inspect(uploads)
+    # A ranged GET gives a prefix, which is cheap to read — except for a
+    # workbook, which is fetched whole and parsed whole. Off the loop either way.
+    return await run_in_threadpool(star_dataset.inspect, uploads)
 
 
 @router.post("/azure/install")
