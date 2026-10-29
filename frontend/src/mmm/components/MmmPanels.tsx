@@ -95,6 +95,13 @@ const COMPARISONS: Array<{ key: ComparisonKind; label: string; title: string }> 
   { key: 'mago', label: 'MAGO', title: 'Month Ago' },
   { key: 'ytd', label: 'YTD', title: 'Year to Date vs the same window last year' },
 ]
+/** One line per comparison for the card's ⓘ, keyed as COMPARISONS is. */
+const COMPARISON_ABOUT: Record<ComparisonKind, string> = {
+  yago: 'Same dates, last year.',
+  pago: 'The equal-length period just before.',
+  mago: 'Same dates, last month.',
+  ytd: 'January to the picked month, vs the same window last year.',
+}
 
 /** The four measures the hub's monthly trend carries, by comparison key. */
 const TREND_KEYS = ['revenue', 'spend', 'baseline', 'roas'] as const
@@ -244,10 +251,25 @@ export function ComparisonCard({
   const cmp = source.comparison
   const measures = cmp.metrics.filter((m) => !PER_DAY_MEASURES.has(m.key))
   const spec = measures.find((m) => m.key === metricKey) ?? measures[0]
-  const ytd = kind === 'ytd'
+
+  // WHICH COMPARISONS THIS PERIOD ACTUALLY HAS. The backend drops a window
+  // that is the same dates as another — PAGO on a single month is MAGO, and on
+  // a full year it is YAGO — so the buttons are built from what it sent rather
+  // than from a fixed list of three, which offered the same chart twice.
+  // YTD is the card's own cumulative view and is not one of the hub's windows;
+  // it rests on a custom range, which has no year to run to date.
+  const offered = [
+    ...COMPARISONS.filter((c) => c.key !== 'ytd' && cmp.windows.some((w) => w.key === c.key)),
+    ...(custom ? [] : COMPARISONS.filter((c) => c.key === 'ytd')),
+  ]
+  // A comparison that has just stopped being offered — the reader moved from a
+  // quarter to a month while PAGO was showing — falls back rather than reading
+  // a window that is no longer in the payload.
+  const picked3 = offered.some((c) => c.key === kind) ? kind : (offered[0]?.key ?? 'yago')
+  const ytd = picked3 === 'ytd'
   // YTD is a cumulative window, so it is read against its year-ago window.
-  const winKey = ytd ? 'yago' : kind
-  const win = cmp.windows.find((w) => w.key === winKey)!
+  const winKey = ytd ? 'yago' : picked3
+  const win = cmp.windows.find((w) => w.key === winKey) ?? cmp.windows[0]
   const current = cmp.current[spec.key]
   const against = win.values[spec.key]
   const delta = win.delta[spec.key]
@@ -270,7 +292,7 @@ export function ComparisonCard({
     })),
   ]
   const periodOf = (i: number) => (i === 0 ? cmp.period_label : shownWindows[i - 1].period_label)
-  const activeTitle = COMPARISONS.find((c) => c.key === kind)!.title
+  const activeTitle = COMPARISONS.find((c) => c.key === picked3)!.title
   // The footer names the two periods, as TPO's card does ("December 2025"),
   // falling back to the backend's date span when the period is not a month.
   const footer = (() => {
@@ -283,7 +305,7 @@ export function ComparisonCard({
     const py = m === 1 ? y - 1 : y
     return {
       now: `${MONTH_FULL[m - 1]} ${y}`,
-      then: kind === 'yago' ? `${MONTH_FULL[m - 1]} ${y - 1}` : `${MONTH_FULL[pm - 1]} ${py}`,
+      then: picked3 === 'yago' ? `${MONTH_FULL[m - 1]} ${y - 1}` : `${MONTH_FULL[pm - 1]} ${py}`,
     }
   })()
   const rate = source.meta.exchange_rate
@@ -296,7 +318,7 @@ export function ComparisonCard({
     const sel = `${MONTH_ABBR[period.month - 1]} ${period.year}`
     const pm = period.month === 1 ? 12 : period.month - 1
     const py = period.month === 1 ? period.year - 1 : period.year
-    const vs = kind === 'yago' ? `${MONTH_ABBR[period.month - 1]} ${period.year - 1}` : `${MONTH_ABBR[pm - 1]} ${py}`
+    const vs = picked3 === 'yago' ? `${MONTH_ABBR[period.month - 1]} ${period.year - 1}` : `${MONTH_ABBR[pm - 1]} ${py}`
     if (!t.labels.includes(sel)) return null
     const values = trendValues(t, trendKey)
     const displays = trendDisplays(t, trendKey)
@@ -356,10 +378,10 @@ export function ComparisonCard({
             title="Performance Comparison"
             about={[
               [spec.label, SHORT_DEFINITION[spec.key] ?? spec.formula],
-              ['YAGO', 'Same dates, last year.'],
-              ['PAGO', 'The equal-length period just before.'],
-              ['MAGO', 'Same dates, last month.'],
-              ['YTD', 'January to the picked month, vs the same window last year.'],
+              // Only the comparisons this period actually offers: explaining
+              // PAGO under a month that has no PAGO button sent the reader
+              // looking for a control that is not there.
+              ...offered.map((c) => [c.label, COMPARISON_ABOUT[c.key]] as [string, string]),
             ]}
           />
         }
@@ -374,9 +396,9 @@ export function ComparisonCard({
         </Select>
         <Segmented
           ariaLabel="Comparison period"
-          value={kind}
+          value={picked3}
           onChange={setKind}
-          options={custom ? COMPARISONS.filter((c) => c.key !== 'ytd') : COMPARISONS}
+          options={offered}
         />
         {!custom && period && years.length > 0 && (
           <span className="inline-flex items-center gap-1.5">
@@ -464,7 +486,7 @@ export function ComparisonCard({
                   w.available ? (
                     <>
                       <TipRow k="Selected vs this" v={w.delta[spec.key]?.display ?? '—'} />
-                      {!ytd && w.key !== kind && <div className="mt-1.5 text-ink-muted">Click to compare against {w.label}.</div>}
+                      {!ytd && w.key !== picked3 && <div className="mt-1.5 text-ink-muted">Click to compare against {w.label}.</div>}
                     </>
                   ) : (
                     <div className="mt-1 leading-[1.4] text-ink-muted">{w.reason}</div>

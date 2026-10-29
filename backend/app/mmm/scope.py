@@ -191,6 +191,41 @@ COMPARISONS: dict[str, str] = {
     "mago": "Month Ago",
 }
 
+#: WHICH NAME WINS WHEN TWO COMPARISONS ARE THE SAME WINDOW, lowest first.
+#:
+#: The three are not always three. PAGO is "the equal-length period just
+#: before", so on a single month that IS the month before — PAGO and MAGO are
+#: the same dates — and on a full year it is the year before, which is YAGO.
+#: Offering both named the same window twice: two buttons that redrew an
+#: identical chart, and a column repeated beside itself in the comparison
+#: card with its value label printed over its twin's.
+#:
+#: So a duplicate is dropped, and the name kept is the one that describes the
+#: window most plainly: a reader picking "MAGO" on June and getting May is
+#: told something; "PAGO" on June and getting May leaves them working out what
+#: a period is. PAGO therefore survives only where it means something neither
+#: of the others does — a quarter, a week, a custom range.
+COMPARISON_PRECEDENCE: tuple[str, ...] = ("yago", "mago", "pago")
+
+
+def distinct_comparisons(spans: dict[str, str]) -> list[str]:
+    """The comparison keys to show, with windows that repeat another's dropped.
+
+    `spans` maps each key to a label for the dates it covers; two keys with the
+    same label are the same window. Keys whose span is unknown (empty) are kept
+    — a period with nothing to compare still has to report why for each one.
+
+    The answer is in `COMPARISONS` order, whatever order the precedence
+    resolved the clashes in, so the page lists them as it always has.
+    """
+    winner: dict[str, str] = {}
+    for key in COMPARISON_PRECEDENCE:
+        span = spans.get(key) or ""
+        if span and span not in winner:
+            winner[span] = key
+    kept = set(winner.values()) | {k for k in spans if not spans.get(k)}
+    return [k for k in COMPARISONS if k in kept]
+
 
 def comparison_window(kind: str, start: pd.Timestamp, end: pd.Timestamp) -> tuple[pd.Timestamp, pd.Timestamp]:
     """YAGO the same dates a year earlier, MAGO a month earlier, PAGO the

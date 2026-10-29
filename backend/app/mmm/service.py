@@ -36,7 +36,8 @@ from app.mmm import baseline as B
 from app.mmm import decomposition as D
 from app.mmm import loader, schema
 from app.mmm.scope import (COMPARISONS, EVENTS, Scope, comparison_window, day_mask,
-                           period_mask, span_label, spend_columns)
+                           distinct_comparisons, period_mask, span_label,
+                           spend_columns)
 from app.tpo import formatting as F
 
 GRANULARITIES = ("day", "week", "month")
@@ -269,6 +270,12 @@ def hub(scope: Scope, granularity: str = "month", currency: str = "INR") -> dict
                                                     "basis": basis, "good": _good(m, d)}
         windows[kind] = entry
 
+    # PAGO is the same window as MAGO on a single month, and as YAGO on a full
+    # year, so the card would offer the same comparison twice under two names.
+    # The KPI deltas are unaffected: they read YAGO, which is never the one
+    # dropped. See scope.distinct_comparisons.
+    shown = distinct_comparisons({k: w["period_label"] for k, w in windows.items()})
+
     yago = windows["yago"]
     kpis = []
     for m in METRICS:
@@ -471,7 +478,7 @@ def hub(scope: Scope, granularity: str = "month", currency: str = "INR") -> dict
             "current": {m["key"]: {"value": _r(current["values"][m["key"]]),
                                    "display": _fmt(m["unit"], currency)(current["values"][m["key"]])}
                         for m in METRICS},
-            "windows": [windows[k] for k in COMPARISONS],
+            "windows": [windows[k] for k in shown],
         },
         "channels": channels,
         "families": family_rows,

@@ -400,10 +400,59 @@ def test_comparison_periods_shift_by_calendar_months():
     assert scope.comparison_window("pago", *week) == (pd.Timestamp("2025-02-26"), pd.Timestamp("2025-03-04"))
 
 
+def test_distinct_comparisons_keeps_the_aptest_name_for_a_repeated_window():
+    # A single month: "the period just before" and "last month" are the same
+    # dates, and MAGO is the name that says so.
+    assert scope.distinct_comparisons(
+        {"yago": "01 Jun 2024 – 30 Jun 2024",
+         "pago": "01 May 2025 – 31 May 2025",
+         "mago": "01 May 2025 – 31 May 2025"}
+    ) == ["yago", "mago"]
+    # A whole year: PAGO is YAGO.
+    assert scope.distinct_comparisons(
+        {"yago": "01 Jan 2024 – 31 Dec 2024",
+         "pago": "01 Jan 2024 – 31 Dec 2024",
+         "mago": "01 Dec 2024 – 30 Nov 2025"}
+    ) == ["yago", "mago"]
+    # A quarter: three different windows, so all three are offered, and the
+    # answer is in COMPARISONS order however precedence resolved it.
+    assert scope.distinct_comparisons(
+        {"yago": "01 Apr 2024 – 30 Jun 2024",
+         "pago": "01 Jan 2025 – 31 Mar 2025",
+         "mago": "01 Mar 2025 – 31 May 2025"}
+    ) == ["yago", "pago", "mago"]
+    # Nothing comparable: every one is kept, because each still has to report
+    # its own reason.
+    assert scope.distinct_comparisons({"yago": "", "pago": "", "mago": ""}) == [
+        "yago", "pago", "mago"
+    ]
+
+
+def test_hub_offers_each_comparison_window_once():
+    upload(_designed_csv())
+
+    month = client.get("/api/mmm/hub", params={"year": 2025, "month": 6}).json()
+    windows = month["comparison"]["windows"]
+    assert [w["key"] for w in windows] == ["yago", "mago"]
+    # The window PAGO would have named is still reachable — under MAGO.
+    mago = next(w for w in windows if w["key"] == "mago")
+    assert mago["period_label"] == "01 May – 31 May 2025"
+    assert mago["available"] is True
+
+    # A quarter keeps all three: there PAGO means a period neither of the
+    # others covers.
+    quarter = client.get("/api/mmm/hub", params={"year": 2025, "quarter": 2}).json()
+    assert [w["key"] for w in quarter["comparison"]["windows"]] == ["yago", "pago", "mago"]
+    spans = {w["key"]: w["period_label"] for w in quarter["comparison"]["windows"]}
+    assert len(set(spans.values())) == 3
+
+
 def test_comparisons_outside_the_data_or_over_split_ranges_are_unavailable():
     upload(_designed_csv())
     windows = client.get("/api/mmm/hub", params={"year": 2024}).json()["comparison"]["windows"]
-    assert {w["key"]: w["available"] for w in windows} == {"yago": False, "pago": False, "mago": False}
+    # A whole year's "equal-length period just before" IS the year before, so
+    # PAGO is dropped as a duplicate of YAGO — see the dedupe tests below.
+    assert {w["key"]: w["available"] for w in windows} == {"yago": False, "mago": False}
     every_june = client.get("/api/mmm/hub", params={"month": 6}).json()
     assert every_june["meta"]["contiguous"] is False
     assert all("Pick one year" in w["reason"] for w in every_june["comparison"]["windows"])
