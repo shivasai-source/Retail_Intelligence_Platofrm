@@ -1,11 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Button, Dropdown, IconButton } from '../ui'
+import { Button, ChipRow, Dropdown, IconButton, OptionChip } from '../ui'
 import { Icon } from '../../icons'
 import { useCommandFilters, type FilterStoreHook, type ListFilterKey } from '../../store/commandFilters'
 import { MultiSelect, SelectionChips, type MultiOption } from './MultiSelect'
-import { smartPeriodLabel } from '../planner/PeriodPicker'
-import { PeriodRangeFields } from '../planner/PeriodRangeFields'
-import { usePeriodSelection, type WeekKey } from '../../hooks/usePeriodSelection'
+import { PERIOD_PANEL_TITLE, PeriodPanel, PeriodPills, usePeriodScope, type PeriodPanelKey } from '../planner/PeriodControl'
+import { usePeriodSelection } from '../../hooks/usePeriodSelection'
 import type { Currency, FiltersResponse, Option } from '../../types/commandCenter'
 
 /** THE BAR IS A RAISED TILE, AND MORE FILTERS EXPANDS IT (2026-10-29).
@@ -164,49 +163,6 @@ function BarPill({
   )
 }
 
-/** One choice inside an open panel — the `sm` control, so a row of values
- *  reads as a set of values rather than as more toolbar. The same chip the
- *  MMM Insights Hub bar uses, so the two hubs' panels match. */
-function OptionChip({
-  label,
-  selected,
-  onClick,
-}: {
-  label: string
-  selected: boolean
-  onClick: () => void
-}) {
-  return (
-    <Button
-      variant={selected ? 'primary' : 'secondary'}
-      size="sm"
-      className="cursor-pointer"
-      aria-pressed={selected}
-      onClick={onClick}
-    >
-      {label}
-    </Button>
-  )
-}
-
-/** A labelled row of chips inside a panel: "Year   [All data] [2024] …". The
- *  label is a fixed column so several rows line their chips up. */
-function ChipRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    // A GRID, NOT A FLEX ROW. As a flex row the label and the chip group were
-    // two wrappable items, so a long group (Brand, City) pushed itself onto a
-    // second line and left its label stranded above it, while short rows
-    // stayed inline — the same panel reading two different ways down its own
-    // length. In a grid the label keeps its own column whatever the chips do,
-    // and they wrap inside theirs. `items-start` + the label's own top padding
-    // sit it on the first line of chips rather than centred against all of them.
-    <div className="grid grid-cols-[76px_minmax(0,1fr)] items-start gap-x-2 gap-y-1.5 @max-[640px]:grid-cols-1">
-      <span className="pt-[7px] text-xs font-medium uppercase tracking-wide text-ink-muted">{label}</span>
-      <span className="flex flex-wrap items-center gap-1.5">{children}</span>
-    </div>
-  )
-}
-
 /** A whole dimension as one wrapped row of toggles — the MMM bar's panel,
  *  over a multi-select. "All" clears, every other chip toggles that value, so
  *  the control says what is on without a menu over the cards below. */
@@ -239,13 +195,13 @@ function ChipMulti({
   )
 }
 
+/** The three the shared period control owns. */
+const PERIOD_KEYS: PeriodPanelKey[] = ['year', 'month', 'range']
+
 /** Which set of choices the strip is showing, or none. */
 type BarPanel = 'year' | 'month' | 'range' | 'channel' | 'retailer' | 'more' | null
 
-const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-/** The rolling windows the period panel offers, in months. */
-const RECENT_SPANS = [3, 6, 12] as const
 
 /** The frame every expanded panel is drawn in: the hairline that separates it
  *  from the pills, its name, and a way to clear what it holds. One component
@@ -333,10 +289,6 @@ const MIN_USEFUL_OPTIONS = 2
  *  promotion itself. */
 export type FilterBarLayout = 'insights' | 'studio'
 
-/** Short month names for the period pill, in the app's own spelling. */
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
-
 export function FilterBar({
   options,
   onRefresh,
@@ -384,10 +336,30 @@ export function FilterBar({
     end: periodEnd,
     apply: applyPeriod,
     clear: clearPeriod,
-    months: dataMonths,
     applyYear,
     applyMonth,
   } = usePeriodSelection(store, options)
+
+  // THE PERIOD, AS THREE PILLS — Year, Month and Date range. The arrangement
+  // and every rule behind it live in planner/PeriodControl, which the
+  // Simulation Studio's bar and the alerts dialog on Investigations also use,
+  // so the same question looks and behaves the same wherever it is asked.
+  //
+  // The year and the month are handed over rather than derived: this store
+  // keeps both as fields of its own, and a year held as `year` is what gives
+  // the page "2025 (Annual)" and its month-aware comparisons.
+  const customRange = filters.period_from != null && filters.period_to != null
+  const period = usePeriodScope({
+    calendar,
+    start: periodStart,
+    end: periodEnd,
+    onApply: applyPeriod,
+    onClear: clearPeriod,
+    onYear: applyYear,
+    onMonth: applyMonth,
+    year: customRange ? null : filters.year,
+    month: customRange ? null : filters.month,
+  })
 
   // ONE PANEL AT A TIME, as the MMM bar does it: every pill is a view of one
   // scope, not an independent menu, and they all expand the same strip — so
@@ -407,22 +379,6 @@ export function FilterBar({
   // whichever is on is the one panel showing.
   const shown: BarPanel | 'more' = expanded ? 'more' : panel
 
-  // THE PERIOD, AS THREE PILLS — Year, Month and Date range, the MMM bar's
-  // arrangement. A custom range replaces the other two, exactly as it does
-  // there: while one is set the Year pill reads the span, Month rests, and
-  // picking either ends the range.
-  const customRange = filters.period_from != null && filters.period_to != null
-
-  const yearLabelNow = customRange
-    ? periodStart && periodEnd
-      ? smartPeriodLabel(periodStart, periodEnd, calendar)
-      : 'Custom range'
-    : filters.year != null
-      ? String(filters.year)
-      : 'All data'
-  const monthLabelNow =
-    !customRange && filters.year != null && filters.month != null ? MONTH_NAMES[filters.month - 1] : 'All Months'
-
   // A pill names the one value chosen, or counts them — "Modern Trade", then
   // "Channels (3)". Naming a single choice is what the old dropdown's chips
   // did, and it is the thing a reader most often wants to see without opening
@@ -433,26 +389,6 @@ export function FilterBar({
   // after the hooks, so these two read through it.
   const channelLabel = pickedLabel(filters.channel, options?.channels ?? [], 'All Channels', 'Channels')
   const retailerLabel = pickedLabel(filters.retailer, options?.retailers ?? [], 'All Retailers', 'Retailers')
-
-  /** The months the data actually holds for the chosen year — the chips never
-   *  offer a month that would select nothing. */
-  const monthsOfYear = filters.year == null ? [] : dataMonths.filter((m) => m.year === filters.year)
-
-  /** The last `n` whole months of data, as a week span. Counted from the end
-   *  of the data rather than from today, because the dataset ends where it
-   *  ends and "the last 3 months" of an empty future is not a period. */
-  const lastMonths = (n: number) => {
-    const tail = dataMonths.slice(-n)
-    return tail.length === n ? { from: tail[0].from, to: tail[tail.length - 1].to } : null
-  }
-  const isCurrentSpan = (span: { from: WeekKey; to: WeekKey }) =>
-    !!periodStart &&
-    !!periodEnd &&
-    periodStart[0] === span.from[0] &&
-    periodStart[1] === span.from[1] &&
-    periodEnd[0] === span.to[0] &&
-    periodEnd[1] === span.to[1]
-
 
   // A WAY OUT OTHER THAN THE BUTTON, for whichever panel is open — not just
   // Additional Filters, which was the only one when this was written. Escape
@@ -555,29 +491,12 @@ export function FilterBar({
           // YEAR, MONTH, DATE RANGE — the MMM bar's three period pills. A
           // custom range overrides the other two, so while one is set the Year
           // pill names the span and Month rests at "All Months".
-          <>
-            <BarPill
-              icon="calendar"
-              label={yearLabelNow}
-              open={shown === 'year'}
-              onClick={() => openPanel(shown === 'year' ? null : 'year')}
-              controls="cc-filter-panel"
-            />
-            <BarPill
-              label={monthLabelNow}
-              muted={customRange}
-              open={shown === 'month'}
-              onClick={() => openPanel(shown === 'month' ? null : 'month')}
-              controls="cc-filter-panel"
-            />
-            <BarPill
-              icon="calendar"
-              label={customRange ? 'Custom range' : 'Date range'}
-              open={shown === 'range'}
-              onClick={() => openPanel(shown === 'range' ? null : 'range')}
-              controls="cc-filter-panel"
-            />
-          </>
+          <PeriodPills
+            scope={period}
+            open={PERIOD_KEYS.includes(shown as PeriodPanelKey) ? (shown as PeriodPanelKey) : null}
+            onOpen={(next) => openPanel(next)}
+            controls="cc-filter-panel"
+          />
         )}
 
         <BarPill
@@ -658,91 +577,13 @@ export function FilterBar({
       {/* Titled "Period", not "Year": it carries the year chips AND the rolling
           windows, and a panel headed "Year" above a row labelled "Year" said
           the same word twice. */}
-      {shown === 'year' && (
-        <PanelShell label="Period">
-          <div className="flex flex-col gap-2">
-            <ChipRow label="Year">
-              <OptionChip
-                label="All data"
-                selected={!customRange && filters.year == null}
-                onClick={clearPeriod}
-              />
-              {years.map((y) => (
-                <OptionChip
-                  key={y.code}
-                  label={y.name}
-                  selected={!customRange && filters.year === Number(y.code)}
-                  onClick={() => applyYear(Number(y.code))}
-                />
-              ))}
-            </ChipRow>
-            {/* The rolling windows, beside the years rather than on a pill of
-                their own: they answer the same question a year does. */}
-            <ChipRow label="Recent">
-              {RECENT_SPANS.map((n) => {
-                const span = lastMonths(n)
-                return (
-                  <OptionChip
-                    key={n}
-                    label={`Last ${n} months`}
-                    selected={!!span && isCurrentSpan(span)}
-                    onClick={() => span && applyPeriod(span.from, span.to)}
-                  />
-                )
-              })}
-            </ChipRow>
-          </div>
-        </PanelShell>
-      )}
-
-      {shown === 'month' && (
-        <PanelShell label="Month">
-          {filters.year == null || customRange ? (
-            <p className="text-sm leading-[1.5] text-ink-muted">
-              {customRange
-                ? 'A date range is set. Pick a year to choose months again.'
-                : 'Pick a year first — a month needs one to be a period.'}
-            </p>
-          ) : (
-            // One row, already headed "Month" by the panel, so the chips sit
-            // on their own rather than under a second "Month" label.
-            <div className="flex flex-wrap items-center gap-1.5">
-              <OptionChip
-                label="Whole year"
-                selected={filters.month == null}
-                onClick={() => applyYear(filters.year as number)}
-              />
-              {monthsOfYear.map((m) => (
-                <OptionChip
-                  key={m.month}
-                  label={MONTH_ABBR[m.month - 1]}
-                  selected={filters.month === m.month}
-                  onClick={() => applyMonth(m.year, m.month)}
-                />
-              ))}
-            </div>
-          )}
-        </PanelShell>
-      )}
-
-      {shown === 'range' && (
+      {PERIOD_KEYS.includes(shown as PeriodPanelKey) && (
         <PanelShell
-          label="Custom date range"
-          onClear={customRange ? clearPeriod : undefined}
+          label={PERIOD_PANEL_TITLE[shown as PeriodPanelKey]}
+          onClear={shown === 'range' && customRange ? clearPeriod : undefined}
           clearLabel="Clear range"
         >
-          {/* The shared control — the Simulation Studio's selection bar and the
-              alerts dialog on Investigations offer the same two fields over
-              their own period. See components/planner/PeriodRangeFields. */}
-          <PeriodRangeFields
-            calendar={calendar}
-            start={periodStart}
-            end={periodEnd}
-            onApply={applyPeriod}
-            onClear={clearPeriod}
-            note
-          />
-          <p className="mt-1.5 text-xs leading-[1.5] text-ink-muted">Replaces the year and month.</p>
+          <PeriodPanel scope={period} which={shown as PeriodPanelKey} />
         </PanelShell>
       )}
 
