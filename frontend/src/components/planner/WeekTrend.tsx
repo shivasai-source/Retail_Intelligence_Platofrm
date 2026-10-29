@@ -121,6 +121,7 @@ export function WeekTrend({
           height={height}
           role="img"
           aria-label={`${metric === 'revenue' ? 'Revenue' : 'Profit'} by week, ${nowLabel.toLowerCase()} and ${planLabel.toLowerCase()}`}
+          className="cursor-crosshair"
           onMouseLeave={() => setHover(null)}
           onMouseMove={(e) => {
             const r = e.currentTarget.getBoundingClientRect()
@@ -145,7 +146,12 @@ export function WeekTrend({
           ))}
           <line x1={padL} x2={padL + innerW} y1={padT + innerH} y2={padT + innerH} stroke="var(--border-default)" />
 
-          {hover != null && <line x1={X(hover)} x2={X(hover)} y1={padT} y2={padT + innerH} stroke="var(--text-muted)" strokeDasharray="3 3" />}
+          {/* Solid, in the ink at a third -- the same crosshair the discount
+              curve uses. Dashed and rule-grey it was lost among the gridlines
+              and read as another reference line rather than as the pointer. */}
+          {hover != null && (
+            <line x1={X(hover)} x2={X(hover)} y1={padT} y2={padT + innerH} stroke="var(--text-primary)" strokeOpacity={0.35} />
+          )}
 
           {hasBand && (
             <>
@@ -209,7 +215,10 @@ export function WeekTrend({
         {h && hs && hover != null && (
           <div
             className="pointer-events-none absolute top-2 z-10 min-w-[230px] rounded-[var(--r-md)] border border-border-subtle bg-surface-card px-3 py-2 text-base shadow-[var(--shadow-md)] [font-variant-numeric:tabular-nums]"
-            style={{ left: `${Math.min(80, Math.max(20, (X(hover) / w) * 100))}%`, transform: 'translateX(-50%)' }}
+            // Pinned to the far side from the pointer, like the discount
+            // curve's: centred on the hovered week it covered the very
+            // crosshair and markers it is there to explain.
+            style={X(hover) < padL + innerW / 2 ? { right: 8 } : { left: 8 }}
           >
             <div className="text-ink-primary">
               {h.week.slice(5)} · {dateText(h.start)}

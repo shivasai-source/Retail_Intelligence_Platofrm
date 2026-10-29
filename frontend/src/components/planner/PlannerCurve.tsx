@@ -26,7 +26,17 @@ export function PlannerCurve({
   scenario: { discount_pct: number; profit: number | null; revenue: number | null; profitDisplay: string; revenueDisplay: string } | null
   format: (v: number) => string
 }) {
-  const [hover, setHover] = useState<number | null>(null)
+  //: WHICH POINT, AND IN WHICH PANEL. The point is shared so both charts mark
+  //: the same discount -- reading profit and revenue at one depth is the whole
+  //: job -- but the readout belongs to the chart the pointer is actually in.
+  //: Shared, both panels opened a full tooltip at once: two identical boxes,
+  //: each covering the curve it was describing.
+  const [hover, setHover] = useState<{ i: number; panel: string } | null>(null)
+  const at = (title: string) => ({
+    hover: hover?.i ?? null,
+    showTip: hover?.panel === title,
+    setHover: (i: number | null) => setHover(i == null ? null : { i, panel: title }),
+  })
   return (
     <div>
       <div className="grid grid-cols-2 gap-6 @max-[900px]:grid-cols-1">
@@ -34,21 +44,21 @@ export function PlannerCurve({
           title="Profit"
           curve={curve}
           pick={(p) => p.profit.value}
+          detail={(p) => ({ value: p.profit.display, range: p.profit_range?.display ?? null, roi: p.roi.display })}
           scenario={scenario && { x: scenario.discount_pct, y: scenario.profit, display: scenario.profitDisplay }}
           best={curve.best ? { x: curve.best.discount_pct, display: curve.best.profit.display } : null}
           format={format}
-          hover={hover}
-          setHover={setHover}
+          {...at('Profit')}
         />
         <Panel
           title="Revenue"
           curve={curve}
           pick={(p) => p.revenue.value}
+          detail={(p) => ({ value: p.revenue.display, range: p.revenue_range?.display ?? null })}
           scenario={scenario && { x: scenario.discount_pct, y: scenario.revenue, display: scenario.revenueDisplay }}
           best={null}
           format={format}
-          hover={hover}
-          setHover={setHover}
+          {...at('Revenue')}
         />
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-base text-ink-muted">
@@ -78,20 +88,27 @@ function Panel({
   title,
   curve,
   pick,
+  detail,
   scenario,
   best,
   format,
   hover,
+  showTip,
   setHover,
   height = 250,
 }: {
   title: string
   curve: CurveResponse
   pick: (p: CurvePoint) => number | null
+  /** What this panel reads out: its own figure and range, plus -- on the
+   *  profit panel, where it is the question being asked -- the ROI. */
+  detail: (p: CurvePoint) => { value: string; range: string | null; roi?: string }
   scenario: { x: number; y: number | null; display: string } | null
   best: { x: number; display: string } | null
   format: (v: number) => string
   hover: number | null
+  /** The pointer is in THIS panel, so this is the one that reads out. */
+  showTip: boolean
   setHover: (i: number | null) => void
   height?: number
 }) {
@@ -127,6 +144,10 @@ function Panel({
   const today = curve.current_discount_pct
   const bestPt = best ? pts.reduce((a, p) => (Math.abs(p.x - best.x) < Math.abs(a.x - best.x) ? p : a), pts[0]) : null
   const hovered = hover != null ? curve.points[hover] : null
+  //: This panel's own y at the hovered depth -- the revenue panel marks the
+  //: revenue curve, not the profit one.
+  const hoveredY = hovered ? pick(hovered) : null
+  const tip = hovered ? detail(hovered) : null
   const mid = (xMin + xMax) / 2
 
   return (
@@ -138,6 +159,7 @@ function Panel({
         height={height}
         role="img"
         aria-label={`${title} by average discount`}
+        className="cursor-crosshair"
         onMouseLeave={() => setHover(null)}
         onMouseMove={(e) => {
           const rect = e.currentTarget.getBoundingClientRect()
@@ -208,7 +230,41 @@ function Panel({
           </g>
         )}
 
-        {hovered && <line x1={X(hovered.discount_pct)} x2={X(hovered.discount_pct)} y1={padT} y2={padT + innerH} stroke="var(--text-muted)" strokeDasharray="2 3" />}
+        {/* WHERE THE POINTER IS. A bare rule did not answer it: the rule is
+            vertical and the question is "which point on this line am I
+            reading", so the point itself is marked on this panel's own curve,
+            and the discount is printed at the axis under the rule, haloed in
+            the surface colour so it reads over the tick label it lands on. */}
+        {hovered && hoveredY != null && (
+          <g>
+            {/* Solid, and in the ink at a third: dashed and rule-grey, it was
+                both invisible against the gridlines and easy to mistake for
+                the two reference lines, which are the dashed ones. */}
+            <line
+              x1={X(hovered.discount_pct)}
+              x2={X(hovered.discount_pct)}
+              y1={padT}
+              y2={padT + innerH}
+              stroke="var(--text-primary)"
+              strokeOpacity={0.35}
+            />
+            <circle cx={X(hovered.discount_pct)} cy={Y(hoveredY)} r={7} fill="var(--surface-card)" />
+            <circle cx={X(hovered.discount_pct)} cy={Y(hoveredY)} r={4.5} fill={LINE} />
+            <text
+              x={X(hovered.discount_pct)}
+              y={padT + innerH + 18}
+              textAnchor="middle"
+              fontSize={15}
+              fontWeight={500}
+              fill="var(--text-primary)"
+              stroke="var(--surface-card)"
+              strokeWidth={5}
+              paintOrder="stroke"
+            >
+              {hovered.discount_pct.toFixed(2)}%
+            </text>
+          </g>
+        )}
 
         {scenario?.y != null && (
           <g>
@@ -217,29 +273,32 @@ function Panel({
           </g>
         )}
       </svg>
-      {hovered && (
+      {/* THREE OR FOUR LINES, NOT NINE. It used to read out profit, revenue,
+          ROI and both ranges, in both panels at once: a box deep enough to
+          cover the curve it was describing, twice over. A panel answers for
+          its own figure, and the one beside it answers for the other. */}
+      {hovered && showTip && tip && (
         <div
-          className="pointer-events-none absolute top-7 z-10 rounded-[var(--r-md)] border border-border-subtle bg-surface-card px-3 py-2 text-base shadow-[var(--shadow-md)] [font-variant-numeric:tabular-nums]"
-          style={{ left: `${Math.min(78, Math.max(22, (X(hovered.discount_pct) / w) * 100))}%`, transform: 'translateX(-50%)' }}
+          className="pointer-events-none absolute top-7 z-10 max-w-[70%] rounded-[var(--r-md)] border border-border-subtle bg-surface-card px-3 py-2 text-base shadow-[var(--shadow-md)] [font-variant-numeric:tabular-nums]"
+          // ALWAYS ON THE FAR SIDE FROM THE POINTER. Centred over the hovered
+          // depth, the box sat on the very crosshair and marker it exists to
+          // explain -- the reading was hidden by the reading. Pinned to the
+          // opposite corner it never covers the point, and it does not jump
+          // about as the pointer moves within a half.
+          style={X(hovered.discount_pct) < padL + innerW / 2 ? { right: 8 } : { left: 8 }}
         >
           <div className="font-medium text-ink-primary">{hovered.discount_pct.toFixed(2)}% average discount</div>
           <div className="mt-0.5 text-ink-secondary">
-            Profit <span className="font-medium text-ink-primary">{hovered.profit.display}</span>
+            {title} <span className="font-medium text-ink-primary">{tip.value}</span>
           </div>
-          <div className="text-ink-secondary">
-            Revenue <span className="font-medium text-ink-primary">{hovered.revenue.display}</span>
-          </div>
-          <div className="text-ink-secondary">
-            ROI <span className="font-medium text-ink-primary">{hovered.roi.display}</span>
-          </div>
-          {hovered.profit_range && (
-            <div className="mt-1 border-t border-border-subtle pt-1 text-ink-secondary">
-              <div>
-                Profit P10 – P90 <span className="text-ink-primary">{hovered.profit_range.display}</span>
-              </div>
-              <div>
-                Revenue P10 – P90 <span className="text-ink-primary">{hovered.revenue_range.display}</span>
-              </div>
+          {tip.roi && (
+            <div className="text-ink-secondary">
+              ROI <span className="font-medium text-ink-primary">{tip.roi}</span>
+            </div>
+          )}
+          {tip.range && (
+            <div className="text-ink-secondary">
+              P10 – P90 <span className="text-ink-primary">{tip.range}</span>
             </div>
           )}
           {hovered.beyond_evidence && <div className="mt-0.5 text-status-warning">Beyond the data</div>}
